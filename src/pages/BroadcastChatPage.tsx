@@ -28,7 +28,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
-import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
@@ -1073,7 +1073,7 @@ export default function BroadcastChatPage() {
             />
           )}
           <ScheduledMessagesBanner target={scheduleTarget} />
-          <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
+          <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
@@ -1096,24 +1096,16 @@ export default function BroadcastChatPage() {
               disabled={sendMutation.isPending}
               onGifSelect={setImageUrl}
             />
-            <ScheduleMessageButton
-              onClick={() => setScheduleDialogOpen(true)}
-              disabled={sendMutation.isPending}
-            />
-            <button
-              onClick={() => {
+            <ChatSendButton
+              onSend={() => {
                 stopTyping();
                 handleSend();
               }}
+              onSchedule={() => setScheduleDialogOpen(true)}
               disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
-              className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-            >
-              {sendMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
-            </button>
+              loading={sendMutation.isPending}
+              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            />
           </div>
           <ScheduleMessageDialog
             open={scheduleDialogOpen}

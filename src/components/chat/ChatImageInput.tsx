@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -47,6 +48,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
+
+  // Fetch club sport so the live-board action subtitle is contextual.
+  const { data: clubSport } = useQuery({
+    queryKey: ["club-sport", clubId],
+    queryFn: async () => {
+      if (!clubId) return null;
+      const { data } = await supabase.from("clubs").select("sport").eq("id", clubId).maybeSingle();
+      return (data?.sport ?? null) as string | null;
+    },
+    enabled: !!clubId && showBoardPicker,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const boardSubtitle = (() => {
+    const s = (clubSport || "").toLowerCase();
+    if (s.includes("soccer") || s.includes("football")) return "Track your soccer match live";
+    if (s.includes("netball")) return "Track your netball match live";
+    if (s.includes("basketball")) return "Track your basketball game live";
+    if (s.includes("hockey")) return "Track your hockey match live";
+    if (s.includes("rugby")) return "Track your rugby match live";
+    if (s) return `Track your ${clubSport} match live`;
+    return "Soccer, netball or basketball";
+  })();
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
@@ -363,7 +387,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // event/poll/board extras to surface.
 
   return (
-    <div className="flex shrink-0 items-center self-end">
+    <div className="flex shrink-0 items-center gap-2 self-end mr-1">
       <input
         ref={fileInputRef}
         type="file"
@@ -372,29 +396,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
-      <button
-        type="button"
-        onClick={handleImageButtonClick}
-        disabled={disabled || uploading}
-        className="flex items-center justify-center h-10 w-10 shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
-        aria-label="Upload photo"
-      >
-        {uploading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <ImagePlus className="h-5 w-5" strokeWidth={2.25} />
-        )}
-      </button>
+      {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
               disabled={disabled}
-              className="flex items-center justify-center h-10 w-10 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
               aria-label="More actions"
+              title="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="inline-flex items-center justify-center h-11 w-11 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
             >
-              <Plus className="h-5 w-5" strokeWidth={2.25} />
+              <Plus className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
             </button>
           </PopoverTrigger>
           <PopoverContent
@@ -403,9 +418,31 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             sideOffset={8}
             collisionPadding={12}
             avoidCollisions={true}
-            className="w-60 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-64 p-1.5 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col">
+              {/* Quick action: Add Photo / Video — first, with subtle weight only */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  setMenuOpen(false);
+                  handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+                }}
+                disabled={disabled || uploading}
+                className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
+                aria-label="Add photo or video"
+              >
+                <ImagePlus className="h-[18px] w-[18px] shrink-0 text-foreground" strokeWidth={2} aria-hidden="true" />
+                <div className="flex flex-col items-start leading-tight min-w-0">
+                  <span className="text-sm font-medium text-foreground">Add Photo / Video</span>
+                  <span className="text-[11px] text-muted-foreground">From camera roll or gallery</span>
+                </div>
+              </button>
+
+              {(showEventPicker || showPollCreator || showBoardPicker) && (
+                <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />
+              )}
+
               {showEventPicker && onEventSelect && (
                 <button
                   type="button"
@@ -414,13 +451,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onEventSelect("");
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md bg-primary/10 hover:bg-primary/15 text-primary transition-colors disabled:opacity-50 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Share event"
                 >
-                  <CalendarPlus className="h-5 w-5 shrink-0" strokeWidth={2} />
-                  <div className="flex flex-col items-start leading-tight">
-                    <span className="text-sm font-semibold">Share Event</span>
-                    <span className="text-[11px] text-primary/70">Training, game or social</span>
+                  <CalendarPlus className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="text-sm font-medium text-foreground">Share Event</span>
+                    <span className="text-[11px] text-muted-foreground">Training, game or social</span>
                   </div>
                 </button>
               )}
@@ -432,12 +469,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onPollCreate();
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Create poll"
                 >
-                  <BarChart3 className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
-                  <div className="flex flex-col items-start leading-tight">
-                    <span className="text-sm font-medium">Create Poll</span>
+                  <BarChart3 className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="text-sm font-medium text-foreground">Create Poll</span>
                     <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
                   </div>
                 </button>
@@ -450,13 +487,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onBoardPick();
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Share live board"
                 >
-                  <Trophy className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
-                  <div className="flex flex-col items-start leading-tight">
-                    <span className="text-sm font-medium">Share Live Board</span>
-                    <span className="text-[11px] text-muted-foreground">Soccer, netball or basketball</span>
+                  <Trophy className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="text-sm font-medium text-foreground">Share Live Board</span>
+                    <span className="text-[11px] text-muted-foreground">{boardSubtitle}</span>
                   </div>
                 </button>
               )}

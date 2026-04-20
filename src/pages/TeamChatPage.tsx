@@ -31,7 +31,7 @@ import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
-import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
@@ -1491,7 +1491,7 @@ export default function TeamChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible pt-1 pb-2 px-2">
+        <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
@@ -1520,26 +1520,16 @@ export default function TeamChatPage() {
             clubId={team.club_id}
             onGifSelect={setImageUrl}
           />
-          {scheduleTarget && (
-            <ScheduleMessageButton
-              onClick={() => setScheduleDialogOpen(true)}
-              disabled={sendMessageMutation.isPending}
-            />
-          )}
-          <button
-            onClick={() => {
+          <ChatSendButton
+            onSend={() => {
               stopTyping();
               handleSend();
             }}
+            onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
             disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
-            className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-          >
-            {sendMessageMutation.isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </button>
+            loading={sendMessageMutation.isPending}
+            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+          />
         </div>
         {scheduleTarget && (
           <ScheduleMessageDialog

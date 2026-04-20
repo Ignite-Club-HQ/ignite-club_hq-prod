@@ -151,10 +151,14 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0"
+          aria-label="Insert emoji"
+          title="Insert emoji"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className="h-9 w-9 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
           disabled={disabled}
         >
-          <Smile className="h-5 w-5 text-muted-foreground" />
+          <Smile className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
