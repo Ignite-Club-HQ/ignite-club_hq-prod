@@ -166,6 +166,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         side="top"
         align="start"
         sideOffset={8}
+        avoidCollisions={false}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onFocusOutside={(e) => {
