@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
@@ -81,16 +81,16 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full p-5 sm:p-6 rounded-xl gap-4">
-        <DialogHeader className="text-left space-y-1.5">
-          <DialogTitle className="text-lg">Change Password</DialogTitle>
-          <DialogDescription className="text-sm leading-snug">
+    <ResponsiveDialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogHeader className="text-left space-y-1.5 sm:space-y-1.5">
+          <ResponsiveDialogTitle className="text-lg">Change Password</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="text-sm leading-snug">
             At least 8 characters with uppercase, lowercase, and a number.
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-3 px-4 pb-4 sm:px-0 sm:pb-0">
           <div className="space-y-1.5">
             <Label htmlFor="new-password" className="text-sm">New password</Label>
             <div className="relative">
@@ -141,7 +141,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
