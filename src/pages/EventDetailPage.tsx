@@ -2753,6 +2753,7 @@ export default function EventDetailPage() {
               trackableMembersCount={trackableMembers}
               addressableMembers={members}
               onShareLink={handleShareReminderLink}
+              eventType={event.type}
             />
           </div>
         );
