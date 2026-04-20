@@ -1913,7 +1913,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           )}
         </SheetTrigger>
       )}
-      <SheetContent side="bottom" enableDragToClose className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-lock-keyboard-scroll="true" data-allow-scroll style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+      <SheetContent
+        side="bottom"
+        enableDragToClose
+        className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
+        data-lock-keyboard-scroll="true"
+        data-allow-scroll
+        style={{
+          touchAction: 'pan-y',
+          WebkitOverflowScrolling: 'touch',
+          // On Android (Keyboard.resize: 'none'), the WebView doesn't shrink when
+          // the keyboard opens. Cap the sheet height to the visible area so the
+          // sticky footer sits just above the keyboard instead of floating high.
+          ...(nativeKbHeight > 0
+            ? { maxHeight: `calc(100dvh - ${nativeKbHeight}px)` }
+            : {}),
+        }}
+      >
         <SheetHeader className="mb-3 shrink-0">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
