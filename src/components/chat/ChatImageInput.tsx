@@ -406,28 +406,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="w-60 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             <div className="flex flex-col gap-1">
-              {/* Mirror of the dedicated image icon — discoverability fallback.
-                  iOS gesture-chain rule: invoke the picker FIRST, then close
-                  the popover. Closing first triggers a re-render that defers
-                  Camera.getPhoto past the user gesture and iOS rejects it. */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
-                  // Defer popover close to next tick so the picker call stays
-                  // inside the synchronous gesture handler.
-                  setTimeout(() => setMenuOpen(false), 0);
-                }}
-                disabled={disabled || uploading}
-                className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
-                aria-label="Upload photo or video"
-              >
-                <ImagePlus className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-sm font-medium">Photo or Video</span>
-                  <span className="text-[11px] text-muted-foreground">From your library</span>
-                </div>
-              </button>
               {showEventPicker && onEventSelect && (
                 <button
                   type="button"
