@@ -19,6 +19,7 @@ export interface GiphyResult {
 interface GifGridProps {
   active: boolean;
   onSelect: (gifUrl: string) => void;
+  onQueryChange?: (query: string) => void;
   className?: string;
   /** Tailwind classes for the scrollable area max-height (e.g. "max-h-52"). */
   scrollClassName?: string;
@@ -30,6 +31,7 @@ interface GifGridProps {
 export function GifGrid({
   active,
   onSelect,
+  onQueryChange,
   className,
   scrollClassName = "max-h-72",
   gridClassName = "grid-cols-2",
@@ -68,6 +70,10 @@ export function GifGrid({
 
   // Debounced search while active
   useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
+
+  useEffect(() => {
     if (!active) return;
     if (!loadedOnceRef.current) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -82,7 +88,7 @@ export function GifGrid({
 
   return (
     <div data-gif-picker className={cn("flex flex-col min-h-0", className)}>
-      <div className="shrink-0">
+      <div className="sticky top-0 z-10 shrink-0 bg-popover pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
