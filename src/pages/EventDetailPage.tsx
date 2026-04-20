@@ -217,6 +217,27 @@ export default function EventDetailPage() {
   const isSharingEventRef = useRef(false);
   const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
   const [recentlyReminded, setRecentlyReminded] = useState<Set<string>>(new Set());
+
+  // 24-hour reminder cooldown — fetch event_reminder notifications sent in the last 24h
+  // so the "Reminded" state persists across sessions/devices and we can block re-reminding.
+  const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+  const { data: recentReminderUserIds } = useQuery({
+    queryKey: ["event-recent-reminders", id],
+    enabled: !!id,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("user_id, created_at")
+        .eq("type", "event_reminder")
+        .eq("related_id", id!)
+        .gte("created_at", since);
+      if (error) throw error;
+      return new Set((data || []).map((n: any) => n.user_id));
+    },
+  });
   const notificationNudge = useNotificationNudge(user?.id, "event");
 
   // Track when user views this event
