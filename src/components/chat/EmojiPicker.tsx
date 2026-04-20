@@ -9,6 +9,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
 import { GifGrid } from "@/components/chat/GifGrid";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 const RECENT_EMOJIS_KEY = "ignite-recent-emojis";
 const MAX_RECENT_EMOJIS = 14;
@@ -79,6 +80,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const keyboardOpen = useKeyboardOpen();
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
   const showGifTab = !!onGifSelect;
@@ -162,7 +164,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "!left-2 !right-2 !w-auto !max-w-none" : "w-72"} ${showGifTab ? "h-[360px] flex flex-col" : ""}`}
+        className={`p-2 ${isMobile ? "!left-2 !right-2 !w-auto !max-w-none" : "w-72"} ${showGifTab ? `${keyboardOpen && tab === "gif" ? "h-[220px]" : "h-[360px]"} flex flex-col` : ""}`}
         side="top"
         align="start"
         sideOffset={8}
