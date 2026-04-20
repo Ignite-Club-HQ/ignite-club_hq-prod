@@ -76,6 +76,7 @@ function saveRecentEmoji(emoji: string) {
 export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"emoji" | "gif">("emoji");
+  const [gifSheetOpen, setGifSheetOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
@@ -131,6 +132,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     onGifSelectRef.current?.(url);
     requestAnimationFrame(() => {
       setOpen(false);
+      setGifSheetOpen(false);
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
