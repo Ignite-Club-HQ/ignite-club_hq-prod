@@ -387,7 +387,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // event/poll/board extras to surface.
 
   return (
-    <div className="flex shrink-0 items-center gap-2 self-end mr-1">
+    <div className="flex shrink-0 items-center gap-2">
       <input
         ref={fileInputRef}
         type="file"
@@ -407,9 +407,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               title="More actions"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="inline-flex items-center justify-center h-11 w-11 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+              className="inline-flex items-center justify-center h-10 w-10 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
             >
-              <Plus className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+              <Plus className="h-5 w-5 -mt-px" strokeWidth={2} aria-hidden="true" />
             </button>
           </PopoverTrigger>
           <PopoverContent
