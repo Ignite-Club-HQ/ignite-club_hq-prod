@@ -1,13 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
 
+/**
+ * Mobile GIPHY bottom sheet — fully keyboard-aware.
+ *
+ * Behavior:
+ *  - Closed keyboard: fixed default height pinned to viewport bottom.
+ *  - Open keyboard:   bottom anchored to top of keyboard, height fills the
+ *                     space above (minus a small gap) so the search input is
+ *                     always visible and the grid scrolls within.
+ *  - Active search:   sheet expands toward full screen for focused browsing.
+ */
 const SHEET_DEFAULT_HEIGHT = 420;
-const SHEET_MIN_HEIGHT = 248;
-const SCREEN_EDGE_GAP = 8;
+const SHEET_MIN_HEIGHT = 240;
+const TOP_GAP = 12;        // gap between sheet top and status bar / header
+const KEYBOARD_GAP = 4;    // tiny gap between sheet bottom and keyboard top
 
 interface GifPickerMobileSheetProps {
   open: boolean;
@@ -72,29 +83,49 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     };
   }, [open]);
 
+  const { sheetHeight, bottomOffset, keyboardOpen } = useMemo(() => {
+    const visualKeyboard = Math.max(
+      0,
+      layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
+    );
+    const kb = Math.max(iosKeyboardHeight, androidKeyboardHeight, visualKeyboard);
+    const isKbOpen = kb > 80; // ignore tiny rounding deltas
+
+    const offset = isKbOpen ? kb + KEYBOARD_GAP : 0;
+    const available = Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - offset - TOP_GAP);
+
+    let preferred: number;
+    if (isKbOpen) {
+      // Always fill the available space — guarantees consistent layout.
+      preferred = available;
+    } else if (searchActive) {
+      preferred = Math.max(SHEET_DEFAULT_HEIGHT, Math.round(layoutViewportHeight * 0.84));
+    } else {
+      preferred = SHEET_DEFAULT_HEIGHT;
+    }
+
+    return {
+      sheetHeight: Math.min(available, preferred),
+      bottomOffset: offset,
+      keyboardOpen: isKbOpen,
+    };
+  }, [
+    layoutViewportHeight,
+    visualViewportHeight,
+    visualViewportOffsetTop,
+    iosKeyboardHeight,
+    androidKeyboardHeight,
+    searchActive,
+  ]);
+
   if (!open) return null;
 
-  const visualKeyboardHeight = Math.max(
-    0,
-    layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
-  );
-  const keyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight, visualKeyboardHeight);
-  const bottomOffset = keyboardHeight > 0 ? keyboardHeight + SCREEN_EDGE_GAP : 0;
-  const maxAvailableHeight = Math.max(
-    SHEET_MIN_HEIGHT,
-    layoutViewportHeight - bottomOffset - SCREEN_EDGE_GAP,
-  );
-  const preferredHeight = keyboardHeight > 0
-    ? maxAvailableHeight
-    : searchActive
-      ? Math.max(SHEET_DEFAULT_HEIGHT, Math.round(layoutViewportHeight * 0.84))
-      : SHEET_DEFAULT_HEIGHT;
-  const sheetHeight = Math.min(maxAvailableHeight, preferredHeight);
+  const focused = searchActive || keyboardOpen;
 
   return createPortal(
     <>
       <div
-        className={`fixed inset-0 z-[100000] transition-opacity duration-200 ${searchActive ? "bg-background/35" : "bg-background/15"}`}
+        className={`fixed inset-0 z-[100000] transition-opacity duration-200 ${focused ? "bg-background/40" : "bg-background/15"}`}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
