@@ -196,19 +196,19 @@ export function ScheduleMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+        <DialogHeader className="space-y-1.5 text-left">
+          <DialogTitle className="text-lg sm:text-xl">
             {isEditing ? "Edit scheduled message" : "Schedule message"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {isEditing
               ? `Times shown in your local timezone (${localTimezoneLabel()}).`
               : `Pick when to send. Times shown in your local timezone (${localTimezoneLabel()}).`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {isEditing ? (
             <>
               <div className="space-y-2">
