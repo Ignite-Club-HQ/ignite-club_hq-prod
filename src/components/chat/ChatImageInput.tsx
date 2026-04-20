@@ -418,10 +418,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             sideOffset={8}
             collisionPadding={12}
             avoidCollisions={true}
-            className="w-64 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-64 p-1.5 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
-            <div className="flex flex-col gap-1.5">
-              {/* Quick action: Add Photo / Video — subtle emphasis, always first */}
+            <div className="flex flex-col">
+              {/* Quick action: Add Photo / Video — first, with subtle weight only */}
               <button
                 type="button"
                 onClick={(e) => {
@@ -429,18 +429,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
                 }}
                 disabled={disabled || uploading}
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-md hover:bg-accent active:bg-accent/80 active:scale-[0.99] text-foreground transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px]"
+                className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                 aria-label="Add photo or video"
               >
-                <ImagePlus className="h-5 w-5 shrink-0 text-foreground" strokeWidth={2.25} aria-hidden="true" />
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-sm font-semibold text-foreground">Add Photo / Video</span>
+                <ImagePlus className="h-[18px] w-[18px] shrink-0 text-foreground" strokeWidth={2} aria-hidden="true" />
+                <div className="flex flex-col items-start leading-tight min-w-0">
+                  <span className="text-sm font-medium text-foreground">Add Photo / Video</span>
                   <span className="text-[11px] text-muted-foreground">From camera roll or gallery</span>
                 </div>
               </button>
 
               {(showEventPicker || showPollCreator || showBoardPicker) && (
-                <div className="mx-2 my-0.5 h-px bg-border/60" role="separator" />
+                <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />
               )}
 
               {showEventPicker && onEventSelect && (
@@ -451,11 +451,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onEventSelect("");
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-md hover:bg-accent active:bg-accent/80 active:scale-[0.99] text-foreground transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Share event"
                 >
-                  <CalendarPlus className="h-5 w-5 shrink-0 text-foreground/75" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight">
+                  <CalendarPlus className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground">Share Event</span>
                     <span className="text-[11px] text-muted-foreground">Training, game or social</span>
                   </div>
@@ -469,11 +469,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onPollCreate();
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-md hover:bg-accent active:bg-accent/80 active:scale-[0.99] text-foreground transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Create poll"
                 >
-                  <BarChart3 className="h-5 w-5 shrink-0 text-foreground/75" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight">
+                  <BarChart3 className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground">Create Poll</span>
                     <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
                   </div>
@@ -487,11 +487,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onBoardPick();
                   }}
                   disabled={disabled}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-md hover:bg-accent active:bg-accent/80 active:scale-[0.99] text-foreground transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px]"
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
                   aria-label="Share live board"
                 >
-                  <Trophy className="h-5 w-5 shrink-0 text-foreground/75" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight">
+                  <Trophy className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground">Share Live Board</span>
                     <span className="text-[11px] text-muted-foreground">{boardSubtitle}</span>
                   </div>
