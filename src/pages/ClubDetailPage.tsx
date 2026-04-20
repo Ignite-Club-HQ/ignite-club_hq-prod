@@ -217,6 +217,7 @@ export default function ClubDetailPage() {
 
   // Track whether members accordion has been opened
   const [membersExpanded, setMembersExpanded] = useState(false);
+  const [teamsExpanded, setTeamsExpanded] = useState<boolean | null>(null);
 
   // Full roles data - only fetched when the accordion is expanded
   const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchClubMembers } = useQuery({
