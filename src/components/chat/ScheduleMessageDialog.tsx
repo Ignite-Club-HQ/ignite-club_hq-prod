@@ -256,7 +256,7 @@ export function ScheduleMessageDialog({
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {QUICK_PRESETS.map((p) => {
               const isActive = activePreset === p.label;
               return (
@@ -266,7 +266,10 @@ export function ScheduleMessageDialog({
                   variant={isActive ? "default" : "outline"}
                   size="sm"
                   onClick={() => applyPreset(p.label, p.build)}
-                  className={cn(isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background")}
+                  className={cn(
+                    "h-9 px-2 text-xs sm:text-sm whitespace-nowrap",
+                    isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+                  )}
                 >
                   {p.label}
                 </Button>
@@ -274,7 +277,7 @@ export function ScheduleMessageDialog({
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Date</Label>
               <Popover>
@@ -341,11 +344,16 @@ export function ScheduleMessageDialog({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving}
+            className="w-full sm:w-auto"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
+          <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEditing ? "Save changes" : "Schedule"}
           </Button>
