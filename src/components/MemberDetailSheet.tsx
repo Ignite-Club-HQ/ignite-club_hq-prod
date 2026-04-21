@@ -175,12 +175,12 @@ export default function MemberDetailSheet({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Actions</p>
               <div className="grid gap-2">
-                {!isSelf && (
+                {!isSelf && canDM !== false && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
                     onClick={handleSendMessage}
-                    disabled={startingDM}
+                    disabled={startingDM || canDM === null}
                   >
                     {startingDM ? (
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -189,6 +189,27 @@ export default function MemberDetailSheet({
                     )}
                     Send Message
                   </Button>
+                )}
+                {!isSelf && canDM === false && (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div tabIndex={0}>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start gap-2 h-11 opacity-60 cursor-not-allowed"
+                            disabled
+                          >
+                            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                            Send Message
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[260px] text-xs">
+                        You can only message members who share a team, club, or group chat with you.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 {canManage && (
                   <Button
