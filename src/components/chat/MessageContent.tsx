@@ -101,39 +101,45 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Vault file token: [vault:uuid] - match[2] is the file id
-        result.push({ type: "vault-file", content: match[2] || "" });
-      } else if (match[3]) {
-        // Vault folder token: [vaultfolder:uuid] - match[4] is the folder id
-        result.push({ type: "vault-folder", content: match[4] || "" });
-      } else if (match[5]) {
-        // Poll token: [poll:uuid] - match[6] is the poll ID
-        result.push({ type: "poll-link", content: match[6] || "" });
-      } else if (match[7]) {
-        // Board token: [board:uuid] - match[8] is the active_games ID
-        result.push({ type: "board-link", content: match[8] || "" });
-      } else if (match[9]) {
-        // Event token: [event:uuid] - match[10] is the event ID
-        result.push({ type: "event-link", content: match[10] || "" });
-      } else if (match[11]) {
-        // Markdown link match: [text](url) - match[12] is text, match[13] is URL
+        // Vault root token: [vaultroot:scope:uuid] - match[2] scope, match[3] id
+        const scope = (match[2] || "").toLowerCase();
+        if (scope === "team" || scope === "club") {
+          result.push({ type: "vault-root", content: match[3] || "", rootScope: scope });
+        }
+      } else if (match[4]) {
+        // Vault file token: [vault:uuid] - match[5] is the file id
+        result.push({ type: "vault-file", content: match[5] || "" });
+      } else if (match[6]) {
+        // Vault folder token: [vaultfolder:uuid] - match[7] is the folder id
+        result.push({ type: "vault-folder", content: match[7] || "" });
+      } else if (match[8]) {
+        // Poll token: [poll:uuid] - match[9] is the poll ID
+        result.push({ type: "poll-link", content: match[9] || "" });
+      } else if (match[10]) {
+        // Board token: [board:uuid] - match[11] is the active_games ID
+        result.push({ type: "board-link", content: match[11] || "" });
+      } else if (match[12]) {
+        // Event token: [event:uuid] - match[13] is the event ID
+        result.push({ type: "event-link", content: match[13] || "" });
+      } else if (match[14]) {
+        // Markdown link match: [text](url) - match[15] is text, match[16] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[13] || "", 
-          linkText: match[12] || "" 
+          content: match[16] || "", 
+          linkText: match[15] || "" 
         });
-      } else if (match[14]) {
-        // Event URL match: /events/uuid - match[15] is the event ID
-        result.push({ type: "event-link", content: match[15] || "" });
-      } else if (match[16]) {
-        // Plain URL match
-        result.push({ type: "link", content: match[16] });
       } else if (match[17]) {
-        // Mention match - match[18] is display name, match[19] is userId
+        // Event URL match: /events/uuid - match[18] is the event ID
+        result.push({ type: "event-link", content: match[18] || "" });
+      } else if (match[19]) {
+        // Plain URL match
+        result.push({ type: "link", content: match[19] });
+      } else if (match[20]) {
+        // Mention match - match[21] is display name, match[22] is userId
         result.push({ 
           type: "mention", 
-          content: match[18] || "", 
-          userId: match[19] || "" 
+          content: match[21] || "", 
+          userId: match[22] || "" 
         });
       }
       
