@@ -379,6 +379,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Poll tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
+              if (part.type === "vault-file" || part.type === "vault-folder") {
+                // Vault tokens render as empty spans; the card is shown below
+                return <span key={index} />;
+              }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
