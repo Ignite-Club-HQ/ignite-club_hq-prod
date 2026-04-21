@@ -87,16 +87,22 @@ export function formatMessagePreview(
   if (!text) return "";
 
   // Backwards compatibility: previous signature accepted an event-titles map
-  // directly as the second argument.
-  const options: MessagePreviewOptions =
-    optionsOrEventTitles instanceof Map ||
-    (optionsOrEventTitles &&
-      typeof optionsOrEventTitles === "object" &&
-      !("eventTitles" in optionsOrEventTitles) &&
-      !("vaultFolderNames" in optionsOrEventTitles) &&
-      !("vaultFileNames" in optionsOrEventTitles))
-      ? { eventTitles: optionsOrEventTitles as NameLookup }
-      : ((optionsOrEventTitles as MessagePreviewOptions) ?? {});
+  // directly as the second argument. Detect this when the value is a Map, or
+  // a plain object whose keys are NOT the known option names.
+  const isOptionsObject = (v: unknown): v is MessagePreviewOptions => {
+    if (!v || typeof v !== "object" || v instanceof Map) return false;
+    const keys = Object.keys(v);
+    if (keys.length === 0) return true; // empty {} treated as options
+    return keys.some((k) =>
+      k === "eventTitles" || k === "vaultFolderNames" || k === "vaultFileNames",
+    );
+  };
+
+  const options: MessagePreviewOptions = isOptionsObject(optionsOrEventTitles)
+    ? optionsOrEventTitles
+    : optionsOrEventTitles
+    ? { eventTitles: optionsOrEventTitles as NameLookup }
+    : {};
 
   const lookupEvent = makeLookup(options.eventTitles);
   const lookupFolder = makeLookup(options.vaultFolderNames);
