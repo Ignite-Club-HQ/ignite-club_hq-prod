@@ -73,8 +73,11 @@ serve(async (req) => {
       const body = await req.json();
       const { redirectUri } = body;
       
+      // drive.file is a non-sensitive scope: only grants access to files
+      // the user explicitly opens/picks via Google Picker, or files this app
+      // creates. Avoids Google verification requirement.
       const scopes = [
-        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/drive.file',
       ].join(' ');
       
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
