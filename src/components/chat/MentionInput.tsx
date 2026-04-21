@@ -718,7 +718,7 @@ export function MentionInput({
               }
             }}
             disabled={disabled}
-            placeholder={hasEventToken ? "" : placeholder}
+            placeholder={hideTextareaPlaceholder ? "" : placeholder}
             rows={1}
             wrap="soft"
             autoComplete="off"
@@ -727,7 +727,7 @@ export function MentionInput({
             aria-label={placeholder || "Message"}
             aria-multiline="true"
             role="textbox"
-            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[10px] pb-[8px] text-base leading-[1.35] outline-none placeholder:text-foreground/55 disabled:cursor-not-allowed disabled:opacity-50 ${hasEventToken ? "font-medium" : ""} ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[10px] pb-[8px] text-base leading-[1.35] outline-none placeholder:text-foreground/55 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto' } as React.CSSProperties}
           />
         </div>
