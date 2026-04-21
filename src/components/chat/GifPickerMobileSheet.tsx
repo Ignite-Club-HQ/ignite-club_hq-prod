@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
