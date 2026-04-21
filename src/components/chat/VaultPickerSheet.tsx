@@ -343,6 +343,22 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
             <SheetTitle className="flex-1 text-left truncate text-base">
               {currentLabel}
             </SheetTitle>
+            {/* Select / Done toggle — only inside a folder, when bulk pick is supported. */}
+            {onPickMany && insideFolder && (
+              <Button
+                type="button"
+                variant={selectionMode ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  if (selectionMode) clearSelection();
+                  setSelectionMode((v) => !v);
+                }}
+                className="h-8 px-2 text-xs shrink-0 gap-1"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                {selectionMode ? "Done" : "Select"}
+              </Button>
+            )}
           </div>
 
           {pathStack.length > 1 && (
