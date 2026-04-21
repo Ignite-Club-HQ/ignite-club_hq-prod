@@ -562,7 +562,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
             <SheetContent side="bottom" className="p-0">
               <SheetHeader className="px-4 py-3 border-b border-border">
-                <SheetTitle className="text-left text-base">Attach File</SheetTitle>
+                <SheetTitle className="text-left text-base">Attach File or Folder</SheetTitle>
               </SheetHeader>
               <div className="grid grid-cols-2 gap-3 p-4">
                 <button
