@@ -71,10 +71,35 @@ export default function MemberDetailSheet({
 }: MemberDetailSheetProps) {
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
+  const [canDM, setCanDM] = useState<boolean | null>(null);
   const canRemoveRoles = canManage && !isSelf && roles.length > 1;
 
+  // Check DM permission whenever the sheet opens for a non-self member
+  useEffect(() => {
+    if (!open || isSelf || !userId) {
+      setCanDM(null);
+      return;
+    }
+    let cancelled = false;
+    setCanDM(null);
+    supabase
+      .rpc("can_dm_user", { other_user_id: userId })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          // Fail open — let the RPC enforce on send
+          setCanDM(true);
+        } else {
+          setCanDM(data === true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isSelf, userId]);
+
   const handleSendMessage = async () => {
-    if (startingDM) return;
+    if (startingDM || canDM === false) return;
     setStartingDM(true);
     try {
       const { data, error } = await supabase.rpc("get_or_create_dm_conversation", {
