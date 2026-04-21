@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -70,10 +71,35 @@ export default function MemberDetailSheet({
 }: MemberDetailSheetProps) {
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
+  const [canDM, setCanDM] = useState<boolean | null>(null);
   const canRemoveRoles = canManage && !isSelf && roles.length > 1;
 
+  // Check DM permission whenever the sheet opens for a non-self member
+  useEffect(() => {
+    if (!open || isSelf || !userId) {
+      setCanDM(null);
+      return;
+    }
+    let cancelled = false;
+    setCanDM(null);
+    supabase
+      .rpc("can_dm_user", { other_user_id: userId })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          // Fail open — let the RPC enforce on send
+          setCanDM(true);
+        } else {
+          setCanDM(data === true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isSelf, userId]);
+
   const handleSendMessage = async () => {
-    if (startingDM) return;
+    if (startingDM || canDM === false) return;
     setStartingDM(true);
     try {
       const { data, error } = await supabase.rpc("get_or_create_dm_conversation", {
@@ -149,12 +175,12 @@ export default function MemberDetailSheet({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Actions</p>
               <div className="grid gap-2">
-                {!isSelf && (
+                {!isSelf && canDM !== false && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
                     onClick={handleSendMessage}
-                    disabled={startingDM}
+                    disabled={startingDM || canDM === null}
                   >
                     {startingDM ? (
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -163,6 +189,27 @@ export default function MemberDetailSheet({
                     )}
                     Send Message
                   </Button>
+                )}
+                {!isSelf && canDM === false && (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div tabIndex={0}>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start gap-2 h-11 opacity-60 cursor-not-allowed"
+                            disabled
+                          >
+                            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                            Send Message
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[260px] text-xs">
+                        You can only message members who share a team, club, or group chat with you.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 {canManage && (
                   <Button
