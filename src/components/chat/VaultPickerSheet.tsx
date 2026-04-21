@@ -423,38 +423,52 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
 
           {clubId && !isLoading && filteredFolders.length > 0 && (
             <div className="space-y-1 mb-2">
-              {filteredFolders.map((folder) => (
-                <div
-                  key={folder.id}
-                  className="flex items-center gap-1 group"
-                >
-                  <button
-                    type="button"
-                    onClick={() => enterFolder(folder)}
-                    className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 rounded-md hover:bg-accent active:bg-accent/80 transition-colors text-left"
-                  >
-                    <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                      <Folder className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {folder.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Folder</p>
-                    </div>
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      onPick({ kind: "folder", id: folder.id, name: folder.name })
-                    }
-                    className="h-8 px-3 text-xs shrink-0"
-                  >
-                    Share
-                  </Button>
-                </div>
-              ))}
+              {filteredFolders.map((folder) => {
+                const counts = folderCounts?.get(folder.id);
+                const subCount = counts?.folders ?? 0;
+                const fileCount = counts?.files ?? 0;
+                const isCountLoading = folderChildCountsQuery.isLoading;
+                const totalCount = subCount + fileCount;
+                const subtitle = isCountLoading
+                  ? "Folder"
+                  : totalCount === 0
+                    ? "Empty folder"
+                    : [
+                        subCount > 0 ? `${subCount} ${subCount === 1 ? "folder" : "folders"}` : null,
+                        fileCount > 0 ? `${fileCount} ${fileCount === 1 ? "file" : "files"}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
+                return (
+                  <div key={folder.id} className="flex items-center gap-1 group">
+                    <button
+                      type="button"
+                      onClick={() => enterFolder(folder)}
+                      className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 rounded-md hover:bg-accent active:bg-accent/80 transition-colors text-left"
+                    >
+                      <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Folder className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {folder.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        onPick({ kind: "folder", id: folder.id, name: folder.name })
+                      }
+                      className="h-8 px-3 text-xs shrink-0"
+                    >
+                      Share
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
