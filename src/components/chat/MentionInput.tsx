@@ -41,7 +41,7 @@ const URL_REGEX = /https?:\/\/[^\s]+/g;
  * Each mention segment includes its raw string, display text, and position in the raw string.
  */
 interface RawSegment {
-  type: "text" | "mention" | "event";
+  type: "text" | "mention" | "event" | "vault-file" | "vault-folder" | "vault-root";
   raw: string;       // the raw string in value
   display: string;   // what the user sees: for mentions it's "@DisplayName"
   rawStart: number;  // start index in raw value
@@ -49,11 +49,14 @@ interface RawSegment {
   userId?: string;
   displayName?: string;
   eventId?: string;
+  vaultId?: string;
+  vaultRootScope?: "team" | "club";
 }
 
 function parseRawValue(raw: string): RawSegment[] {
   const segments: RawSegment[] = [];
-  const regex = /(@\[([^\]]+)\]\(([^)]+)\))|(\[event:([0-9a-f-]{36})\])/gi;
+  // Order: mention, event, vaultroot, vaultfolder, vault file
+  const regex = /(@\[([^\]]+)\]\(([^)]+)\))|(\[event:([0-9a-f-]{36})\])|(\[vaultroot:(team|club):([0-9a-f-]{36})\])|(\[vaultfolder:([0-9a-f-]{36})\])|(\[vault:([0-9a-f-]{36})\])/gi;
   let lastEnd = 0;
   let match;
 
@@ -87,6 +90,35 @@ function parseRawValue(raw: string): RawSegment[] {
         rawStart: match.index,
         rawEnd: match.index + match[0].length,
         eventId: match[5],
+      });
+    } else if (match[6]) {
+      const scope = (match[7] || "").toLowerCase() as "team" | "club";
+      segments.push({
+        type: "vault-root",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[8],
+        vaultRootScope: scope,
+      });
+    } else if (match[9]) {
+      segments.push({
+        type: "vault-folder",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[10],
+      });
+    } else if (match[11]) {
+      segments.push({
+        type: "vault-file",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[12],
       });
     }
 
