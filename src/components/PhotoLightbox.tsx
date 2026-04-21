@@ -160,15 +160,21 @@ export function PhotoLightbox({
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-full flex items-center justify-center overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+          className="relative w-full h-full flex items-center justify-center overflow-hidden pb-[env(safe-area-inset-bottom)]"
+          style={{ paddingTop: "max(env(safe-area-inset-top), 1.75rem)", touchAction: 'none' }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
-          style={{ touchAction: 'none' }}
         >
-          {/* Top toolbar with dark background for visibility */}
-          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] bg-gradient-to-b from-black/70 to-transparent">
+          {/* Top toolbar with dark background for visibility.
+              Uses max(safe-area, 1.75rem) so the toolbar always clears the
+              Android status bar even inside in-app browsers (Messenger, etc.)
+              where env(safe-area-inset-top) reports 0. */}
+          <div
+            className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/70 to-transparent"
+            style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1.75rem) + 0.5rem)" }}
+          >
             {/* Left side - Back button + Delete */}
             <div className="flex items-center gap-2">
               <Button

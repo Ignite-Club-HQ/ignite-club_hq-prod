@@ -56,10 +56,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     }
   }, [scale, resetZoom]);
 
+  // Use max(safe-area, 1.75rem) so action icons always clear the Android
+  // status bar even inside in-app browsers (Messenger, etc.) where
+  // env(safe-area-inset-top) reports 0.
+  const safeTop = "max(env(safe-area-inset-top), 1.75rem)";
+
   return (
     <div
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingTop: safeTop, paddingBottom: 'env(safe-area-inset-bottom)' }}
       onClick={scale === 1 ? onClose : undefined}
       onTouchStart={pinchTouchStart}
       onTouchMove={pinchTouchMove}
@@ -69,13 +74,17 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       <Button
         size="icon"
         variant="ghost"
-        className="absolute top-4 right-4 text-white hover:bg-white/20 z-10"
+        className="absolute right-4 text-white hover:bg-white/20 z-10"
+        style={{ top: `calc(${safeTop} + 0.5rem)` }}
         onClick={(e) => { e.stopPropagation(); onClose(); }}
       >
         <X className="h-6 w-6" />
       </Button>
 
-      <div className="absolute top-4 left-4 flex gap-2 z-10">
+      <div
+        className="absolute left-4 flex gap-2 z-10"
+        style={{ top: `calc(${safeTop} + 0.5rem)` }}
+      >
         <Button
           size="icon"
           variant="ghost"
