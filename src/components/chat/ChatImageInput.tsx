@@ -64,14 +64,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   });
 
   // Only show the Share Live Board action when the user has access to at
-  // least one active game (RLS scopes results to the user's teams).
+  // least one active game on a team they belong to. Mirrors BoardPickerSheet's
+  // `teams!inner` filter so an orphaned active_game owned by the user (no
+  // team membership) doesn't surface the action.
   const { data: hasActiveBoard = false } = useQuery({
     queryKey: ["chat-has-active-board", user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
       const { count, error } = await supabase
         .from("active_games")
-        .select("id", { count: "exact", head: true })
+        .select("id, teams!inner(id)", { count: "exact", head: true })
         .eq("is_active", true);
       if (error) {
         console.error("[ChatImageInput] active board count failed", error);
