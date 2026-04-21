@@ -106,6 +106,7 @@ interface GroupMessage {
   author_id: string;
   group_id: string;
   reply_to_id: string | null;
+  is_system_message?: boolean;
   author?: {
     display_name: string | null;
     avatar_url: string | null;
@@ -362,7 +363,7 @@ export default function GroupChatPage() {
       // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
       const { data: rawMessages, error } = await supabase
         .from("group_messages")
-        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, deleted_at, is_system_message")
         .eq("group_id", groupId)
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
@@ -707,7 +708,7 @@ export default function GroupChatPage() {
       
       const { data: olderData, error } = await supabase
         .from("group_messages")
-        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message")
         .eq("group_id", groupId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)

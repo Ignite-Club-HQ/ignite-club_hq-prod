@@ -3158,6 +3158,7 @@ export type Database = {
           group_id: string
           id: string
           image_url: string | null
+          is_system_message: boolean
           reply_to_id: string | null
           text: string
         }
@@ -3168,6 +3169,7 @@ export type Database = {
           group_id: string
           id?: string
           image_url?: string | null
+          is_system_message?: boolean
           reply_to_id?: string | null
           text: string
         }
@@ -3178,6 +3180,7 @@ export type Database = {
           group_id?: string
           id?: string
           image_url?: string | null
+          is_system_message?: boolean
           reply_to_id?: string | null
           text?: string
         }
@@ -6158,6 +6161,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_club_announcement: boolean
+          is_system_message: boolean
           reply_to_id: string | null
           team_id: string
           text: string
@@ -6170,6 +6174,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_system_message?: boolean
           reply_to_id?: string | null
           team_id: string
           text: string
@@ -6182,6 +6187,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_system_message?: boolean
           reply_to_id?: string | null
           team_id?: string
           text?: string
@@ -7309,6 +7315,10 @@ export type Database = {
       extract_mentioned_user_ids: {
         Args: { message_text: string }
         Returns: string[]
+      }
+      format_role_label: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: string
       }
       generate_email_hash: { Args: { email: string }; Returns: string }
       get_club_invite_by_token: {

@@ -59,6 +59,7 @@ interface GroupMessage {
   author_id: string;
   group_id: string;
   reply_to_id: string | null;
+  is_system_message?: boolean;
   author?: { display_name: string | null; avatar_url: string | null };
   reply_to?: { text: string; author?: { display_name: string | null } } | null;
 }
@@ -323,6 +324,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   }, [closeActionUi, messageReactions, msg.id, toggleReactionMutation]);
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
+
+  // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
+  // WhatsApp-style: no avatar, no actions, no reactions.
+  if (msg.is_system_message) {
+    return (
+      <div id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
+        <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
+          {msg.text}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
