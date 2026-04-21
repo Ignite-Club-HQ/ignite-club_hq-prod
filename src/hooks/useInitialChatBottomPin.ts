@@ -33,6 +33,9 @@ export function useInitialChatBottomPin({
   const pinnedWhileEmptyRef = useRef(false);
   // Once the user scrolls away from bottom, suppress all automatic snapping
   const userScrolledAwayRef = useRef(false);
+  // Track last known item count per resetKey so we can re-snap when fresh
+  // network data arrives after the initial cached render (iOS cold start).
+  const lastItemCountRef = useRef(0);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -41,6 +44,7 @@ export function useInitialChatBottomPin({
   // Reset the user-scrolled flag whenever the chat changes
   useEffect(() => {
     userScrolledAwayRef.current = false;
+    lastItemCountRef.current = 0;
   }, [resetKey]);
 
   // Detect manual scrolling away from bottom to suppress auto-snap
@@ -74,8 +78,12 @@ export function useInitialChatBottomPin({
     }
 
     if (pinnedKeyRef.current === resetKey) {
-      if (pinnedWhileEmptyRef.current && itemCount > 0) {
+      const grew = itemCount > lastItemCountRef.current;
+      const wasEmptyPin = pinnedWhileEmptyRef.current && itemCount > 0;
+
+      if ((wasEmptyPin || grew) && !userScrolledAwayRef.current) {
         pinnedWhileEmptyRef.current = false;
+        lastItemCountRef.current = itemCount;
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
@@ -95,6 +103,8 @@ export function useInitialChatBottomPin({
           guardObserver.observe(viewport);
           setTimeout(() => guardObserver.disconnect(), 1000);
         }
+      } else {
+        lastItemCountRef.current = itemCount;
       }
       return;
     }
@@ -103,10 +113,12 @@ export function useInitialChatBottomPin({
       pinnedWhileEmptyRef.current = true;
       setIsPinned(true);
       pinnedKeyRef.current = resetKey;
+      lastItemCountRef.current = 0;
       return;
     }
 
     pinnedWhileEmptyRef.current = false;
+    lastItemCountRef.current = itemCount;
     setIsPinned(false);
 
     let cancelled = false;
