@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -69,6 +70,7 @@ export default function MemberDetailSheet({
   onRemove,
   onRemoveRole,
 }: MemberDetailSheetProps) {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
   const [canDM, setCanDM] = useState<boolean | null>(null);
@@ -102,6 +104,27 @@ export default function MemberDetailSheet({
     if (startingDM || canDM === false) return;
     setStartingDM(true);
     try {
+      // 1. Quick check for an existing conversation so we can confirm + skip creation
+      let existingConvId: string | null = null;
+      if (user?.id) {
+        const [p1, p2] = user.id < userId ? [user.id, userId] : [userId, user.id];
+        const { data: existing } = await supabase
+          .from("direct_conversations")
+          .select("id")
+          .eq("participant_1", p1)
+          .eq("participant_2", p2)
+          .maybeSingle();
+        existingConvId = existing?.id ?? null;
+      }
+
+      if (existingConvId) {
+        toast.success(`Opening existing conversation with ${displayName}`);
+        onOpenChange(false);
+        navigate(`/messages/dm/${existingConvId}`);
+        return;
+      }
+
+      // 2. No existing convo — create one
       const { data, error } = await supabase.rpc("get_or_create_dm_conversation", {
         other_user_id: userId,
       });
