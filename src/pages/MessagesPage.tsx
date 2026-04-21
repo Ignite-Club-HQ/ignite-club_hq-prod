@@ -1278,6 +1278,22 @@ export default function MessagesPage() {
     return Array.from(set);
   }, [unifiedConversations]);
 
+  const referencedVaultFolderIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractVaultFolderIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
+  const referencedVaultFileIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractVaultFileIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
   const { data: eventTitleMap = {} } = useQuery({
     queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
     queryFn: async () => {
@@ -1293,6 +1309,42 @@ export default function MessagesPage() {
       return map;
     },
     enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: vaultFolderNameMap = {} } = useQuery({
+    queryKey: ["messages-page-vault-folder-names", referencedVaultFolderIds.join(",")],
+    queryFn: async () => {
+      if (referencedVaultFolderIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("vault_folders")
+        .select("id, name")
+        .in("id", referencedVaultFolderIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((f) => {
+        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
+      });
+      return map;
+    },
+    enabled: referencedVaultFolderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: vaultFileNameMap = {} } = useQuery({
+    queryKey: ["messages-page-vault-file-names", referencedVaultFileIds.join(",")],
+    queryFn: async () => {
+      if (referencedVaultFileIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("vault_files")
+        .select("id, name")
+        .in("id", referencedVaultFileIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((f) => {
+        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
+      });
+      return map;
+    },
+    enabled: referencedVaultFileIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
