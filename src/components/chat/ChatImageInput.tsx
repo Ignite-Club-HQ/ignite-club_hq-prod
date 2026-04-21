@@ -51,6 +51,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
+  const [attachChooserOpen, setAttachChooserOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
