@@ -152,6 +152,22 @@ export function ChatDetailsSheet({
                     onClick={() => handleNavigate(`/clubs/${chatType === "club" ? chatId : clubId}`)}
                   />
                 )}
+                {(() => {
+                  const resolvedTeamId = chatType === "team" ? chatId : teamId;
+                  const resolvedClubId = chatType === "club" ? chatId : clubId;
+                  const vaultHref = resolvedTeamId
+                    ? `/vault?team=${resolvedTeamId}`
+                    : resolvedClubId
+                    ? `/vault?club=${resolvedClubId}`
+                    : null;
+                  if (!vaultHref) return null;
+                  return (
+                    <NavRow
+                      label="View file vault"
+                      onClick={() => handleNavigate(vaultHref)}
+                    />
+                  );
+                })()}
                 <Separator className="my-2" />
               </div>
             )}
