@@ -514,13 +514,60 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         disabled={disabled || uploading}
       />
       {showVaultPicker && clubId && (
-        <VaultPickerSheet
-          open={vaultPickerOpen}
-          onOpenChange={setVaultPickerOpen}
-          clubId={clubId}
-          teamId={teamId || null}
-          onPick={handleVaultPick}
-        />
+        <>
+          <VaultPickerSheet
+            open={vaultPickerOpen}
+            onOpenChange={setVaultPickerOpen}
+            clubId={clubId}
+            teamId={teamId || null}
+            onPick={handleVaultPick}
+          />
+          <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
+            <SheetContent side="bottom" className="p-0">
+              <SheetHeader className="px-4 py-3 border-b border-border">
+                <SheetTitle className="text-left text-base">Attach File</SheetTitle>
+              </SheetHeader>
+              <div className="grid grid-cols-2 gap-3 p-4">
+                <button
+                  type="button"
+                  disabled={disabled || uploading}
+                  onClick={() => {
+                    setAttachChooserOpen(false);
+                    docInputRef.current?.click();
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  aria-label="Upload from device"
+                >
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Upload className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-sm font-medium text-foreground">From Device</span>
+                    <span className="text-[11px] text-muted-foreground">PDF, doc, sheet</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    setAttachChooserOpen(false);
+                    setVaultPickerOpen(true);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  aria-label="Choose from vault"
+                >
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
+                    <FolderOpen className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-sm font-medium text-foreground">From Vault</span>
+                    <span className="text-[11px] text-muted-foreground">Existing file or folder</span>
+                  </div>
+                </button>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
       )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
