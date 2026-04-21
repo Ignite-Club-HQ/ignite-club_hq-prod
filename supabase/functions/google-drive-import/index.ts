@@ -125,10 +125,28 @@ serve(async (req) => {
       }
       
       const tokens = await tokenResponse.json();
-      console.log("Successfully exchanged code for tokens");
-      
+      console.log("Successfully exchanged code for tokens, refresh_token present:", !!tokens.refresh_token);
+
+      // Try to fetch the user's Google email so we can label the linked account
+      let googleEmail: string | null = null;
+      try {
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        });
+        if (userInfoRes.ok) {
+          const info = await userInfoRes.json();
+          googleEmail = info.email ?? null;
+        }
+      } catch (_e) {
+        // non-fatal
+      }
+
       return new Response(
-        JSON.stringify({ accessToken: tokens.access_token }),
+        JSON.stringify({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token ?? null,
+          googleEmail,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

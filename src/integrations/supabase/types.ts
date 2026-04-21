@@ -6792,12 +6792,106 @@ export type Database = {
           },
         ]
       }
+      vault_drive_links: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string
+          drive_folder_id: string
+          drive_folder_name: string
+          files_imported_count: number
+          files_updated_count: number
+          google_account_email: string | null
+          id: string
+          last_sync_error: string | null
+          last_sync_status: string | null
+          last_synced_at: string | null
+          refresh_token: string
+          sync_enabled: boolean
+          sync_interval_minutes: number
+          team_id: string | null
+          updated_at: string
+          vault_folder_id: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by: string
+          drive_folder_id: string
+          drive_folder_name: string
+          files_imported_count?: number
+          files_updated_count?: number
+          google_account_email?: string | null
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          refresh_token: string
+          sync_enabled?: boolean
+          sync_interval_minutes?: number
+          team_id?: string | null
+          updated_at?: string
+          vault_folder_id: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          drive_folder_id?: string
+          drive_folder_name?: string
+          files_imported_count?: number
+          files_updated_count?: number
+          google_account_email?: string | null
+          id?: string
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          refresh_token?: string
+          sync_enabled?: boolean
+          sync_interval_minutes?: number
+          team_id?: string | null
+          updated_at?: string
+          vault_folder_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_drive_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_drive_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_drive_links_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_drive_links_vault_folder_id_fkey"
+            columns: ["vault_folder_id"]
+            isOneToOne: true
+            referencedRelation: "vault_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vault_files: {
         Row: {
           club_id: string | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
+          drive_file_id: string | null
+          drive_modified_time: string | null
           file_size: number | null
           file_type: string | null
           file_url: string
@@ -6815,6 +6909,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          drive_file_id?: string | null
+          drive_modified_time?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url: string
@@ -6832,6 +6928,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          drive_file_id?: string | null
+          drive_modified_time?: string | null
           file_size?: number | null
           file_type?: string | null
           file_url?: string
@@ -6887,6 +6985,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           created_by: string | null
+          drive_folder_id: string | null
           id: string
           name: string
           parent_id: string | null
@@ -6897,6 +6996,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          drive_folder_id?: string | null
           id?: string
           name: string
           parent_id?: string | null
@@ -6907,6 +7007,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          drive_folder_id?: string | null
           id?: string
           name?: string
           parent_id?: string | null
