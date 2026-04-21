@@ -503,6 +503,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.zip,.odt,.ods,.odp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain,application/zip"
+        onChange={handleDocumentSelect}
+        className="sr-only"
+        disabled={disabled || uploading}
+      />
+      {showVaultPicker && clubId && (
+        <VaultPickerSheet
+          open={vaultPickerOpen}
+          onOpenChange={setVaultPickerOpen}
+          clubId={clubId}
+          teamId={teamId || null}
+          onPick={handleVaultPick}
+        />
+      )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
