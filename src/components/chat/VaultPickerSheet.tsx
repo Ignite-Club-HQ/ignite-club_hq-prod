@@ -13,9 +13,11 @@ import {
   Search,
   Loader2,
   X,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -24,16 +26,20 @@ import {
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 
+export type VaultPickerItem =
+  | { kind: "file" | "folder"; id: string; name: string }
+  | { kind: "root"; scope: "team" | "club"; id: string; name: string };
+
 interface VaultPickerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clubId: string | null | undefined;
   teamId?: string | null;
-  onPick: (
-    item:
-      | { kind: "file" | "folder"; id: string; name: string }
-      | { kind: "root"; scope: "team" | "club"; id: string; name: string },
-  ) => void;
+  onPick: (item: VaultPickerItem) => void;
+  /** Optional bulk-share callback. When provided, the picker exposes a
+   *  "Select" mode inside any folder so users can tick multiple files and
+   *  subfolders and share them in one go. */
+  onPickMany?: (items: VaultPickerItem[]) => void;
 }
 
 interface VaultFolder {
@@ -66,12 +72,18 @@ function getIconForFile(name: string, fileType: string | null) {
   return FileText;
 }
 
-export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }: VaultPickerSheetProps) {
+export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, onPickMany }: VaultPickerSheetProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [pathStack, setPathStack] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: "Vault" },
   ]);
   const [search, setSearch] = useState("");
+  // Bulk-share mode (only meaningful when onPickMany is provided AND we are
+  // inside a folder — root-level selection across team/club scopes is too
+  // ambiguous, so we keep it confined to the current folder view).
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, string>>(new Map());
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, string>>(new Map());
 
   // At the root, we offer a "share entire vault" card scoped to either the
   // team (when this is a team chat) or the whole club. Fetch the display name.
@@ -220,10 +232,17 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     return files.filter((f) => f.name.toLowerCase().includes(s));
   }, [files, search]);
 
+  const clearSelection = () => {
+    setSelectedFolders(new Map());
+    setSelectedFiles(new Map());
+  };
+
   const enterFolder = (folder: VaultFolder) => {
     setCurrentFolderId(folder.id);
     setPathStack((prev) => [...prev, { id: folder.id, name: folder.name }]);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const goBack = () => {
@@ -232,6 +251,8 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     setPathStack(newStack);
     setCurrentFolderId(newStack[newStack.length - 1].id);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const jumpToCrumb = (index: number) => {
@@ -241,12 +262,51 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     setPathStack(newStack);
     setCurrentFolderId(newStack[newStack.length - 1].id);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const reset = () => {
     setCurrentFolderId(null);
     setPathStack([{ id: null, name: "Vault" }]);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
+  };
+
+  const toggleFolderSelection = (folder: VaultFolder) => {
+    setSelectedFolders((prev) => {
+      const next = new Map(prev);
+      if (next.has(folder.id)) next.delete(folder.id);
+      else next.set(folder.id, folder.name);
+      return next;
+    });
+  };
+
+  const toggleFileSelection = (file: VaultFile) => {
+    setSelectedFiles((prev) => {
+      const next = new Map(prev);
+      if (next.has(file.id)) next.delete(file.id);
+      else next.set(file.id, file.name);
+      return next;
+    });
+  };
+
+  const selectionCount = selectedFolders.size + selectedFiles.size;
+
+  const submitBulkSelection = () => {
+    if (!onPickMany || selectionCount === 0) return;
+    const items: VaultPickerItem[] = [
+      ...Array.from(selectedFolders.entries()).map(
+        ([id, name]) => ({ kind: "folder" as const, id, name }),
+      ),
+      ...Array.from(selectedFiles.entries()).map(
+        ([id, name]) => ({ kind: "file" as const, id, name }),
+      ),
+    ];
+    onPickMany(items);
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const handleClose = (newOpen: boolean) => {
@@ -283,6 +343,22 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             <SheetTitle className="flex-1 text-left truncate text-base">
               {currentLabel}
             </SheetTitle>
+            {/* Select / Done toggle — only inside a folder, when bulk pick is supported. */}
+            {onPickMany && insideFolder && (
+              <Button
+                type="button"
+                variant={selectionMode ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  if (selectionMode) clearSelection();
+                  setSelectionMode((v) => !v);
+                }}
+                className="h-8 px-2 text-xs shrink-0 gap-1"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                {selectionMode ? "Done" : "Select"}
+              </Button>
+            )}
           </div>
 
           {pathStack.length > 1 && (
@@ -389,8 +465,9 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             </div>
           )}
 
-          {/* Share THIS folder card — when user has navigated into a folder */}
-          {clubId && !isLoading && insideFolder && currentFolderId && !search.trim() && (
+          {/* Share THIS folder card — when user has navigated into a folder
+              (hidden in selection mode to keep the focus on bulk picking). */}
+          {clubId && !isLoading && insideFolder && currentFolderId && !search.trim() && !selectionMode && (
             <div className="mb-2">
               <button
                 type="button"
@@ -439,6 +516,36 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
                       ]
                         .filter(Boolean)
                         .join(" · ");
+                const isSelected = selectedFolders.has(folder.id);
+                if (selectionMode) {
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => toggleFolderSelection(folder)}
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-md transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent active:bg-accent/80"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleFolderSelection(folder)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Folder className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {folder.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                      </div>
+                    </button>
+                  );
+                }
                 return (
                   <div key={folder.id} className="flex items-center gap-1 group">
                     <button
@@ -476,6 +583,38 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             <div className="space-y-1">
               {filteredFiles.map((file) => {
                 const Icon = getIconForFile(file.name, file.file_type);
+                const isSelected = selectedFiles.has(file.id);
+                if (selectionMode) {
+                  return (
+                    <button
+                      key={file.id}
+                      type="button"
+                      onClick={() => toggleFileSelection(file)}
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-md transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent active:bg-accent/80"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleFileSelection(file)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {file.is_external_link ? "External link" : "File"}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                }
                 return (
                   <button
                     key={file.id}
@@ -502,6 +641,39 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             </div>
           )}
         </div>
+
+        {/* Sticky bulk-share footer — only visible while in selection mode. */}
+        {onPickMany && selectionMode && (
+          <div className="border-t border-border bg-background px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shrink-0">
+            <div className="flex items-center gap-2">
+              <p className="flex-1 text-sm text-muted-foreground truncate">
+                {selectionCount === 0
+                  ? "Tap items to select"
+                  : `${selectionCount} ${selectionCount === 1 ? "item" : "items"} selected`}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectionMode(false);
+                  clearSelection();
+                }}
+                className="h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={submitBulkSelection}
+                disabled={selectionCount === 0}
+                className="h-9"
+              >
+                Share {selectionCount > 0 ? `(${selectionCount})` : ""}
+              </Button>
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
