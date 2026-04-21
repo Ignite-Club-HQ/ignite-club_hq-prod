@@ -33,6 +33,9 @@ export function useInitialChatBottomPin({
   const pinnedWhileEmptyRef = useRef(false);
   // Once the user scrolls away from bottom, suppress all automatic snapping
   const userScrolledAwayRef = useRef(false);
+  // Track last known item count per resetKey so we can re-snap when fresh
+  // network data arrives after the initial cached render (iOS cold start).
+  const lastItemCountRef = useRef(0);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
