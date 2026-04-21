@@ -18,8 +18,8 @@ import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardS
  */
 const SHEET_DEFAULT_HEIGHT = 420;
 const SHEET_MIN_HEIGHT = 240;
-const TOP_GAP = 12;
-const KEYBOARD_GAP = 4;
+const TOP_GAP = 8;
+const KEYBOARD_GAP = 0;
 const KEYBOARD_OPEN_THRESHOLD = 80;
 
 interface GifPickerMobileSheetProps {
@@ -138,11 +138,12 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       SHEET_DEFAULT_HEIGHT,
       Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
     );
-    const preferredHeight = keyboardSessionActive
-      ? availableHeight
-      : compactHeight;
+    // Always maximise to the available area above the keyboard for consistency.
+    const preferredHeight = keyboardSessionActive ? availableHeight : compactHeight;
     const nextSheetHeight = Math.min(availableHeight, preferredHeight);
-    const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
+    const nextSheetTop = keyboardSessionActive
+      ? Math.max(TOP_GAP, keyboardTop - nextSheetHeight)
+      : Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
 
     return {
       sheetHeight: nextSheetHeight,
@@ -177,26 +178,24 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
         style={{
           top: sheetTop,
           height: sheetHeight,
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          paddingBottom: keyboardOpen ? 0 : "env(safe-area-inset-bottom, 0px)",
           transition: "top 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3 pt-2 pb-1 shrink-0">
-          <div className="flex-1 flex justify-center">
-            <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-          </div>
+        <div className="relative flex items-center justify-center px-3 pt-1.5 pb-0.5 shrink-0">
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close GIF picker"
-            className="absolute right-2 top-2 h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent active:scale-95 transition-all"
+            className="absolute right-1.5 top-1 h-7 w-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent active:scale-95 transition-all"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 px-3 pb-2 flex flex-col">
+        <div className="flex-1 min-h-0 px-3 pb-1 flex flex-col">
           <GifGrid
             active
             onSelect={onSelect}

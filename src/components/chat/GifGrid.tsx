@@ -90,7 +90,7 @@ export function GifGrid({
 
   return (
     <div data-gif-picker className={cn("flex flex-col min-h-0 overflow-hidden", className)}>
-      <div className="sticky top-0 z-10 shrink-0 bg-popover pb-2">
+      <div className="sticky top-0 z-10 shrink-0 bg-popover pb-1.5">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -99,7 +99,7 @@ export function GifGrid({
             onFocus={() => onFocusChange?.(true)}
             onBlur={() => onFocusChange?.(false)}
             placeholder="Search GIPHY"
-            className="pl-9 pr-9 h-9"
+            className="pl-9 pr-9 h-8"
           />
           {query && (
             <button
@@ -113,11 +113,11 @@ export function GifGrid({
           )}
         </div>
         {showAttribution && (
-          <p className="mt-1.5 text-[10px] text-muted-foreground">Powered by GIPHY</p>
+          <p className="mt-1 text-[9px] leading-none text-muted-foreground">Powered by GIPHY</p>
         )}
       </div>
 
-      <div className={cn("mt-2 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-2", scrollClassName)}>
+      <div className={cn("mt-1.5 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-1", scrollClassName)}>
         {loading && gifs.length === 0 ? (
           <div className="flex min-h-[132px] items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
