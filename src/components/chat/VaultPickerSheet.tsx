@@ -172,10 +172,10 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent
         side="bottom"
-        className="h-[85dvh] max-h-[85dvh] flex flex-col p-0 overflow-hidden"
+        className="h-[85vh] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
+        <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             {pathStack.length > 1 && (
               <Button
@@ -193,7 +193,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             </SheetTitle>
           </div>
           <div className="relative mt-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -213,10 +213,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
           </div>
         </SheetHeader>
 
-        <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2"
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2">
           {!clubId && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               Vault unavailable in this chat.
