@@ -13,9 +13,11 @@ import {
   Search,
   Loader2,
   X,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -24,16 +26,20 @@ import {
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 
+export type VaultPickerItem =
+  | { kind: "file" | "folder"; id: string; name: string }
+  | { kind: "root"; scope: "team" | "club"; id: string; name: string };
+
 interface VaultPickerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clubId: string | null | undefined;
   teamId?: string | null;
-  onPick: (
-    item:
-      | { kind: "file" | "folder"; id: string; name: string }
-      | { kind: "root"; scope: "team" | "club"; id: string; name: string },
-  ) => void;
+  onPick: (item: VaultPickerItem) => void;
+  /** Optional bulk-share callback. When provided, the picker exposes a
+   *  "Select" mode inside any folder so users can tick multiple files and
+   *  subfolders and share them in one go. */
+  onPickMany?: (items: VaultPickerItem[]) => void;
 }
 
 interface VaultFolder {
