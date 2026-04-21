@@ -2960,7 +2960,7 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
+    <div className={currentView.type === "root" ? "py-6 space-y-6" : "pt-3 pb-6 space-y-4"}>
       {/* Header - different for root vs inner views */}
       {currentView.type === "root" ? (
         <div className="flex items-center justify-between">
@@ -2981,12 +2981,12 @@ export default function VaultPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={goBack}>
+          <div className="flex items-center gap-1 min-w-0">
+            <Button variant="ghost" size="icon" className="shrink-0 -ml-2 h-9 w-9" onClick={goBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Breadcrumb>
-              <BreadcrumbList>
+            <Breadcrumb className="min-w-0 flex-1">
+              <BreadcrumbList className="flex-nowrap">
                 {renderBreadcrumbs()}
               </BreadcrumbList>
             </Breadcrumb>
