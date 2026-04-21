@@ -243,6 +243,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     toast.success(`Shared "${item.name}"`);
   };
 
+  const handleNativePhotoPick = async () => {
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
