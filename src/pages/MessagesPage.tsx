@@ -18,7 +18,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds } from "@/lib/messagePreview";
+import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 
 const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
@@ -93,6 +93,8 @@ const MessagePreview = ({
   fallback,
   isAnnouncement,
   eventTitles,
+  vaultFolderNames,
+  vaultFileNames,
 }: { 
   text?: string; 
   imageUrl?: string | null; 
@@ -101,13 +103,17 @@ const MessagePreview = ({
   fallback: string;
   isAnnouncement?: boolean;
   eventTitles?: Record<string, string>;
+  vaultFolderNames?: Record<string, string>;
+  vaultFileNames?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
   
-  // Strip mention formatting (and resolve event titles) from text for preview
-  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
+  // Strip mention formatting (and resolve event/vault names) from text for preview
+  const displayText = hasText
+    ? stripMentionFormatting(text!, { eventTitles, vaultFolderNames, vaultFileNames })
+    : null;
   
   if (!hasText && !imageUrl && !author) {
     return <span className="text-muted-foreground">No messages yet</span>;
@@ -1272,6 +1278,22 @@ export default function MessagesPage() {
     return Array.from(set);
   }, [unifiedConversations]);
 
+  const referencedVaultFolderIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractVaultFolderIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
+  const referencedVaultFileIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractVaultFileIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
   const { data: eventTitleMap = {} } = useQuery({
     queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
     queryFn: async () => {
@@ -1287,6 +1309,42 @@ export default function MessagesPage() {
       return map;
     },
     enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: vaultFolderNameMap = {} } = useQuery({
+    queryKey: ["messages-page-vault-folder-names", referencedVaultFolderIds.join(",")],
+    queryFn: async () => {
+      if (referencedVaultFolderIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("vault_folders")
+        .select("id, name")
+        .in("id", referencedVaultFolderIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((f) => {
+        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
+      });
+      return map;
+    },
+    enabled: referencedVaultFolderIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: vaultFileNameMap = {} } = useQuery({
+    queryKey: ["messages-page-vault-file-names", referencedVaultFileIds.join(",")],
+    queryFn: async () => {
+      if (referencedVaultFileIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("vault_files")
+        .select("id, name")
+        .in("id", referencedVaultFileIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((f) => {
+        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
+      });
+      return map;
+    },
+    enabled: referencedVaultFileIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -1364,6 +1422,8 @@ export default function MessagesPage() {
                     hasUnread={hasUnread}
                     fallback="Official announcements and updates"
                     eventTitles={eventTitleMap}
+                    vaultFolderNames={vaultFolderNameMap}
+                    vaultFileNames={vaultFileNameMap}
                   />
                 </p>
               </div>
@@ -1539,6 +1599,8 @@ export default function MessagesPage() {
                   hasUnread={hasUnread}
                   fallback="No messages yet"
                   eventTitles={eventTitleMap}
+                  vaultFolderNames={vaultFolderNameMap}
+                  vaultFileNames={vaultFileNameMap}
                 />
               </p>
             </div>
@@ -1587,6 +1649,8 @@ export default function MessagesPage() {
                   fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
                   isAnnouncement={(item.lastMessage as any)?.is_announcement}
                   eventTitles={eventTitleMap}
+                  vaultFolderNames={vaultFolderNameMap}
+                  vaultFileNames={vaultFileNameMap}
                 />
               </p>
             </div>
