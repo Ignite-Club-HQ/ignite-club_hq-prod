@@ -20,6 +20,9 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 interface VaultFileCardProps {
   fileId?: string;
   folderId?: string;
+  /** When set, render a "vault root" card scoped to a team or club. */
+  rootScope?: "team" | "club";
+  rootId?: string;
 }
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -55,7 +58,7 @@ function getColorForFile(name: string, fileType: string | null): string {
   return "text-muted-foreground";
 }
 
-export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId }: VaultFileCardProps) {
+export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, rootScope, rootId }: VaultFileCardProps) {
   const navigate = useNavigate();
 
   // Folder card
