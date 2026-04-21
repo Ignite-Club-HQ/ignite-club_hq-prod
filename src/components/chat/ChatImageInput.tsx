@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, FileText, FolderOpen } from "lucide-react";
+import { VaultPickerSheet } from "./VaultPickerSheet";
+import { makeVaultFileToken, makeVaultFolderToken } from "@/lib/chatVaultLinks";
 import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,16 +36,22 @@ interface ChatImageInputProps {
   showBoardPicker?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
+  /** Append a token to the message (e.g. [vault:uuid]) when user shares from vault. */
+  onAppendToken?: (token: string) => void;
+  /** Show the "From Vault" / "Upload File" actions. Requires clubId. */
+  showVaultPicker?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
@@ -163,7 +171,78 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     return data.publicUrl;
   };
 
-  const handleNativePhotoPick = async () => {
+  // Upload a non-image document file to chat-attachments and create a vault_files row,
+  // then append a [vault:<id>] token to the message via onAppendToken.
+  const handleDocumentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      toast.error("File must be less than 10MB");
+      if (docInputRef.current) docInputRef.current.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error("Not authenticated");
+
+      const timestamp = Date.now();
+      const safeExt = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+      let path: string;
+      if (teamId && clubId) {
+        path = `clubs/${clubId}/teams/${teamId}/${authUser.id}/${timestamp}.${safeExt}`;
+      } else if (clubId) {
+        path = `clubs/${clubId}/${authUser.id}/${timestamp}.${safeExt}`;
+      } else {
+        path = `general/${authUser.id}/${timestamp}.${safeExt}`;
+      }
+
+      const { error: upErr } = await supabase.storage
+        .from("chat-attachments")
+        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+      const fileUrl = pub.publicUrl;
+
+      // If we have club context, create vault_files row immediately so the file card is shareable.
+      if (clubId && onAppendToken) {
+        const { data: row, error: insErr } = await supabase
+          .from("vault_files")
+          .insert({
+            club_id: clubId,
+            team_id: teamId || null,
+            uploaded_by: authUser.id,
+            name: file.name,
+            file_url: fileUrl,
+            file_type: file.type || null,
+            file_size: file.size,
+            is_external_link: false,
+          })
+          .select("id")
+          .single();
+        if (insErr || !row) throw insErr || new Error("Failed to register file");
+        onAppendToken(makeVaultFileToken(row.id));
+        toast.success("File attached");
+      } else {
+        toast.error("Cannot attach file in this chat");
+      }
+    } catch (err) {
+      console.error("[ChatImageInput] document upload failed", err);
+      toast.error(getReadableUploadError(err) || "Failed to upload file");
+    } finally {
+      setUploading(false);
+      if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  const handleVaultPick = (item: { kind: "file" | "folder"; id: string; name: string }) => {
+    if (!onAppendToken) return;
+    const token = item.kind === "file" ? makeVaultFileToken(item.id) : makeVaultFolderToken(item.id);
+    onAppendToken(token);
+    setVaultPickerOpen(false);
+    toast.success(`Shared "${item.name}"`);
+  };
+
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();

@@ -6,6 +6,7 @@ import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { EventLinkCard } from "./EventLinkCard";
 import { BoardLinkCard } from "./BoardLinkCard";
 import { PollCard } from "./PollCard";
+import { VaultFileCard } from "./VaultFileCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -83,11 +84,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link" | "board-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link" | "board-link" | "vault-file" | "vault-folder"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex. Order: poll tokens, board tokens, event tokens, markdown links, event URLs, plain URLs, mentions
-    const combinedRegex = /(\[poll:([0-9a-f-]{36})\])|(\[board:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex. Order: vault file/folder, poll, board, event, markdown links, event URLs, plain URLs, mentions
+    const combinedRegex = /(\[vault:([0-9a-f-]{36})\])|(\[vaultfolder:([0-9a-f-]{36})\])|(\[poll:([0-9a-f-]{36})\])|(\[board:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -100,33 +101,39 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Poll token: [poll:uuid] - match[2] is the poll ID
-        result.push({ type: "poll-link", content: match[2] || "" });
+        // Vault file token: [vault:uuid] - match[2] is the file id
+        result.push({ type: "vault-file", content: match[2] || "" });
       } else if (match[3]) {
-        // Board token: [board:uuid] - match[4] is the active_games ID
-        result.push({ type: "board-link", content: match[4] || "" });
+        // Vault folder token: [vaultfolder:uuid] - match[4] is the folder id
+        result.push({ type: "vault-folder", content: match[4] || "" });
       } else if (match[5]) {
-        // Event token: [event:uuid] - match[6] is the event ID
-        result.push({ type: "event-link", content: match[6] || "" });
+        // Poll token: [poll:uuid] - match[6] is the poll ID
+        result.push({ type: "poll-link", content: match[6] || "" });
       } else if (match[7]) {
-        // Markdown link match: [text](url) - match[8] is text, match[9] is URL
+        // Board token: [board:uuid] - match[8] is the active_games ID
+        result.push({ type: "board-link", content: match[8] || "" });
+      } else if (match[9]) {
+        // Event token: [event:uuid] - match[10] is the event ID
+        result.push({ type: "event-link", content: match[10] || "" });
+      } else if (match[11]) {
+        // Markdown link match: [text](url) - match[12] is text, match[13] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[9] || "", 
-          linkText: match[8] || "" 
+          content: match[13] || "", 
+          linkText: match[12] || "" 
         });
-      } else if (match[10]) {
-        // Event URL match: /events/uuid - match[11] is the event ID
-        result.push({ type: "event-link", content: match[11] || "" });
-      } else if (match[12]) {
+      } else if (match[14]) {
+        // Event URL match: /events/uuid - match[15] is the event ID
+        result.push({ type: "event-link", content: match[15] || "" });
+      } else if (match[16]) {
         // Plain URL match
-        result.push({ type: "link", content: match[12] });
-      } else if (match[13]) {
-        // Mention match - match[14] is display name, match[15] is userId
+        result.push({ type: "link", content: match[16] });
+      } else if (match[17]) {
+        // Mention match - match[18] is display name, match[19] is userId
         result.push({ 
           type: "mention", 
-          content: match[14] || "", 
-          userId: match[15] || "" 
+          content: match[18] || "", 
+          userId: match[19] || "" 
         });
       }
       
@@ -146,13 +153,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds, vaultFileIds, vaultFolderIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
     const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
     const polls = [...new Set(parts.filter(p => p.type === "poll-link").map(p => p.content))];
     const boards = [...new Set(parts.filter(p => p.type === "board-link").map(p => p.content))];
+    const vaultFiles = [...new Set(parts.filter(p => p.type === "vault-file").map(p => p.content))];
+    const vaultFolders = [...new Set(parts.filter(p => p.type === "vault-folder").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -169,6 +178,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       eventIds: events.slice(0, 3),
       pollIds: polls.slice(0, 3),
       boardIds: boards.slice(0, 3),
+      vaultFileIds: vaultFiles.slice(0, 5),
+      vaultFolderIds: vaultFolders.slice(0, 5),
     };
   }, [parts]);
 
@@ -221,6 +232,19 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           <div className="space-y-2 min-w-0 max-w-full">
             {boardIds.map((boardId) => (
               <BoardLinkCard key={boardId} gameId={boardId} />
+            ))}
+          </div>
+        )}
+
+
+        {/* Vault file/folder cards */}
+        {(vaultFileIds.length > 0 || vaultFolderIds.length > 0) && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {vaultFileIds.map((id) => (
+              <VaultFileCard key={`vf-${id}`} fileId={id} />
+            ))}
+            {vaultFolderIds.map((id) => (
+              <VaultFileCard key={`vfo-${id}`} folderId={id} />
             ))}
           </div>
         )}
@@ -355,6 +379,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Poll tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
+              if (part.type === "vault-file" || part.type === "vault-folder") {
+                // Vault tokens render as empty spans; the card is shown below
+                return <span key={index} />;
+              }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
@@ -452,6 +480,18 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {pollIds.map((pollId) => (
             <PollCard key={pollId} pollId={pollId} />
+          ))}
+        </div>
+      )}
+
+      {/* Vault file/folder cards */}
+      {showPreviews && (vaultFileIds.length > 0 || vaultFolderIds.length > 0) && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {vaultFileIds.map((id) => (
+            <VaultFileCard key={`vf-${id}`} fileId={id} />
+          ))}
+          {vaultFolderIds.map((id) => (
+            <VaultFileCard key={`vfo-${id}`} folderId={id} />
           ))}
         </div>
       )}
