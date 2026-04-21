@@ -1,9 +1,12 @@
-import { type ReactNode } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowRightLeft, Trash2, X } from "lucide-react";
+import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const ROLE_LABELS: Record<string, string> = {
   app_admin: "App Admin",
@@ -51,6 +54,7 @@ interface MemberDetailSheetProps {
 export default function MemberDetailSheet({
   open,
   onOpenChange,
+  userId,
   displayName,
   avatarUrl,
   roles,
@@ -64,7 +68,29 @@ export default function MemberDetailSheet({
   onRemove,
   onRemoveRole,
 }: MemberDetailSheetProps) {
+  const navigate = useNavigate();
+  const [startingDM, setStartingDM] = useState(false);
   const canRemoveRoles = canManage && !isSelf && roles.length > 1;
+
+  const handleSendMessage = async () => {
+    if (startingDM) return;
+    setStartingDM(true);
+    try {
+      const { data, error } = await supabase.rpc("get_or_create_dm_conversation", {
+        other_user_id: userId,
+      });
+      if (error) throw error;
+      onOpenChange(false);
+      navigate(`/messages/dm/${data as string}`);
+    } catch (err: any) {
+      const message = err?.message || "Could not start conversation";
+      toast.error(message.includes("not allowed") || message.includes("permission")
+        ? "You can't message this member"
+        : `Failed to start conversation: ${message}`);
+    } finally {
+      setStartingDM(false);
+    }
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
