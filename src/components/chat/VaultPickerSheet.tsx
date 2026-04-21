@@ -232,10 +232,17 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
     return files.filter((f) => f.name.toLowerCase().includes(s));
   }, [files, search]);
 
+  const clearSelection = () => {
+    setSelectedFolders(new Map());
+    setSelectedFiles(new Map());
+  };
+
   const enterFolder = (folder: VaultFolder) => {
     setCurrentFolderId(folder.id);
     setPathStack((prev) => [...prev, { id: folder.id, name: folder.name }]);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const goBack = () => {
@@ -244,6 +251,8 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
     setPathStack(newStack);
     setCurrentFolderId(newStack[newStack.length - 1].id);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const jumpToCrumb = (index: number) => {
@@ -253,12 +262,51 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
     setPathStack(newStack);
     setCurrentFolderId(newStack[newStack.length - 1].id);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const reset = () => {
     setCurrentFolderId(null);
     setPathStack([{ id: null, name: "Vault" }]);
     setSearch("");
+    setSelectionMode(false);
+    clearSelection();
+  };
+
+  const toggleFolderSelection = (folder: VaultFolder) => {
+    setSelectedFolders((prev) => {
+      const next = new Map(prev);
+      if (next.has(folder.id)) next.delete(folder.id);
+      else next.set(folder.id, folder.name);
+      return next;
+    });
+  };
+
+  const toggleFileSelection = (file: VaultFile) => {
+    setSelectedFiles((prev) => {
+      const next = new Map(prev);
+      if (next.has(file.id)) next.delete(file.id);
+      else next.set(file.id, file.name);
+      return next;
+    });
+  };
+
+  const selectionCount = selectedFolders.size + selectedFiles.size;
+
+  const submitBulkSelection = () => {
+    if (!onPickMany || selectionCount === 0) return;
+    const items: VaultPickerItem[] = [
+      ...Array.from(selectedFolders.entries()).map(
+        ([id, name]) => ({ kind: "folder" as const, id, name }),
+      ),
+      ...Array.from(selectedFiles.entries()).map(
+        ([id, name]) => ({ kind: "file" as const, id, name }),
+      ),
+    ];
+    onPickMany(items);
+    setSelectionMode(false);
+    clearSelection();
   };
 
   const handleClose = (newOpen: boolean) => {
