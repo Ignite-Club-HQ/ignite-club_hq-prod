@@ -145,22 +145,39 @@ export default function MemberDetailSheet({
           </div>
 
           {/* Actions */}
-          {canManage && (
+          {(!isSelf || canManage) && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Actions</p>
               <div className="grid gap-2">
-                <Button
-                  variant="outline"
-                  className="justify-start gap-2 h-11"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onAddRole();
-                  }}
-                >
-                  <Plus className="h-4 w-4 text-blue-500" />
-                  Add Role
-                </Button>
-                {showMoveAction && canMove && (
+                {!isSelf && (
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2 h-11"
+                    onClick={handleSendMessage}
+                    disabled={startingDM}
+                  >
+                    {startingDM ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4 text-primary" />
+                    )}
+                    Send Message
+                  </Button>
+                )}
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2 h-11"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onAddRole();
+                    }}
+                  >
+                    <Plus className="h-4 w-4 text-blue-500" />
+                    Add Role
+                  </Button>
+                )}
+                {canManage && showMoveAction && canMove && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
@@ -173,7 +190,7 @@ export default function MemberDetailSheet({
                     Move to Another Team
                   </Button>
                 )}
-                {showRemoveAction && !isSelf && (
+                {canManage && showRemoveAction && !isSelf && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11 text-destructive hover:text-destructive"
