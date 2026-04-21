@@ -138,11 +138,12 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       SHEET_DEFAULT_HEIGHT,
       Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
     );
-    const preferredHeight = keyboardSessionActive
-      ? availableHeight
-      : compactHeight;
+    // Always maximise to the available area above the keyboard for consistency.
+    const preferredHeight = keyboardSessionActive ? availableHeight : compactHeight;
     const nextSheetHeight = Math.min(availableHeight, preferredHeight);
-    const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
+    const nextSheetTop = keyboardSessionActive
+      ? Math.max(TOP_GAP, keyboardTop - nextSheetHeight)
+      : Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
 
     return {
       sheetHeight: nextSheetHeight,
