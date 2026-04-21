@@ -1,0 +1,205 @@
+import { memo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  FileText,
+  FileSpreadsheet,
+  FileImage,
+  FileVideo,
+  FileAudio,
+  FileArchive,
+  Folder,
+  ExternalLink,
+  Download,
+  Loader2,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
+
+interface VaultFileCardProps {
+  fileId?: string;
+  folderId?: string;
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function getIconForFile(name: string, fileType: string | null) {
+  const lower = (name || "").toLowerCase();
+  const type = (fileType || "").toLowerCase();
+  if (type.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg|heic)$/i.test(lower)) return FileImage;
+  if (type.startsWith("video/") || /\.(mp4|mov|avi|webm|mkv)$/i.test(lower)) return FileVideo;
+  if (type.startsWith("audio/") || /\.(mp3|wav|m4a|ogg)$/i.test(lower)) return FileAudio;
+  if (/\.(xls|xlsx|csv|numbers|ods)$/i.test(lower)) return FileSpreadsheet;
+  if (/\.(zip|rar|7z|tar|gz)$/i.test(lower)) return FileArchive;
+  return FileText;
+}
+
+function getColorForFile(name: string, fileType: string | null): string {
+  const lower = (name || "").toLowerCase();
+  const type = (fileType || "").toLowerCase();
+  if (type.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg)$/i.test(lower)) return "text-blue-500";
+  if (type.startsWith("video/") || /\.(mp4|mov)$/i.test(lower)) return "text-purple-500";
+  if (type.startsWith("audio/") || /\.(mp3|wav)$/i.test(lower)) return "text-pink-500";
+  if (/\.pdf$/i.test(lower)) return "text-red-500";
+  if (/\.(xls|xlsx|csv)$/i.test(lower)) return "text-green-600";
+  if (/\.(doc|docx)$/i.test(lower)) return "text-blue-600";
+  if (/\.(ppt|pptx)$/i.test(lower)) return "text-orange-500";
+  if (/\.(zip|rar|7z)$/i.test(lower)) return "text-amber-600";
+  return "text-muted-foreground";
+}
+
+export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId }: VaultFileCardProps) {
+  const navigate = useNavigate();
+
+  // Folder card
+  const folderQuery = useQuery({
+    queryKey: ["vault-folder-card", folderId],
+    queryFn: async () => {
+      if (!folderId) return null;
+      const { data, error } = await supabase
+        .from("vault_folders")
+        .select("id, name, club_id, team_id")
+        .eq("id", folderId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!folderId,
+    staleTime: 60 * 1000,
+  });
+
+  // File card
+  const fileQuery = useQuery({
+    queryKey: ["vault-file-card", fileId],
+    queryFn: async () => {
+      if (!fileId) return null;
+      const { data, error } = await supabase
+        .from("vault_files")
+        .select("id, name, file_url, file_type, file_size, is_external_link, club_id, team_id, folder_id, deleted_at")
+        .eq("id", fileId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!fileId,
+    staleTime: 60 * 1000,
+  });
+
+  if (folderId) {
+    if (folderQuery.isLoading) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Loading folder…</span>
+        </div>
+      );
+    }
+    if (!folderQuery.data) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3 max-w-xs">
+          <Folder className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Folder unavailable</span>
+        </div>
+      );
+    }
+    const folder = folderQuery.data;
+    const handleOpen = () => {
+      // Navigate to vault page; folder selection handled by VaultPage when given a folder id
+      navigate(`/vault?folder=${folder.id}`);
+    };
+    return (
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors p-3 max-w-xs w-full text-left active:scale-[0.99]"
+        aria-label={`Open folder ${folder.name}`}
+      >
+        <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Folder className="h-5 w-5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground truncate">{folder.name}</p>
+          <p className="text-xs text-muted-foreground">Vault folder</p>
+        </div>
+        <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+      </button>
+    );
+  }
+
+  if (fileId) {
+    if (fileQuery.isLoading) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Loading file…</span>
+        </div>
+      );
+    }
+    if (!fileQuery.data || fileQuery.data.deleted_at) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3 max-w-xs">
+          <FileText className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">File unavailable</span>
+        </div>
+      );
+    }
+    const file = fileQuery.data;
+    const Icon = getIconForFile(file.name || "", file.file_type);
+    const color = getColorForFile(file.name || "", file.file_type);
+    const sizeLabel = formatBytes(file.file_size);
+
+    const handleOpen = async () => {
+      if (file.is_external_link) {
+        safeOpenUrl(file.file_url);
+        return;
+      }
+      try {
+        // For storage-hosted files, request a signed URL when possible
+        if (file.file_url?.includes("/storage/v1/object/public/")) {
+          // Public bucket — open directly
+          safeOpenUrl(file.file_url);
+          return;
+        }
+        // Try to extract bucket + path for signed URL; fall back to opening URL as-is
+        safeOpenUrl(file.file_url);
+      } catch (err) {
+        console.warn("Failed to open vault file:", err);
+        toast.error("Could not open file");
+      }
+    };
+
+    return (
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors p-3 max-w-xs w-full text-left active:scale-[0.99]"
+        aria-label={`Open file ${file.name}`}
+      >
+        <div className={`h-10 w-10 rounded-md bg-muted flex items-center justify-center shrink-0 ${color}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {file.is_external_link ? "External link" : "Vault file"}
+            {sizeLabel ? ` · ${sizeLabel}` : ""}
+          </p>
+        </div>
+        {file.is_external_link ? (
+          <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+        ) : (
+          <Download className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+      </button>
+    );
+  }
+
+  return null;
+});
