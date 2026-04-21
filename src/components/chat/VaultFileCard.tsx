@@ -183,8 +183,10 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
     }
     const folder = folderQuery.data;
     const handleOpen = () => {
-      // Navigate to vault page; folder selection handled by VaultPage when given a folder id
-      navigate(`/vault?folder=${folder.id}`);
+      // Use the canonical folder deep-link route so VaultPage resolves
+      // the full breadcrumb path (including parents) and lands inside
+      // the actual subfolder rather than the club/team root.
+      navigate(`/vault/folder/${folder.id}`);
     };
     return (
       <button
