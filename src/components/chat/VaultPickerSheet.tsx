@@ -213,7 +213,11 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
           </div>
         </SheetHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2">
+        <div
+          data-chat-scroll-lock="true"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2"
+          style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        >
           {!clubId && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               Vault unavailable in this chat.
