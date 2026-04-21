@@ -18,7 +18,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("team_messages")
-        .select("id, text, created_at, author_id, is_club_announcement, club_announcement_name")
+        .select("id, text, created_at, author_id, is_club_announcement, club_announcement_name, is_system_message")
         .eq("team_id", teamId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -116,13 +116,19 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
         <span className="text-sm font-semibold">Team Chat</span>
         {latestMessage ? (
           <p className="text-[11px] text-muted-foreground truncate">
-            <span className="font-medium">
-              {latestMessage.author_id === user?.id ? "You" : latestMessage.authorName}:
-            </span>{" "}
-            {(() => {
-              const clean = stripMentionFormatting(latestMessage.text, eventTitleMap);
-              return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
-            })()}
+            {(latestMessage as any).is_system_message ? (
+              <span className="italic">{latestMessage.text}</span>
+            ) : (
+              <>
+                <span className="font-medium">
+                  {latestMessage.author_id === user?.id ? "You" : latestMessage.authorName}:
+                </span>{" "}
+                {(() => {
+                  const clean = stripMentionFormatting(latestMessage.text, eventTitleMap);
+                  return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
+                })()}
+              </>
+            )}
           </p>
         ) : (
           <p className="text-[11px] text-muted-foreground">No messages yet — say hello! 👋</p>

@@ -643,6 +643,18 @@ export const ChatMessage = memo(function ChatMessage({
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
 
+  // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
+  // WhatsApp-style: no avatar, no actions, no reactions.
+  if (isSystemMessage) {
+    return (
+      <div className="flex justify-center my-2 px-4">
+        <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
+          {text}
+        </div>
+      </div>
+    );
+  }
+
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (

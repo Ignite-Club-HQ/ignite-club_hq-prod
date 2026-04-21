@@ -127,6 +127,22 @@ function attachVisibilityHandlers() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") onForeground();
   });
+
+  // Native (Capacitor) lifecycle: websockets drop when an iOS/Android app
+  // is backgrounded, so we must explicitly re-track on foreground.
+  const cap = (window as any).Capacitor;
+  if (cap?.isNativePlatform?.()) {
+    import("@capacitor/app")
+      .then(({ App }) => {
+        App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) onForeground();
+        });
+        App.addListener("resume", () => onForeground());
+      })
+      .catch(() => {
+        /* plugin not available — fall back to web events */
+      });
+  }
 }
 
 async function ensureChannel(userId: string) {

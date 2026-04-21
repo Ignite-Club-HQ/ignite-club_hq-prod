@@ -9,6 +9,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
 import { GifGrid } from "@/components/chat/GifGrid";
+import { GifPickerMobileSheet } from "@/components/chat/GifPickerMobileSheet";
 
 const RECENT_EMOJIS_KEY = "ignite-recent-emojis";
 const MAX_RECENT_EMOJIS = 14;
@@ -75,6 +76,7 @@ function saveRecentEmoji(emoji: string) {
 export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"emoji" | "gif">("emoji");
+  const [gifSheetOpen, setGifSheetOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
@@ -82,6 +84,9 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
   const showGifTab = !!onGifSelect;
+  // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
+  // of inside the popover so the search input + results never get covered.
+  const useGifSheet = isMobile && showGifTab;
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -127,6 +132,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     onGifSelectRef.current?.(url);
     requestAnimationFrame(() => {
       setOpen(false);
+      setGifSheetOpen(false);
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
@@ -140,6 +146,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   }, [handleEmojiClick]);
 
   return (
+    <>
     <Popover open={open} onOpenChange={(newOpen) => {
       if (newOpen) {
         dismissIOSKeyboardAccessory();
@@ -158,14 +165,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           className="h-9 w-9 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
           disabled={disabled}
         >
-          <Smile className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+          <Smile className="h-5 w-5 -mt-px" strokeWidth={2} aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "w-[calc(100vw-2rem)] max-w-sm" : "w-72"}`}
+        className={`p-2 ${isMobile ? "!left-2 !right-2 !w-auto !max-w-none" : "w-72"} ${showGifTab && !useGifSheet ? "h-[360px] flex flex-col" : ""}`}
         side="top"
         align="start"
         sideOffset={8}
+        avoidCollisions={false}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onFocusOutside={(e) => {
@@ -208,7 +216,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </button>
             <button
               type="button"
-              onClick={() => setTab("gif")}
+              onClick={() => {
+                if (useGifSheet) {
+                  // Open the dedicated mobile sheet and close the popover
+                  setGifSheetOpen(true);
+                  setOpen(false);
+                } else {
+                  setTab("gif");
+                }
+              }}
               className={`flex-1 rounded text-xs font-semibold py-1.5 transition-colors ${
                 tab === "gif"
                   ? "bg-background shadow-sm text-foreground"
@@ -220,11 +236,11 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           </div>
         )}
 
-        {tab === "emoji" || !showGifTab ? (
-          <>
+        {tab === "emoji" || !showGifTab || useGifSheet ? (
+          <div className={showGifTab ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
             {/* Recent emojis row */}
             {recentEmojis.length > 0 && (
-              <div className="mb-2 pb-2 border-b">
+              <div className="mb-2 pb-2 border-b shrink-0">
                 <div className="flex items-center gap-1 mb-1">
                   <Clock className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Recent</span>
@@ -249,7 +265,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             )}
 
             {/* Category tabs */}
-            <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide shrink-0">
               {EMOJI_CATEGORIES.map((cat, idx) => (
                 <button
                   type="button"
@@ -272,7 +288,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </div>
 
             {/* Emoji grid */}
-            <div className={`grid gap-1 max-h-52 overflow-y-auto ${
+            <div className={`grid gap-1 ${showGifTab ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
               isMobile ? "grid-cols-7" : "grid-cols-8"
             }`}>
               {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
@@ -290,16 +306,27 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
                 </button>
               ))}
             </div>
-          </>
+          </div>
         ) : (
           <GifGrid
             active={tab === "gif"}
             onSelect={handleGifPick}
-            scrollClassName="max-h-64"
+            scrollClassName="flex-1 min-h-0"
             gridClassName="grid-cols-2"
+            className="flex-1 min-h-0"
           />
         )}
       </PopoverContent>
     </Popover>
+
+    {/* Mobile-only keyboard-aware GIF sheet */}
+    {useGifSheet && (
+      <GifPickerMobileSheet
+        open={gifSheetOpen}
+        onClose={() => setGifSheetOpen(false)}
+        onSelect={handleGifPick}
+      />
+    )}
+    </>
   );
 }

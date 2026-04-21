@@ -19,6 +19,8 @@ export interface GiphyResult {
 interface GifGridProps {
   active: boolean;
   onSelect: (gifUrl: string) => void;
+  onQueryChange?: (query: string) => void;
+  onFocusChange?: (focused: boolean) => void;
   className?: string;
   /** Tailwind classes for the scrollable area max-height (e.g. "max-h-52"). */
   scrollClassName?: string;
@@ -30,6 +32,8 @@ interface GifGridProps {
 export function GifGrid({
   active,
   onSelect,
+  onQueryChange,
+  onFocusChange,
   className,
   scrollClassName = "max-h-72",
   gridClassName = "grid-cols-2",
@@ -68,6 +72,10 @@ export function GifGrid({
 
   // Debounced search while active
   useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
+
+  useEffect(() => {
     if (!active) return;
     if (!loadedOnceRef.current) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -81,21 +89,23 @@ export function GifGrid({
   }, [query, active]);
 
   return (
-    <div data-gif-picker className={cn("flex flex-col min-h-0", className)}>
-      <div className="shrink-0">
+    <div data-gif-picker className={cn("flex flex-col min-h-0 overflow-hidden", className)}>
+      <div className="sticky top-0 z-10 shrink-0 bg-popover pb-1.5">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => onFocusChange?.(true)}
+            onBlur={() => onFocusChange?.(false)}
             placeholder="Search GIPHY"
-            className="pl-9 pr-9 h-9"
+            className="pl-9 pr-9 h-8"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-accent text-muted-foreground"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -103,17 +113,17 @@ export function GifGrid({
           )}
         </div>
         {showAttribution && (
-          <p className="mt-1.5 text-[10px] text-muted-foreground">Powered by GIPHY</p>
+          <p className="mt-1 text-[9px] leading-none text-muted-foreground">Powered by GIPHY</p>
         )}
       </div>
 
-      <div className={cn("mt-2 overflow-y-auto", scrollClassName)}>
+      <div className={cn("mt-1.5 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-1", scrollClassName)}>
         {loading && gifs.length === 0 ? (
-          <div className="flex items-center justify-center py-10">
+          <div className="flex min-h-[132px] items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : gifs.length === 0 ? (
-          <div className="text-center py-10 text-xs text-muted-foreground">
+          <div className="flex min-h-[132px] items-center justify-center text-center text-xs text-muted-foreground">
             No GIFs found.
           </div>
         ) : (

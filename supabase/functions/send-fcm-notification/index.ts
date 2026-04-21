@@ -256,7 +256,7 @@ serve(async (req) => {
               message: {
                 token: tokenRecord.token,
                 notification: {
-                  title: title || 'Ignite Club HQ',
+                  title: title || 'Ignite',
                   body: body || 'You have a new notification',
                 },
                 data: (() => {

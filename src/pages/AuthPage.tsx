@@ -513,10 +513,7 @@ export default function AuthPage() {
             <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
           {!isSignInKeyboardOpen && (
-            <>
-              <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-              <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
-            </>
+            <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           )}
         </div>
 

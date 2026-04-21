@@ -3158,6 +3158,7 @@ export type Database = {
           group_id: string
           id: string
           image_url: string | null
+          is_system_message: boolean
           reply_to_id: string | null
           text: string
         }
@@ -3168,6 +3169,7 @@ export type Database = {
           group_id: string
           id?: string
           image_url?: string | null
+          is_system_message?: boolean
           reply_to_id?: string | null
           text: string
         }
@@ -3178,6 +3180,7 @@ export type Database = {
           group_id?: string
           id?: string
           image_url?: string | null
+          is_system_message?: boolean
           reply_to_id?: string | null
           text?: string
         }
@@ -6158,6 +6161,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_club_announcement: boolean
+          is_system_message: boolean
           reply_to_id: string | null
           team_id: string
           text: string
@@ -6170,6 +6174,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_system_message?: boolean
           reply_to_id?: string | null
           team_id: string
           text: string
@@ -6182,6 +6187,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_club_announcement?: boolean
+          is_system_message?: boolean
           reply_to_id?: string | null
           team_id?: string
           text?: string
@@ -7310,6 +7316,10 @@ export type Database = {
         Args: { message_text: string }
         Returns: string[]
       }
+      format_role_label: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: string
+      }
       generate_email_hash: { Args: { email: string }; Returns: string }
       get_club_invite_by_token: {
         Args: { _token: string }
@@ -7460,6 +7470,12 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_online_users_from_set: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          user_id: string
+        }[]
       }
       get_or_create_club_admin_conversation: {
         Args: { p_club_id: string }
@@ -7777,6 +7793,7 @@ export type Database = {
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      resolve_invite_short_code: { Args: { _code: string }; Returns: string }
       season_orphan_events: {
         Args: { _club_id: string }
         Returns: {

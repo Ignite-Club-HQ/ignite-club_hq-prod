@@ -73,6 +73,7 @@ interface Message {
   created_at: string;
   is_club_announcement?: boolean;
   club_announcement_name?: string | null;
+  is_system_message?: boolean;
   profiles: {
     display_name: string | null;
     avatar_url: string | null;
@@ -109,6 +110,7 @@ const getCachedTeamMessages = (teamId: string): Message[] =>
       typeof cachedMessage.club_announcement_name === "string"
         ? cachedMessage.club_announcement_name
         : null,
+    is_system_message: Boolean(cachedMessage.is_system_message),
     profiles: cachedMessage.profiles,
     reactions: (cachedMessage.reactions || []).map((reaction) => ({
       id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
@@ -360,7 +362,7 @@ export default function TeamChatPage() {
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name, is_system_message")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -439,6 +441,7 @@ export default function TeamChatPage() {
           created_at: msg.created_at,
           is_club_announcement: msg.is_club_announcement || false,
           club_announcement_name: msg.club_announcement_name || null,
+          is_system_message: msg.is_system_message || false,
           profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
           reactions,
           reply_to: replyTo,
@@ -455,6 +458,7 @@ export default function TeamChatPage() {
         reply_to_id: m.reply_to_id,
         is_club_announcement: m.is_club_announcement,
         club_announcement_name: m.club_announcement_name,
+        is_system_message: m.is_system_message,
         profiles: m.profiles,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -600,6 +604,8 @@ export default function TeamChatPage() {
                 message.is_club_announcement ?? previousMessage.is_club_announcement ?? false,
               club_announcement_name:
                 message.club_announcement_name ?? previousMessage.club_announcement_name ?? null,
+              is_system_message:
+                message.is_system_message ?? previousMessage.is_system_message ?? false,
               profiles: message.profiles ?? previousMessage.profiles,
               reply_to: message.reply_to ?? previousMessage.reply_to,
               reactions: [...incomingReactions, ...missingFromIncoming],
@@ -615,6 +621,7 @@ export default function TeamChatPage() {
         reply_to_id: m.reply_to_id,
         is_club_announcement: m.is_club_announcement,
         club_announcement_name: m.club_announcement_name,
+        is_system_message: m.is_system_message,
         profiles: m.profiles,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -715,7 +722,7 @@ export default function TeamChatPage() {
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -780,6 +787,7 @@ export default function TeamChatPage() {
         ...msg,
         is_club_announcement: msg.is_club_announcement || false,
         club_announcement_name: msg.club_announcement_name || null,
+        is_system_message: msg.is_system_message || false,
         profiles: profilesMap.get(msg.author_id) || null,
         reactions: reactionsData.filter((r) => r.team_message_id === msg.id) || [],
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
@@ -922,6 +930,7 @@ export default function TeamChatPage() {
                       // Don't overwrite club announcement metadata
                       is_club_announcement: m.is_club_announcement || newMsg.is_club_announcement || false,
                       club_announcement_name: m.club_announcement_name || newMsg.club_announcement_name || null,
+                      is_system_message: m.is_system_message || newMsg.is_system_message || false,
                       profiles: profileData 
                         ? { display_name: profileData.display_name, avatar_url: profileData.avatar_url }
                         : m.profiles,
@@ -1461,6 +1470,7 @@ export default function TeamChatPage() {
                         isPending={msg.id.startsWith("queued-")}
                         contextId={teamId || ""}
                         isClubAnnouncement={msg.is_club_announcement}
+                        isSystemMessage={msg.is_system_message}
                         isPinned={pinnedMessageIds.has(msg.id)}
                         canPin={!msg.is_club_announcement && !msg.id.startsWith("queued-")}
                         pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
