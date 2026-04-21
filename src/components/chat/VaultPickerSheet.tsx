@@ -173,6 +173,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
       <SheetContent
         side="bottom"
         className="h-[85dvh] max-h-[85dvh] flex flex-col p-0 overflow-hidden"
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
@@ -212,7 +213,10 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
           </div>
         </SheetHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2 pb-[env(safe-area-inset-bottom)]">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2 pb-[env(safe-area-inset-bottom)]"
+          style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        >
           {!clubId && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               Vault unavailable in this chat.
