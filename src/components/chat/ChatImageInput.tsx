@@ -262,6 +262,25 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
   };
 
+  const handleVaultPickMany = (
+    items: Array<
+      | { kind: "file" | "folder"; id: string; name: string }
+      | { kind: "root"; scope: "team" | "club"; id: string; name: string }
+    >,
+  ) => {
+    if (!onAppendToken || items.length === 0) return;
+    for (const item of items) {
+      let token: string;
+      if (item.kind === "file") token = makeVaultFileToken(item.id);
+      else if (item.kind === "folder") token = makeVaultFolderToken(item.id);
+      else if (item.kind === "root") token = makeVaultRootToken(item.scope, item.id);
+      else continue;
+      onAppendToken(token);
+    }
+    setVaultPickerOpen(false);
+    toast.success(`Shared ${items.length} ${items.length === 1 ? "item" : "items"}`);
+  };
+
   const handleNativePhotoPick = async () => {
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
@@ -538,6 +557,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             clubId={clubId}
             teamId={teamId || null}
             onPick={handleVaultPick}
+            onPickMany={handleVaultPickMany}
           />
           <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
             <SheetContent side="bottom" className="p-0">
