@@ -72,12 +72,18 @@ function getIconForFile(name: string, fileType: string | null) {
   return FileText;
 }
 
-export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }: VaultPickerSheetProps) {
+export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, onPickMany }: VaultPickerSheetProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [pathStack, setPathStack] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: "Vault" },
   ]);
   const [search, setSearch] = useState("");
+  // Bulk-share mode (only meaningful when onPickMany is provided AND we are
+  // inside a folder — root-level selection across team/club scopes is too
+  // ambiguous, so we keep it confined to the current folder view).
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, string>>(new Map());
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, string>>(new Map());
 
   // At the root, we offer a "share entire vault" card scoped to either the
   // team (when this is a team chat) or the whole club. Fetch the display name.
