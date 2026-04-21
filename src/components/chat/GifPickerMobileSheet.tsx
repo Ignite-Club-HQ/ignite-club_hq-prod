@@ -18,8 +18,8 @@ import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardS
  */
 const SHEET_DEFAULT_HEIGHT = 420;
 const SHEET_MIN_HEIGHT = 240;
-const TOP_GAP = 12;
-const KEYBOARD_GAP = 4;
+const TOP_GAP = 8;
+const KEYBOARD_GAP = 0;
 const KEYBOARD_OPEN_THRESHOLD = 80;
 
 interface GifPickerMobileSheetProps {
