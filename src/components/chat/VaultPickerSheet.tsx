@@ -237,6 +237,42 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
               {currentLabel}
             </SheetTitle>
           </div>
+
+          {pathStack.length > 1 && (
+            <nav
+              aria-label="Folder breadcrumb"
+              className="mt-1 -mx-1 flex items-center gap-0.5 overflow-x-auto whitespace-nowrap px-1 pb-0.5 scrollbar-thin"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {pathStack.map((crumb, index) => {
+                const isLast = index === pathStack.length - 1;
+                return (
+                  <div key={`${crumb.id ?? "root"}-${index}`} className="flex items-center shrink-0">
+                    {index > 0 && (
+                      <ChevronRight
+                        className="h-3.5 w-3.5 text-muted-foreground/60 mx-0.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => jumpToCrumb(index)}
+                      disabled={isLast}
+                      aria-current={isLast ? "page" : undefined}
+                      className={`max-w-[140px] truncate rounded px-1.5 py-0.5 text-xs transition-colors ${
+                        isLast
+                          ? "font-semibold text-foreground cursor-default"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent/80"
+                      }`}
+                    >
+                      {crumb.name}
+                    </button>
+                  </div>
+                );
+              })}
+            </nav>
+          )}
+
           <div className="relative mt-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
