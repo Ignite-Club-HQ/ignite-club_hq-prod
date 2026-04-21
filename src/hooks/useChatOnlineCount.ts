@@ -21,11 +21,15 @@ interface Options {
 
 /**
  * Fetches the user IDs that participate in a given chat (team/club/group)
- * and returns how many of them are currently online via Realtime presence.
+ * and returns how many of them are currently online.
+ *
+ * Combines two sources of truth:
+ *   1. Realtime presence channel (instant, but unreliable on mobile when the
+ *      websocket drops in background).
+ *   2. DB heartbeat (`user_presence`, last_seen_at within 90s) — survives
+ *      backgrounding and network blips on native apps.
  *
  * The current user is excluded from the count.
- *
- * Uses the same query keys as ChatParticipantsList so cached data is shared.
  */
 export function useChatOnlineCount(
   chatType: ChatOnlineCountType,
@@ -36,8 +40,6 @@ export function useChatOnlineCount(
   const { teamId, clubId, groupAllowedRoles, enabled = true } = opts;
 
   const { data: memberIds } = useQuery({
-    // Distinct key — we don't want to collide with the richer chat-members
-    // query (which also fetches profile fields). Cheap & fast.
     queryKey: [
       "chat-online-member-ids",
       chatType,
@@ -91,12 +93,42 @@ export function useChatOnlineCount(
       return [...new Set(ids)];
     },
     enabled: enabled && !!chatId,
-    // Short stale time so freshly added/removed members are reflected in the
-    // online count quickly. The query itself is cheap (a single id lookup).
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
   });
 
   const ids = useMemo(() => memberIds || [], [memberIds]);
-  return useOnlineCount(ids, user?.id);
+
+  // --- Source 1: Realtime presence channel ---
+  const realtimeCount = useOnlineCount(ids, user?.id);
+
+  // --- Source 2: DB heartbeat fallback ---
+  // Polls the user_presence heartbeat table for any of the chat members
+  // active in the last 90 seconds. Reliable across app backgrounding.
+  const { data: heartbeatOnlineIds } = useQuery({
+    queryKey: ["chat-online-heartbeat", ids, user?.id ?? null],
+    queryFn: async (): Promise<string[]> => {
+      if (!ids.length) return [];
+      const { data, error } = await supabase.rpc(
+        "get_online_users_from_set" as any,
+        { _user_ids: ids },
+      );
+      if (error || !data) return [];
+      return (data as Array<{ user_id: string }>)
+        .map((r) => r.user_id)
+        .filter((id) => id !== user?.id);
+    },
+    enabled: enabled && ids.length > 0,
+    staleTime: 30 * 1000,
+    refetchInterval: 45 * 1000,
+  });
+
+  // The realtime set is a superset on desktop (instant join/leave), the
+  // heartbeat set is a superset on mobile (survives backgrounding). Taking
+  // the max gives the correct answer in both environments without inflating
+  // the count via double-counting.
+  return useMemo(() => {
+    const heartbeatCount = (heartbeatOnlineIds || []).length;
+    return Math.max(realtimeCount, heartbeatCount);
+  }, [realtimeCount, heartbeatOnlineIds]);
 }
