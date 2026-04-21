@@ -59,6 +59,7 @@ interface GroupMessage {
   author_id: string;
   group_id: string;
   reply_to_id: string | null;
+  is_system_message?: boolean;
   author?: { display_name: string | null; avatar_url: string | null };
   reply_to?: { text: string; author?: { display_name: string | null } } | null;
 }
