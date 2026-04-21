@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
+import { VaultFileCard } from "./VaultFileCard";
 import { Capacitor } from "@capacitor/core";
 
 interface MentionInputProps {
