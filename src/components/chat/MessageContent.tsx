@@ -400,7 +400,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Poll tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
-              if (part.type === "vault-file" || part.type === "vault-folder") {
+              if (part.type === "vault-file" || part.type === "vault-folder" || part.type === "vault-root") {
                 // Vault tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
@@ -505,9 +505,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
-      {/* Vault file/folder cards */}
-      {showPreviews && (vaultFileIds.length > 0 || vaultFolderIds.length > 0) && (
+      {/* Vault file/folder/root cards */}
+      {showPreviews && (vaultFileIds.length > 0 || vaultFolderIds.length > 0 || vaultRoots.length > 0) && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {vaultRoots.map((r) => (
+            <VaultFileCard key={`vr-${r.scope}-${r.id}`} rootScope={r.scope} rootId={r.id} />
+          ))}
           {vaultFileIds.map((id) => (
             <VaultFileCard key={`vf-${id}`} fileId={id} />
           ))}
