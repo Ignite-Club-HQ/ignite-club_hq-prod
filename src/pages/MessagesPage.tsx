@@ -93,6 +93,8 @@ const MessagePreview = ({
   fallback,
   isAnnouncement,
   eventTitles,
+  vaultFolderNames,
+  vaultFileNames,
 }: { 
   text?: string; 
   imageUrl?: string | null; 
@@ -101,13 +103,17 @@ const MessagePreview = ({
   fallback: string;
   isAnnouncement?: boolean;
   eventTitles?: Record<string, string>;
+  vaultFolderNames?: Record<string, string>;
+  vaultFileNames?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
   
-  // Strip mention formatting (and resolve event titles) from text for preview
-  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
+  // Strip mention formatting (and resolve event/vault names) from text for preview
+  const displayText = hasText
+    ? stripMentionFormatting(text!, { eventTitles, vaultFolderNames, vaultFileNames })
+    : null;
   
   if (!hasText && !imageUrl && !author) {
     return <span className="text-muted-foreground">No messages yet</span>;
