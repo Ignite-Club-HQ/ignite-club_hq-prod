@@ -255,9 +255,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         )}
 
 
-        {/* Vault file/folder cards */}
-        {(vaultFileIds.length > 0 || vaultFolderIds.length > 0) && (
+        {/* Vault file/folder/root cards */}
+        {(vaultFileIds.length > 0 || vaultFolderIds.length > 0 || vaultRoots.length > 0) && (
           <div className="space-y-2 min-w-0 max-w-full">
+            {vaultRoots.map((r) => (
+              <VaultFileCard key={`vr-${r.scope}-${r.id}`} rootScope={r.scope} rootId={r.id} />
+            ))}
             {vaultFileIds.map((id) => (
               <VaultFileCard key={`vf-${id}`} fileId={id} />
             ))}
