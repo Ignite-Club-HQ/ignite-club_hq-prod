@@ -1514,6 +1514,8 @@ export default function TeamChatPage() {
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={true}
             onBoardPick={() => setBoardPickerOpen(true)}
+            showVaultPicker={true}
+            onAppendToken={(token) => setMessage((m) => (m ? `${m} ${token}` : token))}
             hasText={!!message.trim()}
           />
           <MentionInput
