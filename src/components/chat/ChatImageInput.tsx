@@ -464,7 +464,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 </div>
               </button>
 
-              {(showEventPicker || showPollCreator || showBoardPicker) && (
+              {(showEventPicker || showPollCreator || canShowBoardPicker) && (
                 <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />
               )}
 
@@ -504,7 +504,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   </div>
                 </button>
               )}
-              {showBoardPicker && onBoardPick && (
+              {canShowBoardPicker && onBoardPick && (
                 <button
                   type="button"
                   onClick={() => {
