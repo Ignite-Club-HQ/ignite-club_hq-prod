@@ -44,6 +44,7 @@ export function useInitialChatBottomPin({
   // Reset the user-scrolled flag whenever the chat changes
   useEffect(() => {
     userScrolledAwayRef.current = false;
+    lastItemCountRef.current = 0;
   }, [resetKey]);
 
   // Detect manual scrolling away from bottom to suppress auto-snap
