@@ -484,6 +484,18 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
+      {/* Vault file/folder cards */}
+      {showPreviews && (vaultFileIds.length > 0 || vaultFolderIds.length > 0) && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {vaultFileIds.map((id) => (
+            <VaultFileCard key={`vf-${id}`} fileId={id} />
+          ))}
+          {vaultFolderIds.map((id) => (
+            <VaultFileCard key={`vfo-${id}`} folderId={id} />
+          ))}
+        </div>
+      )}
+
       {/* YouTube embeds - only if showPreviews */}
       {showPreviews && youtubeUrls.length > 0 && (
         <div className="space-y-2 mt-2 min-w-0 max-w-full">
