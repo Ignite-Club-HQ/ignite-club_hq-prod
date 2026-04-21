@@ -7787,6 +7787,7 @@ export type Database = {
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      resolve_invite_short_code: { Args: { _code: string }; Returns: string }
       season_orphan_events: {
         Args: { _club_id: string }
         Returns: {
