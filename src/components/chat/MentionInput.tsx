@@ -636,6 +636,53 @@ export function MentionInput({
         </div>
       )}
 
+      {(vaultRoots.length > 0 || vaultFolderIds.length > 0 || vaultFileIds.length > 0) && (
+        <div className="w-full min-w-0 max-w-full space-y-2">
+          {vaultRoots.map((r) => (
+            <div key={`vr-${r.scope}-${r.id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard rootScope={r.scope} rootId={r.id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultRootToken(r.scope, r.id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {vaultFolderIds.map((id) => (
+            <div key={`vf-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard folderId={id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultFolderToken(id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {vaultFileIds.map((id) => (
+            <div key={`vfile-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard fileId={id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultFileToken(id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-full bg-muted/60 pl-1 pr-1 min-h-[40px] ring-1 ring-transparent focus-within:ring-2 focus-within:ring-ring/40 transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-10 transition-all duration-200 animate-in fade-in zoom-in-95">
