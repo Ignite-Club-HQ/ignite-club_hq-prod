@@ -243,6 +243,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     toast.success(`Shared "${item.name}"`);
   };
 
+  const handleNativePhotoPick = async () => {
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
@@ -502,6 +503,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.zip,.odt,.ods,.odp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain,application/zip"
+        onChange={handleDocumentSelect}
+        className="sr-only"
+        disabled={disabled || uploading}
+      />
+      {showVaultPicker && clubId && (
+        <VaultPickerSheet
+          open={vaultPickerOpen}
+          onOpenChange={setVaultPickerOpen}
+          clubId={clubId}
+          teamId={teamId || null}
+          onPick={handleVaultPick}
+        />
+      )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -544,6 +562,43 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   <span className="text-[11px] text-muted-foreground">From camera roll or gallery</span>
                 </div>
               </button>
+
+              {showVaultPicker && clubId && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      docInputRef.current?.click();
+                    }}
+                    disabled={disabled || uploading}
+                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
+                    aria-label="Upload file"
+                  >
+                    <FileText className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                    <div className="flex flex-col items-start leading-tight min-w-0">
+                      <span className="text-sm font-medium text-foreground">Upload File</span>
+                      <span className="text-[11px] text-muted-foreground">PDF, doc, spreadsheet — saved to vault</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setVaultPickerOpen(true);
+                    }}
+                    disabled={disabled}
+                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
+                    aria-label="Share from vault"
+                  >
+                    <FolderOpen className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                    <div className="flex flex-col items-start leading-tight min-w-0">
+                      <span className="text-sm font-medium text-foreground">From Vault</span>
+                      <span className="text-[11px] text-muted-foreground">Share an existing file or folder</span>
+                    </div>
+                  </button>
+                </>
+              )}
 
               {(showEventPicker || showPollCreator || canShowBoardPicker) && (
                 <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />
