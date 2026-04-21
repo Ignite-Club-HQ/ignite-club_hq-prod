@@ -49,6 +49,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
+  const { user } = useAuth();
 
   // Fetch club sport so the live-board action subtitle is contextual.
   const { data: clubSport } = useQuery({
@@ -61,6 +62,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     enabled: !!clubId && showBoardPicker,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Only show the Share Live Board action when the user has access to at
+  // least one active game (RLS scopes results to the user's teams).
+  const { data: hasActiveBoard = false } = useQuery({
+    queryKey: ["chat-has-active-board", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { count, error } = await supabase
+        .from("active_games")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true);
+      if (error) {
+        console.error("[ChatImageInput] active board count failed", error);
+        return false;
+      }
+      return (count ?? 0) > 0;
+    },
+    enabled: !!user?.id && showBoardPicker,
+    staleTime: 30 * 1000,
+    refetchInterval: menuOpen ? 15 * 1000 : false,
+  });
+
+  const canShowBoardPicker = showBoardPicker && hasActiveBoard;
 
   const boardSubtitle = (() => {
     const s = (clubSport || "").toLowerCase();
