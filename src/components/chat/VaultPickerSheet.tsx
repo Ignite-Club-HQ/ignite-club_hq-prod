@@ -200,6 +200,8 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
   const currentLabel = pathStack[pathStack.length - 1]?.name || "Vault";
   const isLoading = foldersQuery.isLoading || filesQuery.isLoading;
   const isEmpty = !isLoading && filteredFolders.length === 0 && filteredFiles.length === 0;
+  const insideFolder = currentFolderId !== null;
+  const currentFolderName = pathStack[pathStack.length - 1]?.name || "";
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
