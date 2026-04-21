@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
@@ -183,15 +183,21 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
         }}
       >
         {/* Header */}
-        <div className="relative flex items-center justify-center px-3 pt-1.5 pb-0.5 shrink-0">
+        <div className="relative flex items-center justify-between px-2 pt-1.5 pb-1 shrink-0">
+          <div className="w-14" aria-hidden />
           <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
           <button
             type="button"
-            onClick={onClose}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              const active = document.activeElement as HTMLElement | null;
+              if (active && typeof active.blur === "function") active.blur();
+              onClose();
+            }}
             aria-label="Close GIF picker"
-            className="absolute right-1.5 top-1 h-7 w-7 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent active:scale-95 transition-all"
+            className="w-14 h-7 flex items-center justify-center rounded-full text-sm font-medium text-primary hover:bg-accent active:scale-95 transition-all"
           >
-            <X className="h-4 w-4" />
+            Done
           </button>
         </div>
 
