@@ -28,7 +28,11 @@ interface VaultPickerSheetProps {
   onOpenChange: (open: boolean) => void;
   clubId: string | null | undefined;
   teamId?: string | null;
-  onPick: (item: { kind: "file" | "folder"; id: string; name: string }) => void;
+  onPick: (
+    item:
+      | { kind: "file" | "folder"; id: string; name: string }
+      | { kind: "root"; scope: "team" | "club"; id: string; name: string },
+  ) => void;
 }
 
 interface VaultFolder {
