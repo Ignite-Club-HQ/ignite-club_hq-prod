@@ -9,6 +9,7 @@ import {
   FileAudio,
   FileArchive,
   ChevronLeft,
+  ChevronRight,
   Search,
   Loader2,
   X,
