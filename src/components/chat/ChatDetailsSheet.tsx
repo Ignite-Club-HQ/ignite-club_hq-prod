@@ -77,7 +77,9 @@ export function ChatDetailsSheet({
 
   const handleNavigate = (path: string) => {
     onOpenChange(false);
-    navigate(path);
+    // Defer navigation slightly so the sheet can begin closing without
+    // Radix dismiss handlers swallowing the click on touch devices.
+    setTimeout(() => navigate(path), 80);
   };
 
   const showContextLinks = chatType === "team" || chatType === "club" || chatType === "group";
