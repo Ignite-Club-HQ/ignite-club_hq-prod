@@ -161,6 +161,53 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
   const folders = foldersQuery.data || [];
   const files = filesQuery.data || [];
 
+  // Batch-fetch counts of child folders and files for every folder shown,
+  // so each row can display "X folders · Y files" at a glance.
+  const folderIds = useMemo(() => folders.map((f) => f.id), [folders]);
+
+  const folderChildCountsQuery = useQuery({
+    queryKey: ["vault-picker-folder-counts", clubId, folderIds.join(",")],
+    queryFn: async () => {
+      const counts = new Map<string, { folders: number; files: number }>();
+      if (!clubId || folderIds.length === 0) return counts;
+
+      const [{ data: subfolders, error: subErr }, { data: subfiles, error: fileErr }] = await Promise.all([
+        supabase
+          .from("vault_folders")
+          .select("parent_id")
+          .eq("club_id", clubId)
+          .in("parent_id", folderIds),
+        supabase
+          .from("vault_files")
+          .select("folder_id")
+          .eq("club_id", clubId)
+          .is("deleted_at", null)
+          .in("folder_id", folderIds),
+      ]);
+      if (subErr) throw subErr;
+      if (fileErr) throw fileErr;
+
+      for (const id of folderIds) counts.set(id, { folders: 0, files: 0 });
+      for (const row of subfolders || []) {
+        const pid = (row as { parent_id: string | null }).parent_id;
+        if (!pid) continue;
+        const c = counts.get(pid);
+        if (c) c.folders += 1;
+      }
+      for (const row of subfiles || []) {
+        const fid = (row as { folder_id: string | null }).folder_id;
+        if (!fid) continue;
+        const c = counts.get(fid);
+        if (c) c.files += 1;
+      }
+      return counts;
+    },
+    enabled: open && !!clubId && folderIds.length > 0,
+    staleTime: 30 * 1000,
+  });
+
+  const folderCounts = folderChildCountsQuery.data;
+
   const filteredFolders = useMemo(() => {
     if (!search.trim()) return folders;
     const s = search.toLowerCase();
