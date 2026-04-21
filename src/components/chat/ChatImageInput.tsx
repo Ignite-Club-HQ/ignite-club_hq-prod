@@ -36,16 +36,22 @@ interface ChatImageInputProps {
   showBoardPicker?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
+  /** Append a token to the message (e.g. [vault:uuid]) when user shares from vault. */
+  onAppendToken?: (token: string) => void;
+  /** Show the "From Vault" / "Upload File" actions. Requires clubId. */
+  showVaultPicker?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
