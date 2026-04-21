@@ -244,16 +244,22 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   ) => {
     if (!onAppendToken) return;
     let token: string;
-    if (item.kind === "file") token = makeVaultFileToken(item.id);
-    else if (item.kind === "folder") token = makeVaultFolderToken(item.id);
-    else token = makeVaultRootToken(item.scope, item.id);
+    if (item.kind === "file") {
+      token = makeVaultFileToken(item.id);
+    } else if (item.kind === "folder") {
+      token = makeVaultFolderToken(item.id);
+    } else if (item.kind === "root") {
+      token = makeVaultRootToken(item.scope, item.id);
+    } else {
+      return;
+    }
     onAppendToken(token);
     setVaultPickerOpen(false);
-    toast.success(
-      item.kind === "root"
-        ? `Shared entire ${item.scope === "team" ? "team" : "club"} vault`
-        : `Shared "${item.name}"`,
-    );
+    if (item.kind === "root") {
+      toast.success(`Shared entire ${item.scope === "team" ? "team" : "club"} vault`);
+    } else {
+      toast.success(`Shared "${item.name}"`);
+    }
   };
 
   const handleNativePhotoPick = async () => {
