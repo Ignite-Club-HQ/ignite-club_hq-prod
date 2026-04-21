@@ -153,13 +153,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds, vaultFileIds, vaultFolderIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
     const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
     const polls = [...new Set(parts.filter(p => p.type === "poll-link").map(p => p.content))];
     const boards = [...new Set(parts.filter(p => p.type === "board-link").map(p => p.content))];
+    const vaultFiles = [...new Set(parts.filter(p => p.type === "vault-file").map(p => p.content))];
+    const vaultFolders = [...new Set(parts.filter(p => p.type === "vault-folder").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -176,6 +178,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       eventIds: events.slice(0, 3),
       pollIds: polls.slice(0, 3),
       boardIds: boards.slice(0, 3),
+      vaultFileIds: vaultFiles.slice(0, 5),
+      vaultFolderIds: vaultFolders.slice(0, 5),
     };
   }, [parts]);
 
