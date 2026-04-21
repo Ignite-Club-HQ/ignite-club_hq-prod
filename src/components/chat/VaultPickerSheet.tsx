@@ -296,9 +296,35 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             </div>
           )}
 
+          {/* Share THIS folder card — when user has navigated into a folder */}
+          {clubId && !isLoading && insideFolder && currentFolderId && !search.trim() && (
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={() =>
+                  onPick({ kind: "folder", id: currentFolderId, name: currentFolderName })
+                }
+                className="flex items-center gap-3 w-full px-3 py-3 rounded-lg border border-border bg-primary/5 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left"
+              >
+                <div className="h-10 w-10 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                  <Folder className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    Share this folder
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {currentFolderName} · All files & subfolders
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-primary shrink-0">Share</span>
+              </button>
+            </div>
+          )}
+
           {clubId && !isLoading && isEmpty && !(currentFolderId === null && !search.trim() && rootScope) && (
             <div className="text-center py-12 text-sm text-muted-foreground">
-              {search ? "No matches found" : "This folder is empty"}
+              {search ? "No matches found" : insideFolder ? "This folder has no subfolders or files yet" : "This folder is empty"}
             </div>
           )}
 
