@@ -63,6 +63,11 @@ export function formatMessagePreview(
   });
   out = out.replace(POLL_TOKEN_RE, "📊 Poll");
   out = out.replace(BOARD_TOKEN_RE, "🏟️ Live board");
+  out = out.replace(VAULT_ROOT_TOKEN_RE, (_m, scope: string) =>
+    scope?.toLowerCase() === "team" ? "🗂️ Team vault" : "🗂️ Club vault",
+  );
+  out = out.replace(VAULT_FOLDER_TOKEN_RE, "📁 Folder");
+  out = out.replace(VAULT_FILE_TOKEN_RE, "📎 File");
   out = out.replace(MD_LINK_RE, "$1");
   out = stripMentionFormatting(out);
   out = out.replace(/\s+/g, " ").trim();
