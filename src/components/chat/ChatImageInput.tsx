@@ -662,7 +662,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 >
                   <Paperclip className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
                   <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground">Attach File</span>
+                    <span className="text-sm font-medium text-foreground">Attach File or Folder</span>
                     <span className="text-[11px] text-muted-foreground">From your device or vault</span>
                   </div>
                 </button>
