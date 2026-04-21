@@ -331,14 +331,52 @@ export function MentionInput({
   }, [value]);
 
   const hasEventToken = useMemo(() => /\[event:[0-9a-f-]{36}\]/i.test(value), [value]);
+  const hasVaultToken = useMemo(
+    () => /\[(?:vault|vaultfolder|vaultroot:(?:team|club)):[0-9a-f-]{36}\]/i.test(value),
+    [value],
+  );
+  const hideTextareaPlaceholder = hasEventToken || hasVaultToken;
 
   const eventIds = useMemo(
     () => [...new Set(Array.from(value.matchAll(/\[event:([0-9a-f-]{36})\]/gi), (match) => match[1]).filter(Boolean))].slice(0, 3),
     [value]
   );
 
+  const vaultFileIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(/\[vault:([0-9a-f-]{36})\]/gi), (m) => m[1]).filter(Boolean))].slice(0, 3),
+    [value],
+  );
+  const vaultFolderIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(/\[vaultfolder:([0-9a-f-]{36})\]/gi), (m) => m[1]).filter(Boolean))].slice(0, 3),
+    [value],
+  );
+  const vaultRoots = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { scope: "team" | "club"; id: string }[] = [];
+    for (const m of value.matchAll(/\[vaultroot:(team|club):([0-9a-f-]{36})\]/gi)) {
+      const scope = (m[1] || "").toLowerCase() as "team" | "club";
+      const id = (m[2] || "").toLowerCase();
+      const key = `${scope}:${id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push({ scope, id });
+      }
+    }
+    return out.slice(0, 3);
+  }, [value]);
+
   const removeEventToken = useCallback((eventId: string) => {
     onChange(value.replace(new RegExp(`\\s*\\[event:${eventId}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+
+  const removeVaultFileToken = useCallback((id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vault:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+  const removeVaultFolderToken = useCallback((id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vaultfolder:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+  const removeVaultRootToken = useCallback((scope: "team" | "club", id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vaultroot:${scope}:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
   }, [onChange, value]);
 
   // Fetch users based on team/club/group context
