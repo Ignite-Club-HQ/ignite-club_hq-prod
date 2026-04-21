@@ -78,8 +78,12 @@ export function useInitialChatBottomPin({
     }
 
     if (pinnedKeyRef.current === resetKey) {
-      if (pinnedWhileEmptyRef.current && itemCount > 0) {
+      const grew = itemCount > lastItemCountRef.current;
+      const wasEmptyPin = pinnedWhileEmptyRef.current && itemCount > 0;
+
+      if ((wasEmptyPin || grew) && !userScrolledAwayRef.current) {
         pinnedWhileEmptyRef.current = false;
+        lastItemCountRef.current = itemCount;
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
@@ -99,6 +103,8 @@ export function useInitialChatBottomPin({
           guardObserver.observe(viewport);
           setTimeout(() => guardObserver.disconnect(), 1000);
         }
+      } else {
+        lastItemCountRef.current = itemCount;
       }
       return;
     }
@@ -107,10 +113,12 @@ export function useInitialChatBottomPin({
       pinnedWhileEmptyRef.current = true;
       setIsPinned(true);
       pinnedKeyRef.current = resetKey;
+      lastItemCountRef.current = 0;
       return;
     }
 
     pinnedWhileEmptyRef.current = false;
+    lastItemCountRef.current = itemCount;
     setIsPinned(false);
 
     let cancelled = false;
