@@ -7471,6 +7471,12 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_online_users_from_set: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          user_id: string
+        }[]
+      }
       get_or_create_club_admin_conversation: {
         Args: { p_club_id: string }
         Returns: string
