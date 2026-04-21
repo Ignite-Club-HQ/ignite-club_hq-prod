@@ -263,7 +263,38 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
             </div>
           )}
 
-          {clubId && !isLoading && isEmpty && (
+          {/* Share entire team/club vault — only at root, not while searching */}
+          {clubId && !isLoading && currentFolderId === null && !search.trim() && rootScope && rootScopeId && (
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={() =>
+                  onPick({
+                    kind: "root",
+                    scope: rootScope,
+                    id: rootScopeId,
+                    name: rootScopeQuery.data || (rootScope === "team" ? "Team vault" : "Club vault"),
+                  })
+                }
+                className="flex items-center gap-3 w-full px-3 py-3 rounded-lg border border-border bg-primary/5 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left"
+              >
+                <div className="h-10 w-10 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                  <Folder className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    Share entire {rootScope === "team" ? "team" : "club"} vault
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {rootScopeQuery.data || (rootScope === "team" ? "This team" : "This club")} · All files & folders
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-primary shrink-0">Share</span>
+              </button>
+            </div>
+          )}
+
+          {clubId && !isLoading && isEmpty && !(currentFolderId === null && !search.trim() && rootScope) && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               {search ? "No matches found" : "This folder is empty"}
             </div>
