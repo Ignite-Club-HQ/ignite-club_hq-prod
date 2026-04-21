@@ -16,18 +16,16 @@ export default function ShortInviteRedirect() {
     }
 
     const resolve = async () => {
-      const { data, error } = await supabase
-        .from("pending_invites")
-        .select("invite_token")
-        .eq("short_code", code)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("resolve_invite_short_code", {
+        _code: code,
+      });
 
-      if (error || !data?.invite_token) {
+      if (error || !data) {
         setNotFound(true);
         return;
       }
 
-      setInviteToken(data.invite_token);
+      setInviteToken(data as string);
     };
 
     resolve();
