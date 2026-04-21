@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, FileText, FolderOpen } from "lucide-react";
+import { VaultPickerSheet } from "./VaultPickerSheet";
+import { makeVaultFileToken, makeVaultFolderToken } from "@/lib/chatVaultLinks";
 import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
