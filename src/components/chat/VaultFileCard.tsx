@@ -20,6 +20,9 @@ import { safeOpenUrl } from "@/lib/safeOpenUrl";
 interface VaultFileCardProps {
   fileId?: string;
   folderId?: string;
+  /** When set, render a "vault root" card scoped to a team or club. */
+  rootScope?: "team" | "club";
+  rootId?: string;
 }
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -55,7 +58,7 @@ function getColorForFile(name: string, fileType: string | null): string {
   return "text-muted-foreground";
 }
 
-export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId }: VaultFileCardProps) {
+export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, rootScope, rootId }: VaultFileCardProps) {
   const navigate = useNavigate();
 
   // Folder card
@@ -91,6 +94,75 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId }: V
     enabled: !!fileId,
     staleTime: 60 * 1000,
   });
+
+  // Root card (entire team or club vault)
+  const rootQuery = useQuery({
+    queryKey: ["vault-root-card", rootScope, rootId],
+    queryFn: async () => {
+      if (!rootScope || !rootId) return null;
+      if (rootScope === "team") {
+        const { data, error } = await supabase
+          .from("teams")
+          .select("id, name, club_id")
+          .eq("id", rootId)
+          .maybeSingle();
+        if (error) throw error;
+        return data ? { name: data.name as string } : null;
+      }
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("id, name")
+        .eq("id", rootId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? { name: data.name as string } : null;
+    },
+    enabled: !!rootScope && !!rootId,
+    staleTime: 60 * 1000,
+  });
+
+  if (rootScope && rootId) {
+    if (rootQuery.isLoading) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card/50 p-3 max-w-xs">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Loading vault…</span>
+        </div>
+      );
+    }
+    if (!rootQuery.data) {
+      return (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-3 max-w-xs">
+          <Folder className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Vault unavailable</span>
+        </div>
+      );
+    }
+    const rootName = rootQuery.data.name;
+    const handleOpenRoot = () => {
+      const param = rootScope === "team" ? "team" : "club";
+      navigate(`/vault?${param}=${rootId}`);
+    };
+    return (
+      <button
+        type="button"
+        onClick={handleOpenRoot}
+        className="flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors p-3 max-w-xs w-full text-left active:scale-[0.99]"
+        aria-label={`Open ${rootScope} vault for ${rootName}`}
+      >
+        <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Folder className="h-5 w-5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground truncate">{rootName}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {rootScope === "team" ? "Team vault" : "Club vault"} · All files & folders
+          </p>
+        </div>
+        <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+      </button>
+    );
+  }
 
   if (folderId) {
     if (folderQuery.isLoading) {
