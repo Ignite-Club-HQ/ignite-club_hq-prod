@@ -172,7 +172,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent
         side="bottom"
-        className="h-[85vh] flex flex-col p-0 overflow-hidden"
+        className="h-[85dvh] max-h-[85dvh] flex flex-col p-0 overflow-hidden"
       >
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
