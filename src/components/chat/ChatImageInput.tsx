@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen } from "lucide-react";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { makeVaultFileToken, makeVaultFolderToken } from "@/lib/chatVaultLinks";
+import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
 import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
@@ -237,12 +237,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
   };
 
-  const handleVaultPick = (item: { kind: "file" | "folder"; id: string; name: string }) => {
+  const handleVaultPick = (
+    item:
+      | { kind: "file" | "folder"; id: string; name: string }
+      | { kind: "root"; scope: "team" | "club"; id: string; name: string },
+  ) => {
     if (!onAppendToken) return;
-    const token = item.kind === "file" ? makeVaultFileToken(item.id) : makeVaultFolderToken(item.id);
+    let token: string;
+    if (item.kind === "file") token = makeVaultFileToken(item.id);
+    else if (item.kind === "folder") token = makeVaultFolderToken(item.id);
+    else token = makeVaultRootToken(item.scope, item.id);
     onAppendToken(token);
     setVaultPickerOpen(false);
-    toast.success(`Shared "${item.name}"`);
+    toast.success(
+      item.kind === "root"
+        ? `Shared entire ${item.scope === "team" ? "team" : "club"} vault`
+        : `Shared "${item.name}"`,
+    );
   };
 
   const handleNativePhotoPick = async () => {
