@@ -77,15 +77,16 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
         .from("vault_folders")
         .select("id, name, parent_id, team_id, club_id")
         .eq("club_id", clubId)
-        .is("deleted_at", null)
         .order("name");
 
       if (currentFolderId) {
         q = q.eq("parent_id", currentFolderId);
       } else {
         q = q.is("parent_id", null);
-        // At root, scope by team if provided
-        if (teamId) q = q.eq("team_id", teamId);
+        // At root, show club-wide folders plus this team's folders.
+        if (teamId) {
+          q = q.or(`team_id.is.null,team_id.eq.${teamId}`);
+        }
       }
       const { data, error } = await q;
       if (error) throw error;
@@ -111,7 +112,9 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
         q = q.eq("folder_id", currentFolderId);
       } else {
         q = q.is("folder_id", null);
-        if (teamId) q = q.eq("team_id", teamId);
+        if (teamId) {
+          q = q.or(`team_id.is.null,team_id.eq.${teamId}`);
+        }
       }
       const { data, error } = await q;
       if (error) throw error;
