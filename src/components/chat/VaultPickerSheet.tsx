@@ -172,7 +172,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent
         side="bottom"
-        className="h-[85vh] flex flex-col p-0 overflow-hidden"
+        className="h-[85dvh] max-h-[85dvh] flex flex-col p-0 overflow-hidden"
       >
         <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-2 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2 py-2 pb-[env(safe-area-inset-bottom)]">
           {!clubId && (
             <div className="text-center py-12 text-sm text-muted-foreground">
               Vault unavailable in this chat.
