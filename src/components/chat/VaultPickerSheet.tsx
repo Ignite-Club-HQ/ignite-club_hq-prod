@@ -72,6 +72,35 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
   ]);
   const [search, setSearch] = useState("");
 
+  // At the root, we offer a "share entire vault" card scoped to either the
+  // team (when this is a team chat) or the whole club. Fetch the display name.
+  const rootScope: "team" | "club" | null = teamId ? "team" : clubId ? "club" : null;
+  const rootScopeId = teamId || clubId || null;
+  const rootScopeQuery = useQuery({
+    queryKey: ["vault-picker-root-name", rootScope, rootScopeId],
+    queryFn: async () => {
+      if (!rootScope || !rootScopeId) return null;
+      if (rootScope === "team") {
+        const { data, error } = await supabase
+          .from("teams")
+          .select("id, name")
+          .eq("id", rootScopeId)
+          .maybeSingle();
+        if (error) throw error;
+        return data?.name as string | null;
+      }
+      const { data, error } = await supabase
+        .from("clubs")
+        .select("id, name")
+        .eq("id", rootScopeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.name as string | null;
+    },
+    enabled: open && !!rootScope && !!rootScopeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Fetch folders in the current view
   const foldersQuery = useQuery({
     queryKey: ["vault-picker-folders", clubId, teamId, currentFolderId],
