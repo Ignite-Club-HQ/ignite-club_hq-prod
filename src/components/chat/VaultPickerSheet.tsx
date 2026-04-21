@@ -187,6 +187,15 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick }:
     setSearch("");
   };
 
+  const jumpToCrumb = (index: number) => {
+    if (index < 0 || index >= pathStack.length) return;
+    if (index === pathStack.length - 1) return; // already here
+    const newStack = pathStack.slice(0, index + 1);
+    setPathStack(newStack);
+    setCurrentFolderId(newStack[newStack.length - 1].id);
+    setSearch("");
+  };
+
   const reset = () => {
     setCurrentFolderId(null);
     setPathStack([{ id: null, name: "Vault" }]);
