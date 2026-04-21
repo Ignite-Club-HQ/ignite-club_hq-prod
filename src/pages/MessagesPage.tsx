@@ -1422,6 +1422,8 @@ export default function MessagesPage() {
                     hasUnread={hasUnread}
                     fallback="Official announcements and updates"
                     eventTitles={eventTitleMap}
+                    vaultFolderNames={vaultFolderNameMap}
+                    vaultFileNames={vaultFileNameMap}
                   />
                 </p>
               </div>
@@ -1597,6 +1599,8 @@ export default function MessagesPage() {
                   hasUnread={hasUnread}
                   fallback="No messages yet"
                   eventTitles={eventTitleMap}
+                  vaultFolderNames={vaultFolderNameMap}
+                  vaultFileNames={vaultFileNameMap}
                 />
               </p>
             </div>
@@ -1645,6 +1649,8 @@ export default function MessagesPage() {
                   fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
                   isAnnouncement={(item.lastMessage as any)?.is_announcement}
                   eventTitles={eventTitleMap}
+                  vaultFolderNames={vaultFolderNameMap}
+                  vaultFileNames={vaultFileNameMap}
                 />
               </p>
             </div>
