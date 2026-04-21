@@ -465,8 +465,9 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
             </div>
           )}
 
-          {/* Share THIS folder card — when user has navigated into a folder */}
-          {clubId && !isLoading && insideFolder && currentFolderId && !search.trim() && (
+          {/* Share THIS folder card — when user has navigated into a folder
+              (hidden in selection mode to keep the focus on bulk picking). */}
+          {clubId && !isLoading && insideFolder && currentFolderId && !search.trim() && !selectionMode && (
             <div className="mb-2">
               <button
                 type="button"
@@ -515,6 +516,36 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
                       ]
                         .filter(Boolean)
                         .join(" · ");
+                const isSelected = selectedFolders.has(folder.id);
+                if (selectionMode) {
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => toggleFolderSelection(folder)}
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-md transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent active:bg-accent/80"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleFolderSelection(folder)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Folder className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {folder.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+                      </div>
+                    </button>
+                  );
+                }
                 return (
                   <div key={folder.id} className="flex items-center gap-1 group">
                     <button
@@ -552,6 +583,38 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
             <div className="space-y-1">
               {filteredFiles.map((file) => {
                 const Icon = getIconForFile(file.name, file.file_type);
+                const isSelected = selectedFiles.has(file.id);
+                if (selectionMode) {
+                  return (
+                    <button
+                      key={file.id}
+                      type="button"
+                      onClick={() => toggleFileSelection(file)}
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-md transition-colors text-left ${
+                        isSelected ? "bg-primary/10" : "hover:bg-accent active:bg-accent/80"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleFileSelection(file)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {file.is_external_link ? "External link" : "File"}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                }
                 return (
                   <button
                     key={file.id}
@@ -578,6 +641,39 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
             </div>
           )}
         </div>
+
+        {/* Sticky bulk-share footer — only visible while in selection mode. */}
+        {onPickMany && selectionMode && (
+          <div className="border-t border-border bg-background px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shrink-0">
+            <div className="flex items-center gap-2">
+              <p className="flex-1 text-sm text-muted-foreground truncate">
+                {selectionCount === 0
+                  ? "Tap items to select"
+                  : `${selectionCount} ${selectionCount === 1 ? "item" : "items"} selected`}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectionMode(false);
+                  clearSelection();
+                }}
+                className="h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={submitBulkSelection}
+                disabled={selectionCount === 0}
+                className="h-9"
+              >
+                Share {selectionCount > 0 ? `(${selectionCount})` : ""}
+              </Button>
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
