@@ -112,20 +112,20 @@ export function formatMessagePreview(
 
   out = out.replace(EVENT_TOKEN_RE, (_match, id: string) => {
     const title = lookupEvent(id);
-    return title ? `📅 ${title}` : "📅 Event";
+    return title ? ` 📅 ${title} ` : " 📅 Event ";
   });
-  out = out.replace(POLL_TOKEN_RE, "📊 Poll");
-  out = out.replace(BOARD_TOKEN_RE, "🏟️ Live board");
+  out = out.replace(POLL_TOKEN_RE, " 📊 Poll ");
+  out = out.replace(BOARD_TOKEN_RE, " 🏟️ Live board ");
   out = out.replace(VAULT_ROOT_TOKEN_RE, (_m, scope: string) =>
-    scope?.toLowerCase() === "team" ? "🗂️ Team vault" : "🗂️ Club vault",
+    scope?.toLowerCase() === "team" ? " 🗂️ Team vault " : " 🗂️ Club vault ",
   );
   out = out.replace(VAULT_FOLDER_TOKEN_RE, (_m, id: string) => {
     const name = lookupFolder(id);
-    return name ? `📁 ${name}` : "📁 Folder";
+    return name ? ` 📁 ${name} ` : " 📁 Folder ";
   });
   out = out.replace(VAULT_FILE_TOKEN_RE, (_m, id: string) => {
     const name = lookupFile(id);
-    return name ? `📎 ${name}` : "📎 File";
+    return name ? ` 📎 ${name} ` : " 📎 File ";
   });
   out = out.replace(MD_LINK_RE, "$1");
   out = stripMentionFormatting(out);
