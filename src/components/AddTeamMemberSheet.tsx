@@ -1920,18 +1920,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       <SheetContent
         side="bottom"
         enableDragToClose
-        className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
+        className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
         data-lock-keyboard-scroll="true"
         data-allow-scroll
         style={{
           touchAction: 'pan-y',
           WebkitOverflowScrolling: 'touch',
-          // On Android (Keyboard.resize: 'none'), the WebView doesn't shrink when
-          // the keyboard opens. Cap the sheet height to the visible area so the
-          // sticky footer sits just above the keyboard instead of floating high.
-          ...(nativeKbHeight > 0
-            ? { maxHeight: `calc(100dvh - ${nativeKbHeight}px)` }
-            : {}),
+          // When the soft keyboard is open (Capacitor Keyboard.resize='none'),
+          // pin the sheet to the visible area above the keyboard. When closed,
+          // use ~96vh so the sheet has plenty of room for the form. We set
+          // BOTH maxHeight and height when the keyboard is open so the inline
+          // value beats the Radix-vaul default and the sheet actually shrinks
+          // to fit (otherwise the form sits behind the keyboard on iOS).
+          maxHeight:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
+              : '96dvh',
+          height:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
+              : undefined,
         }}
       >
         <SheetHeader className="mb-3 shrink-0">
@@ -1948,7 +1956,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </div>
         )}
 
-        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-32 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {canBulkInvite && (
             <TabsList className="grid w-full grid-cols-2 mb-4">
