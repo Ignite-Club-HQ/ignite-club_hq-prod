@@ -173,17 +173,17 @@ export default function TrainingBoard({
       const base = fs[currentIndex];
       const next: DrillFrame = base
         ? {
-            ...createEmptyFrame(fs.length),
+            ...createEmptyFrame(fs.length, settings.defaultFrameDurationMs),
             objects: base.objects.map((o) => ({ ...o })),
           }
-        : createEmptyFrame(fs.length);
+        : createEmptyFrame(fs.length, settings.defaultFrameDurationMs);
       const inserted = [...fs.slice(0, currentIndex + 1), next, ...fs.slice(currentIndex + 1)];
       return inserted.map((f, i) => ({ ...f, position: i }));
     });
     setSelectedId(null);
     // Move selection to the newly inserted frame
     setTimeout(() => goTo(currentIndex + 1), 0);
-  }, [currentIndex, goTo]);
+  }, [currentIndex, goTo, settings.defaultFrameDurationMs]);
 
   const duplicateFrame = useCallback(
     (idx: number) => {
