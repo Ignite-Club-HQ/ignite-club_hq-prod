@@ -571,53 +571,63 @@ export default function TrainingBoard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* Always-visible exit bar — works in edit, preview, and read-only modes
-          so coaches and spectators can always get back to the drill list. */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border bg-background">
+      {/* TOP BAR — back / title / settings. Compact (~30% shorter than before). */}
+      <div className="shrink-0 flex items-center gap-1 px-2 h-11 border-b border-border bg-background">
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={handleExitEditor}
-          className="h-9 px-2 -ml-1 font-medium"
-          aria-label="Exit drill and return to library"
+          className="h-9 w-9 shrink-0"
+          aria-label="Back to drill library"
         >
-          <ArrowLeft className="h-4 w-4 mr-1.5" />
-          Exit drill
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0 text-sm font-medium text-foreground truncate text-center">
+        <div className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate text-center px-1">
           {savedName || (savedDrillId ? "Drill" : "New drill")}
-          {savedName && !savedDrillId ? " · unsaved" : ""}
-          {previewMode && <span className="ml-2 text-xs text-muted-foreground">· Preview</span>}
+          {(previewMode || runMode) && (
+            <span className="ml-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+              · {runMode ? "Run" : "Preview"}
+            </span>
+          )}
         </div>
-        {/* Spacer to balance the back button so the title stays centred */}
-        <div className="w-[88px] shrink-0" aria-hidden />
+        {!readOnly ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+            className="h-9 w-9 shrink-0"
+            aria-label="Drill settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        ) : (
+          <div className="w-9 shrink-0" aria-hidden />
+        )}
       </div>
 
-      {/* Drill action bar — Library is the primary action; New is demoted */}
-      {!readOnly && (
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
-          <div className="flex-1 min-w-0 text-xs font-medium text-muted-foreground truncate">
-            Drill actions
-          </div>
+      {/* SECONDARY ACTION BAR — compact, icon + short label. Hidden in Run mode. */}
+      {!readOnly && !runMode && (
+        <div className="shrink-0 flex items-center gap-1.5 px-2 h-10 border-b border-border bg-background">
           {savedDrillId && (
             <Button
               type="button"
               size="sm"
-              variant={inSession ? "secondary" : "outline"}
+              variant={inSession ? "secondary" : "ghost"}
               onClick={handleAddCurrentToSession}
               disabled={inSession || addToSessionMut.isPending}
-              className="h-8"
+              className="h-8 px-2 text-xs"
             >
               {inSession ? (
                 <>
-                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  <Check className="h-3.5 w-3.5 mr-1" />
                   In session
                 </>
               ) : (
                 <>
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add to session
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Session
                 </>
               )}
             </Button>
@@ -625,7 +635,7 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="sm"
-            variant={previewMode ? "default" : "outline"}
+            variant={previewMode ? "default" : "ghost"}
             onClick={() => {
               setPreviewMode((p) => {
                 const next = !p;
@@ -636,18 +646,17 @@ export default function TrainingBoard({
                 return next;
               });
             }}
-            className="h-8"
+            className="h-8 px-2 text-xs"
             aria-pressed={previewMode}
-            title={previewMode ? "Back to editing" : "Preview drill"}
           >
             {previewMode ? (
               <>
-                <Pencil className="h-4 w-4 mr-1.5" />
+                <Pencil className="h-3.5 w-3.5 mr-1" />
                 Edit
               </>
             ) : (
               <>
-                <Eye className="h-4 w-4 mr-1.5" />
+                <Eye className="h-3.5 w-3.5 mr-1" />
                 Preview
               </>
             )}
@@ -655,53 +664,61 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => setSaveOpen(true)}
-            className="h-8"
+            className="h-8 px-2 text-xs"
           >
-            <Save className="h-4 w-4 mr-1.5" />
-            {savedDrillId ? "Update" : "Save"}
+            <Save className="h-3.5 w-3.5 mr-1" />
+            Save
+          </Button>
+
+          <div className="ml-auto">
+            <Button
+              type="button"
+              size="sm"
+              variant={runMode ? "default" : "outline"}
+              onClick={() => {
+                setRunMode(true);
+                setPreviewMode(true);
+                setSelectedId(null);
+                setActiveTool("select");
+                if (frames.length > 1) {
+                  window.setTimeout(() => playPlayback(), 0);
+                }
+              }}
+              className="h-8 px-2.5 text-xs font-semibold"
+              aria-label="Run drill — full-screen coach mode"
+            >
+              <PlayIcon className="h-3.5 w-3.5 mr-1" />
+              Run drill
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Run-mode mini bar — only Exit Run, so coach can return to editing. */}
+      {runMode && (
+        <div className="shrink-0 flex items-center justify-end px-2 h-9 border-b border-border bg-background">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setRunMode(false)}
+            className="h-7 px-2 text-xs"
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1" />
+            Exit run
           </Button>
         </div>
       )}
 
-      {/* Today's session strip */}
-      {!readOnly && (
+      {/* Today's session strip — hidden during Run mode to maximise pitch */}
+      {!readOnly && !runMode && (
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
         />
       )}
-
-      {/* Per-frame coaching caption bar — sits directly above the pitch so coaches
-          can read the step-by-step instruction for the frame currently on screen.
-          Falls back to a neutral "Frame N" hint when no notes are present so the
-          strip is always reserved (prevents layout shift while playing back). */}
-      {(() => {
-        const activeNotes = (isAnimating ? view.notes : currentFrame?.notes) ?? "";
-        const totalFrames = frames.length;
-        const frameNum = currentIndex + 1;
-        return (
-          <div className="shrink-0 px-3 py-2 border-b border-border bg-background">
-            <div className="flex items-start gap-2">
-              <span
-                className="shrink-0 inline-flex items-center justify-center min-w-[3.25rem] h-6 px-2 rounded-full bg-primary/15 text-primary text-[11px] font-semibold tabular-nums"
-                aria-label={`Frame ${frameNum} of ${totalFrames}`}
-              >
-                {frameNum} / {totalFrames}
-              </span>
-              <p
-                className={cn(
-                  "flex-1 min-w-0 text-sm leading-snug",
-                  activeNotes ? "text-foreground" : "text-muted-foreground italic"
-                )}
-              >
-                {activeNotes || "No coaching notes for this frame yet — tap a frame in the strip below and add notes to guide the players."}
-              </p>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Pitch surface */}
       <div className="flex-1 min-h-0 p-2 flex items-center justify-center">
