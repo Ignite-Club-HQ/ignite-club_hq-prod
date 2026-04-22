@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote, Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DrillFrame } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -32,11 +32,21 @@ function PitchMarkings() {
   );
 }
 
+const SHORTCUTS: Array<{ keys: string[]; label: string }> = [
+  { keys: ["Space"], label: "Play / Pause" },
+  { keys: ["←", "→"], label: "Previous / Next frame" },
+  { keys: ["N"], label: "Toggle coaching notes" },
+  { keys: ["?"], label: "Show / hide shortcuts" },
+  { keys: ["Esc"], label: "Exit presentation" },
+];
+
 /**
  * Fullscreen, distraction-free playback for live coaching use.
  * - Tap pitch / arrow keys / space to advance
  * - Hides editor UI; only shows minimal controls
  * - Optional notes overlay (toggleable)
+ * - Visible progress bar with jump-to-frame buttons
+ * - Keyboard shortcut overlay (press ? to view)
  */
 export default function PresentationMode({
   frames,
@@ -45,6 +55,7 @@ export default function PresentationMode({
 }: PresentationModeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showNotes, setShowNotes] = useState(true);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const {
     currentIndex,
     view,
@@ -66,7 +77,11 @@ export default function PresentationMode({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        if (showShortcuts) {
+          setShowShortcuts(false);
+        } else {
+          onClose();
+        }
       } else if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         toggle();
@@ -78,11 +93,18 @@ export default function PresentationMode({
         prev();
       } else if (e.key.toLowerCase() === "n") {
         setShowNotes((s) => !s);
+      } else if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        e.preventDefault();
+        setShowShortcuts((s) => !s);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev, toggle, onClose]);
+  }, [next, prev, toggle, onClose, showShortcuts]);
+
+  const total = frames.length;
+  // Progress shown as fraction of frames "completed" (currentIndex / lastIndex)
+  const progressPct = total > 1 ? (currentIndex / (total - 1)) * 100 : 100;
 
   const overlay = (
     <div
@@ -94,9 +116,21 @@ export default function PresentationMode({
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/70 text-white">
         <div className="text-xs font-medium tabular-nums">
-          Frame {currentIndex + 1} / {frames.length}
+          Frame {currentIndex + 1} / {total}
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowShortcuts((s) => !s)}
+            aria-pressed={showShortcuts}
+            aria-label="Keyboard shortcuts"
+            className={cn(
+              "h-9 w-9 rounded-md flex items-center justify-center",
+              showShortcuts ? "bg-white/20" : "hover:bg-white/10"
+            )}
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => setShowNotes((s) => !s)}
@@ -147,6 +181,57 @@ export default function PresentationMode({
         </div>
       </div>
 
+      {/* Progress bar */}
+      <div className="px-3 pt-2 bg-black/70">
+        <div
+          className="relative h-1.5 rounded-full bg-white/15 overflow-hidden"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progressPct)}
+          aria-label="Drill progress"
+        >
+          <div
+            className="absolute inset-y-0 left-0 bg-primary transition-[width] duration-200 ease-out"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Jump-to-frame buttons */}
+      {total > 1 && (
+        <div className="bg-black/70 px-3 pt-2">
+          <div
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x"
+            aria-label="Jump to frame"
+          >
+            {frames.map((_, i) => {
+              const active = i === currentIndex;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goTo(i);
+                  }}
+                  aria-label={`Go to frame ${i + 1}`}
+                  aria-current={active ? "step" : undefined}
+                  className={cn(
+                    "shrink-0 snap-start h-8 min-w-8 px-2 rounded-md text-xs font-semibold tabular-nums flex items-center justify-center transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground shadow"
+                      : "bg-white/10 text-white/80 hover:bg-white/20"
+                  )}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Bottom controls */}
       <div className="flex items-center justify-center gap-3 px-3 py-3 bg-black/70 text-white">
         <button
@@ -177,6 +262,59 @@ export default function PresentationMode({
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
+
+      {/* Keyboard shortcut overlay */}
+      {showShortcuts && (
+        <div
+          className="absolute inset-0 z-10 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowShortcuts(false)}
+          role="dialog"
+          aria-label="Keyboard shortcuts"
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-card text-card-foreground shadow-2xl border border-border overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Keyboard className="h-4 w-4" />
+                <h2 className="text-sm font-semibold">Keyboard shortcuts</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(false)}
+                aria-label="Close shortcuts"
+                className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ul className="divide-y divide-border">
+              {SHORTCUTS.map(({ keys, label }) => (
+                <li
+                  key={label}
+                  className="flex items-center justify-between px-4 py-2.5 text-sm"
+                >
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="flex items-center gap-1">
+                    {keys.map((k) => (
+                      <kbd
+                        key={k}
+                        className="inline-flex min-w-7 h-7 items-center justify-center px-1.5 rounded-md border border-border bg-muted font-mono text-xs font-semibold text-foreground"
+                      >
+                        {k}
+                      </kbd>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="px-4 py-2 text-[11px] text-muted-foreground bg-muted/40 text-center">
+              Tap the pitch to advance · Tip: press <kbd className="px-1 font-mono">?</kbd> any time
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
