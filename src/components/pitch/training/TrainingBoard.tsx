@@ -781,12 +781,6 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* Preview-mode hint bar */}
-      {!readOnly && previewMode && (
-        <div className="shrink-0 px-3 py-1.5 text-[11px] font-medium text-center text-muted-foreground bg-muted/60 border-t border-border">
-          Preview mode — editing is locked. Use Play to verify arrows, queues, and cone layouts.
-        </div>
-      )}
 
       {/* Presentation overlay */}
       {isPresenting && (
