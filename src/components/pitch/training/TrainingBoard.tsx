@@ -58,11 +58,18 @@ function PitchMarkings() {
 }
 
 /**
- * TrainingBoard — Phase 2.
- * Multi-frame drill editor with rAF playback + presentation mode.
- * Still in-memory only (Phase 3 will persist to Supabase).
+ * TrainingBoard — Phase 3.
+ * Multi-frame drill editor with rAF playback, presentation mode,
+ * and Supabase persistence (save / open / share).
  */
-export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardProps) {
+export default function TrainingBoard({
+  isLandscape,
+  readOnly,
+  teamId,
+  teamName,
+  clubId,
+  clubName,
+}: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
   const [activeTool, setActiveTool] = useState<TrainingTool>("select");
@@ -70,6 +77,14 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
   const [stepCounter, setStepCounter] = useState(1);
   const [playerCounter, setPlayerCounter] = useState(1);
   const [isPresenting, setIsPresenting] = useState(false);
+
+  // Persistence state
+  const [savedDrillId, setSavedDrillId] = useState<string | null>(null);
+  const [savedName, setSavedName] = useState<string>("");
+  const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
+  const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const {
     currentIndex,
