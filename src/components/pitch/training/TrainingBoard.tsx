@@ -661,7 +661,19 @@ export default function TrainingBoard({
               "repeating-linear-gradient(0deg, hsla(0,0%,100%,0.03) 0 8%, transparent 8% 16%)",
           }}
         >
-          <PitchMarkings />
+          {settings.showPitchMarkings && <PitchMarkings />}
+          {previewMode &&
+            settings.showCoachingPointsInPreview &&
+            (savedMetadata?.coachingPoints?.length ?? 0) > 0 && (
+              <div className="absolute top-2 left-2 right-2 max-w-sm bg-background/85 backdrop-blur-sm border border-border rounded-md p-2.5 text-xs shadow-lg pointer-events-none">
+                <div className="font-semibold text-foreground mb-1">Coaching points</div>
+                <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                  {savedMetadata!.coachingPoints!.slice(0, 4).map((cp, i) => (
+                    <li key={i}>{cp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           <TrainingObjectLayer
             objects={renderedObjects}
             annotations={renderedAnnotations}
