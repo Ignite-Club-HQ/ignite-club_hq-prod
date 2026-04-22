@@ -167,10 +167,43 @@ export function useInitialChatBottomPin({
         postPinResizeObserver.observe(viewport);
       }
 
+      // Re-snap whenever an image inside the viewport finishes loading.
+      // Without this, late-loading attachments push content down AFTER
+      // we've revealed the chat, leaving the user above the bottom.
+      const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
+      const attachImageListeners = () => {
+        const images = viewport.querySelectorAll<HTMLImageElement>("img");
+        images.forEach((img) => {
+          if (img.complete && img.naturalHeight > 0) return;
+          if (imageListeners.some((entry) => entry.img === img)) return;
+          const handler = () => {
+            if (cancelled || userScrolledAwayRef.current) return;
+            scrollChatToBottom(scrollContainerRef.current);
+          };
+          img.addEventListener("load", handler, { once: true });
+          img.addEventListener("error", handler, { once: true });
+          imageListeners.push({ img, handler });
+        });
+      };
+      attachImageListeners();
+
+      // Watch for newly added images (e.g. lazy-rendered messages)
+      const imageMountObserver = new MutationObserver(() => {
+        if (cancelled || userScrolledAwayRef.current) return;
+        attachImageListeners();
+      });
+      imageMountObserver.observe(viewport, { childList: true, subtree: true });
+
       guardSnap();
       postPinTimer = setTimeout(() => {
         postPinResizeObserver?.disconnect();
         postPinResizeObserver = null;
+        imageMountObserver.disconnect();
+        imageListeners.forEach(({ img, handler }) => {
+          img.removeEventListener("load", handler);
+          img.removeEventListener("error", handler);
+        });
+        imageListeners.length = 0;
       }, POST_PIN_GUARD_MS);
     };
 
