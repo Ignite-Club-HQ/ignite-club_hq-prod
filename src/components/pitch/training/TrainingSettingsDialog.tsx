@@ -41,7 +41,13 @@ export function TrainingSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent
+        className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0"
+        onOpenAutoFocus={(e) => {
+          // Prevent the underlying training overlay from stealing focus back
+          e.preventDefault();
+        }}
+      >
         <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
