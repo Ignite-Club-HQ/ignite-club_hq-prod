@@ -93,7 +93,7 @@ function chipPixelSize(p: RenderableObject): { w: number; h: number } {
  * Without it we fall back to a sensible 400×600 default — close enough that
  * the resolver still works during the first paint before measurement lands.
  */
-function resolvePlayerOverlaps(
+export function resolvePlayerOverlaps(
   objects: RenderableObject[],
   containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
