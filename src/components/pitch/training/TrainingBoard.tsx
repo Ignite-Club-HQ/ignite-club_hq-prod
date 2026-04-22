@@ -128,7 +128,14 @@ export default function TrainingBoard({
     prev: prevFrame,
     goTo,
     setSpeed,
-  } = useDrillPlayback({ frames, loop: true });
+  } = useDrillPlayback({ frames, loop: settings.loopPlayback });
+
+  // Apply user's default playback speed once on mount and whenever it changes
+  // in settings — coaches can still override per-session via the speed pill.
+  useEffect(() => {
+    setSpeed(settings.defaultPlaybackSpeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.defaultPlaybackSpeed]);
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
