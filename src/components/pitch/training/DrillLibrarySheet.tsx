@@ -109,17 +109,13 @@ export function DrillLibrarySheet({
   const handleOpen = async (drillId: string) => {
     if (openingId) return; // ignore re-entrant taps
     setOpeningId(drillId);
-    // Arm the ghost-click blocker IMMEDIATELY so any synthesized click
-    // that follows the user's tap (on touch devices) cannot reach the
-    // pitch board's settings cog underneath the sheet.
-    blockGhostClicks();
     try {
       const drill = await loadDrill(drillId);
       stampRecent.mutate(drillId);
-      // Re-arm right before unmounting the sheet, since loadDrill is async
-      // and the original 600ms window may have elapsed.
-      blockGhostClicks();
+      // Close the sheet, then briefly block post-tap ghost clicks so they
+      // cannot hit the pitch board controls underneath on touch devices.
       onOpenChange(false);
+      blockGhostClicks();
       onOpenDrill(drill);
     } catch (err: any) {
       console.error("[DrillLibrary] open failed", err);
