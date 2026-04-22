@@ -4,8 +4,13 @@ import {
   loadDrill,
   deleteDrill,
   stampRecentUse,
+  listSessionDrills,
+  addToSession,
+  removeFromSession,
+  clearSession,
   type LibraryTab,
   type DrillSummary,
+  type SessionDrill,
 } from "@/components/pitch/training/drillStorage";
 import type { Drill } from "@/components/pitch/training/types";
 
@@ -13,6 +18,7 @@ const KEYS = {
   list: (tab: LibraryTab, teamId?: string, search?: string) =>
     ["drills", "list", tab, teamId ?? null, search ?? ""] as const,
   one: (id: string) => ["drills", "one", id] as const,
+  session: () => ["drills", "session"] as const,
 };
 
 export function useDrillList(tab: LibraryTab, teamId?: string, search?: string) {
@@ -54,4 +60,38 @@ export function useStampRecent() {
 export function useInvalidateDrills() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: ["drills"] });
+}
+
+// ---------- Session plan ----------
+
+export function useSessionDrills() {
+  return useQuery<SessionDrill[]>({
+    queryKey: KEYS.session(),
+    queryFn: () => listSessionDrills(),
+    staleTime: 10_000,
+  });
+}
+
+export function useAddToSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (drillId: string) => addToSession(drillId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.session() }),
+  });
+}
+
+export function useRemoveFromSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: string) => removeFromSession(entryId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.session() }),
+  });
+}
+
+export function useClearSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => clearSession(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.session() }),
+  });
 }
