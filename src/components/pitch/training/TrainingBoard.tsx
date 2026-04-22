@@ -34,6 +34,7 @@ import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
+import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
