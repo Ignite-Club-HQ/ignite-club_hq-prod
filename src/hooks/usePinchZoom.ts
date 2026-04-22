@@ -35,6 +35,8 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   const initialDistance = useRef<number | null>(null);
   const initialScale = useRef<number>(1);
   const initialCenter = useRef<{ x: number; y: number } | null>(null);
+  const initialAngle = useRef<number | null>(null);
+  const rotationLocked = useRef(false);
   const lastTranslate = useRef({ x: 0, y: 0 });
   const isPinching = useRef(false);
 
@@ -58,6 +60,23 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
       y: (touch1.clientY + touch2.clientY) / 2,
     };
   };
+
+  // Angle in radians between the line connecting two fingers and the x-axis.
+  const getAngle = (touch1: React.Touch, touch2: React.Touch): number => {
+    return Math.atan2(touch2.clientY - touch1.clientY, touch2.clientX - touch1.clientX);
+  };
+
+  // Smallest signed angle delta in [-PI, PI].
+  const angleDelta = (a: number, b: number): number => {
+    let d = a - b;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return d;
+  };
+
+  // Rotation past this threshold (~12°) suppresses center-tracking pan during
+  // the pinch so the image doesn't drift while the user re-grips the screen.
+  const ROTATION_LOCK_THRESHOLD = (12 * Math.PI) / 180;
 
   const onTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length === 2) {
