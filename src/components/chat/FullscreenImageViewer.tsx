@@ -37,6 +37,10 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   // Snap-back animation params, recomputed per double-tap based on pan distance.
   const [snapAnim, setSnapAnim] = useState({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  // Timestamp (ms) until which any synthesized React onDoubleClick should be
+  // ignored because a 3+ finger system gesture just ended. Browsers can fire
+  // a synthetic dblclick after multi-touch — this poisons that path.
+  const multiFingerSuppressUntilRef = useRef<number>(0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -224,6 +228,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   }, [effectiveSrc, resetZoom]);
 
   const handleDoubleClick = useCallback(() => {
+    // Suppress React's synthetic double-click if a 3+ finger system gesture
+    // just ended — those are never meant to zoom the image.
+    if (Date.now() < multiFingerSuppressUntilRef.current) return;
     triggerZoomToggle();
   }, [triggerZoomToggle]);
 
