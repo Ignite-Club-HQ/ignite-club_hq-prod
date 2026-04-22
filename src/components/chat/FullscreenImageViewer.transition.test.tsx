@@ -58,16 +58,8 @@ import { FullscreenImageViewer } from "./FullscreenImageViewer";
 let container: HTMLDivElement;
 let root: Root;
 
-function makeTouchEvent(
-  type: string,
-  touches: { clientX: number; clientY: number }[],
-  changedTouches: { clientX: number; clientY: number }[] = touches,
-): Event {
-  const ev = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(ev, "touches", { value: touches });
-  Object.defineProperty(ev, "changedTouches", { value: changedTouches });
-  return ev;
-}
+// Touch-event polyfill is shared across gesture suites — see module docs.
+import { makeTouchEvent } from "@/test/touchEventHelpers";
 
 function getGestureRoot(): HTMLElement {
   return container.firstElementChild as HTMLElement;
