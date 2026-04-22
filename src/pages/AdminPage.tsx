@@ -199,6 +199,12 @@ export default function AdminPage() {
               onClick={() => navigate("/admin/online-users")}
             />
             <AdminMenuItem
+              icon={Activity}
+              label="Active Games"
+              description="Live coaching boards across every club & team"
+              onClick={() => navigate("/admin/active-games")}
+            />
+            <AdminMenuItem
               icon={Bell}
               label="Push Analytics"
               description="Push notification delivery metrics"
