@@ -265,7 +265,13 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   // env(safe-area-inset-top) reports 0.
   const safeTop = "max(env(safe-area-inset-top), 1.75rem)";
 
-  return (
+  // Render via a portal to document.body so the viewer escapes the chat
+  // message subtree. Inside the chat tree, ancestor handlers (swipe-to-reply,
+  // long-press timers, onPointerDown(preventDefault) on message bubbles)
+  // intercept touch events on iOS WebView and starve the pinch gesture.
+  // Portalling guarantees the viewer's touch sequence is owned exclusively
+  // by its own listeners.
+  const content = (
     <div
       ref={containerRef}
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
@@ -356,4 +362,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       )}
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(content, document.body);
 }
