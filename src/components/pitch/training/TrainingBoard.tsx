@@ -479,7 +479,10 @@ export default function TrainingBoard({
     setEditorMode(false);
     setPreviewMode(false);
     setRunMode(false);
-  }, [frames, savedDrillId, goTo]);
+    // After leaving a drill the coach almost always wants to pick another one.
+    // Re-open the library immediately so they don't land on an empty screen.
+    openLibrary();
+  }, [frames, savedDrillId, goTo, openLibrary]);
 
   const cursorClass = useMemo(() => {
     if (!editable) return "cursor-default";
@@ -535,14 +538,14 @@ export default function TrainingBoard({
         />
 
         <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-          <div className="max-w-sm w-full text-center flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="max-w-sm w-full text-center flex flex-col items-center gap-4">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
               <FolderOpen className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-foreground">Pick a drill to get started</h2>
+              <h2 className="text-base font-semibold text-foreground">Opening drill library…</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Choose from the Ignite library or your saved drills. You can also create a new drill from scratch.
+                Pick a drill from the list, or build your own from scratch.
               </p>
             </div>
             <div className="flex flex-col w-full gap-2">
@@ -550,10 +553,13 @@ export default function TrainingBoard({
                 <FolderOpen className="h-4 w-4 mr-1.5" />
                 Browse drill library
               </Button>
-              <Button type="button" variant="outline" onClick={handleNewDrill} className="w-full">
-                <FilePlus2 className="h-4 w-4 mr-1.5" />
-                Create new drill
-              </Button>
+              <button
+                type="button"
+                onClick={handleNewDrill}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
+              >
+                or create your own drill
+              </button>
             </div>
           </div>
         </div>
