@@ -231,11 +231,19 @@ export function DrillLibrarySheet({
                 <div className="flex items-center justify-center py-12 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
-              ) : !drills || drills.length === 0 ? (
-                <EmptyState tab={t.value} hasTeam={!!teamId} />
+              ) : !filteredDrills || filteredDrills.length === 0 ? (
+                <EmptyState
+                  tab={t.value}
+                  hasTeam={!!teamId}
+                  filtersActive={filtersActive}
+                  onClearFilters={() => {
+                    setAgeFilter("all");
+                    setPlayerFilter("all");
+                  }}
+                />
               ) : (
                 <ul className="space-y-2 pb-4">
-                  {drills.map((d) => {
+                  {filteredDrills.map((d) => {
                     const VisIcon = d.isOfficial ? Sparkles : VIS_ICON[d.visibility] ?? Lock;
                     const isOpening = openingId === d.id;
                     const inSession = sessionDrillIds.has(d.id);
