@@ -73,11 +73,13 @@ serve(async (req) => {
       const body = await req.json();
       const { redirectUri } = body;
       
-      // drive.file is a non-sensitive scope: only grants access to files
-      // the user explicitly opens/picks via Google Picker, or files this app
-      // creates. Avoids Google verification requirement.
+      // drive.readonly is required so users can browse and import their
+      // existing Drive files via our custom file picker UI. The narrower
+      // drive.file scope only grants access to files the user opens via
+      // Google Picker or that this app created — which makes the listing
+      // appear empty for normal Drive content.
       const scopes = [
-        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.readonly',
       ].join(' ');
       
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
