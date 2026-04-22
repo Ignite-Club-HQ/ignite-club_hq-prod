@@ -33,6 +33,13 @@ interface TrainingBoardProps {
   /** Current club context — enables sharing with the whole club */
   clubId?: string | null;
   clubName?: string;
+  /** Squad members — used to substitute real player names into drills during playback */
+  members?: Array<{
+    id: string;
+    user_id: string;
+    role: string;
+    profiles: { display_name: string | null; avatar_url: string | null } | null;
+  }>;
 }
 
 function clamp(v: number) {
