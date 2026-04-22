@@ -35,20 +35,20 @@ import { cn } from "@/lib/utils";
  * (e.g. the pitch board's settings cog). Briefly intercept clicks at the
  * document root in the CAPTURE phase to swallow that ghost click.
  */
-function blockGhostClicks(durationMs = 350) {
+function blockGhostClicks(durationMs = 600) {
   if (typeof window === "undefined") return;
   const stop = (e: Event) => {
     e.stopPropagation();
     e.preventDefault();
+    if (typeof (e as Event & { stopImmediatePropagation?: () => void }).stopImmediatePropagation === "function") {
+      (e as Event & { stopImmediatePropagation: () => void }).stopImmediatePropagation();
+    }
   };
   const opts: AddEventListenerOptions = { capture: true };
-  window.addEventListener("click", stop, opts);
-  window.addEventListener("mouseup", stop, opts);
-  window.addEventListener("pointerup", stop, opts);
+  const events = ["click", "mouseup", "mousedown", "pointerup", "pointerdown", "touchend", "touchstart"] as const;
+  events.forEach((evt) => window.addEventListener(evt, stop, opts));
   window.setTimeout(() => {
-    window.removeEventListener("click", stop, opts);
-    window.removeEventListener("mouseup", stop, opts);
-    window.removeEventListener("pointerup", stop, opts);
+    events.forEach((evt) => window.removeEventListener(evt, stop, opts));
   }, durationMs);
 }
 
@@ -109,17 +109,17 @@ export function DrillLibrarySheet({
   const handleOpen = async (drillId: string) => {
     if (openingId) return; // ignore re-entrant taps
     setOpeningId(drillId);
+    // Arm the ghost-click blocker IMMEDIATELY so any synthesized click
+    // that follows the user's tap (on touch devices) cannot reach the
+    // pitch board's settings cog underneath the sheet.
+    blockGhostClicks();
     try {
-      // Load FIRST, then close — but do both before yielding back to the event
-      // loop so the synthesized "click" from a touch tap can never reach the
-      // underlying pitch board (which would otherwise toggle the settings menu).
       const drill = await loadDrill(drillId);
       stampRecent.mutate(drillId);
-      // Close the sheet, then briefly block pointer events at the document
-      // root so any ghost tap on touch devices is swallowed before the new
-      // editor surface mounts underneath.
-      onOpenChange(false);
+      // Re-arm right before unmounting the sheet, since loadDrill is async
+      // and the original 600ms window may have elapsed.
       blockGhostClicks();
+      onOpenChange(false);
       onOpenDrill(drill);
     } catch (err: any) {
       console.error("[DrillLibrary] open failed", err);
