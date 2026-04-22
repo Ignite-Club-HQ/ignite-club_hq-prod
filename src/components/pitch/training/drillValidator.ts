@@ -224,6 +224,42 @@ function ruleOverlaps(frame: DrillFrame, frameIndex: number, push: (i: DrillIssu
   }
 }
 
+/**
+ * Rule 7: rotation coverage — every "waiting" player (id like `w1`, `w2`, …) that
+ * appears anywhere in the drill should be shown in an ACTIVE role at least once
+ * across the frame sequence. "Active" = same id rendered with a non-muted color
+ * (the muted bench colour is `#94a3b8`). If a waiting player never gets a turn,
+ * the drill demo doesn't actually rotate them through, which is a UX bug.
+ *
+ * Reported once per drill (not per frame) on the first frame for editor anchoring.
+ */
+const MUTED_WAITING_COLOR = "#94a3b8";
+function ruleRotationCoverage(frames: DrillFrame[], push: (i: DrillIssue) => void) {
+  if (frames.length === 0) return;
+  const waitingIds = new Set<string>();
+  const activatedIds = new Set<string>();
+  for (const f of frames) {
+    for (const o of f.objects) {
+      if (o.type !== "player" || typeof o.id !== "string" || !/^w\d+$/i.test(o.id)) continue;
+      const color = (o.color ?? "").toLowerCase();
+      if (color === MUTED_WAITING_COLOR) {
+        waitingIds.add(o.id);
+      } else {
+        activatedIds.add(o.id);
+        waitingIds.add(o.id); // still counts as "seen" in the rotation
+      }
+    }
+  }
+  const uncovered = [...waitingIds].filter((id) => !activatedIds.has(id)).sort();
+  if (uncovered.length === 0) return;
+  push({
+    severity: "warning",
+    rule: "rotation-coverage",
+    frameIndex: 0,
+    message: `Rotation gap: ${uncovered.length} waiting player(s) never demoed in an active role — ${uncovered.join(", ")}. Add cycle frames so each "W" chip takes a turn.`,
+  });
+}
+
 /** Rule 6: duplicate player labels in the same frame ("two #7"s). */
 function ruleDuplicateLabels(frame: DrillFrame, frameIndex: number, push: (i: DrillIssue) => void) {
   const seen = new Map<string, string>(); // label → first object id
@@ -262,6 +298,7 @@ export function validateDrill(input: {
     ruleDuplicateLabels(f, idx, push);
   });
   ruleBallContinuity(input.frames, push);
+  ruleRotationCoverage(input.frames, push);
 
   const counts = issues.reduce(
     (acc, i) => ({ ...acc, [i.severity]: acc[i.severity] + 1 }),
