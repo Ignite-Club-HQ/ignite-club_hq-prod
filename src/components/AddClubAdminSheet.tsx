@@ -95,12 +95,16 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     queryKey: ["user-search-club-admin", debouncedSearch],
     queryFn: async () => {
       if (debouncedSearch.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSearch}%`)
-        .limit(8);
-      return data || [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedSearch,
+        _limit: 8,
+      });
+      return (data || []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        masked_email: string | null;
+      }>;
     },
     enabled: debouncedSearch.length >= 2,
   });
@@ -459,8 +463,13 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                             {result.display_name?.charAt(0) || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium text-sm">{result.display_name || "Unknown"}</span>
-                        <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0">Existing</Badge>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-medium text-sm truncate">{result.display_name || "Unknown"}</span>
+                          {(result as any).masked_email && (
+                            <span className="text-xs text-muted-foreground truncate">{(result as any).masked_email}</span>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0">Existing</Badge>
                       </div>
                     ))
                   ) : null}

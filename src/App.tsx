@@ -62,6 +62,7 @@ const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
 const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
+const AdminActiveGamesPage = lazy(() => import("./pages/AdminActiveGamesPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -98,6 +99,7 @@ const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
+const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
 const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
@@ -300,6 +302,7 @@ const App = () => {
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/admin/online-users" element={<OnlineUsersPage />} />
+                  <Route path="/admin/active-games" element={<AdminActiveGamesPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
@@ -319,7 +322,8 @@ const App = () => {
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
                   <Route path="/admin/settings" element={<AppSettingsPage />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
-                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
+                 <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
+                 <Route path="/admin/drills" element={<AdminDrillsPage />} />
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />

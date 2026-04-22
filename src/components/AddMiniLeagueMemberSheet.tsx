@@ -113,12 +113,16 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     queryKey: ["user-search-mini-league-parent", debouncedParentSearch],
     queryFn: async () => {
       if (debouncedParentSearch.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedParentSearch}%`)
-        .limit(8);
-      return data || [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedParentSearch,
+        _limit: 8,
+      });
+      return (data || []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        masked_email: string | null;
+      }>;
     },
     enabled: debouncedParentSearch.length >= 2 && parentMode === "search" && !selectedParent,
   });
@@ -692,7 +696,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                     {result.display_name?.charAt(0)?.toUpperCase() || "?"}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-sm font-medium">{result.display_name}</span>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-sm font-medium truncate">{result.display_name}</span>
+                                  {(result as any).masked_email && (
+                                    <span className="text-xs text-muted-foreground truncate">{(result as any).masked_email}</span>
+                                  )}
+                                </div>
                               </button>
                             ))}
                           </div>

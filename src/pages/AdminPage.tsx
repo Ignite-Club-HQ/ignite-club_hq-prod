@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -180,6 +180,12 @@ export default function AdminPage() {
               description="Notify users to update their native app"
               onClick={() => navigate("/admin/send-update-reminder")}
             />
+            <AdminMenuItem
+              icon={Sparkles}
+              label="Drill Frame Audit"
+              description="Find single-frame drills and auto-generate motion"
+              onClick={() => navigate("/admin/drills")}
+            />
           </CardContent>
         </Card>
       )}
@@ -197,6 +203,12 @@ export default function AdminPage() {
               label="Online Users"
               description="See who is currently active in the app"
               onClick={() => navigate("/admin/online-users")}
+            />
+            <AdminMenuItem
+              icon={Activity}
+              label="Active Games"
+              description="Live coaching boards across every club & team"
+              onClick={() => navigate("/admin/active-games")}
             />
             <AdminMenuItem
               icon={Bell}

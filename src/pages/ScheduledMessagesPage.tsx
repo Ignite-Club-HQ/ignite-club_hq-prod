@@ -1,8 +1,23 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, isTomorrow } from "date-fns";
-import { ArrowLeft, Clock, Pencil, X, AlertCircle, Image as ImageIcon, Repeat } from "lucide-react";
+import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
+import {
+  ArrowLeft,
+  Clock,
+  Pencil,
+  X,
+  AlertCircle,
+  Image as ImageIcon,
+  Repeat,
+  CheckCircle2,
+  Users,
+  Hash,
+  User as UserIcon,
+  Megaphone,
+  Shield,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -43,6 +58,25 @@ function dateGroupLabel(d: Date): string {
   if (isToday(d)) return "Today";
   if (isTomorrow(d)) return "Tomorrow";
   return format(d, "EEEE, MMM d");
+}
+
+function chatTypeIcon(type: ScheduledMessageRow["chat_type"]) {
+  switch (type) {
+    case "team":
+      return Users;
+    case "club":
+      return Shield;
+    case "group":
+      return Hash;
+    case "direct":
+      return UserIcon;
+    case "club_admin":
+      return Shield;
+    case "broadcast":
+      return Megaphone;
+    default:
+      return Clock;
+  }
 }
 
 /**
@@ -248,155 +282,238 @@ export default function ScheduledMessagesPage() {
       .slice(0, 20);
   }, [recentRows]);
 
+  const totalPending = pendingRows.length;
+
   return (
-    <div className="py-6 space-y-6 max-w-2xl mx-auto px-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Scheduled messages</h1>
-          <p className="text-sm text-muted-foreground">
-            Messages you've scheduled to send later
-          </p>
+    <div className="pb-10 max-w-2xl mx-auto">
+      {/* Hero header */}
+      <div className="relative overflow-hidden border-b border-border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-4 pt-4 pb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="h-9 w-9 -ml-2"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/20">
+            <Clock className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold tracking-tight">Scheduled messages</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {totalPending === 0
+                ? "Messages you've scheduled to send later"
+                : `${totalPending} message${totalPending === 1 ? "" : "s"} queued to send`}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Pending */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Upcoming
-        </h2>
-        {loadingPending ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : pendingRows.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center">
-            <Clock className="h-8 w-8 mx-auto mb-3 text-muted-foreground opacity-40" />
-            <p className="font-medium">No scheduled messages</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Schedule a message from any chat to send it later.
-            </p>
-          </div>
-        ) : (
-          groupedPending.map((group) => (
-            <div key={group.key} className="space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground">
-                {group.label}
-              </h3>
-              <ul className="space-y-2">
-                {group.items.map((row) => {
-                  const info = lookupLabel(row, labels);
-                  return (
-                    <li
-                      key={row.id}
-                      className="rounded-lg border border-border bg-card p-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <button
-                            type="button"
-                            onClick={() => info.href && navigate(info.href)}
-                            className="text-left"
-                            disabled={!info.href}
-                          >
-                            <p className="text-sm font-semibold truncate hover:underline">
-                              {info.label}
-                            </p>
-                            {info.sublabel && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {info.sublabel}
-                              </p>
-                            )}
-                          </button>
-                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                            <span>{format(new Date(row.scheduled_for), "h:mm a")}</span>
-                            {row.recurrence && row.recurrence !== "none" && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                                <Repeat className="h-2.5 w-2.5" />
-                                {row.recurrence}
-                              </span>
-                            )}
-                          </p>
-                          <div className="mt-2 flex items-start gap-1.5">
-                            {row.image_url && (
-                              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                            )}
-                            <p className="text-sm break-words line-clamp-3">
-                              {row.text || (row.image_url ? "(Image only)" : "")}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => setEditingRow(row)}
-                            aria-label="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setConfirmDeleteId(row.id)}
-                            aria-label="Cancel"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))
-        )}
-      </section>
-
-      {/* Recent */}
-      {recentSorted.length > 0 && (
+      <div className="px-4 pt-6 space-y-8">
+        {/* Pending */}
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Recent (last 7 days)
-          </h2>
-          <ul className="space-y-2">
-            {recentSorted.map((row) => {
-              const info = lookupLabel(row, labels);
-              const failed = row.status === "failed";
-              return (
-                <li
-                  key={row.id}
-                  className="rounded-lg border border-border bg-card p-3 opacity-90"
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Upcoming
+            </h2>
+            {totalPending > 0 && (
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {totalPending}
+              </span>
+            )}
+          </div>
+          {loadingPending ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-border bg-card p-4 animate-pulse"
                 >
-                  <div className="flex items-start gap-2">
-                    {failed && (
-                      <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{info.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {failed ? "Failed " : "Sent "}
-                        {format(new Date(row.updated_at), "MMM d, h:mm a")}
-                      </p>
-                      {failed && row.error_message && (
-                        <p className="text-xs text-destructive mt-1">
-                          {row.error_message}
-                        </p>
-                      )}
-                      <p className="text-sm break-words line-clamp-2 mt-1">
-                        {row.text || (row.image_url ? "(Image only)" : "")}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                  <div className="h-4 w-32 bg-muted rounded mb-2" />
+                  <div className="h-3 w-20 bg-muted rounded mb-3" />
+                  <div className="h-3 w-full bg-muted rounded" />
+                </div>
+              ))}
+            </div>
+          ) : pendingRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                <Clock className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <p className="font-semibold text-base">No scheduled messages</p>
+              <p className="text-sm text-muted-foreground mt-1.5 max-w-xs mx-auto">
+                Schedule a message from any chat to send it at the perfect time.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {groupedPending.map((group) => (
+                <div key={group.key} className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground/70 px-1">
+                    {group.label}
+                  </h3>
+                  <ul className="space-y-2">
+                    {group.items.map((row) => {
+                      const info = lookupLabel(row, labels);
+                      const Icon = chatTypeIcon(row.chat_type);
+                      const scheduledDate = new Date(row.scheduled_for);
+                      const relative = formatDistanceToNow(scheduledDate, {
+                        addSuffix: true,
+                      });
+                      return (
+                        <li
+                          key={row.id}
+                          className="group rounded-2xl border border-border bg-card p-3.5 shadow-sm transition-all hover:shadow-md hover:border-primary/30"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => info.href && navigate(info.href)}
+                                className="text-left w-full group/link"
+                                disabled={!info.href}
+                              >
+                                <div className="flex items-center gap-1">
+                                  <p className="text-sm font-semibold truncate group-hover/link:text-primary transition-colors">
+                                    {info.label}
+                                  </p>
+                                  {info.href && (
+                                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover/link:opacity-100 transition-opacity shrink-0" />
+                                  )}
+                                </div>
+                                {info.sublabel && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {info.sublabel}
+                                  </p>
+                                )}
+                              </button>
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80 bg-muted/70 px-2 py-0.5 rounded-md">
+                                  <Clock className="h-3 w-3" />
+                                  {format(scheduledDate, "h:mm a")}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {relative}
+                                </span>
+                                {row.recurrence && row.recurrence !== "none" && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">
+                                    <Repeat className="h-2.5 w-2.5" />
+                                    {row.recurrence}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-muted/40 px-2.5 py-2">
+                                {row.image_url && (
+                                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                                )}
+                                <p className="text-sm break-words line-clamp-3 text-foreground/90">
+                                  {row.text || (row.image_url ? "Image" : "")}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0 -mr-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-lg"
+                                onClick={() => setEditingRow(row)}
+                                aria-label="Edit"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setConfirmDeleteId(row.id)}
+                                aria-label="Cancel"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
-      )}
+
+        {/* Recent */}
+        {recentSorted.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Recent activity
+            </h2>
+            <ul className="space-y-2">
+              {recentSorted.map((row) => {
+                const info = lookupLabel(row, labels);
+                const failed = row.status === "failed";
+                const Icon = chatTypeIcon(row.chat_type);
+                return (
+                  <li
+                    key={row.id}
+                    className="rounded-2xl border border-border bg-card/60 p-3.5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                          failed
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {failed ? (
+                          <AlertCircle className="h-4 w-4" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium truncate">{info.label}</p>
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
+                              failed
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            }`}
+                          >
+                            {failed ? "Failed" : "Sent"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Icon className="h-3 w-3" />
+                          {format(new Date(row.updated_at), "MMM d, h:mm a")}
+                        </p>
+                        {failed && row.error_message && (
+                          <p className="text-xs text-destructive mt-1.5 bg-destructive/5 rounded-md px-2 py-1">
+                            {row.error_message}
+                          </p>
+                        )}
+                        <p className="text-sm break-words line-clamp-2 mt-1.5 text-foreground/80">
+                          {row.text || (row.image_url ? "(Image only)" : "")}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+      </div>
 
       <ScheduleMessageDialog
         open={!!editingRow}

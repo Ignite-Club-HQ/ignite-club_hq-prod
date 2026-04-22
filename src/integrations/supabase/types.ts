@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       active_games: {
         Row: {
+          board_session_id: string
           created_at: string
           id: string
           is_active: boolean
@@ -27,6 +28,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          board_session_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -38,6 +40,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          board_session_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -57,6 +60,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      active_games_write_log: {
+        Row: {
+          active_game_id: string
+          created_at: string
+          id: number
+          op: string
+          team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          active_game_id: string
+          created_at?: string
+          id?: number
+          op: string
+          team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          active_game_id?: string
+          created_at?: string
+          id?: number
+          op?: string
+          team_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       admin_alerts: {
         Row: {
@@ -1946,6 +1976,170 @@ export type Database = {
             columns: ["reply_to_id"]
             isOneToOne: false
             referencedRelation: "direct_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drill_frames: {
+        Row: {
+          annotations: Json
+          created_at: string
+          drill_id: string
+          duration_ms: number
+          id: string
+          notes: string | null
+          objects: Json
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          annotations?: Json
+          created_at?: string
+          drill_id: string
+          duration_ms?: number
+          id?: string
+          notes?: string | null
+          objects?: Json
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          annotations?: Json
+          created_at?: string
+          drill_id?: string
+          duration_ms?: number
+          id?: string
+          notes?: string | null
+          objects?: Json
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drill_frames_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drill_recent_uses: {
+        Row: {
+          drill_id: string
+          last_used_at: string
+          user_id: string
+        }
+        Insert: {
+          drill_id: string
+          last_used_at?: string
+          user_id: string
+        }
+        Update: {
+          drill_id?: string
+          last_used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drill_recent_uses_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drills: {
+        Row: {
+          age_group: string | null
+          club_id: string | null
+          coaching_points: string[]
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          equipment: string[]
+          focus: string[]
+          id: string
+          is_official: boolean
+          name: string
+          owner_user_id: string
+          pitch_size: string
+          players_required: number | null
+          progression: string | null
+          regression: string | null
+          tags: string[]
+          team_id: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          age_group?: string | null
+          club_id?: string | null
+          coaching_points?: string[]
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          equipment?: string[]
+          focus?: string[]
+          id?: string
+          is_official?: boolean
+          name: string
+          owner_user_id: string
+          pitch_size?: string
+          players_required?: number | null
+          progression?: string | null
+          regression?: string | null
+          tags?: string[]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          age_group?: string | null
+          club_id?: string | null
+          coaching_points?: string[]
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          equipment?: string[]
+          focus?: string[]
+          id?: string
+          is_official?: boolean
+          name?: string
+          owner_user_id?: string
+          pitch_size?: string
+          players_required?: number | null
+          progression?: string | null
+          regression?: string | null
+          tags?: string[]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drills_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drills_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drills_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -6628,6 +6822,38 @@ export type Database = {
           },
         ]
       }
+      training_session_drills: {
+        Row: {
+          added_at: string
+          drill_id: string
+          id: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          drill_id: string
+          id?: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          drill_id?: string
+          id?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_session_drills_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_activity_logs: {
         Row: {
           club_id: string | null
@@ -7252,6 +7478,10 @@ export type Database = {
         Returns: boolean
       }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
+      can_edit_drill: {
+        Args: { _drill_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
@@ -7259,6 +7489,10 @@ export type Database = {
       }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_drill: {
+        Args: { _drill_id: string; _user_id: string }
         Returns: boolean
       }
       can_view_full_profile: {
@@ -7818,6 +8052,7 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      mask_email: { Args: { _email: string }; Returns: string }
       move_child_to_team: {
         Args: {
           p_child_id: string
@@ -7892,6 +8127,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      prune_active_games_write_log: { Args: never; Returns: undefined }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
@@ -7908,6 +8144,15 @@ export type Database = {
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
+      search_invitable_profiles: {
+        Args: { _limit?: number; _query: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          masked_email: string
+        }[]
+      }
       season_orphan_events: {
         Args: { _club_id: string }
         Returns: {

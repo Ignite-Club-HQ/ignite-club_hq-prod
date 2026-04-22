@@ -1,49 +1,39 @@
 
-## Goal
-Restore 1-tap scoring speed and tighten the live-game hierarchy without re-adding clutter. The popover scoring path already exists in `GameScoreboard.tsx` — it needs visual affordance, tighter spacing above/below, and the "Score by period" needs to drop out of the always-visible flow (it already lives in the drawer, but the standalone insights drawer triggers come too early).
 
-## Changes
+## Replace "Back to Match" with a settings dropdown in Training Mode
 
-### 1. `src/components/scoreboard/GameScoreboard.tsx` — make scoring feel tappable + faster
-- **Score affordance**: wrap the score number in a pill-shaped tap target with:
-  - subtle `bg-muted/40` background tint
-  - `rounded-lg`, slight padding (`px-3 py-1`)
-  - `active:scale-95` + `active:bg-muted/60` ripple
-  - `hover:bg-muted/60` on devices with hover
-- **Size bump**: scores from `text-5xl` → `text-6xl` (~+15%), `landscape:text-7xl`. Team labels opacity drop (`text-muted-foreground/70`).
-- **Tighter row**: reduce vertical padding `py-2.5` → `py-2`. Gap between team label and score `gap-0.5` for visual grouping.
-- **Popover sizing**: keep +1/+2/+3 pills but make them `h-12 min-w-14` with stronger `text-lg font-bold` and `sideOffset={4}` so they appear directly under the score.
-- **Auto-dismiss**: already handled in `handleScore`. Confirmed.
+Currently the Training Mode header shows a "Back to Match" button. That phrasing implies match is the "real" mode and training is a detour — which isn't right, since both are first-class modes. We'll replace that single button with the **same gear-icon settings dropdown** used in Match Mode, containing the Mode switcher at the top so users can flip between Match and Training the same way in both views.
 
-### 2. `src/components/basketball/BasketballBoard.tsx` — tighten live-mode hierarchy
-- **Pull court up**: remove the unconditional bottom border on the timer row (already there) and tighten the gap between `GameScoreboard` and `BasketballCourtArea`. Replace borders between scoreboard → court with subtle spacing only (no border on scoreboard's bottom in live mode).
-- **Bottom action bar slimmer**: reduce `py-1.5` → `py-1`, "Undo last sub" → ghost icon-only style with tiny label, "Game summary" stays outline but `h-7 text-[11px]`.
-- **Game details trigger**: reduce padding `py-2` → `py-1.5`, lighten copy to "Game details", lower contrast.
-- **Auto-sub status**: shrink to `py-1` and `text-[10px]` to claim less above-court space.
+### What changes in the Training header
 
-### 3. Layout diagram (live mode, after)
+Replace the "Back to Match" button with a gear icon (⚙). Tapping it opens a dropdown:
 
 ```text
-┌──────────────────────────────────┐
-│ ← TeamA vs TeamB        ✎  ◉    │  header (sticky)
-├──────────────────────────────────┤
-│   Q2  •   07:42   •  ▶  ⋯       │  timer
-├──────────────────────────────────┤
-│  TEAMA      12 — 8      OPPONENT │  scoreboard (tap score)
-│  ──────────────────────────────  │     ↓ popover: [+1][+2][+3]
-│                                  │
-│         [ COURT — hero ]         │  ← starts ~15% higher
-│                                  │
-│         [ Bench (n) ]            │
-├──────────────────────────────────┤
-│ ▾ Game details                   │  collapsed
-├──────────────────────────────────┤
-│ ↶ Undo            🏆 Summary    │  slim bottom bar
-└──────────────────────────────────┘
+┌──────────────────────────────┐
+│  MODE                        │
+│  ⚔  Match Mode               │   ← tap to switch
+│  📋 Training Mode      ✓     │   ← active (bold, check)
+│  ──────────────────────────  │
+│  ⚙  All Settings             │
+└──────────────────────────────┘
 ```
 
-## What stays untouched
-- All scoring/sub/timer logic in `useBasketballBoardState`
-- Drawer contents (QuarterScoreStrip, TimeoutsPanel, insights) — already correctly buried
-- Pre-game mode behaviour
-- Per-player scoring via QuickActionSheet
+Training Mode has no Setup Game / Auto Subs / Match Stats / Reset Game items — those are match-only — so the dropdown is intentionally minimal: just the Mode toggle and All Settings.
+
+### Behaviour
+
+- Tapping **Match Mode** calls `setMode("match")` (same call the Match dropdown's Training row uses) and closes the menu — this replaces "Back to Match" exactly.
+- Tapping **Training Mode** while already in training: closes the menu (no-op).
+- Tapping **All Settings** opens the existing `PitchSettingsDialog`, same as Match Mode.
+- Live training state (current drill, frames, edit/preview state) is preserved across mode toggles — same as today.
+
+### Consistency with Match Mode
+
+This mirrors the dropdown we're adding to Match Mode in the previous plan, so both views share identical mode-switching UX. One mental model: gear icon → Mode section at top → switch.
+
+### Files touched
+
+- `src/components/pitch/training/TrainingBoard.tsx` (or wherever the Training header lives — the component rendering the "Back to Match" button) — remove the "Back to Match" button, add a `DropdownMenu` with gear trigger, Mode section (two rows), separator, and "All Settings" item. Wire `setMode("match")` to the Match Mode row and reuse the existing settings dialog open handler.
+
+No new components, no DB changes, no migrations. Match-mode dropdown changes are covered by the previous plan.
+

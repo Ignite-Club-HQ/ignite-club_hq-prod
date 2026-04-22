@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { setSyncStatus } from "./useSyncStatus";
 import { buildGameSignature } from "@/lib/gameSyncSignature";
+import { recordSyncWrite } from "@/lib/syncWriteRateMonitor";
 import type { Json } from "@/integrations/supabase/types";
 import type { NetballBoardState, NetballTimerState } from "@/components/netball/types";
 
@@ -25,15 +26,29 @@ export function useNetballGameSync(
   const { user } = useAuth();
   const activeGameIdRef = useRef<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Stable board session id for the lifetime of this hook mount. Stamped on
+  // every active_games write so spectators can lock onto this session even if
+  // the underlying row id changes (e.g. recovery after a unique-violation race).
+  const boardSessionIdRef = useRef<string>(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `bs-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
+  // Deactivate stale rows ONLY for the same (user, team) combination so a
+  // coach running boards for two different teams in parallel tabs / devices
+  // doesn't keep flipping each other off. Without the team scope, two
+  // simultaneous boards from the same coach would ping-pong every 10s.
   const deactivateOtherGames = useCallback(
-    async (keepId?: string | null) => {
+    async (teamId: string | null, keepId?: string | null) => {
       if (!user?.id) return;
       let q = supabase
         .from("active_games")
         .update({ is_active: false })
         .eq("user_id", user.id)
         .eq("is_active", true);
+      if (teamId) q = q.eq("team_id", teamId);
+      else q = q.is("team_id", null);
       if (keepId) q = q.neq("id", keepId);
       await q;
     },
@@ -104,11 +119,17 @@ export function useNetballGameSync(
       pitch_state: pitchPayload,
       is_active: true,
       updated_at: new Date().toISOString(),
+      board_session_id: boardSessionIdRef.current,
     };
 
     try {
+      const teamId = state.teamId || null;
+      // Telemetry: count this attempted write toward the per-(user,team) rate.
+      // Mirrored server-side by trigger `log_active_game_write`.
+      recordSyncWrite({ userId: user.id, teamId, source: "netball" });
+
       if (activeGameIdRef.current) {
-        await deactivateOtherGames(activeGameIdRef.current);
+        await deactivateOtherGames(teamId, activeGameIdRef.current);
         const { error } = await supabase
           .from("active_games")
           .update(gameData)
@@ -123,21 +144,24 @@ export function useNetballGameSync(
         return;
       }
 
-      // Find or create
-      const { data: existing } = await supabase
+      // Look up an existing active row that BELONGS to this exact (user, team).
+      // The previous fallback ?? existing?.[0] would silently adopt a different
+      // team's row and overwrite it — corrupting the other game at scale.
+      let q = supabase
         .from("active_games")
         .select("id, team_id, updated_at")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
-        .limit(20);
+        .limit(5);
+      q = teamId ? q.eq("team_id", teamId) : q.is("team_id", null);
+      const { data: existing } = await q;
 
-      const match =
-        existing?.find((g) => g.team_id === (state.teamId || null)) ?? existing?.[0];
+      const match = existing?.[0];
 
       if (match) {
         activeGameIdRef.current = match.id;
-        await deactivateOtherGames(match.id);
+        await deactivateOtherGames(teamId, match.id);
         await supabase.from("active_games").update(gameData).eq("id", match.id);
       } else {
         const { data: created, error } = await supabase
@@ -146,10 +170,30 @@ export function useNetballGameSync(
           .select("id")
           .single();
         if (error) {
-          console.error("[netball-sync] insert failed", error);
+          // 23505 = unique_violation. The DB now enforces one active row per
+          // team via uniq_active_games_team_active, so a race between two
+          // coaches starting the same team lands here. Recover by adopting
+          // the existing row instead of leaving the board un-synced.
+          if ((error as { code?: string }).code === "23505" && teamId) {
+            const { data: claimed } = await supabase
+              .from("active_games")
+              .select("id")
+              .eq("team_id", teamId)
+              .eq("is_active", true)
+              .limit(1)
+              .maybeSingle();
+            if (claimed) {
+              activeGameIdRef.current = claimed.id;
+              await supabase.from("active_games").update(gameData).eq("id", claimed.id);
+            } else {
+              console.error("[netball-sync] insert race but no claimed row", error);
+            }
+          } else {
+            console.error("[netball-sync] insert failed", error);
+          }
         } else if (created) {
           activeGameIdRef.current = created.id;
-          await deactivateOtherGames(created.id);
+          await deactivateOtherGames(teamId, created.id);
         }
       }
       setSyncStatus({ status: "synced", lastSyncTime: Date.now() });

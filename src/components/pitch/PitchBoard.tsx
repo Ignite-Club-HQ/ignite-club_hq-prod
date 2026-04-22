@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
+import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -86,6 +87,8 @@ import {
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
+import { type PitchBoardMode } from "./ModeSwitch";
+const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
 const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
@@ -113,6 +116,9 @@ interface PitchBoardProps {
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
   initialShowLineupPicker?: boolean;
+  // Initial board mode — defaults to "match". Pass "training" when launched
+  // from a Training event so coaches land directly on the drill board.
+  initialMode?: PitchBoardMode;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
 }
@@ -138,7 +144,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -296,6 +302,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
+  const [mode, setMode] = useState<PitchBoardMode>(initialMode); // Match | Training — default Match unless launched from a Training event
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -1247,7 +1254,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
@@ -4201,7 +4210,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {settingsMenuOpen && createPortal(
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                      <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                      <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => setSettingsMenuOpen(false)}
+                        >
+                          <Swords className="h-4 w-4" />
+                          <span className="flex-1 font-semibold">Match Mode</span>
+                          <Check className="h-4 w-4 text-primary" />
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => { setMode("training"); setSettingsMenuOpen(false); }}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                          <span className="flex-1">Training Mode</span>
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
                         <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                           <Play className="h-4 w-4" />
                           Setup Game
@@ -4220,6 +4246,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
                         </button>
+                        <div className="h-px bg-border mx-2 my-1" />
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                           <span className="text-destructive">Reset Game</span>
@@ -4276,6 +4303,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideTrigger
                   externalOpen={settingsDialogOpen}
                   onExternalOpenChange={setSettingsDialogOpen}
+                  pitchBoardMode={mode}
+                  onPitchBoardModeChange={setMode}
                 />
               </>
             )}
@@ -5092,7 +5121,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </span>
                   )}
                 </div>
-              </div>
+      </div>
 
 
               {/* Tab content */}
@@ -5575,6 +5604,67 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
           </Suspense>
         )}
+
+        {/* Training Mode overlay (landscape) — portal'd to body so it covers the match. */}
+        {mode === "training" && createPortal(
+          <div
+            className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen flex flex-col bg-background"
+            style={{ height: '100dvh', zIndex: 999999 }}
+          >
+            <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
+              <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
+              <div className="relative">
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setTrainingMenuOpen(prev => !prev)}>
+                  <Settings className="h-5 w-5" />
+                </Button>
+                {trainingMenuOpen && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9999998]" onClick={() => setTrainingMenuOpen(false)} />
+                    <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[9999999] min-w-[200px] py-1">
+                      <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => { setMode("match"); setTrainingMenuOpen(false); }}
+                      >
+                        <Swords className="h-4 w-4" />
+                        <span className="flex-1">Match Mode</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => setTrainingMenuOpen(false)}
+                      >
+                        <ClipboardList className="h-4 w-4" />
+                        <span className="flex-1 font-semibold">Training Mode</span>
+                        <Check className="h-4 w-4 text-primary" />
+                      </button>
+                      <div className="h-px bg-border mx-2 my-1" />
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => { setTrainingSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                      >
+                        <Settings2 className="h-4 w-4" />
+                        Training Settings
+                      </button>
+                    </div>
+                  </>,
+                  document.body
+                )}
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+                <TrainingBoard
+                  isLandscape={isLandscape}
+                  readOnly={readOnly}
+                  teamId={teamId}
+                  teamName={teamName}
+                  members={members}
+                />
+              </Suspense>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>,
       document.body
     );
@@ -5648,7 +5738,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {settingsMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                    {!readOnly && (
+                      <>
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => setSettingsMenuOpen(false)}
+                        >
+                          <Swords className="h-4 w-4" />
+                          <span className="flex-1 font-semibold">Match Mode</span>
+                          <Check className="h-4 w-4 text-primary" />
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => { setMode("training"); setSettingsMenuOpen(false); }}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                          <span className="flex-1">Training Mode</span>
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
+                      </>
+                    )}
                     {!readOnly && (
                       <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                         <Play className="h-4 w-4" />
@@ -5729,11 +5840,97 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
+                pitchBoardMode={mode}
+                onPitchBoardModeChange={setMode}
               />
             )}
+            <TrainingSettingsDialog
+              open={trainingSettingsDialogOpen}
+              onOpenChange={setTrainingSettingsDialogOpen}
+            />
           </>
         )}
       </div>
+
+      {/* Training Mode overlay — portal'd to document.body so it sits above the
+          PitchBoard portal AND any global dock/header. Match body stays mounted
+          so its state (timer, subs, players) is preserved. */}
+      {mode === "training" && createPortal(
+        <div
+          className={cn(
+            "fixed top-0 left-0 right-0 bottom-0 w-screen h-screen flex flex-col bg-background",
+            isNative && "pt-safe"
+          )}
+          style={{
+            height: '100dvh',
+            zIndex: 999999,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
+        >
+          {/* Training-mode header */}
+          <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 -ml-1"
+              onClick={onClose}
+              aria-label="Close training mode"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
+            <div className="relative">
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setTrainingMenuOpen(prev => !prev)}>
+                <Settings className="h-5 w-5" />
+              </Button>
+              {trainingMenuOpen && createPortal(
+                <>
+                  <div className="fixed inset-0 z-[9999998]" onClick={() => setTrainingMenuOpen(false)} />
+                  <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[9999999] min-w-[200px] py-1">
+                    <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => { setMode("match"); setTrainingMenuOpen(false); }}
+                    >
+                      <Swords className="h-4 w-4" />
+                      <span className="flex-1">Match Mode</span>
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => setTrainingMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      <span className="flex-1 font-semibold">Training Mode</span>
+                      <Check className="h-4 w-4 text-primary" />
+                    </button>
+                    <div className="h-px bg-border mx-2 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => { setTrainingSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Training Settings
+                    </button>
+                  </div>
+                </>,
+                document.body
+              )}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+              <TrainingBoard
+                isLandscape={isLandscape}
+                readOnly={readOnly}
+                teamId={teamId}
+                teamName={teamName}
+                members={members}
+              />
+            </Suspense>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Mini-league team selector strip - portrait */}
       {miniLeagueTeams && !readOnly && (
