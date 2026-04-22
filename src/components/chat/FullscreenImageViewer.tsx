@@ -207,7 +207,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           style={{
             transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+            transition: isAnimating ? "transform 220ms cubic-bezier(0.32, 0.72, 0, 1)" : "none",
             touchAction: 'none',
+            willChange: 'transform',
           }}
           onClick={(e) => e.stopPropagation()}
           onLoad={() => setLoaded(true)}
