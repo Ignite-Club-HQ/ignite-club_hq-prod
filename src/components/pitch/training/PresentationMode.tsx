@@ -130,6 +130,21 @@ export default function PresentationMode({
           Frame {currentIndex + 1} / {total}
         </div>
         <div className="flex items-center gap-1.5">
+          {hasTeamPlayers && (
+            <button
+              type="button"
+              onClick={() => setUseTeamRoster((s) => !s)}
+              aria-pressed={useTeamRoster}
+              aria-label={useTeamRoster ? "Show generic player labels" : "Show team player names"}
+              title={useTeamRoster ? "Showing team players" : "Showing generic labels"}
+              className={cn(
+                "h-9 w-9 rounded-md flex items-center justify-center",
+                useTeamRoster ? "bg-white/20" : "hover:bg-white/10"
+              )}
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowShortcuts((s) => !s)}
