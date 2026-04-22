@@ -55,6 +55,16 @@ function ModeSwitchImpl({ value, onChange, disabled, className }: ModeSwitchProp
       >
         <ClipboardList className="h-3.5 w-3.5" />
         <span>Training</span>
+        <span
+          className={cn(
+            "ml-0.5 rounded-sm px-1 py-0 text-[9px] font-bold uppercase leading-tight tracking-wide",
+            value === "training"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted-foreground/20 text-muted-foreground"
+          )}
+        >
+          Beta
+        </span>
       </button>
     </div>
   );
