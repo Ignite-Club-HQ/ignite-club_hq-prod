@@ -443,15 +443,32 @@ function TrainingObjectLayerImpl({
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
 
+  // Track the live pitch container size so the resolver can convert each
+  // chip's actual pixel footprint into accurate pitch-% half-extents. Falls
+  // back to a sensible default until the first measurement lands.
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [containerRef]);
+
   // Pre-compute non-overlapping display positions for player chips.
   const displayPositions = useMemo(
-    () => resolvePlayerOverlaps(objects),
-    [objects],
+    () => resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize],
   );
   // Then push balls away from any player they would otherwise sit under.
   const ballPositions = useMemo(
-    () => resolveBallOverlaps(objects, displayPositions),
-    [objects, displayPositions],
+    () => resolveBallOverlaps(objects, displayPositions, containerSize),
+    [objects, displayPositions, containerSize],
   );
 
   return (
