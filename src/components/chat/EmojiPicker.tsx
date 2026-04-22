@@ -174,7 +174,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         align={isMobile ? "center" : "start"}
         sideOffset={8}
         collisionPadding={8}
-        avoidCollisions={false}
+        avoidCollisions={true}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onFocusOutside={(e) => {

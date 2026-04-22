@@ -124,7 +124,10 @@ function DrillStepOverlayImpl({
   return (
     <div
       className={cn(
-        "absolute z-[60] pointer-events-auto max-w-[78%] sm:max-w-[46%] transition-[top,bottom,left,right] duration-300 ease-out",
+        // ~40% of pitch width on phones, narrower on larger screens.
+        // Animate placement so it never feels like the card "jumps" between
+        // corners as the drill advances.
+        "absolute z-[60] pointer-events-auto max-w-[60%] sm:max-w-[40%] animate-fade-in transition-[top,bottom,left,right] duration-300 ease-out",
         positionClass,
       )}
     >

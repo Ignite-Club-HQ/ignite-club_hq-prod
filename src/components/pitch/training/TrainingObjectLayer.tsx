@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type {
   Annotation,
@@ -47,38 +47,241 @@ function clamp(v: number) {
   return Math.max(0, Math.min(100, v));
 }
 
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ */
+/**
+ * Mirror of the chip sizing logic inside `ObjectGlyph` so the resolver knows
+ * the *actual* rendered footprint of each chip rather than a fixed minimum
+ * distance. Returns the chip's pixel width / height as drawn in the DOM.
+ */
+function chipPixelSize(p: RenderableObject): { w: number; h: number } {
+  const label = (p.label ?? "P").trim();
+  const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
+  const baseHeight = isWaiting ? 32 : 44;
+  const isShort = label.length <= 2;
+  const fontSize = isShort
+    ? (isWaiting ? 13 : 15)
+    : label.length <= 4
+      ? (isWaiting ? 11 : 13)
+      : label.length <= 7
+        ? (isWaiting ? 10 : 12)
+        : (isWaiting ? 9 : 11);
+  const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
+  // Approximate text width — bold sans-serif glyphs average ~0.6× font size.
+  // We don't need pixel-perfect accuracy here, just a tight upper bound that
+  // tracks the real chip width as labels grow.
+  const textWidth = label.length * fontSize * 0.6;
+  const contentWidth = textWidth + horizontalPadding * 2;
+  // The chip is `min-width: baseHeight` (circular when short), expanding into
+  // a pill once the text demands more room.
+  const w = Math.max(baseHeight, contentWidth);
+  return { w, h: baseHeight };
+}
+
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ *
+ * `containerSize` provides the live pitch dimensions in pixels so we can
+ * convert each chip's actual rendered width/height into accurate % units.
+ * Without it we fall back to a sensible 400×600 default — close enough that
+ * the resolver still works during the first paint before measurement lands.
+ */
+function resolvePlayerOverlaps(
+  objects: RenderableObject[],
+  containerSize: { w: number; h: number } | null,
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  // Only player chips need separation — other objects (cones, goals, ball)
+  // either render at different z-orders or have intentionally different sizes.
+  const players = objects.filter((o) => o.type === "player");
+  if (players.length < 2) {
+    for (const p of players) positions.set(p.id, { x: p.x, y: p.y });
+    return positions;
+  }
+
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Convert each chip's real rendered pixel size into pitch-% half-extents.
+  // Half-extent + a tiny breathing-room pad = the minimum centre-to-centre
+  // distance required on each axis to avoid any visual overlap.
+  const halfFor = (p: RenderableObject) => {
+    const { w, h } = chipPixelSize(p);
+    return {
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
+  };
+  const halves = new Map(players.map((p) => [p.id, halfFor(p)]));
+
+  // Padding gap (in pitch-%) — a small visual breathing space between chips.
+  // 4px on a typical 400px-wide pitch ≈ 1% — keeps chips from kissing.
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
+
+  const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
+  // A few relaxation passes are enough for typical drill densities.
+  for (let iter = 0; iter < 8; iter++) {
+    let moved = false;
+    for (let i = 0; i < work.length; i++) {
+      for (let j = i + 1; j < work.length; j++) {
+        const a = work[i];
+        const b = work[j];
+        const ha = halves.get(a.id)!;
+        const hb = halves.get(b.id)!;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        // Required spacing on each axis = sum of half-widths/heights + gap.
+        const reqX = ha.rx + hb.rx + padX;
+        const reqY = ha.ry + hb.ry + padY;
+        // Normalise into a single distance metric: a chip is "colliding" when
+        // it sits inside the bounding ellipse defined by reqX/reqY.
+        const ndx = dx / reqX;
+        const ndy = dy / reqY;
+        const ndist = Math.hypot(ndx, ndy);
+        if (ndist > 1) continue; // No overlap — skip.
+        // Push apart along the connecting axis until the ellipse condition holds.
+        const overlap = 1 - ndist;
+        // Avoid div-by-zero when chips share exact coordinates: pick a default
+        // axis based on row/column orientation (horizontal nudge for rows).
+        const nx = ndist > 0.0001 ? ndx / ndist : 1;
+        const ny = ndist > 0.0001 ? ndy / ndist : 0;
+        // Convert the normalised push back to % units, scaled by required dist.
+        const shiftX = nx * overlap * reqX * 0.55;
+        const shiftY = ny * overlap * reqY * 0.55;
+        a.x = clamp(a.x - shiftX);
+        a.y = clamp(a.y - shiftY);
+        b.x = clamp(b.x + shiftX);
+        b.y = clamp(b.y + shiftY);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  for (const p of work) positions.set(p.id, { x: p.x, y: p.y });
+  return positions;
+}
+
+/**
+ * Push balls away from any player chips so the ball never sits underneath
+ * (or visually overlaps) a player. Uses the resolved player positions so
+ * we account for the nudges applied above.
+ */
+function resolveBallOverlaps(
+  objects: RenderableObject[],
+  playerPositions: Map<string, { x: number; y: number }>,
+  containerSize: { w: number; h: number } | null,
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const balls = objects.filter((o) => o.type === "ball");
+  if (balls.length === 0) return positions;
+
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Pre-compute player footprints from their actual rendered chip sizes,
+  // converted into pitch-% half-extents using the live container dimensions.
+  const players = objects.filter((o) => o.type === "player");
+  const playerHalves = players.map((p) => {
+    const { w, h } = chipPixelSize(p);
+    const pos = playerPositions.get(p.id) ?? { x: p.x, y: p.y };
+    return {
+      x: pos.x,
+      y: pos.y,
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
+  });
+
+  // Ball glyph is ~30px tall/wide → derive its half-extent from the actual
+  // pitch size so it scales with the surface.
+  const ballRx = (15 / cw) * 100;
+  const ballRy = (15 / ch) * 100;
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
+
+  for (const ball of balls) {
+    let bx = ball.x;
+    let by = ball.y;
+    for (let iter = 0; iter < 8; iter++) {
+      let moved = false;
+      for (const ph of playerHalves) {
+        const dx = bx - ph.x;
+        const dy = by - ph.y;
+        const reqX = ph.rx + ballRx + padX;
+        const reqY = ph.ry + ballRy + padY;
+        const ndx = dx / reqX;
+        const ndy = dy / reqY;
+        const ndist = Math.hypot(ndx, ndy);
+        if (ndist >= 1) continue;
+        const overlap = 1 - ndist;
+        // If ball sits exactly on the player, push it down-right by default.
+        const nx = ndist > 0.0001 ? ndx / ndist : 0.7071;
+        const ny = ndist > 0.0001 ? ndy / ndist : 0.7071;
+        bx = clamp(bx + nx * overlap * reqX);
+        by = clamp(by + ny * overlap * reqY);
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    positions.set(ball.id, { x: bx, y: by });
+  }
+  return positions;
+}
+
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
     case "player": {
-      const label = obj.label || "P";
-      // Render full label (no truncation). Slightly bigger token + strong
-      // white ring + drop shadow for outdoor / sunlight legibility.
+      const label = (obj.label || "P").trim();
+      // Waiting / bench players (seeded with ids w1..wN) read as muted so the
+      // active players on the pitch immediately stand out.
+      const isWaiting = typeof obj.id === "string" && /^w\d+$/i.test(obj.id);
+      const baseHeight = isWaiting ? 32 : 44; // active +15-20% over previous baseline
+      // Always render the full name INSIDE the chip — never as a separate
+      // floating pill. Short labels stay circular; longer names expand the
+      // chip into a horizontal pill so the whole name fits cleanly.
+      const isShort = label.length <= 2;
+      const fontSize = isShort
+        ? (isWaiting ? 13 : 15)
+        : label.length <= 4
+          ? (isWaiting ? 11 : 13)
+          : label.length <= 7
+            ? (isWaiting ? 10 : 12)
+            : (isWaiting ? 9 : 11);
+      const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
       return (
-        <div className="flex flex-col items-center gap-0.5 select-none">
+        <div className="select-none">
           <div
-            className="rounded-full border-[3px] border-white flex items-center justify-center text-white font-bold"
+            className={cn(
+              "flex items-center justify-center text-white font-bold whitespace-nowrap",
+              isShort ? "rounded-full" : "rounded-full",
+              isWaiting ? "border-2" : "border-[3px]",
+            )}
             style={{
-              width: 40,
-              height: 40,
+              height: baseHeight,
+              minWidth: baseHeight,
+              paddingLeft: horizontalPadding,
+              paddingRight: horizontalPadding,
               backgroundColor: obj.color,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.25)",
-              fontSize: label.length > 3 ? 11 : 13,
+              borderColor: "#ffffff",
+              boxShadow: isWaiting
+                ? "0 1px 3px rgba(0,0,0,0.35)"
+                : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
+              fontSize,
               lineHeight: 1,
+              opacity: isWaiting ? 0.85 : 1,
+              textShadow: "0 1px 1px rgba(0,0,0,0.5)",
             }}
           >
-            {label.length > 4 ? label.slice(0, 1).toUpperCase() : label}
+            {label}
           </div>
-          {label.length > 4 && (
-            <span
-              className="px-1 rounded-sm text-[10px] font-semibold text-white whitespace-nowrap"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.55)",
-                textShadow: "0 1px 1px rgba(0,0,0,0.6)",
-              }}
-            >
-              {label}
-            </span>
-          )}
         </div>
       );
     }
@@ -89,9 +292,9 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
           aria-label="ball"
           className="select-none leading-none"
           style={{
-            fontSize: 26,
+            fontSize: 30,
             lineHeight: 1,
-            filter: "drop-shadow(1px 2px 3px rgba(0,0,0,0.55))",
+            filter: "drop-shadow(1px 2px 4px rgba(0,0,0,0.65))",
           }}
         >
           ⚽
@@ -240,6 +443,34 @@ function TrainingObjectLayerImpl({
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
 
+  // Track the live pitch container size so the resolver can convert each
+  // chip's actual pixel footprint into accurate pitch-% half-extents. Falls
+  // back to a sensible default until the first measurement lands.
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [containerRef]);
+
+  // Pre-compute non-overlapping display positions for player chips.
+  const displayPositions = useMemo(
+    () => resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize],
+  );
+  // Then push balls away from any player they would otherwise sit under.
+  const ballPositions = useMemo(
+    () => resolveBallOverlaps(objects, displayPositions, containerSize),
+    [objects, displayPositions, containerSize],
+  );
+
   return (
     <>
       {/* Arrow lines */}
@@ -318,9 +549,12 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Text + step markers + arrow handles */}
+      {/* Text + step markers + arrow handles. Hide the seeded "wait-label"
+          text — it's replaced by the dedicated <NextUpZone /> visual so the
+          floating "Waiting line — rotate in" caption no longer competes with
+          the pitch. */}
       {annotations
-        .filter((a) => a.type !== "zone")
+        .filter((a) => a.type !== "zone" && a.id !== "wait-label")
         .map((ann) => {
           let ax = 0;
           let ay = 0;
@@ -359,10 +593,21 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Objects — balls render above players for clarity */}
+      {/* Objects — players render above the ball so a chip is never obscured.
+          Player chips are nudged apart so they never visually overlap, while
+          their underlying drill coordinates stay untouched (drag/edit logic
+          still uses the authored x/y). */}
+      {/* Objects — players render above the ball so a chip is never obscured.
+          Player chips are nudged apart so they never visually overlap, while
+          their underlying drill coordinates stay untouched (drag/edit logic
+          still uses the authored x/y). */}
       {objects.map((obj) => {
         const isSel = selectedId === obj.id;
-        const z = obj.type === "ball" ? 50 : 40;
+        const z = obj.type === "ball" ? 38 : 45;
+        const pos =
+          obj.type === "ball"
+            ? ballPositions.get(obj.id) ?? { x: obj.x, y: obj.y }
+            : displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
         return (
           <div
             key={obj.id}
@@ -373,10 +618,11 @@ function TrainingObjectLayerImpl({
               isSel && "ring-2 ring-primary ring-offset-2 ring-offset-pitch-green rounded-full"
             )}
             style={{
-              left: `${obj.x}%`,
-              top: `${obj.y}%`,
+              left: `${pos.x}%`,
+              top: `${pos.y}%`,
               zIndex: z,
               opacity: obj.opacity ?? 1,
+              transition: "left 120ms ease-out, top 120ms ease-out",
             }}
           >
             <ObjectGlyph obj={obj} />

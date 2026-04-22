@@ -8,15 +8,14 @@ import {
   Plus,
   Check,
   ArrowLeft,
-  Eye,
-  Pencil,
   Settings,
-  Play as PlayIcon,
-  Pause as PauseIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
+import { ModeToggle } from "./ModeToggle";
+import { NextUpZone } from "./NextUpZone";
+import { RunModeControls } from "./RunModeControls";
 import {
   cloneAnnotation,
   cloneObject,
@@ -530,6 +529,59 @@ export default function TrainingBoard({
   );
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
+  // -- Mode helpers ----------------------------------------------------------
+  // NOTE: These hooks must be defined BEFORE any early return to obey the
+  // Rules of Hooks (React error #310 otherwise).
+  const mode: "edit" | "run" = runMode ? "run" : "edit";
+  const enterRun = useCallback(() => {
+    setRunMode(true);
+    setPreviewMode(true);
+    setSelectedId(null);
+    setActiveTool("select");
+    if (frames.length > 1) {
+      window.setTimeout(() => playPlayback(), 0);
+    }
+  }, [frames.length, playPlayback]);
+  const exitRun = useCallback(() => {
+    setRunMode(false);
+    setPreviewMode(false);
+  }, []);
+  const handleModeChange = useCallback(
+    (next: "edit" | "run") => {
+      if (next === "run") enterRun();
+      else exitRun();
+    },
+    [enterRun, exitRun],
+  );
+
+  // Swipe-to-advance on the pitch surface (Run mode only).
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const handlePitchTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!runMode) return;
+      const t = e.touches[0];
+      if (!t) return;
+      swipeRef.current = { x: t.clientX, y: t.clientY };
+    },
+    [runMode],
+  );
+  const handlePitchTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!runMode) return;
+      const start = swipeRef.current;
+      swipeRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+      if (dx < 0) nextFrame();
+      else prevFrame();
+    },
+    [runMode, nextFrame, prevFrame],
+  );
+
   // ---- Landing view (no editor) — shown until coach opens or creates a drill ----
   if (!editorMode && !readOnly) {
     return (
@@ -594,53 +646,49 @@ export default function TrainingBoard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* TOP BAR — back / title / settings. Compact (~30% shorter than before). */}
-      <div className="shrink-0 flex items-center gap-1 px-2 h-11 border-b border-border bg-background">
+      {/* TOP BAR — back · title · mode toggle · settings. Compact (~40px). */}
+      <div className="shrink-0 flex items-center gap-1 px-2 h-10 border-b border-border bg-background">
         <Button
           type="button"
           variant="ghost"
           size="icon"
           onClick={handleExitEditor}
-          className="h-9 w-9 shrink-0"
+          className="h-8 w-8 shrink-0"
           aria-label="Back to drill library"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate text-center px-1 flex items-center justify-center gap-1.5">
-          <span className="truncate">
+        <div className="flex-1 min-w-0 px-1">
+          <div className="text-sm font-semibold text-foreground truncate">
             {savedName || (savedDrillId ? "Drill" : "New drill")}
-          </span>
-          <span
-            className="rounded-sm bg-primary px-1 py-0 text-[9px] font-bold uppercase leading-tight tracking-wide text-primary-foreground"
-            aria-label="Beta feature"
-          >
-            Beta
-          </span>
-          {(previewMode || runMode) && (
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              · {runMode ? "Run" : "Preview"}
-            </span>
-          )}
+          </div>
         </div>
+        {!readOnly && (
+          <ModeToggle
+            mode={mode}
+            onChange={handleModeChange}
+            canRun={frames.length > 1}
+          />
+        )}
         {!readOnly ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
             onClick={() => setSettingsOpen(true)}
-            className="h-9 w-9 shrink-0"
+            className="h-8 w-8 shrink-0"
             aria-label="Drill settings"
           >
             <Settings className="h-4 w-4" />
           </Button>
         ) : (
-          <div className="w-9 shrink-0" aria-hidden />
+          <div className="w-8 shrink-0" aria-hidden />
         )}
       </div>
 
-      {/* SECONDARY ACTION BAR — compact, icon + short label. Hidden in Run mode. */}
-      {!readOnly && !runMode && (
-        <div className="shrink-0 flex items-center gap-1.5 px-2 h-10 border-b border-border bg-background">
+      {/* SECONDARY ACTION BAR — Edit mode only. */}
+      {!readOnly && mode === "edit" && (
+        <div className="shrink-0 flex items-center gap-1.5 px-2 h-9 border-b border-border bg-background">
           {savedDrillId && (
             <Button
               type="button"
@@ -648,7 +696,7 @@ export default function TrainingBoard({
               variant={inSession ? "secondary" : "ghost"}
               onClick={handleAddCurrentToSession}
               disabled={inSession || addToSessionMut.isPending}
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-xs"
             >
               {inSession ? (
                 <>
@@ -666,132 +714,47 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="sm"
-            variant={previewMode ? "default" : "ghost"}
-            onClick={() => {
-              setPreviewMode((p) => {
-                const next = !p;
-                if (next) {
-                  setSelectedId(null);
-                  setActiveTool("select");
-                }
-                return next;
-              });
-            }}
-            className="h-8 px-2 text-xs"
-            aria-pressed={previewMode}
-          >
-            {previewMode ? (
-              <>
-                <Pencil className="h-3.5 w-3.5 mr-1" />
-                Edit
-              </>
-            ) : (
-              <>
-                <Eye className="h-3.5 w-3.5 mr-1" />
-                Preview
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
             variant="ghost"
             onClick={() => setSaveOpen(true)}
-            className="h-8 px-2 text-xs"
+            className="h-7 px-2 text-xs ml-auto"
           >
             <Save className="h-3.5 w-3.5 mr-1" />
             Save
           </Button>
-
-          <div className="ml-auto">
-            <Button
-              type="button"
-              size="sm"
-              variant={runMode ? "default" : "outline"}
-              onClick={() => {
-                setRunMode(true);
-                setPreviewMode(true);
-                setSelectedId(null);
-                setActiveTool("select");
-                if (frames.length > 1) {
-                  window.setTimeout(() => playPlayback(), 0);
-                }
-              }}
-              className="h-8 px-2.5 text-xs font-semibold"
-              aria-label="Run drill — full-screen coach mode"
-            >
-              <PlayIcon className="h-3.5 w-3.5 mr-1" />
-              Run drill
-            </Button>
-          </div>
         </div>
       )}
 
-      {/* Run-mode mini bar — Play/Pause + Exit Run, so coach can control playback. */}
-      {runMode && (
-        <div className="shrink-0 flex items-center justify-between gap-2 px-2 h-9 border-b border-border bg-background">
-          <Button
-            type="button"
-            size="sm"
-            variant={isPlaying ? "default" : "outline"}
-            onClick={() => {
-              if (frames.length < 2) {
-                toast.info("This drill has only one step.");
-                return;
-              }
-              togglePlayback();
-            }}
-            disabled={frames.length < 2}
-            className="h-7 px-2 text-xs"
-            aria-label={isPlaying ? "Pause drill" : "Play drill"}
-          >
-            {isPlaying ? (
-              <>
-                <PauseIcon className="h-3.5 w-3.5 mr-1" />
-                Pause
-              </>
-            ) : (
-              <>
-                <PlayIcon className="h-3.5 w-3.5 mr-1" />
-                Play
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setRunMode(false)}
-            className="h-7 px-2 text-xs"
-          >
-            <Pencil className="h-3.5 w-3.5 mr-1" />
-            Exit run
-          </Button>
-        </div>
-      )}
-
-      {/* Today's session strip — hidden during Run mode to maximise pitch */}
-      {!readOnly && !runMode && (
+      {/* Today's session strip — Edit mode only (hidden in Run for full focus). */}
+      {!readOnly && mode === "edit" && (
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
         />
       )}
 
-      {/* PITCH SURFACE — the hero. Full width, minimal padding, no border. */}
-      <div className={cn(
-        "flex-1 min-h-0 flex items-stretch justify-center",
-        runMode ? "p-1" : "px-2 py-2"
-      )}>
+      {/* PITCH SURFACE — the hero. In preview/run (no toolbar/frame strip
+          below) we anchor the pitch to the bottom edge so the playback bar
+          sits flush against the pitch instead of floating above a gap. In
+          edit mode the pitch stays vertically stretched so authors get the
+          maximum drawing area before the toolbar/frame strip. */}
+      <div
+        className={cn(
+          "flex-1 min-h-0 flex justify-center",
+          mode === "run" ? "p-1" : "px-2 py-2",
+          (previewMode || runMode || readOnly) ? "items-end" : "items-stretch",
+        )}
+      >
         <div
           ref={containerRef}
           data-pitch-surface
           onPointerDown={handlePitchPointerDown}
+          onTouchStart={handlePitchTouchStart}
+          onTouchEnd={handlePitchTouchEnd}
           className={cn(
             "relative rounded-md overflow-hidden select-none",
             cursorClass,
             isLandscape ? "w-full h-full" : "w-full max-w-[820px] aspect-[2/3] mx-auto",
-            !runMode && "shadow-md"
+            mode === "edit" && "shadow-md",
           )}
           style={{
             backgroundColor: "hsl(var(--pitch-green))",
@@ -801,13 +764,18 @@ export default function TrainingBoard({
         >
           {settings.showPitchMarkings && <PitchMarkings />}
 
-          {/* Floating coaching-points card — only when previewing a saved drill
-              and the user opted in. Constrained width, never blocks centre. */}
+          {/* Defined "Next Up" zone — replaces the floating waiting line. */}
+          <NextUpZone
+            objects={renderedObjects}
+            annotations={renderedAnnotations}
+          />
+
+          {/* Coaching-points card — Edit mode only. Capped at ~40%. */}
           {previewMode &&
-            !runMode &&
+            mode === "edit" &&
             settings.showCoachingPointsInPreview &&
             (savedMetadata?.coachingPoints?.length ?? 0) > 0 && (
-              <div className="absolute top-2 right-2 z-[55] max-w-[60%] bg-black/60 backdrop-blur-md border border-white/15 rounded-lg p-2 text-[11px] shadow-lg pointer-events-none text-white">
+              <div className="absolute top-2 right-2 z-[55] max-w-[40%] bg-black/60 backdrop-blur-md border border-white/15 rounded-lg p-2 text-[11px] shadow-lg pointer-events-none text-white">
                 <div className="font-semibold mb-0.5">Coaching points</div>
                 <ul className="space-y-0.5 list-disc list-inside text-white/85">
                   {savedMetadata!.coachingPoints!.slice(0, 3).map((cp, i) => (
@@ -817,11 +785,7 @@ export default function TrainingBoard({
               </div>
             )}
 
-          {/* FLOATING DRILL STEP CARD — replaces the old full-width caption bar.
-              Notes have placeholder tokens (A1, D2, GK1...) replaced with the
-              actual squad names so coaches read "Mia drives at Jacob" instead
-              of "A1 drives at D1". Falls back to the raw note when no squad
-              is loaded or the substitution preference is off. */}
+          {/* Compact step card — ~40% width, 2-line clamp, tap to expand. */}
           <DrillStepOverlay
             frameNumber={currentIndex + 1}
             totalFrames={frames.length}
@@ -830,7 +794,7 @@ export default function TrainingBoard({
               rawObjects,
               teamPlayers
             )}
-            anchor={runMode ? "bottom" : "top"}
+            anchor="top"
             objects={renderedObjects}
             annotations={renderedAnnotations}
           />
@@ -848,44 +812,22 @@ export default function TrainingBoard({
         </div>
       </div>
 
-      {/* RUN MODE controls — minimal Play / Prev / Next bar. */}
-      {runMode && !readOnly && (
-        <div className="shrink-0 flex items-center justify-center gap-3 px-3 py-2 bg-background/95 backdrop-blur border-t border-border">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={prevFrame}
-            disabled={currentIndex === 0}
-            className="h-10 px-3"
-          >
-            Prev
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              if (frames.length < 2) {
-                toast.info("This drill has only one step.");
-                return;
-              }
-              togglePlayback();
-            }}
-            className="h-11 px-5 rounded-full font-semibold"
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={nextFrame}
-            disabled={currentIndex >= frames.length - 1}
-            className="h-10 px-3"
-          >
-            Next step
-          </Button>
-        </div>
+      {/* RUN MODE — clean Prev / Play / Next bar with step counter. */}
+      {mode === "run" && !readOnly && (
+        <RunModeControls
+          isPlaying={isPlaying}
+          currentIndex={currentIndex}
+          frameCount={frames.length}
+          onPrev={prevFrame}
+          onNext={nextFrame}
+          onTogglePlay={() => {
+            if (frames.length < 2) {
+              toast.info("This drill has only one step.");
+              return;
+            }
+            togglePlayback();
+          }}
+        />
       )}
 
       {/* EDIT/PREVIEW MODE — full playback controls, frame strip, toolbar */}
