@@ -157,7 +157,7 @@ export default function TrainingBoard({
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
-  const editable = !readOnly && !isAnimating && !previewMode;
+  const editable = !readOnly && !isAnimating && !previewMode && !runMode;
   const hasSelection = !!selectedId;
 
   // Auto-open library on first mount — coaches start by picking a drill
