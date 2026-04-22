@@ -530,7 +530,10 @@ function TrainingObjectLayerImpl({
       {objects.map((obj) => {
         const isSel = selectedId === obj.id;
         const z = obj.type === "ball" ? 38 : 45;
-        const pos = displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
+        const pos =
+          obj.type === "ball"
+            ? ballPositions.get(obj.id) ?? { x: obj.x, y: obj.y }
+            : displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
         return (
           <div
             key={obj.id}
