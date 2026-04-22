@@ -50,44 +50,49 @@ function clamp(v: number) {
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
     case "player": {
-      const label = obj.label || "P";
+      const label = (obj.label || "P").trim();
       // Waiting / bench players (seeded with ids w1..wN) read as muted so the
       // active players on the pitch immediately stand out.
       const isWaiting = typeof obj.id === "string" && /^w\d+$/i.test(obj.id);
-      const size = isWaiting ? 32 : 44; // active +15-20% over previous baseline
+      const baseHeight = isWaiting ? 32 : 44; // active +15-20% over previous baseline
+      // Always render the full name INSIDE the chip — never as a separate
+      // floating pill. Short labels stay circular; longer names expand the
+      // chip into a horizontal pill so the whole name fits cleanly.
+      const isShort = label.length <= 2;
+      const fontSize = isShort
+        ? (isWaiting ? 13 : 15)
+        : label.length <= 4
+          ? (isWaiting ? 11 : 13)
+          : label.length <= 7
+            ? (isWaiting ? 10 : 12)
+            : (isWaiting ? 9 : 11);
+      const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
       return (
-        <div className="flex flex-col items-center gap-0.5 select-none">
+        <div className="select-none">
           <div
             className={cn(
-              "rounded-full flex items-center justify-center text-white font-bold",
+              "flex items-center justify-center text-white font-bold whitespace-nowrap",
+              isShort ? "rounded-full" : "rounded-full",
               isWaiting ? "border-2" : "border-[3px]",
             )}
             style={{
-              width: size,
-              height: size,
+              height: baseHeight,
+              minWidth: baseHeight,
+              paddingLeft: horizontalPadding,
+              paddingRight: horizontalPadding,
               backgroundColor: obj.color,
               borderColor: "#ffffff",
               boxShadow: isWaiting
                 ? "0 1px 3px rgba(0,0,0,0.35)"
                 : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
-              fontSize: label.length > 3 ? 11 : isWaiting ? 12 : 14,
+              fontSize,
               lineHeight: 1,
               opacity: isWaiting ? 0.85 : 1,
+              textShadow: "0 1px 1px rgba(0,0,0,0.5)",
             }}
           >
-            {label.length > 4 ? label.slice(0, 1).toUpperCase() : label}
+            {label}
           </div>
-          {label.length > 4 && (
-            <span
-              className="px-1.5 py-px rounded text-[10px] font-semibold text-white whitespace-nowrap"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.7)",
-                textShadow: "0 1px 1px rgba(0,0,0,0.7)",
-              }}
-            >
-              {label}
-            </span>
-          )}
         </div>
       );
     }
