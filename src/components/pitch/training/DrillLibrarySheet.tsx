@@ -29,6 +29,29 @@ import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/**
+ * On touch devices, when an overlay closes inside a tap handler the synthesized
+ * `click` that follows can land on the element that was underneath the tap
+ * (e.g. the pitch board's settings cog). Briefly intercept clicks at the
+ * document root in the CAPTURE phase to swallow that ghost click.
+ */
+function blockGhostClicks(durationMs = 350) {
+  if (typeof window === "undefined") return;
+  const stop = (e: Event) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  const opts: AddEventListenerOptions = { capture: true };
+  window.addEventListener("click", stop, opts);
+  window.addEventListener("mouseup", stop, opts);
+  window.addEventListener("pointerup", stop, opts);
+  window.setTimeout(() => {
+    window.removeEventListener("click", stop, opts);
+    window.removeEventListener("mouseup", stop, opts);
+    window.removeEventListener("pointerup", stop, opts);
+  }, durationMs);
+}
+
 interface DrillLibrarySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -84,12 +107,20 @@ export function DrillLibrarySheet({
   }, [open, onOpenChange]);
 
   const handleOpen = async (drillId: string) => {
+    if (openingId) return; // ignore re-entrant taps
     setOpeningId(drillId);
     try {
+      // Load FIRST, then close — but do both before yielding back to the event
+      // loop so the synthesized "click" from a touch tap can never reach the
+      // underlying pitch board (which would otherwise toggle the settings menu).
       const drill = await loadDrill(drillId);
       stampRecent.mutate(drillId);
-      onOpenDrill(drill);
+      // Close the sheet, then briefly block pointer events at the document
+      // root so any ghost tap on touch devices is swallowed before the new
+      // editor surface mounts underneath.
       onOpenChange(false);
+      blockGhostClicks();
+      onOpenDrill(drill);
     } catch (err: any) {
       console.error("[DrillLibrary] open failed", err);
       toast.error(err?.message ?? "Failed to open drill");
@@ -208,9 +239,18 @@ export function DrillLibrarySheet({
                       >
                         <button
                           type="button"
-                          onClick={() => handleOpen(d.id)}
+                          onPointerDown={(e) => {
+                            // Prevent the synthesized click from leaking to elements
+                            // that appear underneath once the sheet closes.
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleOpen(d.id);
+                          }}
                           disabled={isOpening}
-                          className="w-full text-left p-3"
+                          className="w-full text-left p-3 touch-manipulation"
                         >
                           <div className="flex items-center gap-2">
                             <VisIcon
@@ -248,7 +288,11 @@ export function DrillLibrarySheet({
                             type="button"
                             size="sm"
                             variant={inSession ? "secondary" : "outline"}
-                            onClick={() => handleAddToSession(d.id, d.name)}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToSession(d.id, d.name);
+                            }}
                             disabled={inSession || addToSessionMut.isPending}
                             className="h-8 flex-1"
                           >
@@ -269,7 +313,11 @@ export function DrillLibrarySheet({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(d.id, d.name)}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(d.id, d.name);
+                              }}
                               aria-label={`Delete ${d.name}`}
                               className="h-8 w-8 text-destructive shrink-0"
                             >
