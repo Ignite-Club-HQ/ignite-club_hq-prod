@@ -316,6 +316,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               <div
                 className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
                 onClick={handleImageClick}
+                onTouchStart={stopMediaGesture}
+                onTouchMove={stopMediaGesture}
+                onTouchEnd={stopMediaGesture}
+                onPointerDown={stopMediaGesture}
               >
                 <video
                   src={effectiveImageUrl}
@@ -341,6 +345,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 onClick={handleImageClick}
+                onTouchStart={stopMediaGesture}
+                onTouchMove={stopMediaGesture}
+                onTouchEnd={stopMediaGesture}
+                onPointerDown={stopMediaGesture}
               />
             )
           )}
