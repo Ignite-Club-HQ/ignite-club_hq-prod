@@ -4208,7 +4208,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {settingsMenuOpen && createPortal(
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                      <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                      <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => setSettingsMenuOpen(false)}
+                        >
+                          <Swords className="h-4 w-4" />
+                          <span className="flex-1 font-semibold">Match Mode</span>
+                          <Check className="h-4 w-4 text-primary" />
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => { setMode("training"); setSettingsMenuOpen(false); }}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                          <span className="flex-1">Training Mode</span>
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
                         <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                           <Play className="h-4 w-4" />
                           Setup Game
@@ -4226,14 +4243,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
-                        </button>
-                        <div className="h-px bg-border mx-2 my-1" />
-                        <button
-                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                          onClick={() => { setMode("training"); setSettingsMenuOpen(false); }}
-                        >
-                          <ClipboardList className="h-4 w-4" />
-                          Training Mode
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
@@ -5727,7 +5736,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {settingsMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                    {!readOnly && (
+                      <>
+                        <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => setSettingsMenuOpen(false)}
+                        >
+                          <Swords className="h-4 w-4" />
+                          <span className="flex-1 font-semibold">Match Mode</span>
+                          <Check className="h-4 w-4 text-primary" />
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => { setMode("training"); setSettingsMenuOpen(false); }}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                          <span className="flex-1">Training Mode</span>
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
+                      </>
+                    )}
                     {!readOnly && (
                       <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                         <Play className="h-4 w-4" />
