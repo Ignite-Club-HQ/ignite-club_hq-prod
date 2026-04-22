@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
  * (e.g. the pitch board's settings cog). Briefly intercept clicks at the
  * document root in the CAPTURE phase to swallow that ghost click.
  */
-function blockGhostClicks(durationMs = 600) {
+function blockGhostClicks(durationMs = 450) {
   if (typeof window === "undefined") return;
   const stop = (e: Event) => {
     e.stopPropagation();
@@ -45,7 +45,7 @@ function blockGhostClicks(durationMs = 600) {
     }
   };
   const opts: AddEventListenerOptions = { capture: true };
-  const events = ["click", "mouseup", "mousedown", "pointerup", "pointerdown", "touchend", "touchstart"] as const;
+  const events = ["click", "mouseup", "pointerup", "touchend"] as const;
   events.forEach((evt) => window.addEventListener(evt, stop, opts));
   window.setTimeout(() => {
     events.forEach((evt) => window.removeEventListener(evt, stop, opts));
@@ -109,17 +109,13 @@ export function DrillLibrarySheet({
   const handleOpen = async (drillId: string) => {
     if (openingId) return; // ignore re-entrant taps
     setOpeningId(drillId);
-    // Arm the ghost-click blocker IMMEDIATELY so any synthesized click
-    // that follows the user's tap (on touch devices) cannot reach the
-    // pitch board's settings cog underneath the sheet.
-    blockGhostClicks();
     try {
       const drill = await loadDrill(drillId);
       stampRecent.mutate(drillId);
-      // Re-arm right before unmounting the sheet, since loadDrill is async
-      // and the original 600ms window may have elapsed.
-      blockGhostClicks();
+      // Close the sheet, then briefly block post-tap ghost clicks so they
+      // cannot hit the pitch board controls underneath on touch devices.
       onOpenChange(false);
+      blockGhostClicks();
       onOpenDrill(drill);
     } catch (err: any) {
       console.error("[DrillLibrary] open failed", err);
@@ -240,14 +236,16 @@ export function DrillLibrarySheet({
                         <button
                           type="button"
                           onPointerDown={(e) => {
-                            // Prevent the synthesized click from leaking to elements
-                            // that appear underneath once the sheet closes.
                             e.stopPropagation();
+                          }}
+                          onPointerUp={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleOpen(d.id);
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            handleOpen(d.id);
                           }}
                           disabled={isOpening}
                           className="w-full text-left p-3 touch-manipulation"
