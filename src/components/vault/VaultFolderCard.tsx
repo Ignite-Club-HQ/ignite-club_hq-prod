@@ -1,12 +1,5 @@
-import { FolderOpen, ChevronRight, Share2, Pencil, Trash2, MoreVertical, Download } from "lucide-react";
+import { FolderOpen, ChevronRight, Share2, Pencil, Trash2, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 interface VaultFolderCardProps {
