@@ -194,7 +194,7 @@ export default function PresentationMode({
         >
           <PitchMarkings />
           <TrainingObjectLayer
-            objects={view.objects}
+            objects={renderedObjects}
             annotations={view.annotations}
             containerRef={containerRef}
             readOnly
