@@ -427,18 +427,21 @@ export default function TrainingBoard({
       setPlayerCounter(1);
       goTo(0);
       setEditorMode(true);
-      // Open in preview (read-only) mode so the toolbar stays hidden until
-      // the coach explicitly taps Edit. Auto-start playback for multi-frame
-      // drills so they immediately animate when opened.
-      setPreviewMode(true);
+      // Open in preview (read-only) mode by default so the toolbar stays
+      // hidden until the coach explicitly taps Edit. Coaches who prefer to
+      // jump straight to editing can disable this in Training Settings.
+      // Auto-start playback for multi-frame drills so they immediately
+      // animate when opened.
+      const startInPreview = settings.autoOpenInPreview;
+      setPreviewMode(startInPreview);
       setActiveTool("select");
-      if (loaded.length > 1) {
+      if (startInPreview && loaded.length > 1) {
         // Defer to next tick so the playback hook sees the new frames first
         window.setTimeout(() => playPlayback(), 0);
       }
       toast.success(`Opened "${drill.name}"`);
     },
-    [goTo, playPlayback]
+    [goTo, playPlayback, settings.autoOpenInPreview]
   );
 
   const handleExitEditor = useCallback(() => {
