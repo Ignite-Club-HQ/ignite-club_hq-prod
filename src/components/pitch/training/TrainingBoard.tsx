@@ -467,7 +467,11 @@ export default function TrainingBoard({
 
   // Substitute generic drill labels ("A", "B", "1"...) with real squad names
   // so coaches see actual players on the pitch in both editor + playback views.
-  const teamPlayers = useMemo(() => membersToTeamPlayers(members), [members]);
+  // Honours the user's "Use real squad names" preference.
+  const teamPlayers = useMemo(
+    () => (settings.substituteRealNames ? membersToTeamPlayers(members) : []),
+    [members, settings.substituteRealNames]
+  );
 
   // The view we render: live interpolation while playing, raw current frame while editing
   const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
