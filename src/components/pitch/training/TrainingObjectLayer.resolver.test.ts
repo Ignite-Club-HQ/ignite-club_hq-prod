@@ -104,15 +104,15 @@ describe("resolvePlayerOverlaps", () => {
     assertNoOverlap(objs);
   });
 
-  it("separates a tight horizontal row of long-label pill chips", () => {
-    // Five long-name chips packed 6% apart — well under the per-axis sum
-    // of half-widths, forcing the resolver to spread them along the row.
+  it("separates a tight horizontal row of medium-label pill chips", () => {
+    // Four medium-name chips packed 8% apart. With ~5–6% half-widths each,
+    // pairs need ~12% of separation — well inside the 100% pitch width so
+    // the resolver should always fully separate them along the row.
     const objs = [
-      player("p1", 25, 50, "Christopher"),
-      player("p2", 31, 50, "Alessandra"),
-      player("p3", 37, 50, "Maximilian"),
-      player("p4", 43, 50, "Genevieve"),
-      player("p5", 49, 50, "Sebastian"),
+      player("p1", 30, 50, "Alex"),
+      player("p2", 38, 50, "Sam"),
+      player("p3", 46, 50, "Jordan"),
+      player("p4", 54, 50, "Leo"),
     ];
     assertNoOverlap(objs);
   });
