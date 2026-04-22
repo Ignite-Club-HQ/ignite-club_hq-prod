@@ -515,6 +515,32 @@ export default function TrainingBoard({
           />
         </Suspense>
       )}
+
+      {/* Save / update dialog */}
+      <SaveDrillDialog
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
+        drillId={savedDrillId ?? undefined}
+        initialName={savedName}
+        initialMetadata={savedMetadata}
+        initialVisibility={savedVisibility}
+        frames={frames}
+        teamId={teamId}
+        teamName={teamName}
+        clubId={clubId}
+        clubName={clubName}
+        onSaved={(id) => {
+          setSavedDrillId(id);
+        }}
+      />
+
+      {/* Library sheet */}
+      <DrillLibrarySheet
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        teamId={teamId}
+        onOpenDrill={handleOpenDrill}
+      />
     </div>
   );
 }
