@@ -155,25 +155,33 @@ describe("TAP_MAX_HOLD_MS — long-press boundary behavior", () => {
     expect(TAP_MAX_HOLD_MS).toBeLessThanOrEqual(800);
   });
 
-  it(`hold = (TAP_MAX_HOLD_MS − 1) → still a tap; double-tap triggers zoom`, async () => {
-    // Two short-but-just-under-the-threshold taps in quick succession.
+  it(`hold = (TAP_MAX_HOLD_MS − 1) → still classified as a tap`, async () => {
+    // The just-under-threshold hold is technically still a tap. We verify
+    // this by following it with a clean fast tap *within* DOUBLE_TAP_MS of
+    // the long hold's touchend — they must pair into a double-tap zoom.
+    //
+    // Note: pairing requires both taps' touchends to fall within
+    // DOUBLE_TAP_MS (300 ms) of each other, so the second tap's hold is
+    // intentionally tiny. The first tap's near-threshold hold is what
+    // we're actually testing.
     await holdTap(150, 150, TAP_MAX_HOLD_MS - 1);
     await act(async () => {
-      vi.advanceTimersByTime(80); // gap between the two taps
+      vi.advanceTimersByTime(80); // < DOUBLE_TAP_MS gap
     });
-    await holdTap(151, 151, TAP_MAX_HOLD_MS - 1);
+    await holdTap(151, 151, 30);
 
     expect(onDoubleClickMock).toHaveBeenCalledTimes(1);
   });
 
   it(`hold = TAP_MAX_HOLD_MS → boundary classified as long-press; no zoom`, async () => {
     // The component uses `heldMs >= TAP_MAX_HOLD_MS`, so exactly the
-    // threshold value is treated as a long-press, not a tap.
+    // threshold value is treated as a long-press, not a tap. Even followed
+    // by a clean fast tap inside the double-tap window, no pair forms.
     await holdTap(150, 150, TAP_MAX_HOLD_MS);
     await act(async () => {
       vi.advanceTimersByTime(80);
     });
-    await holdTap(151, 151, TAP_MAX_HOLD_MS);
+    await holdTap(151, 151, 30);
 
     expect(onDoubleClickMock).not.toHaveBeenCalled();
     expect(resetZoomMock).not.toHaveBeenCalled();
@@ -184,7 +192,7 @@ describe("TAP_MAX_HOLD_MS — long-press boundary behavior", () => {
     await act(async () => {
       vi.advanceTimersByTime(80);
     });
-    await holdTap(151, 151, TAP_MAX_HOLD_MS + 50);
+    await holdTap(151, 151, 30);
 
     expect(onDoubleClickMock).not.toHaveBeenCalled();
     expect(resetZoomMock).not.toHaveBeenCalled();
