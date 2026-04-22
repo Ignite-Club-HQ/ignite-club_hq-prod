@@ -1,39 +1,47 @@
 
 
-## Replace "Back to Match" with a settings dropdown in Training Mode
+## Finish populating the remaining 15 official drills
 
-Currently the Training Mode header shows a "Back to Match" button. That phrasing implies match is the "real" mode and training is a detour — which isn't right, since both are first-class modes. We'll replace that single button with the **same gear-icon settings dropdown** used in Match Mode, containing the Mode switcher at the top so users can flip between Match and Training the same way in both views.
+15 official drills still have **0 frames**. I'll generate one migration that inserts 5 frames (positions 0–4) for each, so every targeted official drill ends up with exactly 5 animated frames.
 
-### What changes in the Training header
+### Drills to populate (15)
 
-Replace the "Back to Match" button with a gear icon (⚙). Tapping it opens a dropdown:
+| # | Drill | Focus |
+|---|-------|-------|
+| 1 | Outside-foot slalom | Outside-foot touch through cones |
+| 2 | Passing squares | 4-corner pass-and-follow square |
+| 3 | Pressure and cover | 2nd defender cover angles |
+| 4 | Rebound finishing | Server feeds, striker finishes 2nd ball |
+| 5 | Receive on the half-turn | Open body, play forward 1st touch |
+| 6 | Receive under pressure | Shielding under back-pressure |
+| 7 | Rondo 4v1 | Keep-ball, switch points |
+| 8 | Shooting circuit | 3-station rotating finishing |
+| 9 | Side-channel finishing | Wide attack → cutback → finish |
+| 10 | Strike from a moving ball U9–U12 | Push touch + driven strike |
+| 11 | Through-ball pattern | Pass–set–through-ball runner |
+| 12 | Triangle passing | 3-player triangle, pass + move |
+| 13 | Two-cone shooting gates | Strike between mini-gates |
+| 14 | Volley finish from cross | Cross → first-time volley |
+| 15 | Wall-pass and finish | 1-2 with wall player → strike |
 
-```text
-┌──────────────────────────────┐
-│  MODE                        │
-│  ⚔  Match Mode               │   ← tap to switch
-│  📋 Training Mode      ✓     │   ← active (bold, check)
-│  ──────────────────────────  │
-│  ⚙  All Settings             │
-└──────────────────────────────┘
-```
+### Frame structure per drill
 
-Training Mode has no Setup Game / Auto Subs / Match Stats / Reset Game items — those are match-only — so the dropdown is intentionally minimal: just the Mode toggle and All Settings.
+Each drill gets 5 `drill_frames` rows (`position` 0–4, `duration_ms` 1500) with:
 
-### Behaviour
+- **`objects`** – players (`A1/A2/D1/GK1` etc.), ball, cones, mini-goals — coordinates evolve frame to frame so the play moves toward the attacking goal (low y).
+- **`annotations`** – `arrow-solid` (ball travel), `arrow-dashed` (player runs), `step-marker` (numbered cue), and a `text` coaching cue (e.g. "Open body", "Drive across the keeper").
+- **`notes`** – short coaching note per frame using the squad-substitutable tokens (A1, A2, D1, GK1…) so the contextual name substitution already in `teamPlayerSubstitution.ts` renders real player names in the UI.
 
-- Tapping **Match Mode** calls `setMode("match")` (same call the Match dropdown's Training row uses) and closes the menu — this replaces "Back to Match" exactly.
-- Tapping **Training Mode** while already in training: closes the menu (no-op).
-- Tapping **All Settings** opens the existing `PitchSettingsDialog`, same as Match Mode.
-- Live training state (current drill, frames, edit/preview state) is preserved across mode toggles — same as today.
+All JSON is dollar-quoted (`$JSON$ … $JSON$::jsonb`) to match the previous migration style and validated against `drillValidator.ts` (in-bounds, attacking direction = high→low y, no zero-length arrows, ball continuity, no overlap at frame start).
 
-### Consistency with Match Mode
+### Delivery
 
-This mirrors the dropdown we're adding to Match Mode in the previous plan, so both views share identical mode-switching UX. One mental model: gear icon → Mode section at top → switch.
+1. Generate one migration file `supabase/migrations/<ts>_finish_official_drill_frames.sql` containing **75 inserts** (15 drills × 5 frames).
+2. Run it via the migration tool.
+3. Re-query `drill_frames` grouped by `drill_id` to confirm every one of the 15 drills returns `frame_count = 5` and report a summary table back.
 
-### Files touched
+### Out of scope
 
-- `src/components/pitch/training/TrainingBoard.tsx` (or wherever the Training header lives — the component rendering the "Back to Match" button) — remove the "Back to Match" button, add a `DropdownMenu` with gear trigger, Mode section (two rows), separator, and "All Settings" item. Wire `setMode("match")` to the Match Mode row and reuse the existing settings dialog open handler.
-
-No new components, no DB changes, no migrations. Match-mode dropdown changes are covered by the previous plan.
+- No changes to `drills` metadata, drill logic, or rendering.
+- The two drills already at 6 frames (`Cone slalom dribble`, `Dribble gates`) and all 5-frame drills are left untouched.
 
