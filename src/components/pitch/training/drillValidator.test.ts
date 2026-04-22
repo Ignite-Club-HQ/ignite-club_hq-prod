@@ -139,4 +139,27 @@ describe("contest-fairness rule", () => {
     const r = validateDrill({ id: "cf4", name: "attacker-only arrow", frames });
     expect(r.issues.find((i) => i.rule === "contest-fairness")).toBeDefined();
   });
+
+  it("ignores drills where the defender chip only appears in a single frame (coach cue)", () => {
+    // Warm-up where a red 'coach' chip only shows for one frame as a colour signal,
+    // not a sustained contest. Should NOT trigger contest-fairness.
+    const frames = [
+      frame(0, [
+        { id: "a", type: "player", x: 50, y: 50, color: ATTACKER, label: "1" },
+        { id: "b", type: "ball", x: 50, y: 51, color: "#fff" },
+      ]),
+      frame(1, [
+        { id: "a", type: "player", x: 50, y: 40, color: ATTACKER, label: "1" },
+        { id: "b", type: "ball", x: 50, y: 40, color: "#fff" },
+      ]),
+      frame(2, [
+        { id: "a", type: "player", x: 50, y: 30, color: ATTACKER, label: "1" },
+        // single-frame red signal chip
+        { id: "sig", type: "player", x: 10, y: 10, color: DEFENDER, label: "RED" },
+        { id: "b", type: "ball", x: 50, y: 30, color: "#fff" },
+      ]),
+    ];
+    const r = validateDrill({ id: "cf5", name: "warm-up with red signal", frames });
+    expect(r.issues.find((i) => i.rule === "contest-fairness")).toBeUndefined();
+  });
 });
