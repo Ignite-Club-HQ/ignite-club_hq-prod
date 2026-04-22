@@ -91,7 +91,7 @@ interface TouchPoint {
 import { makeTouchEvent } from "@/test/touchEventHelpers";
 
 function getGestureRoot(): HTMLElement {
-  return container.firstElementChild as HTMLElement;
+  return getPortalledGestureRoot(container);
 }
 
 function getImage(): HTMLImageElement {
