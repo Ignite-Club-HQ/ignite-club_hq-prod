@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageLoading } from "@/components/ui/page-loading";
 import { TrainingObjectLayer } from "@/components/pitch/training/TrainingObjectLayer";
 import { generateFrame2 } from "@/components/pitch/training/autoFrame2";
-import { interpolateFrame } from "@/components/pitch/training/interpolation";
+import { interpolateFrames } from "@/components/pitch/training/interpolation";
 import type { Annotation, DrillFrame, DrillObject } from "@/components/pitch/training/types";
 
 interface SingleFrameDrill {
@@ -84,8 +84,8 @@ export default function AdminDrillsPage() {
           position: raw.position,
           durationMs: raw.duration_ms,
           notes: raw.notes ?? undefined,
-          objects: (Array.isArray(raw.objects) ? raw.objects : []) as DrillObject[],
-          annotations: (Array.isArray(raw.annotations) ? raw.annotations : []) as Annotation[],
+          objects: (Array.isArray(raw.objects) ? raw.objects : []) as unknown as DrillObject[],
+          annotations: (Array.isArray(raw.annotations) ? raw.annotations : []) as unknown as Annotation[],
         };
         const arrowCount = frame.annotations.filter(
           (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
@@ -313,7 +313,7 @@ function PreviewBoard({ frame1, frame2 }: { frame1: DrillFrame; frame2: DrillFra
     };
   }, [durationMs, frame1, frame2]);
 
-  const view = useMemo(() => interpolateFrame(frame1, frame2, t), [frame1, frame2, t]);
+  const view = useMemo(() => interpolateFrames(frame1, frame2, t), [frame1, frame2, t]);
 
   return (
     <div
