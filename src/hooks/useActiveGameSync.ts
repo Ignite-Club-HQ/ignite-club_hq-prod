@@ -35,6 +35,14 @@ export function useActiveGameSync() {
   const { user } = useAuth();
   const activeGameIdRef = useRef<string | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Stable board session id for the lifetime of this hook mount. Stamped on
+  // every active_games write so spectators can lock onto this session even if
+  // the underlying row id changes (e.g. recovery after a unique-violation race).
+  const boardSessionIdRef = useRef<string>(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `bs-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
   // Scope deactivation to (user, team) — without the team filter, a coach
   // running boards for two teams in parallel tabs would flip each other off
@@ -177,6 +185,7 @@ export function useActiveGameSync() {
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
+      board_session_id: boardSessionIdRef.current,
       ...(isAtHalftime ? { last_sub_check_time: halfDurationSeconds } : {}),
     };
 
