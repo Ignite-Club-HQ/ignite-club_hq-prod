@@ -55,7 +55,7 @@ export function TrainingSettingsDialog({
           e.preventDefault();
         }}
       >
-        <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
+        <DialogHeader className="px-6 pt-6 sm:pt-6 pb-3 shrink-0 pt-safe">
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
             Training Mode Settings
