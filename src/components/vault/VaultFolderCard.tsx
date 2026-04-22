@@ -28,9 +28,7 @@ export function VaultFolderCard({
   onExport,
   canEdit = false,
 }: VaultFolderCardProps) {
-  const hasMenuActions = onShare || onExport;
-  
-  // Build swipe actions for edit/delete
+  // Build swipe actions for all available actions (replaces three-dot menu to avoid scroll interference)
   const swipeActions = [];
   if (canEdit && onRename) {
     swipeActions.push({
@@ -46,6 +44,22 @@ export function VaultFolderCard({
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDelete,
       className: "bg-destructive text-destructive-foreground",
+    });
+  }
+  if (onExport) {
+    swipeActions.push({
+      label: "Export",
+      icon: <Download className="h-4 w-4" />,
+      onClick: onExport,
+      className: "bg-primary text-primary-foreground",
+    });
+  }
+  if (onShare) {
+    swipeActions.push({
+      label: "Share",
+      icon: <Share2 className="h-4 w-4" />,
+      onClick: onShare,
+      className: "bg-secondary text-secondary-foreground",
     });
   }
 
@@ -64,42 +78,6 @@ export function VaultFolderCard({
           <p className="font-medium">{folder.name}</p>
         </div>
         
-        {/* Three-dot menu only for non-edit actions (Share, Export) */}
-        {hasMenuActions && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              {onExport && (
-                <DropdownMenuItem onClick={(e) => {
-                  e.stopPropagation();
-                  onExport();
-                }}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Folder
-                </DropdownMenuItem>
-              )}
-              {onShare && (
-                <DropdownMenuItem onClick={(e) => {
-                  e.stopPropagation();
-                  onShare();
-                }}>
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Share
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-        
         <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
       </CardContent>
     </Card>
@@ -108,7 +86,7 @@ export function VaultFolderCard({
   if (swipeActions.length > 0) {
     return (
       <SwipeableRow
-        enabled={canEdit}
+        enabled
         actions={swipeActions}
         actionsWidth={swipeActions.length * 70}
       >
