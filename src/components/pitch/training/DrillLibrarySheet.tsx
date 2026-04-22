@@ -84,12 +84,20 @@ export function DrillLibrarySheet({
   }, [open, onOpenChange]);
 
   const handleOpen = async (drillId: string) => {
+    if (openingId) return; // ignore re-entrant taps
     setOpeningId(drillId);
     try {
+      // Load FIRST, then close — but do both before yielding back to the event
+      // loop so the synthesized "click" from a touch tap can never reach the
+      // underlying pitch board (which would otherwise toggle the settings menu).
       const drill = await loadDrill(drillId);
       stampRecent.mutate(drillId);
-      onOpenDrill(drill);
+      // Close the sheet, then briefly block pointer events at the document
+      // root so any ghost tap on touch devices is swallowed before the new
+      // editor surface mounts underneath.
       onOpenChange(false);
+      blockGhostClicks();
+      onOpenDrill(drill);
     } catch (err: any) {
       console.error("[DrillLibrary] open failed", err);
       toast.error(err?.message ?? "Failed to open drill");
