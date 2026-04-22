@@ -78,6 +78,7 @@ export default function TrainingBoard({
   teamName,
   clubId,
   clubName,
+  members,
 }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
