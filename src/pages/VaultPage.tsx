@@ -3485,7 +3485,7 @@ export default function VaultPage() {
                             Sync with Drive folder
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && currentView.type !== "root" && (
+                        {isClubAdmin && (
                           <DropdownMenuItem
                             onClick={handleResolveDriveTitles}
                             disabled={resolvingDriveTitles}
