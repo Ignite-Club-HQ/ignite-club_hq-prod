@@ -140,15 +140,19 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
 
     const required = ["touchstart", "touchmove", "touchend", "touchcancel"];
     for (const type of required) {
-      const entry = captured.find((c) => c.type === type);
-      expect(entry, `expected a ${type} listener to be attached`).toBeDefined();
-      // CRITICAL: passive must be explicitly false. iOS treats an omitted
-      // value as passive: true on touchstart/touchmove, which silently breaks
-      // event.preventDefault() and lets the WebView hijack the gesture.
+      // Filter to listeners attached by the viewer (passive: false). React 18
+      // installs its own delegated touch listeners on the portal root with
+      // passive: true, so we can no longer rely on the FIRST captured entry —
+      // instead we assert that AT LEAST ONE non-passive listener was attached
+      // for each touch type. That is the real iOS-safety contract: the
+      // viewer's own listener must be cancelable.
+      const nonPassive = captured.find(
+        (c) => c.type === type && c.passive === false,
+      );
       expect(
-        entry!.passive,
-        `${type} listener must be passive: false (got ${entry!.passive})`,
-      ).toBe(false);
+        nonPassive,
+        `expected a non-passive ${type} listener to be attached by the viewer`,
+      ).toBeDefined();
     }
   });
 
