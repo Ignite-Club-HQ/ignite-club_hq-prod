@@ -67,6 +67,7 @@ vi.mock("@/hooks/usePinchZoom", () => ({
 
 // Import AFTER mocks are registered.
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
 
 // --- Test infrastructure ----------------------------------------------------
 
@@ -139,40 +140,47 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
 
     const required = ["touchstart", "touchmove", "touchend", "touchcancel"];
     for (const type of required) {
-      const entry = captured.find((c) => c.type === type);
-      expect(entry, `expected a ${type} listener to be attached`).toBeDefined();
-      // CRITICAL: passive must be explicitly false. iOS treats an omitted
-      // value as passive: true on touchstart/touchmove, which silently breaks
-      // event.preventDefault() and lets the WebView hijack the gesture.
+      // Filter to listeners attached by the viewer (passive: false). React 18
+      // installs its own delegated touch listeners on the portal root with
+      // passive: true, so we can no longer rely on the FIRST captured entry —
+      // instead we assert that AT LEAST ONE non-passive listener was attached
+      // for each touch type. That is the real iOS-safety contract: the
+      // viewer's own listener must be cancelable.
+      const nonPassive = captured.find(
+        (c) => c.type === type && c.passive === false,
+      );
       expect(
-        entry!.passive,
-        `${type} listener must be passive: false (got ${entry!.passive})`,
-      ).toBe(false);
+        nonPassive,
+        `expected a non-passive ${type} listener to be attached by the viewer`,
+      ).toBeDefined();
     }
   });
 
   it("does not attach touch listeners that bubble through overlay buttons", () => {
     render();
 
-    // The overlay buttons (close, download, report, block) must not register
-    // their own touch listeners — otherwise a finger that lands on a button
-    // would be consumed before reaching the gesture container.
-    const overlayButtons = container.querySelectorAll("button");
+    // The overlay buttons (close, download, report, block) live in the
+    // portalled viewer (which is on document.body, not in `container`).
+    const viewerRoot = getPortalledGestureRoot(container);
+    const overlayButtons = viewerRoot.querySelectorAll("button");
     expect(overlayButtons.length).toBeGreaterThan(0);
 
-    // Re-spy to verify NO new touch listeners are added when buttons exist.
-    // We simply check that the only touch listeners attached belong to the
-    // single gesture root (count == 4: start/move/end/cancel).
-    const touchListenerCount = captured.filter((c) =>
-      ["touchstart", "touchmove", "touchend", "touchcancel"].includes(c.type),
+    // The viewer must attach exactly one non-passive listener per touch
+    // type (start/move/end/cancel = 4). React 18 also installs its own
+    // delegated passive listeners on the portal root — those are filtered
+    // out here because they don't affect iOS gesture safety.
+    const viewerListenerCount = captured.filter(
+      (c) =>
+        c.passive === false &&
+        ["touchstart", "touchmove", "touchend", "touchcancel"].includes(c.type),
     ).length;
-    expect(touchListenerCount).toBe(4);
+    expect(viewerListenerCount).toBe(4);
   });
 
   it("forwards touchstart/move/end on the container to the pinch-zoom hook", () => {
     render();
 
-    const root = container.firstElementChild as HTMLElement;
+    const root = getPortalledGestureRoot(container);
     expect(root).toBeTruthy();
 
     // Synthesize a two-finger pinch start — the kind of event iOS would
@@ -211,7 +219,7 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
 
   it("applies touch-action: none to the gesture container so iOS can't hijack pinch", () => {
     render();
-    const root = container.firstElementChild as HTMLElement;
+    const root = getPortalledGestureRoot(container);
     expect(root).toBeTruthy();
     // touchAction must be 'none' — the only way to suppress iOS Safari's
     // built-in pinch/pan recognizer in a WebView.

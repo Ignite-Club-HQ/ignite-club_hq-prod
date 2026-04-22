@@ -93,8 +93,10 @@ function makeTouchEvent(
   return ev;
 }
 
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
+
 function getGestureRoot(): HTMLElement {
-  return container.firstElementChild as HTMLElement;
+  return getPortalledGestureRoot(container);
 }
 
 function dispatch(

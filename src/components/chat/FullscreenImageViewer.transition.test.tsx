@@ -61,12 +61,15 @@ let root: Root;
 // Touch-event polyfill is shared across gesture suites — see module docs.
 import { makeTouchEvent } from "@/test/touchEventHelpers";
 
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
+
 function getGestureRoot(): HTMLElement {
-  return container.firstElementChild as HTMLElement;
+  return getPortalledGestureRoot(container);
 }
 
 function getImage(): HTMLImageElement {
-  const img = container.querySelector("img");
+  // Image lives in the portalled viewer overlay, not in the test container.
+  const img = getGestureRoot().querySelector("img");
   if (!img) throw new Error("expected <img> in viewer");
   return img;
 }
