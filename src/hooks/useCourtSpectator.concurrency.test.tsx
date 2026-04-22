@@ -336,4 +336,72 @@ describe("useCourtSpectator multi-coach concurrency", () => {
       (result.current.state as { timer: { homeScore?: number } } | null)?.timer.homeScore
     ).toBe(3);
   });
+
+  it("follows board_session_id even when the underlying row id rotates", async () => {
+    // Coach A is streaming under session S-A on row R1. Initial fetch locks
+    // onto session S-A.
+    initialFetchResult = {
+      data: buildRow({
+        rowId: "row-original",
+        sessionId: COACH_A_SESSION_ID,
+        homeScore: 7,
+        awayScore: 4,
+        isActive: true,
+        updatedAt: "2026-04-22T12:00:00.000Z",
+      }),
+      error: null,
+    };
+
+    const { result } = renderHook(() => useCourtSpectator(TEAM_ID));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Simulate the coach hitting a unique-violation race and recovering onto
+    // a different row id but reusing the same board_session_id.
+    emit({
+      new: buildRow({
+        rowId: "row-after-recovery",
+        sessionId: COACH_A_SESSION_ID,
+        homeScore: 9,
+        awayScore: 4,
+        isActive: true,
+        updatedAt: "2026-04-22T12:00:05.000Z",
+      }),
+    });
+
+    // Spectator must adopt the new row because the session matches.
+    expect(
+      (result.current.state as { timer: { homeScore?: number } } | null)?.timer.homeScore
+    ).toBe(9);
+
+    // Coach B writes under a different session — must be ignored.
+    emit({
+      new: buildRow({
+        rowId: COACH_B_ROW_ID,
+        sessionId: COACH_B_SESSION_ID,
+        homeScore: 88,
+        awayScore: 88,
+        isActive: true,
+        updatedAt: "2026-04-22T12:00:10.000Z",
+      }),
+    });
+    expect(
+      (result.current.state as { timer: { homeScore?: number } } | null)?.timer.homeScore
+    ).toBe(9);
+
+    // Deactivation of Coach A's session releases the lock — even though the
+    // deactivation event arrives on yet another row id (rare but possible if
+    // the cleanup path targets a different row), session match is what counts.
+    emit({
+      new: buildRow({
+        rowId: "row-after-recovery",
+        sessionId: COACH_A_SESSION_ID,
+        homeScore: 9,
+        awayScore: 4,
+        isActive: false,
+        updatedAt: "2026-04-22T12:00:15.000Z",
+      }),
+    });
+    expect(result.current.state).toBeNull();
+    expect(result.current.noActiveGame).toBe(true);
+  });
 });
