@@ -55,9 +55,11 @@ export default function PresentationMode({
   frames,
   initialIndex = 0,
   onClose,
+  teamPlayers,
 }: PresentationModeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showNotes, setShowNotes] = useState(true);
+  const [useTeamRoster, setUseTeamRoster] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const {
     currentIndex,
