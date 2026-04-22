@@ -29,14 +29,20 @@ export function useBasketballGameSync(
   const activeGameIdRef = useRef<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Deactivate stale rows ONLY for the same (user, team) combination so a
+  // coach running boards for two different teams in parallel tabs / devices
+  // doesn't keep flipping each other off. Without the team scope, two
+  // simultaneous boards from the same coach would ping-pong every 10s.
   const deactivateOtherGames = useCallback(
-    async (keepId?: string | null) => {
+    async (teamId: string | null, keepId?: string | null) => {
       if (!user?.id) return;
       let q = supabase
         .from("active_games")
         .update({ is_active: false })
         .eq("user_id", user.id)
         .eq("is_active", true);
+      if (teamId) q = q.eq("team_id", teamId);
+      else q = q.is("team_id", null);
       if (keepId) q = q.neq("id", keepId);
       await q;
     },
@@ -107,8 +113,10 @@ export function useBasketballGameSync(
     };
 
     try {
+      const teamId = state.teamId || null;
+
       if (activeGameIdRef.current) {
-        await deactivateOtherGames(activeGameIdRef.current);
+        await deactivateOtherGames(teamId, activeGameIdRef.current);
         const { error } = await supabase
           .from("active_games")
           .update(gameData)
@@ -120,20 +128,24 @@ export function useBasketballGameSync(
         return;
       }
 
-      const { data: existing } = await supabase
+      // Look up an existing active row that BELONGS to this exact (user, team).
+      // The previous fallback ?? existing?.[0] would silently adopt a different
+      // team's row and overwrite it — corrupting the other game at scale.
+      let q = supabase
         .from("active_games")
         .select("id, team_id, updated_at")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
-        .limit(20);
+        .limit(5);
+      q = teamId ? q.eq("team_id", teamId) : q.is("team_id", null);
+      const { data: existing } = await q;
 
-      const match =
-        existing?.find((g) => g.team_id === (state.teamId || null)) ?? existing?.[0];
+      const match = existing?.[0];
 
       if (match) {
         activeGameIdRef.current = match.id;
-        await deactivateOtherGames(match.id);
+        await deactivateOtherGames(teamId, match.id);
         await supabase.from("active_games").update(gameData).eq("id", match.id);
       } else {
         const { data: created, error } = await supabase
@@ -145,7 +157,7 @@ export function useBasketballGameSync(
           console.error("[basketball-sync] insert failed", error);
         } else if (created) {
           activeGameIdRef.current = created.id;
-          await deactivateOtherGames(created.id);
+          await deactivateOtherGames(teamId, created.id);
         }
       }
       setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
