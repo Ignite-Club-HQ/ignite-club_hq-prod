@@ -492,6 +492,27 @@ function TrainingObjectLayerImpl({
     [objects, displayPositions, containerSize],
   );
 
+  // Identify the "next up" waiting chip — the lowest-numbered W chip that's
+  // still on the bench (muted grey). When a W chip has been promoted into a
+  // role its colour is no longer grey, so we can detect "still waiting" by
+  // the seeded muted colour. Only one chip wins the highlight at a time.
+  const nextUpId = useMemo(() => {
+    const waitingMuted = objects
+      .filter(
+        (o) =>
+          o.type === "player" &&
+          typeof o.id === "string" &&
+          /^w\d+$/i.test(o.id) &&
+          (o.color ?? "").toLowerCase() === "#94a3b8",
+      )
+      .sort((a, b) => {
+        const na = parseInt(a.id.slice(1), 10) || 0;
+        const nb = parseInt(b.id.slice(1), 10) || 0;
+        return na - nb;
+      });
+    return waitingMuted[0]?.id ?? null;
+  }, [objects]);
+
   return (
     <>
       {/* Arrow lines */}
