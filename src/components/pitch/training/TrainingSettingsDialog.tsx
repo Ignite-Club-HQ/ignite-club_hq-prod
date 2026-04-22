@@ -162,7 +162,7 @@ export function TrainingSettingsDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="px-6 py-4 border-t shrink-0 flex-row sm:justify-between gap-2">
+        <DialogFooter className="px-6 py-4 pb-safe border-t shrink-0 flex-row justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
