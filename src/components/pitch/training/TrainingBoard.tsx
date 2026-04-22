@@ -36,6 +36,7 @@ import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesI
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
+import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -56,6 +57,13 @@ interface TrainingBoardProps {
     role: string;
     profiles: { display_name: string | null; avatar_url: string | null } | null;
   }>;
+  /**
+   * Optional linked event ID. When set (typically when the pitch board was
+   * launched from a training event), drill name substitution is restricted to
+   * squad members who RSVP'd "going" so coaches only see players who are
+   * actually expected to be on the pitch tonight.
+   */
+  linkedEventId?: string | null;
 }
 
 function clamp(v: number) {
@@ -95,6 +103,7 @@ export default function TrainingBoard({
   clubId,
   clubName,
   members,
+  linkedEventId,
 }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { settings } = useTrainingSettings();
@@ -491,12 +500,25 @@ export default function TrainingBoard({
     return "cursor-crosshair";
   }, [activeTool, editable]);
 
+  // When the pitch board was launched from a training event, restrict the
+  // squad to players who RSVP'd "going" so drill name substitution only shows
+  // attendees the coach actually expects on the pitch tonight.
+  const { data: goingAttendeeIds } = useEventGoingAttendees(linkedEventId);
+  const availableMembers = useMemo(() => {
+    if (!members) return members;
+    if (!linkedEventId || !goingAttendeeIds) return members;
+    // If nobody has RSVP'd yet, fall back to the full squad rather than
+    // showing zero players (better than a confusing empty-name pitch).
+    if (goingAttendeeIds.size === 0) return members;
+    return members.filter((m) => goingAttendeeIds.has(m.user_id));
+  }, [members, linkedEventId, goingAttendeeIds]);
+
   // Substitute generic drill labels ("A", "B", "1"...) with real squad names
   // so coaches see actual players on the pitch in both editor + playback views.
   // Honours the user's "Use real squad names" preference.
   const teamPlayers = useMemo(
-    () => (settings.substituteRealNames ? membersToTeamPlayers(members) : []),
-    [members, settings.substituteRealNames]
+    () => (settings.substituteRealNames ? membersToTeamPlayers(availableMembers) : []),
+    [availableMembers, settings.substituteRealNames]
   );
 
   // The view we render: live interpolation while playing, raw current frame while editing
@@ -889,7 +911,7 @@ export default function TrainingBoard({
             frames={frames}
             initialIndex={currentIndex}
             onClose={() => setIsPresenting(false)}
-            teamPlayers={membersToTeamPlayers(members)}
+            teamPlayers={membersToTeamPlayers(availableMembers)}
           />
         </Suspense>
       )}
