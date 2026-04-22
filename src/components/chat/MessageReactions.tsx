@@ -342,10 +342,12 @@ const AllReactionsContent = memo(function AllReactionsContent({
 
   return (
     <PopoverContent 
-      className="w-auto p-3 bg-popover border z-50" 
-      align="start" 
+      className="w-auto max-w-[calc(100vw-2rem)] p-3 bg-popover border z-50" 
+      align="end" 
       side="top"
       sideOffset={8}
+      collisionPadding={12}
+      avoidCollisions
       onOpenAutoFocus={(e) => e.preventDefault()}
     >
       <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
