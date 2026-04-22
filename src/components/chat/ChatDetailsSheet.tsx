@@ -77,7 +77,9 @@ export function ChatDetailsSheet({
 
   const handleNavigate = (path: string) => {
     onOpenChange(false);
-    navigate(path);
+    // Defer navigation slightly so the sheet can begin closing without
+    // Radix dismiss handlers swallowing the click on touch devices.
+    setTimeout(() => navigate(path), 80);
   };
 
   const showContextLinks = chatType === "team" || chatType === "club" || chatType === "group";
@@ -152,6 +154,22 @@ export function ChatDetailsSheet({
                     onClick={() => handleNavigate(`/clubs/${chatType === "club" ? chatId : clubId}`)}
                   />
                 )}
+                {(() => {
+                  const resolvedTeamId = chatType === "team" ? chatId : teamId;
+                  const resolvedClubId = chatType === "club" ? chatId : clubId;
+                  const vaultHref = resolvedTeamId
+                    ? `/vault?team=${resolvedTeamId}`
+                    : resolvedClubId
+                    ? `/vault?club=${resolvedClubId}`
+                    : null;
+                  if (!vaultHref) return null;
+                  return (
+                    <NavRow
+                      label="View file vault"
+                      onClick={() => handleNavigate(vaultHref)}
+                    />
+                  );
+                })()}
                 <Separator className="my-2" />
               </div>
             )}

@@ -4,7 +4,7 @@ import { Share } from "@capacitor/share";
 import { getShareUrl } from "@/lib/shareUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,7 @@ import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
 import { AddLinkDialog } from "@/components/vault/AddLinkDialog";
 import { MoveFileDialog } from "@/components/vault/MoveFileDialog";
 import { GoogleDriveImportDialog } from "@/components/vault/GoogleDriveImportDialog";
+import { LinkDriveFolderDialog } from "@/components/vault/LinkDriveFolderDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import JSZip from "jszip";
@@ -128,6 +129,7 @@ export default function VaultPage() {
   const [moveFileDialogOpen, setMoveFileDialogOpen] = useState(false);
   const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
   const [googleDriveImportOpen, setGoogleDriveImportOpen] = useState(false);
+  const [linkDriveFolderOpen, setLinkDriveFolderOpen] = useState(false);
   const [folderExportDialogOpen, setFolderExportDialogOpen] = useState(false);
   const [folderExportData, setFolderExportData] = useState<{
     folderId: string;
@@ -318,13 +320,20 @@ export default function VaultPage() {
             return;
           }
           
-          console.log("[GoogleDrive OAuth] Token exchange successful, opening dialog");
-          
-          // Store the token temporarily for the dialog to use
-          sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
-          
-          // Open the import dialog
-          setGoogleDriveImportOpen(true);
+          console.log("[GoogleDrive OAuth] Token exchange successful");
+
+          // Determine flow: "link a folder" pending takes precedence over "import"
+          const linkPending = sessionStorage.getItem('driveLinkPending');
+          if (linkPending) {
+            sessionStorage.removeItem('driveLinkPending');
+            sessionStorage.setItem('driveLinkAccessToken', data.accessToken);
+            if (data.refreshToken) sessionStorage.setItem('driveLinkRefreshToken', data.refreshToken);
+            if (data.googleEmail) sessionStorage.setItem('driveLinkGoogleEmail', data.googleEmail);
+            setLinkDriveFolderOpen(true);
+          } else {
+            sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
+            setGoogleDriveImportOpen(true);
+          }
         } catch (err) {
           console.error("[GoogleDrive OAuth] Exception:", err);
           toast.error("Failed to connect to Google Drive");
@@ -2960,7 +2969,7 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
+    <div className={currentView.type === "root" ? "py-6 space-y-6" : "pt-3 pb-6 space-y-4"}>
       {/* Header - different for root vs inner views */}
       {currentView.type === "root" ? (
         <div className="flex items-center justify-between">
@@ -2981,12 +2990,12 @@ export default function VaultPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={goBack}>
+          <div className="flex items-center gap-1 min-w-0">
+            <Button variant="ghost" size="icon" className="shrink-0 -ml-2 h-9 w-9" onClick={goBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Breadcrumb>
-              <BreadcrumbList>
+            <Breadcrumb className="min-w-0 flex-1">
+              <BreadcrumbList className="flex-nowrap">
                 {renderBreadcrumbs()}
               </BreadcrumbList>
             </Breadcrumb>
@@ -3403,6 +3412,12 @@ export default function VaultPage() {
                             Import from Drive
                           </DropdownMenuItem>
                         )}
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.folderId && (
+                          <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sync with Drive folder
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -3493,6 +3508,20 @@ export default function VaultPage() {
               targetTeamId={currentView.type === "team" ? currentView.teamId : null}
               targetClubId={currentView.clubId}
             />
+
+            {currentView.folderId && (
+              <LinkDriveFolderDialog
+                open={linkDriveFolderOpen}
+                onOpenChange={setLinkDriveFolderOpen}
+                vaultFolderId={currentView.folderId}
+                clubId={currentView.clubId}
+                teamId={currentView.type === "team" ? currentView.teamId : null}
+                onChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+                  queryClient.invalidateQueries({ queryKey: ["vault-folders"] });
+                }}
+              />
+            )}
           </div>
         </div>
       )}

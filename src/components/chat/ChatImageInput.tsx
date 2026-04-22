@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen } from "lucide-react";
+import { VaultPickerSheet } from "./VaultPickerSheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
 import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,16 +37,23 @@ interface ChatImageInputProps {
   showBoardPicker?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
+  /** Append a token to the message (e.g. [vault:uuid]) when user shares from vault. */
+  onAppendToken?: (token: string) => void;
+  /** Show the "From Vault" / "Upload File" actions. Requires clubId. */
+  showVaultPicker?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [vaultPickerOpen, setVaultPickerOpen] = useState(false);
+  const [attachChooserOpen, setAttachChooserOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
@@ -161,6 +171,114 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
     const { data } = supabase.storage.from("chat-attachments").getPublicUrl(fileName);
     return data.publicUrl;
+  };
+
+  // Upload a non-image document file to chat-attachments and create a vault_files row,
+  // then append a [vault:<id>] token to the message via onAppendToken.
+  const handleDocumentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      toast.error("File must be less than 10MB");
+      if (docInputRef.current) docInputRef.current.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error("Not authenticated");
+
+      const timestamp = Date.now();
+      const safeExt = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+      let path: string;
+      if (teamId && clubId) {
+        path = `clubs/${clubId}/teams/${teamId}/${authUser.id}/${timestamp}.${safeExt}`;
+      } else if (clubId) {
+        path = `clubs/${clubId}/${authUser.id}/${timestamp}.${safeExt}`;
+      } else {
+        path = `general/${authUser.id}/${timestamp}.${safeExt}`;
+      }
+
+      const { error: upErr } = await supabase.storage
+        .from("chat-attachments")
+        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+      const fileUrl = pub.publicUrl;
+
+      // If we have club context, create vault_files row immediately so the file card is shareable.
+      if (clubId && onAppendToken) {
+        const { data: row, error: insErr } = await supabase
+          .from("vault_files")
+          .insert({
+            club_id: clubId,
+            team_id: teamId || null,
+            uploaded_by: authUser.id,
+            name: file.name,
+            file_url: fileUrl,
+            file_type: file.type || null,
+            file_size: file.size,
+            is_external_link: false,
+          })
+          .select("id")
+          .single();
+        if (insErr || !row) throw insErr || new Error("Failed to register file");
+        onAppendToken(makeVaultFileToken(row.id));
+        toast.success("File attached");
+      } else {
+        toast.error("Cannot attach file in this chat");
+      }
+    } catch (err) {
+      console.error("[ChatImageInput] document upload failed", err);
+      toast.error(getReadableUploadError(err) || "Failed to upload file");
+    } finally {
+      setUploading(false);
+      if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  const handleVaultPick = (
+    item:
+      | { kind: "file" | "folder"; id: string; name: string }
+      | { kind: "root"; scope: "team" | "club"; id: string; name: string },
+  ) => {
+    if (!onAppendToken) return;
+    let token: string;
+    if (item.kind === "file") {
+      token = makeVaultFileToken(item.id);
+    } else if (item.kind === "folder") {
+      token = makeVaultFolderToken(item.id);
+    } else if (item.kind === "root") {
+      token = makeVaultRootToken(item.scope, item.id);
+    } else {
+      return;
+    }
+    onAppendToken(token);
+    setVaultPickerOpen(false);
+    if (item.kind === "root") {
+      toast.success(`Shared entire ${item.scope === "team" ? "team" : "club"} vault`);
+    } else {
+      toast.success(`Shared "${item.name}"`);
+    }
+  };
+
+  const handleVaultPickMany = (
+    items: Array<
+      | { kind: "file" | "folder"; id: string; name: string }
+      | { kind: "root"; scope: "team" | "club"; id: string; name: string }
+    >,
+  ) => {
+    if (!onAppendToken || items.length === 0) return;
+    for (const item of items) {
+      let token: string;
+      if (item.kind === "file") token = makeVaultFileToken(item.id);
+      else if (item.kind === "folder") token = makeVaultFolderToken(item.id);
+      else if (item.kind === "root") token = makeVaultRootToken(item.scope, item.id);
+      else continue;
+      onAppendToken(token);
+    }
+    setVaultPickerOpen(false);
+    toast.success(`Shared ${items.length} ${items.length === 1 ? "item" : "items"}`);
   };
 
   const handleNativePhotoPick = async () => {
@@ -423,6 +541,71 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.zip,.odt,.ods,.odp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain,application/zip"
+        onChange={handleDocumentSelect}
+        className="sr-only"
+        disabled={disabled || uploading}
+      />
+      {showVaultPicker && clubId && (
+        <>
+          <VaultPickerSheet
+            open={vaultPickerOpen}
+            onOpenChange={setVaultPickerOpen}
+            clubId={clubId}
+            teamId={teamId || null}
+            onPick={handleVaultPick}
+            onPickMany={handleVaultPickMany}
+          />
+          <Sheet open={attachChooserOpen} onOpenChange={setAttachChooserOpen}>
+            <SheetContent side="bottom" className="p-0">
+              <SheetHeader className="px-4 py-3 border-b border-border">
+                <SheetTitle className="text-left text-base">Attach File or Folder</SheetTitle>
+              </SheetHeader>
+              <div className="grid grid-cols-2 gap-3 p-4">
+                <button
+                  type="button"
+                  disabled={disabled || uploading}
+                  onClick={() => {
+                    setAttachChooserOpen(false);
+                    docInputRef.current?.click();
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  aria-label="Upload from device"
+                >
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Upload className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-sm font-medium text-foreground">From Device</span>
+                    <span className="text-[11px] text-muted-foreground">PDF, doc, sheet</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    setAttachChooserOpen(false);
+                    setVaultPickerOpen(true);
+                  }}
+                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors disabled:opacity-50 min-h-[120px]"
+                  aria-label="Choose from vault"
+                >
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
+                    <FolderOpen className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-sm font-medium text-foreground">From Vault</span>
+                    <span className="text-[11px] text-muted-foreground">Existing file or folder</span>
+                  </div>
+                </button>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
       {/* Standalone image shortcut removed — photo upload lives inside the "+" menu. */}
       {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
@@ -465,6 +648,25 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   <span className="text-[11px] text-muted-foreground">From camera roll or gallery</span>
                 </div>
               </button>
+
+              {showVaultPicker && clubId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setAttachChooserOpen(true);
+                  }}
+                  disabled={disabled || uploading}
+                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
+                  aria-label="Attach file"
+                >
+                  <Paperclip className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
+                  <div className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="text-sm font-medium text-foreground">Attach File or Folder</span>
+                    <span className="text-[11px] text-muted-foreground">From your device or vault</span>
+                  </div>
+                </button>
+              )}
 
               {(showEventPicker || showPollCreator || canShowBoardPicker) && (
                 <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
+import { VaultFileCard } from "./VaultFileCard";
 import { Capacitor } from "@capacitor/core";
 
 interface MentionInputProps {
@@ -41,7 +42,7 @@ const URL_REGEX = /https?:\/\/[^\s]+/g;
  * Each mention segment includes its raw string, display text, and position in the raw string.
  */
 interface RawSegment {
-  type: "text" | "mention" | "event";
+  type: "text" | "mention" | "event" | "vault-file" | "vault-folder" | "vault-root";
   raw: string;       // the raw string in value
   display: string;   // what the user sees: for mentions it's "@DisplayName"
   rawStart: number;  // start index in raw value
@@ -49,11 +50,14 @@ interface RawSegment {
   userId?: string;
   displayName?: string;
   eventId?: string;
+  vaultId?: string;
+  vaultRootScope?: "team" | "club";
 }
 
 function parseRawValue(raw: string): RawSegment[] {
   const segments: RawSegment[] = [];
-  const regex = /(@\[([^\]]+)\]\(([^)]+)\))|(\[event:([0-9a-f-]{36})\])/gi;
+  // Order: mention, event, vaultroot, vaultfolder, vault file
+  const regex = /(@\[([^\]]+)\]\(([^)]+)\))|(\[event:([0-9a-f-]{36})\])|(\[vaultroot:(team|club):([0-9a-f-]{36})\])|(\[vaultfolder:([0-9a-f-]{36})\])|(\[vault:([0-9a-f-]{36})\])/gi;
   let lastEnd = 0;
   let match;
 
@@ -87,6 +91,35 @@ function parseRawValue(raw: string): RawSegment[] {
         rawStart: match.index,
         rawEnd: match.index + match[0].length,
         eventId: match[5],
+      });
+    } else if (match[6]) {
+      const scope = (match[7] || "").toLowerCase() as "team" | "club";
+      segments.push({
+        type: "vault-root",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[8],
+        vaultRootScope: scope,
+      });
+    } else if (match[9]) {
+      segments.push({
+        type: "vault-folder",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[10],
+      });
+    } else if (match[11]) {
+      segments.push({
+        type: "vault-file",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        vaultId: match[12],
       });
     }
 
@@ -299,14 +332,52 @@ export function MentionInput({
   }, [value]);
 
   const hasEventToken = useMemo(() => /\[event:[0-9a-f-]{36}\]/i.test(value), [value]);
+  const hasVaultToken = useMemo(
+    () => /\[(?:vault|vaultfolder|vaultroot:(?:team|club)):[0-9a-f-]{36}\]/i.test(value),
+    [value],
+  );
+  const hideTextareaPlaceholder = hasEventToken || hasVaultToken;
 
   const eventIds = useMemo(
     () => [...new Set(Array.from(value.matchAll(/\[event:([0-9a-f-]{36})\]/gi), (match) => match[1]).filter(Boolean))].slice(0, 3),
     [value]
   );
 
+  const vaultFileIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(/\[vault:([0-9a-f-]{36})\]/gi), (m) => m[1]).filter(Boolean))].slice(0, 3),
+    [value],
+  );
+  const vaultFolderIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(/\[vaultfolder:([0-9a-f-]{36})\]/gi), (m) => m[1]).filter(Boolean))].slice(0, 3),
+    [value],
+  );
+  const vaultRoots = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { scope: "team" | "club"; id: string }[] = [];
+    for (const m of value.matchAll(/\[vaultroot:(team|club):([0-9a-f-]{36})\]/gi)) {
+      const scope = (m[1] || "").toLowerCase() as "team" | "club";
+      const id = (m[2] || "").toLowerCase();
+      const key = `${scope}:${id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push({ scope, id });
+      }
+    }
+    return out.slice(0, 3);
+  }, [value]);
+
   const removeEventToken = useCallback((eventId: string) => {
     onChange(value.replace(new RegExp(`\\s*\\[event:${eventId}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+
+  const removeVaultFileToken = useCallback((id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vault:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+  const removeVaultFolderToken = useCallback((id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vaultfolder:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
+  const removeVaultRootToken = useCallback((scope: "team" | "club", id: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[vaultroot:${scope}:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
   }, [onChange, value]);
 
   // Fetch users based on team/club/group context
@@ -565,6 +636,53 @@ export function MentionInput({
         </div>
       )}
 
+      {(vaultRoots.length > 0 || vaultFolderIds.length > 0 || vaultFileIds.length > 0) && (
+        <div className="w-full min-w-0 max-w-full space-y-2">
+          {vaultRoots.map((r) => (
+            <div key={`vr-${r.scope}-${r.id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard rootScope={r.scope} rootId={r.id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultRootToken(r.scope, r.id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {vaultFolderIds.map((id) => (
+            <div key={`vf-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard folderId={id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultFolderToken(id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {vaultFileIds.map((id) => (
+            <div key={`vfile-${id}`} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <VaultFileCard fileId={id} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeVaultFileToken(id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-full bg-muted/60 pl-1 pr-1 min-h-[40px] ring-1 ring-transparent focus-within:ring-2 focus-within:ring-ring/40 transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-10 transition-all duration-200 animate-in fade-in zoom-in-95">
@@ -600,7 +718,7 @@ export function MentionInput({
               }
             }}
             disabled={disabled}
-            placeholder={hasEventToken ? "" : placeholder}
+            placeholder={hideTextareaPlaceholder ? "" : placeholder}
             rows={1}
             wrap="soft"
             autoComplete="off"
@@ -609,7 +727,7 @@ export function MentionInput({
             aria-label={placeholder || "Message"}
             aria-multiline="true"
             role="textbox"
-            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[10px] pb-[8px] text-base leading-[1.35] outline-none placeholder:text-foreground/55 disabled:cursor-not-allowed disabled:opacity-50 ${hasEventToken ? "font-medium" : ""} ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[10px] pb-[8px] text-base leading-[1.35] outline-none placeholder:text-foreground/55 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto' } as React.CSSProperties}
           />
         </div>

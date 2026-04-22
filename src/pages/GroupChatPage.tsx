@@ -1754,6 +1754,8 @@ export default function GroupChatPage() {
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={true}
             onBoardPick={() => setBoardPickerOpen(true)}
+            showVaultPicker={!!group?.club_id}
+            onAppendToken={(token) => setMessage(message ? `${message} ${token}` : token)}
             hasText={!!message.trim()}
           />
           <MentionInput

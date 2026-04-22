@@ -63,6 +63,18 @@ export function initDeepLinkHandler() {
           routePath = `/${url.host}${rawPath === '/' ? '' : rawPath}`;
         }
 
+        // Google Drive OAuth callback returns to /vault?code=... — this is NOT
+        // a Supabase auth code. Hand it off to VaultPage to exchange via the
+        // google-drive-import edge function instead of consuming it here.
+        const isGoogleDriveCallback =
+          routePath === '/vault' || url.host === 'vault';
+        if (isGoogleDriveCallback) {
+          console.log('[DeepLink] Google Drive OAuth code detected, saving for VaultPage');
+          sessionStorage.setItem('googleDriveOAuthCode', code);
+          window.location.href = '/vault';
+          return;
+        }
+
         const isPasswordRecovery =
           routePath === '/reset-password' || url.host === 'reset-password';
 

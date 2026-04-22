@@ -6,6 +6,7 @@ import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { EventLinkCard } from "./EventLinkCard";
 import { BoardLinkCard } from "./BoardLinkCard";
 import { PollCard } from "./PollCard";
+import { VaultFileCard } from "./VaultFileCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -83,11 +84,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link" | "board-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link" | "board-link" | "vault-file" | "vault-folder" | "vault-root"; content: string; userId?: string; linkText?: string; rootScope?: "team" | "club" }[] = [];
     let lastIndex = 0;
     
-    // Combined regex. Order: poll tokens, board tokens, event tokens, markdown links, event URLs, plain URLs, mentions
-    const combinedRegex = /(\[poll:([0-9a-f-]{36})\])|(\[board:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex. Order: vault root, vault file/folder, poll, board, event, markdown links, event URLs, plain URLs, mentions
+    const combinedRegex = /(\[vaultroot:(team|club):([0-9a-f-]{36})\])|(\[vault:([0-9a-f-]{36})\])|(\[vaultfolder:([0-9a-f-]{36})\])|(\[poll:([0-9a-f-]{36})\])|(\[board:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -100,33 +101,45 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Poll token: [poll:uuid] - match[2] is the poll ID
-        result.push({ type: "poll-link", content: match[2] || "" });
-      } else if (match[3]) {
-        // Board token: [board:uuid] - match[4] is the active_games ID
-        result.push({ type: "board-link", content: match[4] || "" });
-      } else if (match[5]) {
-        // Event token: [event:uuid] - match[6] is the event ID
-        result.push({ type: "event-link", content: match[6] || "" });
-      } else if (match[7]) {
-        // Markdown link match: [text](url) - match[8] is text, match[9] is URL
+        // Vault root token: [vaultroot:scope:uuid] - match[2] scope, match[3] id
+        const scope = (match[2] || "").toLowerCase();
+        if (scope === "team" || scope === "club") {
+          result.push({ type: "vault-root", content: match[3] || "", rootScope: scope });
+        }
+      } else if (match[4]) {
+        // Vault file token: [vault:uuid] - match[5] is the file id
+        result.push({ type: "vault-file", content: match[5] || "" });
+      } else if (match[6]) {
+        // Vault folder token: [vaultfolder:uuid] - match[7] is the folder id
+        result.push({ type: "vault-folder", content: match[7] || "" });
+      } else if (match[8]) {
+        // Poll token: [poll:uuid] - match[9] is the poll ID
+        result.push({ type: "poll-link", content: match[9] || "" });
+      } else if (match[10]) {
+        // Board token: [board:uuid] - match[11] is the active_games ID
+        result.push({ type: "board-link", content: match[11] || "" });
+      } else if (match[12]) {
+        // Event token: [event:uuid] - match[13] is the event ID
+        result.push({ type: "event-link", content: match[13] || "" });
+      } else if (match[14]) {
+        // Markdown link match: [text](url) - match[15] is text, match[16] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[9] || "", 
-          linkText: match[8] || "" 
+          content: match[16] || "", 
+          linkText: match[15] || "" 
         });
-      } else if (match[10]) {
-        // Event URL match: /events/uuid - match[11] is the event ID
-        result.push({ type: "event-link", content: match[11] || "" });
-      } else if (match[12]) {
+      } else if (match[17]) {
+        // Event URL match: /events/uuid - match[18] is the event ID
+        result.push({ type: "event-link", content: match[18] || "" });
+      } else if (match[19]) {
         // Plain URL match
-        result.push({ type: "link", content: match[12] });
-      } else if (match[13]) {
-        // Mention match - match[14] is display name, match[15] is userId
+        result.push({ type: "link", content: match[19] });
+      } else if (match[20]) {
+        // Mention match - match[21] is display name, match[22] is userId
         result.push({ 
           type: "mention", 
-          content: match[14] || "", 
-          userId: match[15] || "" 
+          content: match[21] || "", 
+          userId: match[22] || "" 
         });
       }
       
@@ -146,13 +159,26 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds, vaultFileIds, vaultFolderIds, vaultRoots } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
     const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
     const polls = [...new Set(parts.filter(p => p.type === "poll-link").map(p => p.content))];
     const boards = [...new Set(parts.filter(p => p.type === "board-link").map(p => p.content))];
+    const vaultFiles = [...new Set(parts.filter(p => p.type === "vault-file").map(p => p.content))];
+    const vaultFolders = [...new Set(parts.filter(p => p.type === "vault-folder").map(p => p.content))];
+    const rootSeen = new Set<string>();
+    const roots: { scope: "team" | "club"; id: string }[] = [];
+    for (const p of parts) {
+      if (p.type === "vault-root" && p.rootScope && p.content) {
+        const k = `${p.rootScope}:${p.content}`;
+        if (!rootSeen.has(k)) {
+          rootSeen.add(k);
+          roots.push({ scope: p.rootScope, id: p.content });
+        }
+      }
+    }
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -169,6 +195,9 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       eventIds: events.slice(0, 3),
       pollIds: polls.slice(0, 3),
       boardIds: boards.slice(0, 3),
+      vaultFileIds: vaultFiles.slice(0, 5),
+      vaultFolderIds: vaultFolders.slice(0, 5),
+      vaultRoots: roots.slice(0, 3),
     };
   }, [parts]);
 
@@ -221,6 +250,22 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           <div className="space-y-2 min-w-0 max-w-full">
             {boardIds.map((boardId) => (
               <BoardLinkCard key={boardId} gameId={boardId} />
+            ))}
+          </div>
+        )}
+
+
+        {/* Vault file/folder/root cards */}
+        {(vaultFileIds.length > 0 || vaultFolderIds.length > 0 || vaultRoots.length > 0) && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {vaultRoots.map((r) => (
+              <VaultFileCard key={`vr-${r.scope}-${r.id}`} rootScope={r.scope} rootId={r.id} />
+            ))}
+            {vaultFileIds.map((id) => (
+              <VaultFileCard key={`vf-${id}`} fileId={id} />
+            ))}
+            {vaultFolderIds.map((id) => (
+              <VaultFileCard key={`vfo-${id}`} folderId={id} />
             ))}
           </div>
         )}
@@ -355,6 +400,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Poll tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
+              if (part.type === "vault-file" || part.type === "vault-folder" || part.type === "vault-root") {
+                // Vault tokens render as empty spans; the card is shown below
+                return <span key={index} />;
+              }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
@@ -452,6 +501,21 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {pollIds.map((pollId) => (
             <PollCard key={pollId} pollId={pollId} />
+          ))}
+        </div>
+      )}
+
+      {/* Vault file/folder/root cards */}
+      {showPreviews && (vaultFileIds.length > 0 || vaultFolderIds.length > 0 || vaultRoots.length > 0) && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {vaultRoots.map((r) => (
+            <VaultFileCard key={`vr-${r.scope}-${r.id}`} rootScope={r.scope} rootId={r.id} />
+          ))}
+          {vaultFileIds.map((id) => (
+            <VaultFileCard key={`vf-${id}`} fileId={id} />
+          ))}
+          {vaultFolderIds.map((id) => (
+            <VaultFileCard key={`vfo-${id}`} folderId={id} />
           ))}
         </div>
       )}
