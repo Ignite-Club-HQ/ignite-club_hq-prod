@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
@@ -113,6 +114,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     let gestureStartTime = 0;
 
     const handleStart = (e: globalThis.TouchEvent) => {
+      // Stop propagation so the viewer's gesture sequence is fully isolated
+      // from any chat / swipe-to-reply / long-press handlers on ancestors.
+      // Combined with the React portal below this guarantees iOS pinch never
+      // races against a parent's onPointerDown(preventDefault).
+      e.stopPropagation();
       // Track the peak finger count for this whole gesture sequence — a
       // 3-finger swipe that briefly drops to 1 finger as the user lifts
       // must still be treated as a system gesture, not a tap candidate.
@@ -140,6 +146,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       pinchTouchStart(e as unknown as React.TouchEvent);
     };
     const handleMove = (e: globalThis.TouchEvent) => {
+      e.stopPropagation();
       if (e.touches.length >= 3) {
         // Promoted to a system multi-finger gesture mid-sequence.
         gestureHadMultiFinger = true;
@@ -160,7 +167,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       pinchTouchMove(e as unknown as React.TouchEvent);
     };
     const handleEnd = (e: globalThis.TouchEvent) => {
-      pinchTouchEnd();
+      // Stop propagation so chat-message swipe-to-reply / long-press handlers
+      // on ancestor DOM nodes (the viewer is rendered as a portal but legacy
+      // call sites may still nest it) can't intercept the gesture finalisation.
+      e.stopPropagation();
+      pinchTouchEnd(e);
       const heldMs = Date.now() - gestureStartTime;
       const wasLongPress = heldMs >= TAP_MAX_HOLD_MS;
       // Detect double-tap on touchend, but only if the gesture was a true
