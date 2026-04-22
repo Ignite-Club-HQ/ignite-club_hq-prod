@@ -190,7 +190,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         if (gestureHadMultiFinger) {
           // Briefly poison the React synthetic double-click path too —
           // some browsers synthesize dblclick after multi-touch ends.
-          multiFingerSuppressUntilRef.current = Date.now() + 350;
+          multiFingerSuppressUntilRef.current = Date.now() + MULTI_FINGER_SUPPRESS_MS;
         }
       }
     };
