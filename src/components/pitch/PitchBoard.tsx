@@ -86,6 +86,8 @@ import {
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
+import { ModeSwitch, type PitchBoardMode } from "./ModeSwitch";
+const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
 const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
@@ -296,6 +298,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
+  const [mode, setMode] = useState<PitchBoardMode>("match"); // Match | Training mode toggle (Phase 1)
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -5092,7 +5095,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </span>
                   )}
                 </div>
-              </div>
+      </div>
 
 
               {/* Tab content */}
@@ -5601,6 +5604,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
+        <ModeSwitch value={mode} onChange={setMode} />
         <h1 className="text-sm font-semibold flex-1 truncate min-w-0">{teamName}</h1>
         {readOnly && (
           <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
@@ -5734,6 +5738,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </>
         )}
       </div>
+
+      {/* Training Mode overlay (Phase 1) — absolute overlay, match body stays mounted underneath */}
+      {mode === "training" && (
+        <div
+          className="absolute left-0 right-0 bottom-0 z-[60] flex flex-col bg-background"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 2.75rem)' }}
+        >
+          <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+            <TrainingBoard isLandscape={isLandscape} readOnly={readOnly} />
+          </Suspense>
+        </div>
+      )}
 
       {/* Mini-league team selector strip - portrait */}
       {miniLeagueTeams && !readOnly && (
