@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -1253,6 +1253,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
@@ -5601,13 +5602,43 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           >
             <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
               <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
-              <button
-                type="button"
-                onClick={() => setMode("match")}
-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted"
-              >
-                Back to Match
-              </button>
+              <div className="relative">
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setTrainingMenuOpen(prev => !prev)}>
+                  <Settings className="h-5 w-5" />
+                </Button>
+                {trainingMenuOpen && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[99998]" onClick={() => setTrainingMenuOpen(false)} />
+                    <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                      <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => { setMode("match"); setTrainingMenuOpen(false); }}
+                      >
+                        <Swords className="h-4 w-4" />
+                        <span className="flex-1">Match Mode</span>
+                      </button>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => setTrainingMenuOpen(false)}
+                      >
+                        <ClipboardList className="h-4 w-4" />
+                        <span className="flex-1 font-semibold">Training Mode</span>
+                        <Check className="h-4 w-4 text-primary" />
+                      </button>
+                      <div className="h-px bg-border mx-2 my-1" />
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={() => { setSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                      >
+                        <Settings2 className="h-4 w-4" />
+                        All Settings
+                      </button>
+                    </div>
+                  </>,
+                  document.body
+                )}
+              </div>
             </div>
             <div className="flex-1 min-h-0 flex flex-col">
               <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
@@ -5803,13 +5834,43 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           {/* Training-mode header */}
           <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
             <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
-            <button
-              type="button"
-              onClick={() => setMode("match")}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted"
-            >
-              Back to Match
-            </button>
+            <div className="relative">
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setTrainingMenuOpen(prev => !prev)}>
+                <Settings className="h-5 w-5" />
+              </Button>
+              {trainingMenuOpen && createPortal(
+                <>
+                  <div className="fixed inset-0 z-[99998]" onClick={() => setTrainingMenuOpen(false)} />
+                  <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                    <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => { setMode("match"); setTrainingMenuOpen(false); }}
+                    >
+                      <Swords className="h-4 w-4" />
+                      <span className="flex-1">Match Mode</span>
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => setTrainingMenuOpen(false)}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      <span className="flex-1 font-semibold">Training Mode</span>
+                      <Check className="h-4 w-4 text-primary" />
+                    </button>
+                    <div className="h-px bg-border mx-2 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                      onClick={() => { setSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      All Settings
+                    </button>
+                  </div>
+                </>,
+                document.body
+              )}
+            </div>
           </div>
           <div className="flex-1 min-h-0 flex flex-col">
             <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
