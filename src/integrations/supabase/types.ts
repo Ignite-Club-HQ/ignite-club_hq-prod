@@ -58,6 +58,33 @@ export type Database = {
           },
         ]
       }
+      active_games_write_log: {
+        Row: {
+          active_game_id: string
+          created_at: string
+          id: number
+          op: string
+          team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          active_game_id: string
+          created_at?: string
+          id?: number
+          op: string
+          team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          active_game_id?: string
+          created_at?: string
+          id?: number
+          op?: string
+          team_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_alerts: {
         Row: {
           alert_type: string
@@ -7892,6 +7919,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      prune_active_games_write_log: { Args: never; Returns: undefined }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
