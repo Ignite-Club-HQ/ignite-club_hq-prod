@@ -31,6 +31,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
+import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 
 interface Reaction {
   id: string;
