@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote, Keyboard } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote, Keyboard, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DrillFrame } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
+import { applyTeamPlayersToObjects, type TeamPlayerLite } from "./teamPlayerSubstitution";
 
 interface PresentationModeProps {
   frames: DrillFrame[];
   initialIndex?: number;
   onClose: () => void;
+  /** Real squad players — when provided their names replace the generic "1/2/3..." labels. */
+  teamPlayers?: TeamPlayerLite[];
 }
 
 function PitchMarkings() {
@@ -52,9 +55,11 @@ export default function PresentationMode({
   frames,
   initialIndex = 0,
   onClose,
+  teamPlayers,
 }: PresentationModeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showNotes, setShowNotes] = useState(true);
+  const [useTeamRoster, setUseTeamRoster] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const {
     currentIndex,
@@ -106,6 +111,12 @@ export default function PresentationMode({
   // Progress shown as fraction of frames "completed" (currentIndex / lastIndex)
   const progressPct = total > 1 ? (currentIndex / (total - 1)) * 100 : 100;
 
+  const hasTeamPlayers = (teamPlayers?.length ?? 0) > 0;
+  const renderedObjects = useMemo(() => {
+    if (!useTeamRoster || !teamPlayers || teamPlayers.length === 0) return view.objects;
+    return applyTeamPlayersToObjects(view.objects, teamPlayers);
+  }, [view.objects, teamPlayers, useTeamRoster]);
+
   const overlay = (
     <div
       className="fixed inset-0 z-[100] bg-black flex flex-col"
@@ -119,6 +130,21 @@ export default function PresentationMode({
           Frame {currentIndex + 1} / {total}
         </div>
         <div className="flex items-center gap-1.5">
+          {hasTeamPlayers && (
+            <button
+              type="button"
+              onClick={() => setUseTeamRoster((s) => !s)}
+              aria-pressed={useTeamRoster}
+              aria-label={useTeamRoster ? "Show generic player labels" : "Show team player names"}
+              title={useTeamRoster ? "Showing team players" : "Showing generic labels"}
+              className={cn(
+                "h-9 w-9 rounded-md flex items-center justify-center",
+                useTeamRoster ? "bg-white/20" : "hover:bg-white/10"
+              )}
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowShortcuts((s) => !s)}
@@ -168,7 +194,7 @@ export default function PresentationMode({
         >
           <PitchMarkings />
           <TrainingObjectLayer
-            objects={view.objects}
+            objects={renderedObjects}
             annotations={view.annotations}
             containerRef={containerRef}
             readOnly

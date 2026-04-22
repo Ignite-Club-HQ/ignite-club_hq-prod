@@ -5607,6 +5607,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   readOnly={readOnly}
                   teamId={teamId}
                   teamName={teamName}
+                  members={members}
                 />
               </Suspense>
             </div>
@@ -5808,6 +5809,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 readOnly={readOnly}
                 teamId={teamId}
                 teamName={teamName}
+                members={members}
               />
             </Suspense>
           </div>
