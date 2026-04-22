@@ -605,10 +605,18 @@ export default function TrainingBoard({
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate text-center px-1">
-          {savedName || (savedDrillId ? "Drill" : "New drill")}
+        <div className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate text-center px-1 flex items-center justify-center gap-1.5">
+          <span className="truncate">
+            {savedName || (savedDrillId ? "Drill" : "New drill")}
+          </span>
+          <span
+            className="rounded-sm bg-primary px-1 py-0 text-[9px] font-bold uppercase leading-tight tracking-wide text-primary-foreground"
+            aria-label="Beta feature"
+          >
+            Beta
+          </span>
           {(previewMode || runMode) && (
-            <span className="ml-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
               · {runMode ? "Run" : "Preview"}
             </span>
           )}
