@@ -31,7 +31,7 @@ import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
@@ -760,11 +760,19 @@ export default function TrainingBoard({
               </div>
             )}
 
-          {/* FLOATING DRILL STEP CARD — replaces the old full-width caption bar. */}
+          {/* FLOATING DRILL STEP CARD — replaces the old full-width caption bar.
+              Notes have placeholder tokens (A1, D2, GK1...) replaced with the
+              actual squad names so coaches read "Mia drives at Jacob" instead
+              of "A1 drives at D1". Falls back to the raw note when no squad
+              is loaded or the substitution preference is off. */}
           <DrillStepOverlay
             frameNumber={currentIndex + 1}
             totalFrames={frames.length}
-            notes={(isAnimating ? view.notes : currentFrame?.notes) ?? ""}
+            notes={substitutePlayerNamesInNotes(
+              (isAnimating ? view.notes : currentFrame?.notes) ?? "",
+              rawObjects,
+              teamPlayers
+            )}
             anchor={runMode ? "bottom" : "top"}
           />
 

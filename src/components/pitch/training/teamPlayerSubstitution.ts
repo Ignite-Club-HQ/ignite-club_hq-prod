@@ -83,3 +83,72 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     return replacement ? { ...obj, label: replacement } : obj;
   });
 }
+
+/**
+ * Replace generic player placeholders inside drill notes (e.g. "A1", "D2", "GK1",
+ * "S1") with real squad names so the on-pitch chip and the coaching note line up.
+ *
+ * Token convention used in `drill_frames.notes`:
+ *   - `A<n>` attackers (sky-blue chips, default colour)
+ *   - `D<n>` defenders (red chips, #ef4444)
+ *   - `GK<n>` / `S<n>` keepers / servers (any other player chip)
+ *   - case-insensitive, whole-word matched so "A1" inside "MA1N" is left alone
+ *
+ * The mapping mirrors `applyTeamPlayersToObjects`: attackers consume the first
+ * squad slots, defenders the next, then everything else. Tokens with no matching
+ * squad slot are left untouched.
+ */
+export function substitutePlayerNamesInNotes<T extends DrillObject>(
+  notes: string,
+  objects: T[],
+  players: TeamPlayerLite[]
+): string {
+  if (!notes || !players.length) return notes;
+
+  const attackers = objects.filter(
+    (o) => o.type === "player" && (!o.color || o.color === "#0ea5e9")
+  );
+  const defenders = objects.filter(
+    (o) => o.type === "player" && o.color === "#ef4444"
+  );
+  const others = objects.filter(
+    (o) => o.type === "player" && o.color && o.color !== "#0ea5e9" && o.color !== "#ef4444"
+  );
+
+  // Build label-to-name maps. Drill labels for attackers usually omit the "A"
+  // prefix ("1", "2"...), so we key both by the bare numeric label AND the
+  // prefixed token coaches actually type in notes ("A1", "D2"...).
+  const playerName = (idx: number): string | undefined => {
+    const p = players[idx];
+    return p ? shortPlayerLabel(p.name) : undefined;
+  };
+
+  const tokenToName = new Map<string, string>();
+  let cursor = 0;
+  attackers.forEach((obj, i) => {
+    const name = playerName(cursor++);
+    if (!name) return;
+    tokenToName.set(`A${i + 1}`, name);
+    // Also support bare numeric tokens that match the chip label.
+    if (obj.label) tokenToName.set(obj.label.toUpperCase(), name);
+  });
+  defenders.forEach((_, i) => {
+    const name = playerName(cursor++);
+    if (name) tokenToName.set(`D${i + 1}`, name);
+  });
+  others.forEach((obj, i) => {
+    const name = playerName(cursor++);
+    if (!name) return;
+    tokenToName.set(`GK${i + 1}`, name);
+    tokenToName.set(`S${i + 1}`, name);
+    if (obj.label) tokenToName.set(obj.label.toUpperCase(), name);
+  });
+
+  if (tokenToName.size === 0) return notes;
+
+  // Whole-token match: letters+digits surrounded by non-alphanumerics.
+  return notes.replace(/\b([A-Za-z]{1,3}\d{1,2})\b/g, (match) => {
+    const replacement = tokenToName.get(match.toUpperCase());
+    return replacement ?? match;
+  });
+}

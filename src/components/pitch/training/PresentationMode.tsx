@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { DrillFrame } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
-import { applyTeamPlayersToObjects, type TeamPlayerLite } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, substitutePlayerNamesInNotes, type TeamPlayerLite } from "./teamPlayerSubstitution";
 
 interface PresentationModeProps {
   frames: DrillFrame[];
@@ -117,6 +117,14 @@ export default function PresentationMode({
     return applyTeamPlayersToObjects(view.objects, teamPlayers);
   }, [view.objects, teamPlayers, useTeamRoster]);
 
+  // Replace placeholder tokens in coaching notes (A1, D2, GK1...) with real
+  // squad names so the spoken-style note matches the chip on the pitch.
+  const renderedNotes = useMemo(() => {
+    if (!view.notes) return view.notes;
+    if (!useTeamRoster || !teamPlayers || teamPlayers.length === 0) return view.notes;
+    return substitutePlayerNamesInNotes(view.notes, view.objects, teamPlayers);
+  }, [view.notes, view.objects, teamPlayers, useTeamRoster]);
+
   const overlay = (
     <div
       className="fixed inset-0 z-[100] bg-black flex flex-col"
@@ -199,9 +207,9 @@ export default function PresentationMode({
             containerRef={containerRef}
             readOnly
           />
-          {showNotes && view.notes && (
+          {showNotes && renderedNotes && (
             <div className="absolute left-1/2 bottom-3 -translate-x-1/2 max-w-[90%] px-3 py-2 rounded-md bg-black/70 text-white text-sm font-medium pointer-events-none shadow-lg">
-              {view.notes}
+              {renderedNotes}
             </div>
           )}
         </div>
