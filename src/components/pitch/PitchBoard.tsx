@@ -5844,6 +5844,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onPitchBoardModeChange={setMode}
               />
             )}
+            <TrainingSettingsDialog
+              open={trainingSettingsDialogOpen}
+              onOpenChange={setTrainingSettingsDialogOpen}
+            />
           </>
         )}
       </div>
