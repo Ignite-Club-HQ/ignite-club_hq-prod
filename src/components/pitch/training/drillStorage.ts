@@ -19,9 +19,10 @@ interface DrillRow {
   progression: string | null;
   regression: string | null;
   tags: string[];
-  visibility: "private" | "team" | "club";
+  visibility: "private" | "team" | "club" | "official";
   pitch_size: string;
   thumbnail_url: string | null;
+  is_official?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -42,7 +43,8 @@ export interface DrillSummary {
   ownerUserId: string;
   teamId: string | null;
   clubId: string | null;
-  visibility: "private" | "team" | "club";
+  visibility: "private" | "team" | "club" | "official";
+  isOfficial: boolean;
   ageGroup?: string;
   focus: string[];
   durationMinutes?: number;
@@ -59,6 +61,7 @@ function rowToSummary(r: DrillRow): DrillSummary {
     teamId: r.team_id,
     clubId: r.club_id,
     visibility: r.visibility,
+    isOfficial: !!r.is_official,
     ageGroup: r.age_group ?? undefined,
     focus: r.focus ?? [],
     durationMinutes: r.duration_minutes ?? undefined,
@@ -84,7 +87,7 @@ function rowToDrill(r: DrillRow, frames: DrillFrame[]): Drill {
     name: r.name,
     metadata,
     frames,
-    visibility: r.visibility,
+    visibility: r.visibility === "official" ? "club" : r.visibility,
     teamId: r.team_id ?? undefined,
     clubId: r.club_id ?? undefined,
   };
@@ -103,7 +106,7 @@ function frameRowToFrame(r: DrillFrameRow): DrillFrame {
 
 // ---------- Library queries ----------
 
-export type LibraryTab = "mine" | "team" | "recent";
+export type LibraryTab = "ignite" | "mine" | "team" | "recent";
 
 export interface ListDrillsOptions {
   tab: LibraryTab;
@@ -131,12 +134,14 @@ export async function listDrills(opts: ListDrillsOptions): Promise<DrillSummary[
     return filterAndSort(drills.map(rowToSummary), opts.search);
   }
 
-  let query = supabase.from("drills").select("*").order("updated_at", { ascending: false }).limit(200);
+  let query = supabase.from("drills").select("*").order("name", { ascending: true }).limit(200);
 
-  if (opts.tab === "mine") {
-    query = query.eq("owner_user_id", userId);
+  if (opts.tab === "ignite") {
+    query = query.eq("is_official", true);
+  } else if (opts.tab === "mine") {
+    query = query.eq("owner_user_id", userId).eq("is_official", false);
   } else if (opts.tab === "team") {
-    query = query.in("visibility", ["team", "club"]);
+    query = query.in("visibility", ["team", "club"]).eq("is_official", false);
     if (opts.teamId) query = query.eq("team_id", opts.teamId);
   }
 
@@ -223,7 +228,6 @@ export async function saveDrill(input: SaveDrillInput): Promise<string> {
   }
 
   // Replace frames atomically (simple approach: delete + insert).
-  // Frames are small JSON; this avoids reconciling positions client-side.
   const { error: delErr } = await supabase.from("drill_frames").delete().eq("drill_id", drillId);
   if (delErr) throw delErr;
 
@@ -233,8 +237,6 @@ export async function saveDrill(input: SaveDrillInput): Promise<string> {
       position: i,
       duration_ms: f.durationMs ?? 1500,
       notes: f.notes ?? null,
-      // Cast through unknown — Supabase generated types require Json shape, but
-      // our domain objects (DrillObject/Annotation) are valid JSON at runtime.
       objects: f.objects as unknown as never,
       annotations: f.annotations as unknown as never,
     }));
@@ -254,11 +256,94 @@ export async function stampRecentUse(drillId: string): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
   if (!userId) return;
-  // Upsert (composite PK on user_id + drill_id)
   await supabase
     .from("drill_recent_uses")
     .upsert(
       { user_id: userId, drill_id: drillId, last_used_at: new Date().toISOString() },
       { onConflict: "user_id,drill_id" }
     );
+}
+
+// ---------- Today's session plan ----------
+
+export interface SessionDrill {
+  id: string;
+  drillId: string;
+  position: number;
+  drill: DrillSummary;
+}
+
+interface SessionDrillRow {
+  id: string;
+  drill_id: string;
+  position: number;
+  drills: DrillRow | null;
+}
+
+export async function listSessionDrills(): Promise<SessionDrill[]> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) return [];
+
+  const { data, error } = await supabase
+    .from("training_session_drills")
+    .select("id, drill_id, position, drills:drill_id(*)")
+    .eq("user_id", userId)
+    .order("position", { ascending: true });
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as SessionDrillRow[])
+    .filter((r) => !!r.drills)
+    .map((r) => ({
+      id: r.id,
+      drillId: r.drill_id,
+      position: r.position,
+      drill: rowToSummary(r.drills as DrillRow),
+    }));
+}
+
+export async function addToSession(drillId: string): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error("You must be signed in");
+
+  // Avoid duplicates in the same session
+  const { data: existing } = await supabase
+    .from("training_session_drills")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("drill_id", drillId)
+    .maybeSingle();
+  if (existing) return;
+
+  // Append at the end
+  const { data: maxRow } = await supabase
+    .from("training_session_drills")
+    .select("position")
+    .eq("user_id", userId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPos = (maxRow?.position ?? -1) + 1;
+
+  const { error } = await supabase
+    .from("training_session_drills")
+    .insert({ user_id: userId, drill_id: drillId, position: nextPos });
+  if (error) throw error;
+}
+
+export async function removeFromSession(entryId: string): Promise<void> {
+  const { error } = await supabase.from("training_session_drills").delete().eq("id", entryId);
+  if (error) throw error;
+}
+
+export async function clearSession(): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) return;
+  const { error } = await supabase
+    .from("training_session_drills")
+    .delete()
+    .eq("user_id", userId);
+  if (error) throw error;
 }

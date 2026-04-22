@@ -1,7 +1,7 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Save, FolderOpen, FilePlus2 } from "lucide-react";
+import { Save, FolderOpen, FilePlus2, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -18,6 +18,8 @@ import { PlaybackController } from "./PlaybackController";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
 import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
+import { SessionPlanStrip } from "./SessionPlanStrip";
+import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -84,7 +86,14 @@ export default function TrainingBoard({
   const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
   const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
   const [saveOpen, setSaveOpen] = useState(false);
+  // Library opens by default — coaches mostly browse & pick rather than draw
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const hasAutoOpenedRef = useRef(false);
+
+  // Session-plan integration
+  const { data: sessionDrills } = useSessionDrills();
+  const addToSessionMut = useAddToSession();
+  const inSession = !!savedDrillId && (sessionDrills ?? []).some((s) => s.drillId === savedDrillId);
 
   const {
     currentIndex,
@@ -102,6 +111,36 @@ export default function TrainingBoard({
   const isAnimating = isPlaying;
   const editable = !readOnly && !isAnimating;
   const hasSelection = !!selectedId;
+
+  // Auto-open library on first mount when board is empty — coaches start by picking a drill
+  useEffect(() => {
+    if (readOnly || hasAutoOpenedRef.current) return;
+    hasAutoOpenedRef.current = true;
+    const isBlank =
+      frames.length <= 1 &&
+      (frames[0]?.objects.length ?? 0) === 0 &&
+      (frames[0]?.annotations.length ?? 0) === 0 &&
+      !savedDrillId;
+    if (isBlank) {
+      const t = setTimeout(() => setLibraryOpen(true), 200);
+      return () => clearTimeout(t);
+    }
+  }, [readOnly, frames, savedDrillId]);
+
+  const handleAddCurrentToSession = useCallback(() => {
+    if (!savedDrillId) {
+      toast.info("Save the drill first, then add it to today's session");
+      return;
+    }
+    if (inSession) {
+      toast.info("Already in today's session");
+      return;
+    }
+    addToSessionMut.mutate(savedDrillId, {
+      onSuccess: () => toast.success("Added to today's session"),
+      onError: (err: any) => toast.error(err?.message ?? "Failed to add"),
+    });
+  }, [savedDrillId, inSession, addToSessionMut]);
 
   // ---- Frame ops ----
   const addFrame = useCallback(() => {
@@ -378,12 +417,11 @@ export default function TrainingBoard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* Drill action bar — Library / New / Save */}
+      {/* Drill action bar — Library is the primary action; New is demoted */}
       {!readOnly && (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
           <Button
             type="button"
-            variant="outline"
             size="sm"
             onClick={() => setLibraryOpen(true)}
             className="h-8"
@@ -391,23 +429,36 @@ export default function TrainingBoard({
             <FolderOpen className="h-4 w-4 mr-1.5" />
             Library
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleNewDrill}
-            className="h-8"
-          >
-            <FilePlus2 className="h-4 w-4 mr-1.5" />
-            New
-          </Button>
           <div className="flex-1 min-w-0 text-sm text-muted-foreground truncate">
-            {savedName || "Untitled drill"}
-            {savedDrillId ? "" : " · unsaved"}
+            {savedName || (savedDrillId ? "Drill" : "Pick a drill from the library")}
+            {savedName && !savedDrillId ? " · unsaved" : ""}
           </div>
+          {savedDrillId && (
+            <Button
+              type="button"
+              size="sm"
+              variant={inSession ? "secondary" : "outline"}
+              onClick={handleAddCurrentToSession}
+              disabled={inSession || addToSessionMut.isPending}
+              className="h-8"
+            >
+              {inSession ? (
+                <>
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  In session
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Add to session
+                </>
+              )}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
+            variant="outline"
             onClick={() => setSaveOpen(true)}
             className="h-8"
           >
@@ -415,6 +466,14 @@ export default function TrainingBoard({
             {savedDrillId ? "Update" : "Save"}
           </Button>
         </div>
+      )}
+
+      {/* Today's session strip */}
+      {!readOnly && (
+        <SessionPlanStrip
+          loadedDrillId={savedDrillId}
+          onOpenDrill={handleOpenDrill}
+        />
       )}
 
       {/* Pitch surface */}
@@ -540,6 +599,7 @@ export default function TrainingBoard({
         onOpenChange={setLibraryOpen}
         teamId={teamId}
         onOpenDrill={handleOpenDrill}
+        onNewDrill={handleNewDrill}
       />
     </div>
   );
