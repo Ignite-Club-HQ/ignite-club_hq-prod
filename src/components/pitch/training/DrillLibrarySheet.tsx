@@ -434,7 +434,29 @@ export function DrillLibrarySheet({
   );
 }
 
-function EmptyState({ tab, hasTeam }: { tab: LibraryTab; hasTeam: boolean }) {
+function EmptyState({
+  tab,
+  hasTeam,
+  filtersActive,
+  onClearFilters,
+}: {
+  tab: LibraryTab;
+  hasTeam: boolean;
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
+}) {
+  if (filtersActive) {
+    return (
+      <div className="text-center py-12 px-4 text-sm text-muted-foreground space-y-3">
+        <p>No drills match the current filters.</p>
+        {onClearFilters && (
+          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
+    );
+  }
   const messages: Record<LibraryTab, string> = {
     ignite: "No drills found. Try a different search.",
     mine: "You haven't created any drills yet. Pick one from the Ignite library or create your own.",
