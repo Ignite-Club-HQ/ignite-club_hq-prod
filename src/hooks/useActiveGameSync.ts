@@ -182,6 +182,9 @@ export function useActiveGameSync() {
 
     try {
       const teamId = timerState.teamId || null;
+      // Telemetry: count this attempted write toward the per-(user,team) rate.
+      // Mirrored server-side by trigger `log_active_game_write`.
+      recordSyncWrite({ userId: user.id, teamId, source: "soccer" });
 
       if (activeGameIdRef.current) {
         await deactivateOtherActiveGames(teamId, activeGameIdRef.current);
