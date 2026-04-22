@@ -67,6 +67,7 @@ vi.mock("@/hooks/usePinchZoom", () => ({
 
 // Import AFTER mocks are registered.
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
 
 // --- Test infrastructure ----------------------------------------------------
 
@@ -154,10 +155,10 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
   it("does not attach touch listeners that bubble through overlay buttons", () => {
     render();
 
-    // The overlay buttons (close, download, report, block) must not register
-    // their own touch listeners — otherwise a finger that lands on a button
-    // would be consumed before reaching the gesture container.
-    const overlayButtons = container.querySelectorAll("button");
+    // The overlay buttons (close, download, report, block) live in the
+    // portalled viewer (which is on document.body, not in `container`).
+    const viewerRoot = getPortalledGestureRoot(container);
+    const overlayButtons = viewerRoot.querySelectorAll("button");
     expect(overlayButtons.length).toBeGreaterThan(0);
 
     // Re-spy to verify NO new touch listeners are added when buttons exist.
@@ -172,7 +173,7 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
   it("forwards touchstart/move/end on the container to the pinch-zoom hook", () => {
     render();
 
-    const root = container.firstElementChild as HTMLElement;
+    const root = getPortalledGestureRoot(container);
     expect(root).toBeTruthy();
 
     // Synthesize a two-finger pinch start — the kind of event iOS would
@@ -211,7 +212,7 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
 
   it("applies touch-action: none to the gesture container so iOS can't hijack pinch", () => {
     render();
-    const root = container.firstElementChild as HTMLElement;
+    const root = getPortalledGestureRoot(container);
     expect(root).toBeTruthy();
     // touchAction must be 'none' — the only way to suppress iOS Safari's
     // built-in pinch/pan recognizer in a WebView.
