@@ -35,6 +35,8 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     isPanningOrPinching,
   } = usePinchZoom(1, 4);
   const [isAnimating, setIsAnimating] = useState(false);
+  // Snap-back animation params, recomputed per double-tap based on pan distance.
+  const [snapAnim, setSnapAnim] = useState({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -43,17 +45,30 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   useIOSScrollLock(true);
 
   // Trigger smooth animated zoom toggle on double-tap.
+  // When the image is panned/zoomed, this performs a snap-back animation that
+  // smoothly returns the image to 1× centered. Duration scales with how far
+  // the image was panned so short snaps feel snappy and large snaps feel
+  // weighted; the ease-out-back curve gives a subtle "settle" at the end.
   const triggerZoomToggle = useCallback(() => {
-    setIsAnimating(true);
-    if (isPanningOrPinching()) {
+    const isPannedOrZoomed = scale > 1 || translateX !== 0 || translateY !== 0;
+    if (isPannedOrZoomed) {
+      // Distance from center, used to scale the snap-back duration.
+      const dist = Math.hypot(translateX, translateY);
+      // 220ms baseline up to 360ms for a long fling-back.
+      const duration = Math.min(360, 220 + dist * 0.3);
+      // Soft ease-out-back: smooth deceleration with a tiny overshoot then settle.
+      setSnapAnim({ duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      setIsAnimating(true);
       resetZoom();
+      window.setTimeout(() => setIsAnimating(false), duration + 20);
     } else {
-      // pinchDoubleClick toggles between 1x and 2.2x
+      // Zoom-in toggle (1× → 2.2×) keeps the snappier baseline curve.
+      setSnapAnim({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
+      setIsAnimating(true);
       pinchDoubleClick({} as React.MouseEvent);
+      window.setTimeout(() => setIsAnimating(false), 240);
     }
-    // Match the CSS transition duration below
-    window.setTimeout(() => setIsAnimating(false), 220);
-  }, [isPanningOrPinching, pinchDoubleClick, resetZoom]);
+  }, [pinchDoubleClick, resetZoom, scale, translateX, translateY]);
 
   // Attach native non-passive touch listeners so preventDefault() actually
   // works on iOS (React's synthetic touch listeners are passive).
