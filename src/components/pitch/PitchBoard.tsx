@@ -5617,8 +5617,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </Button>
                 {trainingMenuOpen && createPortal(
                   <>
-                    <div className="fixed inset-0 z-[99998]" onClick={() => setTrainingMenuOpen(false)} />
-                    <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                    <div className="fixed inset-0 z-[9999998]" onClick={() => setTrainingMenuOpen(false)} />
+                    <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[9999999] min-w-[200px] py-1">
                       <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
                       <button
                         className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
@@ -5870,8 +5870,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </Button>
               {trainingMenuOpen && createPortal(
                 <>
-                  <div className="fixed inset-0 z-[99998]" onClick={() => setTrainingMenuOpen(false)} />
-                  <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[200px] py-1">
+                  <div className="fixed inset-0 z-[9999998]" onClick={() => setTrainingMenuOpen(false)} />
+                  <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[9999999] min-w-[200px] py-1">
                     <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Mode</div>
                     <button
                       className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
