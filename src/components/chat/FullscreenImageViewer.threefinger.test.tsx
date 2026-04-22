@@ -187,17 +187,14 @@ describe("FullscreenImageViewer — 3+ finger system gestures", () => {
     await act(async () => {
       vi.advanceTimersByTime(60);
     });
-    // Two quick taps after — still no zoom because the prior sequence was
-    // multi-finger and the suppression window is still active for the first
-    // tap. The second tap arms a fresh candidate but cannot pair with the
-    // poisoned prior tap.
-    singleTap(200, 150);
-    await act(async () => {
-      vi.advanceTimersByTime(80);
-    });
+    // A single tap right after the 4-finger gesture must NOT pair with the
+    // multi-finger touchend as a "double-tap". The 4-finger sequence cleared
+    // any pending tap candidate, so this tap can only arm a fresh candidate
+    // — it cannot retroactively complete a pair.
     singleTap(200, 150);
 
     expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
   });
 
   it("gesture that escalates from 1 → 2 → 3 fingers mid-sequence is ignored", async () => {
