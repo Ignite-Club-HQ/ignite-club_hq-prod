@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote, Keyboard } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Play, Pause, StickyNote, Keyboard, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DrillFrame } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
+import { applyTeamPlayersToObjects, type TeamPlayerLite } from "./teamPlayerSubstitution";
 
 interface PresentationModeProps {
   frames: DrillFrame[];
   initialIndex?: number;
   onClose: () => void;
+  /** Real squad players — when provided their names replace the generic "1/2/3..." labels. */
+  teamPlayers?: TeamPlayerLite[];
 }
 
 function PitchMarkings() {
