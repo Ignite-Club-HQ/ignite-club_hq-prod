@@ -115,6 +115,9 @@ interface PitchBoardProps {
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
   initialShowLineupPicker?: boolean;
+  // Initial board mode — defaults to "match". Pass "training" when launched
+  // from a Training event so coaches land directly on the drill board.
+  initialMode?: PitchBoardMode;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
 }
@@ -140,7 +143,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -298,7 +301,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [mode, setMode] = useState<PitchBoardMode>("match"); // Match | Training mode toggle (Phase 1)
+  const [mode, setMode] = useState<PitchBoardMode>(initialMode); // Match | Training — default Match unless launched from a Training event
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
