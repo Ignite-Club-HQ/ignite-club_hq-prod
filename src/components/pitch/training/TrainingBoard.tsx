@@ -478,6 +478,7 @@ export default function TrainingBoard({
     goTo(0);
     setEditorMode(false);
     setPreviewMode(false);
+    setRunMode(false);
   }, [frames, savedDrillId, goTo]);
 
   const cursorClass = useMemo(() => {
