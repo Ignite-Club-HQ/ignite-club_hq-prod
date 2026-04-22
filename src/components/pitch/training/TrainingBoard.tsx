@@ -88,6 +88,9 @@ export default function TrainingBoard({
   const [stepCounter, setStepCounter] = useState(1);
   const [playerCounter, setPlayerCounter] = useState(1);
   const [isPresenting, setIsPresenting] = useState(false);
+  // Preview mode — locks editing and shows interpolated playback so coaches
+  // can verify arrows, queue positions, and cone layouts before saving.
+  const [previewMode, setPreviewMode] = useState(false);
 
   // Persistence state
   const [savedDrillId, setSavedDrillId] = useState<string | null>(null);
