@@ -129,11 +129,11 @@ export function cloneAnnotation(ann: Annotation, dx = 4, dy = 4): Annotation {
   }
 }
 
-export function createEmptyFrame(position: number): DrillFrame {
+export function createEmptyFrame(position: number, durationMs = 1500): DrillFrame {
   return {
     id: uid(),
     position,
-    durationMs: 1500,
+    durationMs,
     notes: "",
     objects: [],
     annotations: [],

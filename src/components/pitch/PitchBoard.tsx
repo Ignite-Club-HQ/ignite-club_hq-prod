@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
+import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -1255,6 +1256,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
@@ -5638,10 +5640,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <div className="h-px bg-border mx-2 my-1" />
                       <button
                         className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                        onClick={() => { setSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                        onClick={() => { setTrainingSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
                       >
                         <Settings2 className="h-4 w-4" />
-                        All Settings
+                        Training Settings
                       </button>
                     </div>
                   </>,
@@ -5842,6 +5844,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onPitchBoardModeChange={setMode}
               />
             )}
+            <TrainingSettingsDialog
+              open={trainingSettingsDialogOpen}
+              onOpenChange={setTrainingSettingsDialogOpen}
+            />
           </>
         )}
       </div>
@@ -5891,10 +5897,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div className="h-px bg-border mx-2 my-1" />
                     <button
                       className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                      onClick={() => { setSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                      onClick={() => { setTrainingSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
                     >
                       <Settings2 className="h-4 w-4" />
-                      All Settings
+                      Training Settings
                     </button>
                   </div>
                 </>,

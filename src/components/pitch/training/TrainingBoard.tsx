@@ -21,6 +21,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
+import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -82,6 +83,7 @@ export default function TrainingBoard({
   members,
 }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { settings } = useTrainingSettings();
   const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
   const [activeTool, setActiveTool] = useState<TrainingTool>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -126,7 +128,14 @@ export default function TrainingBoard({
     prev: prevFrame,
     goTo,
     setSpeed,
-  } = useDrillPlayback({ frames, loop: true });
+  } = useDrillPlayback({ frames, loop: settings.loopPlayback });
+
+  // Apply user's default playback speed once on mount and whenever it changes
+  // in settings — coaches can still override per-session via the speed pill.
+  useEffect(() => {
+    setSpeed(settings.defaultPlaybackSpeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.defaultPlaybackSpeed]);
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
@@ -164,17 +173,17 @@ export default function TrainingBoard({
       const base = fs[currentIndex];
       const next: DrillFrame = base
         ? {
-            ...createEmptyFrame(fs.length),
+            ...createEmptyFrame(fs.length, settings.defaultFrameDurationMs),
             objects: base.objects.map((o) => ({ ...o })),
           }
-        : createEmptyFrame(fs.length);
+        : createEmptyFrame(fs.length, settings.defaultFrameDurationMs);
       const inserted = [...fs.slice(0, currentIndex + 1), next, ...fs.slice(currentIndex + 1)];
       return inserted.map((f, i) => ({ ...f, position: i }));
     });
     setSelectedId(null);
     // Move selection to the newly inserted frame
     setTimeout(() => goTo(currentIndex + 1), 0);
-  }, [currentIndex, goTo]);
+  }, [currentIndex, goTo, settings.defaultFrameDurationMs]);
 
   const duplicateFrame = useCallback(
     (idx: number) => {
@@ -418,18 +427,21 @@ export default function TrainingBoard({
       setPlayerCounter(1);
       goTo(0);
       setEditorMode(true);
-      // Open in preview (read-only) mode so the toolbar stays hidden until
-      // the coach explicitly taps Edit. Auto-start playback for multi-frame
-      // drills so they immediately animate when opened.
-      setPreviewMode(true);
+      // Open in preview (read-only) mode by default so the toolbar stays
+      // hidden until the coach explicitly taps Edit. Coaches who prefer to
+      // jump straight to editing can disable this in Training Settings.
+      // Auto-start playback for multi-frame drills so they immediately
+      // animate when opened.
+      const startInPreview = settings.autoOpenInPreview;
+      setPreviewMode(startInPreview);
       setActiveTool("select");
-      if (loaded.length > 1) {
+      if (startInPreview && loaded.length > 1) {
         // Defer to next tick so the playback hook sees the new frames first
         window.setTimeout(() => playPlayback(), 0);
       }
       toast.success(`Opened "${drill.name}"`);
     },
-    [goTo, playPlayback]
+    [goTo, playPlayback, settings.autoOpenInPreview]
   );
 
   const handleExitEditor = useCallback(() => {
@@ -458,7 +470,11 @@ export default function TrainingBoard({
 
   // Substitute generic drill labels ("A", "B", "1"...) with real squad names
   // so coaches see actual players on the pitch in both editor + playback views.
-  const teamPlayers = useMemo(() => membersToTeamPlayers(members), [members]);
+  // Honours the user's "Use real squad names" preference.
+  const teamPlayers = useMemo(
+    () => (settings.substituteRealNames ? membersToTeamPlayers(members) : []),
+    [members, settings.substituteRealNames]
+  );
 
   // The view we render: live interpolation while playing, raw current frame while editing
   const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
@@ -645,7 +661,19 @@ export default function TrainingBoard({
               "repeating-linear-gradient(0deg, hsla(0,0%,100%,0.03) 0 8%, transparent 8% 16%)",
           }}
         >
-          <PitchMarkings />
+          {settings.showPitchMarkings && <PitchMarkings />}
+          {previewMode &&
+            settings.showCoachingPointsInPreview &&
+            (savedMetadata?.coachingPoints?.length ?? 0) > 0 && (
+              <div className="absolute top-2 left-2 right-2 max-w-sm bg-background/85 backdrop-blur-sm border border-border rounded-md p-2.5 text-xs shadow-lg pointer-events-none">
+                <div className="font-semibold text-foreground mb-1">Coaching points</div>
+                <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+                  {savedMetadata!.coachingPoints!.slice(0, 4).map((cp, i) => (
+                    <li key={i}>{cp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           <TrainingObjectLayer
             objects={renderedObjects}
             annotations={renderedAnnotations}
