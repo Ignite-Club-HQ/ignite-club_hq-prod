@@ -374,7 +374,17 @@ export function DrillLibrarySheet({
   );
 }
 
-function EmptyState({ tab, hasTeam }: { tab: LibraryTab; hasTeam: boolean }) {
+function EmptyState({
+  tab,
+  hasTeam,
+  filtersActive,
+  onClearFilters,
+}: {
+  tab: LibraryTab;
+  hasTeam: boolean;
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
+}) {
   const messages: Record<LibraryTab, string> = {
     ignite: "No drills found. Try a different search.",
     mine: "You haven't created any drills yet. Pick one from the Ignite library or create your own.",
@@ -384,6 +394,17 @@ function EmptyState({ tab, hasTeam }: { tab: LibraryTab; hasTeam: boolean }) {
     recent: "No recently used drills. Open one from the library to see it here next time.",
   };
   return (
-    <div className="text-center py-12 px-4 text-sm text-muted-foreground">{messages[tab]}</div>
+    <div className="text-center py-12 px-4 text-sm text-muted-foreground space-y-2">
+      <p>{filtersActive ? "No drills match your filters." : messages[tab]}</p>
+      {filtersActive && onClearFilters && (
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="text-xs text-primary hover:underline"
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
   );
 }
