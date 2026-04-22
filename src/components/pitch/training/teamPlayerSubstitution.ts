@@ -51,15 +51,27 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
 ): T[] {
   if (!players.length) return objects;
 
-  // Identify which player slots represent the *attacking* squad. The seeded
-  // drills colour defenders red (#ef4444) and orange (#f97316 — coach/server),
-  // so we only substitute names onto the sky-blue ("our team") players.
-  const ourTeamPlayers = objects.filter(
-    (o) => o.type === "player" && (!o.color || o.color === "#0ea5e9")
-  );
+  // Substitute real names onto EVERY player chip (attackers + defenders + GKs).
+  // Coaches want to see who's doing what, regardless of which side they're on.
+  // Non-player objects (cones, balls, goals) are untouched so equipment labels
+  // like "ball" or "cone" stay intact.
+  // Order: attackers first (sky-blue / unset), then defenders (red), then any
+  // remaining roles. This keeps the highest-availability players on the side
+  // the drill is teaching.
+  const playerObjs = objects.filter((o) => o.type === "player");
+  if (playerObjs.length === 0) return objects;
+
+  const sortedPlayerObjs = [...playerObjs].sort((a, b) => {
+    const score = (o: DrillObject) => {
+      if (!o.color || o.color === "#0ea5e9") return 0; // attackers first
+      if (o.color === "#ef4444") return 1;             // defenders second
+      return 2;                                         // coach/server etc last
+    };
+    return score(a) - score(b);
+  });
 
   const substitutions = new Map<string, string>();
-  ourTeamPlayers.forEach((obj, idx) => {
+  sortedPlayerObjs.forEach((obj, idx) => {
     const player = players[idx];
     if (player) substitutions.set(obj.id, shortPlayerLabel(player.name));
   });
