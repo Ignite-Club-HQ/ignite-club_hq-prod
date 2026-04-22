@@ -391,6 +391,11 @@ function TrainingObjectLayerImpl({
     () => resolvePlayerOverlaps(objects),
     [objects],
   );
+  // Then push balls away from any player they would otherwise sit under.
+  const ballPositions = useMemo(
+    () => resolveBallOverlaps(objects, displayPositions),
+    [objects, displayPositions],
+  );
 
   return (
     <>
