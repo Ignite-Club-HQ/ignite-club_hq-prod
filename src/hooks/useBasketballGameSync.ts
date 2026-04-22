@@ -29,14 +29,20 @@ export function useBasketballGameSync(
   const activeGameIdRef = useRef<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Deactivate stale rows ONLY for the same (user, team) combination so a
+  // coach running boards for two different teams in parallel tabs / devices
+  // doesn't keep flipping each other off. Without the team scope, two
+  // simultaneous boards from the same coach would ping-pong every 10s.
   const deactivateOtherGames = useCallback(
-    async (keepId?: string | null) => {
+    async (teamId: string | null, keepId?: string | null) => {
       if (!user?.id) return;
       let q = supabase
         .from("active_games")
         .update({ is_active: false })
         .eq("user_id", user.id)
         .eq("is_active", true);
+      if (teamId) q = q.eq("team_id", teamId);
+      else q = q.is("team_id", null);
       if (keepId) q = q.neq("id", keepId);
       await q;
     },
