@@ -31,7 +31,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
     resetZoom,
+    onDoubleClick: pinchDoubleClick,
+    isPanningOrPinching,
   } = usePinchZoom(1, 4);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
