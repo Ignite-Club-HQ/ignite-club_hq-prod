@@ -667,12 +667,12 @@ export default function TrainingBoard({
           onDuplicate={duplicateFrame}
           onDelete={deleteFrame}
           onReorder={reorderFrame}
-          disabled={isAnimating}
+          disabled={isAnimating || previewMode}
         />
       )}
 
-      {/* Toolbar */}
-      {!readOnly && (
+      {/* Toolbar — hidden in preview mode so the canvas is read-only */}
+      {!readOnly && !previewMode && (
         <TrainingToolbar
           activeTool={activeTool}
           onToolChange={(t) => {
@@ -684,6 +684,13 @@ export default function TrainingBoard({
           onClear={handleClear}
           hasSelection={hasSelection}
         />
+      )}
+
+      {/* Preview-mode hint bar */}
+      {!readOnly && previewMode && (
+        <div className="shrink-0 px-3 py-1.5 text-[11px] font-medium text-center text-muted-foreground bg-muted/60 border-t border-border">
+          Preview mode — editing is locked. Use Play to verify arrows, queues, and cone layouts.
+        </div>
       )}
 
       {/* Presentation overlay */}
