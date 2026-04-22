@@ -35,6 +35,8 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   const initialDistance = useRef<number | null>(null);
   const initialScale = useRef<number>(1);
   const initialCenter = useRef<{ x: number; y: number } | null>(null);
+  const initialAngle = useRef<number | null>(null);
+  const rotationLocked = useRef(false);
   const lastTranslate = useRef({ x: 0, y: 0 });
   const isPinching = useRef(false);
 
@@ -59,18 +61,41 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     };
   };
 
+  // Angle in radians between the line connecting two fingers and the x-axis.
+  const getAngle = (touch1: React.Touch, touch2: React.Touch): number => {
+    return Math.atan2(touch2.clientY - touch1.clientY, touch2.clientX - touch1.clientX);
+  };
+
+  // Smallest signed angle delta in [-PI, PI].
+  const angleDelta = (a: number, b: number): number => {
+    let d = a - b;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return d;
+  };
+
+  // Rotation past this threshold (~12°) suppresses center-tracking pan during
+  // the pinch so the image doesn't drift while the user re-grips the screen.
+  const ROTATION_LOCK_THRESHOLD = (12 * Math.PI) / 180;
+
   const onTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length === 2) {
       isPinching.current = true;
+      // A second finger landed: cancel any single-finger pan immediately so a
+      // pinch (especially one with rotation) is never treated as a pan.
       isPanning.current = false;
       panStart.current = null;
       initialDistance.current = getDistance(e.touches[0], e.touches[1]);
       initialScale.current = stateRef.current.scale;
       initialCenter.current = getCenter(e.touches[0], e.touches[1]);
+      initialAngle.current = getAngle(e.touches[0], e.touches[1]);
+      rotationLocked.current = false;
       lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
+      // Always preventDefault — iOS would otherwise start its own page-zoom
+      // / rotation gesture and steal the touch sequence.
       e.preventDefault();
-    } else if (e.touches.length === 1 && stateRef.current.scale > 1) {
-      // Start single-finger pan when zoomed
+    } else if (e.touches.length === 1 && stateRef.current.scale > 1 && !isPinching.current) {
+      // Start single-finger pan when zoomed (and only if not mid-pinch)
       panStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
       isPanning.current = true;
@@ -79,36 +104,55 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
 
   const onTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length === 2 && initialDistance.current && isPinching.current) {
+      // Always suppress the system gesture during a 2-finger interaction,
+      // including when the user is mostly rotating rather than pinching.
       e.preventDefault();
-      
+
       const currentDistance = getDistance(e.touches[0], e.touches[1]);
       const currentCenter = getCenter(e.touches[0], e.touches[1]);
-      
+      const currentAngle = getAngle(e.touches[0], e.touches[1]);
+
+      // Detect rotation: once the rotation crosses the threshold we lock out
+      // center-tracking pan for the rest of this gesture. This prevents the
+      // image from sliding sideways as the user rotates their grip — a
+      // common cause of "stuck pinch" complaints on iOS.
+      if (initialAngle.current !== null && !rotationLocked.current) {
+        const rot = Math.abs(angleDelta(currentAngle, initialAngle.current));
+        if (rot > ROTATION_LOCK_THRESHOLD) {
+          rotationLocked.current = true;
+        }
+      }
+
       const scaleRatio = currentDistance / initialDistance.current;
       let newScale = initialScale.current * scaleRatio;
       newScale = Math.min(Math.max(newScale, minScale), maxScale);
-      
+
       let newTranslateX = lastTranslate.current.x;
       let newTranslateY = lastTranslate.current.y;
-      
-      if (initialCenter.current) {
+
+      if (initialCenter.current && !rotationLocked.current) {
         const centerDeltaX = currentCenter.x - initialCenter.current.x;
         const centerDeltaY = currentCenter.y - initialCenter.current.y;
         newTranslateX = lastTranslate.current.x + centerDeltaX;
         newTranslateY = lastTranslate.current.y + centerDeltaY;
       }
-      
+
       if (newScale <= 1) {
         newTranslateX = 0;
         newTranslateY = 0;
       }
-      
+
       setState({
         scale: newScale,
         translateX: newTranslateX,
         translateY: newTranslateY,
       });
-    } else if (e.touches.length === 1 && isPanning.current && panStart.current) {
+    } else if (
+      e.touches.length === 1 &&
+      isPanning.current &&
+      panStart.current &&
+      !isPinching.current
+    ) {
       e.preventDefault();
       const dx = e.touches[0].clientX - panStart.current.x;
       const dy = e.touches[0].clientY - panStart.current.y;
@@ -123,10 +167,12 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   const onTouchEnd = useCallback(() => {
     initialDistance.current = null;
     initialCenter.current = null;
+    initialAngle.current = null;
+    rotationLocked.current = false;
     isPinching.current = false;
     panStart.current = null;
     isPanning.current = false;
-    
+
     if (stateRef.current.scale < 1.15) {
       setState({ scale: 1, translateX: 0, translateY: 0 });
     }

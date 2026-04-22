@@ -8,7 +8,11 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ci": "CI=true TZ=UTC vitest run",
+    "test:gestures": "vitest run \"src/components/chat/FullscreenImageViewer.*.test.tsx\""
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",

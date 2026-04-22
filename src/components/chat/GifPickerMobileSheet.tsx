@@ -178,13 +178,12 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
         style={{
           top: sheetTop,
           height: sheetHeight,
-          paddingTop: "env(safe-area-inset-top, 0px)",
           paddingBottom: keyboardOpen ? 0 : "env(safe-area-inset-bottom, 0px)",
           transition: "top 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
         }}
       >
         {/* Header */}
-        <div className="relative flex items-center justify-between px-2 pt-2 pb-1 shrink-0">
+        <div className="relative flex items-center justify-between px-2 pt-1 pb-0.5 shrink-0">
           <div className="w-14" aria-hidden />
           <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
           <button

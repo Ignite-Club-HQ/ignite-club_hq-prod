@@ -423,7 +423,7 @@ async function sendFCMNotifications(
     const { data: responseData, error } = await supabase.functions.invoke('send-fcm-notification', {
       body: {
         userId,
-        title: title || 'Ignite',
+        title: title || 'Ignite Club HQ',
         body: body || 'You have a new notification',
         url,
         notificationId,
@@ -654,7 +654,7 @@ serve(async (req) => {
     const fcmPromise = sendFCMNotifications(
       supabase,
       userId,
-      title || 'Ignite',
+      title || 'Ignite Club HQ',
       body || 'You have a new notification',
       url,
       notificationId,
@@ -721,7 +721,7 @@ serve(async (req) => {
     console.log(`[PUSH] Found ${subscriptions.length} web push subscription(s)`);
     
     const payload = JSON.stringify({
-      title: title || 'Ignite',
+      title: title || 'Ignite Club HQ',
       body: body || 'You have a new notification',
       url: url || '/notifications',
       notificationId,
