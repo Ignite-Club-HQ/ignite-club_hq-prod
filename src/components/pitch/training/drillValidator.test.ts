@@ -8,8 +8,8 @@ const ACTIVE = "#38bdf8";
 function player(id: string, color: string, x = 50, y = 50): DrillObject {
   return { id, type: "player", x, y, color, label: id.toUpperCase() };
 }
-function frame(position: number, objects: DrillObject[]): DrillFrame {
-  return { id: `f${position}`, position, durationMs: 1000, objects, annotations: [] };
+function frame(position: number, objects: DrillObject[], annotations: DrillFrame["annotations"] = []): DrillFrame {
+  return { id: `f${position}`, position, durationMs: 1000, objects, annotations };
 }
 
 describe("rotation-coverage rule", () => {
