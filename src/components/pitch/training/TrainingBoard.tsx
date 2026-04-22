@@ -436,10 +436,10 @@ export default function TrainingBoard({
   const renderedObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
-  return (
-    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* Drill action bar — Library is the primary action; New is demoted */}
-      {!readOnly && (
+  // ---- Landing view (no editor) — shown until coach opens or creates a drill ----
+  if (!editorMode && !readOnly) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col bg-background">
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
           <Button
             type="button"
@@ -450,8 +450,77 @@ export default function TrainingBoard({
             <FolderOpen className="h-4 w-4 mr-1.5" />
             Browse drills
           </Button>
-          <div className="flex-1 min-w-0 text-sm text-muted-foreground truncate">
-            {savedName || (savedDrillId ? "Drill" : "Pick a drill to load")}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleNewDrill}
+            className="h-9"
+          >
+            <FilePlus2 className="h-4 w-4 mr-1.5" />
+            New drill
+          </Button>
+        </div>
+
+        <SessionPlanStrip
+          loadedDrillId={savedDrillId}
+          onOpenDrill={handleOpenDrill}
+        />
+
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <div className="max-w-sm w-full text-center flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <FolderOpen className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Pick a drill to get started</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose from the Ignite library or your saved drills. You can also create a new drill from scratch.
+              </p>
+            </div>
+            <div className="flex flex-col w-full gap-2">
+              <Button type="button" onClick={openLibrary} className="w-full">
+                <FolderOpen className="h-4 w-4 mr-1.5" />
+                Browse drill library
+              </Button>
+              <Button type="button" variant="outline" onClick={handleNewDrill} className="w-full">
+                <FilePlus2 className="h-4 w-4 mr-1.5" />
+                Create new drill
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Library sheet */}
+        <DrillLibrarySheet
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          teamId={teamId}
+          onOpenDrill={handleOpenDrill}
+          onNewDrill={handleNewDrill}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
+      {/* Drill action bar — Library is the primary action; New is demoted */}
+      {!readOnly && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleExitEditor}
+            className="h-9"
+            aria-label="Back to drill library"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Library
+          </Button>
+          <div className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">
+            {savedName || (savedDrillId ? "Drill" : "New drill")}
             {savedName && !savedDrillId ? " · unsaved" : ""}
           </div>
           {savedDrillId && (
@@ -525,30 +594,6 @@ export default function TrainingBoard({
             containerRef={containerRef}
             readOnly={!editable}
           />
-          {currentFrame &&
-            currentFrame.objects.length === 0 &&
-            currentFrame.annotations.length === 0 &&
-            !isAnimating && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="pointer-events-auto flex flex-col items-center gap-3 px-6 py-5 rounded-xl bg-black/55 text-white text-center max-w-[85%]">
-                  <div className="text-sm font-semibold">Start with a ready-made drill</div>
-                  <div className="text-xs text-white/80">
-                    Pick from the Ignite library, or use the toolbar below to draw your own.
-                  </div>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={openLibrary}
-                      className="h-9"
-                    >
-                      <FolderOpen className="h-4 w-4 mr-1.5" />
-                      Browse drills
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
         </div>
       </div>
 
