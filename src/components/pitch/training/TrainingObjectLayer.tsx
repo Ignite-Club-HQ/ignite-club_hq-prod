@@ -11,14 +11,22 @@ import type {
 
 type ItemKind = "object" | "annotation";
 
+/**
+ * Both raw and interpolated objects/annotations carry an optional `opacity` field
+ * (added by the playback engine for fade-in/out). We accept either type here.
+ */
+type RenderableObject = DrillObject & { opacity?: number };
+type RenderableAnnotation = Annotation & { opacity?: number };
+
 interface TrainingObjectLayerProps {
-  objects: DrillObject[];
-  annotations: Annotation[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  onObjectMove: (id: string, x: number, y: number) => void;
-  onAnnotationMove: (id: string, x: number, y: number) => void;
+  objects: RenderableObject[];
+  annotations: RenderableAnnotation[];
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
+  onObjectMove?: (id: string, x: number, y: number) => void;
+  onAnnotationMove?: (id: string, x: number, y: number) => void;
   containerRef: React.RefObject<HTMLDivElement>;
+  /** When true (e.g. presentation/playback) all interactions are disabled */
   readOnly?: boolean;
 }
 
@@ -92,10 +100,6 @@ function AnnotationGlyph({ ann }: { ann: Annotation }) {
   switch (ann.type) {
     case "arrow-solid":
     case "arrow-dashed": {
-      const g = ann.geometry as ArrowGeometry;
-      const dx = g.to.x - g.from.x;
-      const dy = g.to.y - g.from.y;
-      // We'll render via parent SVG instead; this glyph is a small handle
       return (
         <div
           className="rounded-full border border-white/60"
@@ -104,7 +108,6 @@ function AnnotationGlyph({ ann }: { ann: Annotation }) {
             height: 10,
             backgroundColor: ann.style?.color ?? "#fbbf24",
           }}
-          aria-label={`arrow ${dx.toFixed(0)},${dy.toFixed(0)}`}
         />
       );
     }
@@ -152,10 +155,6 @@ function AnnotationGlyph({ ann }: { ann: Annotation }) {
   }
 }
 
-/**
- * Renders all draggable training objects + annotations on the pitch.
- * Coordinates are 0-100 percentages of the parent (the pitch surface).
- */
 function TrainingObjectLayerImpl({
   objects,
   annotations,
@@ -176,7 +175,7 @@ function TrainingObjectLayerImpl({
     ) => {
       if (readOnly) return;
       e.stopPropagation();
-      onSelect(id);
+      onSelect?.(id);
       const target = e.currentTarget;
       target.setPointerCapture(e.pointerId);
 
@@ -190,8 +189,8 @@ function TrainingObjectLayerImpl({
         if (!c) return;
         const nx = clamp(c.x - offsetX);
         const ny = clamp(c.y - offsetY);
-        if (kind === "object") onObjectMove(id, nx, ny);
-        else onAnnotationMove(id, nx, ny);
+        if (kind === "object") onObjectMove?.(id, nx, ny);
+        else onAnnotationMove?.(id, nx, ny);
       };
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
@@ -205,7 +204,6 @@ function TrainingObjectLayerImpl({
     [containerRef, onAnnotationMove, onObjectMove, onSelect, readOnly]
   );
 
-  // Render arrows as a single SVG overlay (lines + arrowheads)
   const arrows = annotations.filter(
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
@@ -254,14 +252,14 @@ function TrainingObjectLayerImpl({
                 strokeWidth={2}
                 strokeDasharray={isDashed ? "6 4" : undefined}
                 markerEnd={`url(#${isDashed ? "training-arrowhead-dashed" : "training-arrowhead"})`}
-                opacity={selectedId === ann.id ? 1 : 0.9}
+                opacity={(ann.opacity ?? 1) * (selectedId === ann.id ? 1 : 0.95)}
               />
             );
           })}
         </svg>
       )}
 
-      {/* Zones rendered as positioned divs */}
+      {/* Zones */}
       {annotations
         .filter((a) => a.type === "zone")
         .map((ann) => {
@@ -272,13 +270,15 @@ function TrainingObjectLayerImpl({
               key={ann.id}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", g.x, g.y)}
               className={cn(
-                "absolute touch-none cursor-grab active:cursor-grabbing",
+                "absolute touch-none",
+                !readOnly && "cursor-grab active:cursor-grabbing",
                 isSel && "ring-2 ring-primary ring-offset-1 ring-offset-pitch-green rounded-md"
               )}
               style={{
                 left: `${g.x}%`,
                 top: `${g.y}%`,
                 zIndex: 20,
+                opacity: ann.opacity ?? 1,
               }}
             >
               <AnnotationGlyph ann={ann} />
@@ -290,7 +290,6 @@ function TrainingObjectLayerImpl({
       {annotations
         .filter((a) => a.type !== "zone")
         .map((ann) => {
-          // For arrows the glyph is the "from" handle
           let ax = 0;
           let ay = 0;
           if (ann.type === "arrow-solid" || ann.type === "arrow-dashed") {
@@ -312,10 +311,16 @@ function TrainingObjectLayerImpl({
               key={ann.id}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", ax, ay)}
               className={cn(
-                "absolute -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab active:cursor-grabbing",
+                "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
+                !readOnly && "cursor-grab active:cursor-grabbing",
                 isSel && "ring-2 ring-primary ring-offset-1 ring-offset-pitch-green rounded-full"
               )}
-              style={{ left: `${ax}%`, top: `${ay}%`, zIndex: 35 }}
+              style={{
+                left: `${ax}%`,
+                top: `${ay}%`,
+                zIndex: 35,
+                opacity: ann.opacity ?? 1,
+              }}
             >
               <AnnotationGlyph ann={ann} />
             </div>
@@ -330,13 +335,15 @@ function TrainingObjectLayerImpl({
             key={obj.id}
             onPointerDown={(e) => handlePointerDown(e, obj.id, "object", obj.x, obj.y)}
             className={cn(
-              "absolute -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab active:cursor-grabbing",
+              "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
+              !readOnly && "cursor-grab active:cursor-grabbing",
               isSel && "ring-2 ring-primary ring-offset-2 ring-offset-pitch-green rounded-full"
             )}
             style={{
               left: `${obj.x}%`,
               top: `${obj.y}%`,
               zIndex: 40,
+              opacity: obj.opacity ?? 1,
             }}
           >
             <ObjectGlyph obj={obj} />
