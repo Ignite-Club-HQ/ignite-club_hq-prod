@@ -61,6 +61,7 @@ function PlaybackControllerImpl({
             onClick={onToggle}
             disabled={!canPlay}
             aria-label={isPlaying ? "Pause" : "Play"}
+            title={!canPlay ? "Add a second frame to animate" : undefined}
             className={cn(
               "h-10 w-10 rounded-full flex items-center justify-center shadow",
               "bg-primary text-primary-foreground hover:opacity-90",
