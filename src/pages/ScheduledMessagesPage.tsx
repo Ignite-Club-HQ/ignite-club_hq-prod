@@ -60,6 +60,25 @@ function dateGroupLabel(d: Date): string {
   return format(d, "EEEE, MMM d");
 }
 
+function chatTypeIcon(type: ScheduledMessageRow["chat_type"]) {
+  switch (type) {
+    case "team":
+      return Users;
+    case "club":
+      return Shield;
+    case "group":
+      return Hash;
+    case "direct":
+      return UserIcon;
+    case "club_admin":
+      return Shield;
+    case "broadcast":
+      return Megaphone;
+    default:
+      return Clock;
+  }
+}
+
 /**
  * Resolve human-readable thread labels for a list of scheduled rows.
  * Batches one query per table to avoid N+1.
