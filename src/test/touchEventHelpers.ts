@@ -93,18 +93,28 @@ export function makeTouchEvent(
 
 /**
  * Convenience: get the element that the FullscreenImageViewer attaches
- * its native touch listeners to. The viewer renders a single root
- * `<div>` with the listeners; tests dispatch events to that element.
+ * its native touch listeners to.
+ *
+ * The viewer is portalled to `document.body` (so it escapes parent chat
+ * gesture handlers on iOS), so `container.firstElementChild` no longer
+ * works. Instead we look for the viewer's fixed-inset overlay on body
+ * and prefer one that is NOT inside the test's host container — that way
+ * tests that wrap the viewer in a harness still find the right element.
  *
  * Other gesture components may need their own root selector — in that
  * case, dispatch directly on the relevant element instead of using
  * this helper.
  */
 export function getGestureRoot(container: HTMLElement): HTMLElement {
-  const root = container.firstElementChild;
+  const candidates = Array.from(
+    document.body.querySelectorAll<HTMLElement>("div.fixed.inset-0"),
+  );
+  // Prefer a viewer that lives OUTSIDE the test container (i.e. portalled).
+  const portalled = candidates.find((el) => !container.contains(el));
+  const root = portalled ?? candidates[0] ?? container.firstElementChild;
   if (!root) {
     throw new Error(
-      "getGestureRoot: container has no children. Did the component render?",
+      "getGestureRoot: no viewer overlay found. Did the component render?",
     );
   }
   return root as HTMLElement;
