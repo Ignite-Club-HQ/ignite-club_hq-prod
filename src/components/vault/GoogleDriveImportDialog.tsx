@@ -309,10 +309,9 @@ export function GoogleDriveImportDialog({
 
           const blob = new Blob([bytes], { type: contentType });
 
-          // Upload to Supabase storage. Always use the `photos` bucket and a
-          // `clubs/{clubId}/...` path scheme — this matches the working vault
-          // upload flow and the existing storage RLS policies. Using a custom
-          // path or the wrong bucket would cause silent permission failures.
+          // Upload to Supabase storage using the same private bucket/path scheme
+          // as standard vault uploads so Drive imports stay vault-only and never
+          // surface in the Media gallery feed.
           const timestamp = Date.now();
           const randomSuffix = Math.random().toString(36).substring(7);
           const safeExt = fileName.split('.').pop() || 'bin';
@@ -333,7 +332,7 @@ export function GoogleDriveImportDialog({
             continue;
           }
 
-          // Build a public storage URL (the vault renders signed URLs on demand)
+          // Store the storage URL; the vault resolves signed URLs on demand.
           const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
           const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
 
