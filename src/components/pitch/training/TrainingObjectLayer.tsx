@@ -376,30 +376,42 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Objects — players render above the ball so a chip is never obscured */}
-      {objects.map((obj) => {
-        const isSel = selectedId === obj.id;
-        const z = obj.type === "ball" ? 38 : 45;
-        return (
-          <div
-            key={obj.id}
-            onPointerDown={(e) => handlePointerDown(e, obj.id, "object", obj.x, obj.y)}
-            className={cn(
-              "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
-              !readOnly && "cursor-grab active:cursor-grabbing",
-              isSel && "ring-2 ring-primary ring-offset-2 ring-offset-pitch-green rounded-full"
-            )}
-            style={{
-              left: `${obj.x}%`,
-              top: `${obj.y}%`,
-              zIndex: z,
-              opacity: obj.opacity ?? 1,
-            }}
-          >
-            <ObjectGlyph obj={obj} />
-          </div>
+      {/* Objects — players render above the ball so a chip is never obscured.
+          Player chips are nudged apart so they never visually overlap, while
+          their underlying drill coordinates stay untouched (drag/edit logic
+          still uses the authored x/y). */}
+      {(() => {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const displayPositions = useMemo(
+          () => resolvePlayerOverlaps(objects),
+          [objects],
         );
-      })}
+        return objects.map((obj) => {
+          const isSel = selectedId === obj.id;
+          const z = obj.type === "ball" ? 38 : 45;
+          const pos = displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
+          return (
+            <div
+              key={obj.id}
+              onPointerDown={(e) => handlePointerDown(e, obj.id, "object", obj.x, obj.y)}
+              className={cn(
+                "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
+                !readOnly && "cursor-grab active:cursor-grabbing",
+                isSel && "ring-2 ring-primary ring-offset-2 ring-offset-pitch-green rounded-full"
+              )}
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+                zIndex: z,
+                opacity: obj.opacity ?? 1,
+                transition: "left 120ms ease-out, top 120ms ease-out",
+              }}
+            >
+              <ObjectGlyph obj={obj} />
+            </div>
+          );
+        });
+      })()}
     </>
   );
 }
