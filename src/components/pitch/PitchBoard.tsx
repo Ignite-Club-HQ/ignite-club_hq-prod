@@ -5578,6 +5578,37 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
           </Suspense>
         )}
+
+        {/* Training Mode overlay (landscape) — portal'd to body so it covers the match. */}
+        {mode === "training" && createPortal(
+          <div
+            className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen flex flex-col bg-background"
+            style={{ height: '100dvh', zIndex: 999999 }}
+          >
+            <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
+              <ModeSwitch value={mode} onChange={setMode} />
+              <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
+              <button
+                type="button"
+                onClick={() => setMode("match")}
+                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted"
+              >
+                Back to Match
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+                <TrainingBoard
+                  isLandscape={isLandscape}
+                  readOnly={readOnly}
+                  teamId={teamId}
+                  teamName={teamName}
+                />
+              </Suspense>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>,
       document.body
     );
@@ -5739,13 +5770,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
       </div>
 
-      {/* Training Mode overlay — fixed, covers full viewport above match UI and global chat dock.
-          Match body stays mounted underneath so its state (timer, subs, players) is preserved. */}
-      {mode === "training" && (
+      {/* Training Mode overlay — portal'd to document.body so it sits above the
+          PitchBoard portal AND any global dock/header. Match body stays mounted
+          so its state (timer, subs, players) is preserved. */}
+      {mode === "training" && createPortal(
         <div
-          className="fixed inset-0 z-[200] flex flex-col bg-background"
+          className={cn(
+            "fixed top-0 left-0 right-0 bottom-0 w-screen h-screen flex flex-col bg-background",
+            isNative && "pt-safe"
+          )}
           style={{
-            paddingTop: 'env(safe-area-inset-top, 0px)',
+            height: '100dvh',
+            zIndex: 999999,
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           }}
         >
@@ -5771,7 +5807,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               />
             </Suspense>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Mini-league team selector strip - portrait */}
