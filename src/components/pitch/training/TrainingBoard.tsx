@@ -749,8 +749,8 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* Frame strip */}
-      {!readOnly && (
+      {/* Frame strip — hidden during preview/playback so coaches see only the pitch */}
+      {!readOnly && !previewMode && (
         <FrameStrip
           frames={frames}
           currentIndex={currentIndex}
@@ -762,7 +762,7 @@ export default function TrainingBoard({
           onDuplicate={duplicateFrame}
           onDelete={deleteFrame}
           onReorder={reorderFrame}
-          disabled={isAnimating || previewMode}
+          disabled={isAnimating}
         />
       )}
 
