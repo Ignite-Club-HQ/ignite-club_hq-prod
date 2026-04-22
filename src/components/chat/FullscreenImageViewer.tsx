@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { downloadImage } from "@/lib/downloadImage";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
@@ -303,7 +303,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           size="icon"
           variant="ghost"
           className="text-white hover:bg-white/20"
-          onClick={(e) => { e.stopPropagation(); safeOpenUrl(effectiveSrc); }}
+          onClick={(e) => { e.stopPropagation(); void downloadImage(effectiveSrc, "ignite-photo"); }}
         >
           <Download className="h-6 w-6" />
         </Button>
