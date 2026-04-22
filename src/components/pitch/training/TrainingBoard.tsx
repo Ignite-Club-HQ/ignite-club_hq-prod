@@ -658,7 +658,13 @@ export default function TrainingBoard({
           speed={speed}
           currentIndex={currentIndex}
           frameCount={frames.length}
-          onToggle={togglePlayback}
+          onToggle={() => {
+            if (frames.length < 2) {
+              toast.info("Add a second frame to animate — tap +Add below or duplicate this frame, then move players/arrows.");
+              return;
+            }
+            togglePlayback();
+          }}
           onPrev={prevFrame}
           onNext={nextFrame}
           onSpeedChange={setSpeed}
