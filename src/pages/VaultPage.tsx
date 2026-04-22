@@ -3480,13 +3480,13 @@ export default function VaultPage() {
                             Add Link
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.type !== 'root' && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.type !== 'root' && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has((currentView as { clubId: string }).clubId) && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
                             Import from Drive
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.type !== 'root' && currentView.folderId && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.type !== 'root' && currentView.folderId && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has((currentView as { clubId: string }).clubId) && (
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder
