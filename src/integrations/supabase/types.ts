@@ -1980,6 +1980,167 @@ export type Database = {
           },
         ]
       }
+      drill_frames: {
+        Row: {
+          annotations: Json
+          created_at: string
+          drill_id: string
+          duration_ms: number
+          id: string
+          notes: string | null
+          objects: Json
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          annotations?: Json
+          created_at?: string
+          drill_id: string
+          duration_ms?: number
+          id?: string
+          notes?: string | null
+          objects?: Json
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          annotations?: Json
+          created_at?: string
+          drill_id?: string
+          duration_ms?: number
+          id?: string
+          notes?: string | null
+          objects?: Json
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drill_frames_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drill_recent_uses: {
+        Row: {
+          drill_id: string
+          last_used_at: string
+          user_id: string
+        }
+        Insert: {
+          drill_id: string
+          last_used_at?: string
+          user_id: string
+        }
+        Update: {
+          drill_id?: string
+          last_used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drill_recent_uses_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drills: {
+        Row: {
+          age_group: string | null
+          club_id: string | null
+          coaching_points: string[]
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          equipment: string[]
+          focus: string[]
+          id: string
+          name: string
+          owner_user_id: string
+          pitch_size: string
+          players_required: number | null
+          progression: string | null
+          regression: string | null
+          tags: string[]
+          team_id: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          age_group?: string | null
+          club_id?: string | null
+          coaching_points?: string[]
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          equipment?: string[]
+          focus?: string[]
+          id?: string
+          name: string
+          owner_user_id: string
+          pitch_size?: string
+          players_required?: number | null
+          progression?: string | null
+          regression?: string | null
+          tags?: string[]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          age_group?: string | null
+          club_id?: string | null
+          coaching_points?: string[]
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          equipment?: string[]
+          focus?: string[]
+          id?: string
+          name?: string
+          owner_user_id?: string
+          pitch_size?: string
+          players_required?: number | null
+          progression?: string | null
+          regression?: string | null
+          tags?: string[]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drills_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drills_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drills_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duties: {
         Row: {
           assigned_to: string | null
@@ -7282,6 +7443,10 @@ export type Database = {
         Returns: boolean
       }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
+      can_edit_drill: {
+        Args: { _drill_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
@@ -7289,6 +7454,10 @@ export type Database = {
       }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_drill: {
+        Args: { _drill_id: string; _user_id: string }
         Returns: boolean
       }
       can_view_full_profile: {
