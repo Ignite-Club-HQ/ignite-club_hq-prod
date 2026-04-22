@@ -76,17 +76,58 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     if (!node) return;
     const DOUBLE_TAP_MS = 300;
     const DOUBLE_TAP_DIST = 32;
+    // Tap is "moved" once the finger travels past this in a single gesture —
+    // treat it as a drag, not a tap candidate. Keeps double-tap from firing
+    // at the end of a pan.
+    const TAP_SLOP = 10;
+
+    // Per-gesture arbitration flags. Reset on touchstart of the first finger
+    // and whenever a second finger lands. Ensures only one gesture (pinch,
+    // drag, OR double-tap) "wins" any given touch sequence.
+    let gestureHadMultiTouch = false;
+    let gestureMoved = false;
+    let gestureStartX = 0;
+    let gestureStartY = 0;
 
     const handleStart = (e: globalThis.TouchEvent) => {
+      if (e.touches.length === 1) {
+        // Fresh single-finger sequence — start tracking for tap/drag.
+        gestureHadMultiTouch = false;
+        gestureMoved = false;
+        gestureStartX = e.touches[0].clientX;
+        gestureStartY = e.touches[0].clientY;
+      } else if (e.touches.length >= 2) {
+        // Pinch started — kill any pending tap candidate so the pinch can't
+        // accidentally trigger a double-tap when fingers lift.
+        gestureHadMultiTouch = true;
+        lastTapRef.current = null;
+      }
       pinchTouchStart(e as unknown as React.TouchEvent);
     };
     const handleMove = (e: globalThis.TouchEvent) => {
+      if (e.touches.length >= 2) {
+        gestureHadMultiTouch = true;
+        lastTapRef.current = null;
+      } else if (e.touches.length === 1 && !gestureMoved) {
+        const dx = e.touches[0].clientX - gestureStartX;
+        const dy = e.touches[0].clientY - gestureStartY;
+        if (Math.hypot(dx, dy) > TAP_SLOP) {
+          gestureMoved = true;
+        }
+      }
       pinchTouchMove(e as unknown as React.TouchEvent);
     };
     const handleEnd = (e: globalThis.TouchEvent) => {
       pinchTouchEnd();
-      // Detect double-tap on touchend (single-finger only).
-      if (e.changedTouches.length === 1 && e.touches.length === 0) {
+      // Detect double-tap on touchend, but only if the gesture was a true
+      // single-finger tap (no pinch, no drag). This prevents double-tap from
+      // firing during pinch-zoom or at the tail of a pan.
+      if (
+        e.changedTouches.length === 1 &&
+        e.touches.length === 0 &&
+        !gestureHadMultiTouch &&
+        !gestureMoved
+      ) {
         const t = e.changedTouches[0];
         const now = Date.now();
         const last = lastTapRef.current;
@@ -101,10 +142,17 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           return;
         }
         lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
+      } else if (e.touches.length === 0) {
+        // Sequence ended as a pinch or drag — invalidate any tap candidate so
+        // the next genuine tap can't pair with this aborted one.
+        lastTapRef.current = null;
       }
     };
     const handleCancel = () => {
       pinchTouchEnd();
+      lastTapRef.current = null;
+      gestureHadMultiTouch = false;
+      gestureMoved = false;
     };
     node.addEventListener("touchstart", handleStart, { passive: false });
     node.addEventListener("touchmove", handleMove, { passive: false });
