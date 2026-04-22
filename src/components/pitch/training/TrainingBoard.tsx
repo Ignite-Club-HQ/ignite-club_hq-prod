@@ -120,12 +120,13 @@ export default function TrainingBoard({
     view,
     isPlaying,
     speed,
+    play: playPlayback,
     toggle: togglePlayback,
     next: nextFrame,
     prev: prevFrame,
     goTo,
     setSpeed,
-  } = useDrillPlayback({ frames });
+  } = useDrillPlayback({ frames, loop: true });
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
