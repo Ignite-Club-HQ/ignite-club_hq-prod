@@ -509,8 +509,22 @@ export default function TrainingBoard({
             currentFrame.annotations.length === 0 &&
             !isAnimating && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="px-3 py-1.5 rounded-md bg-black/40 text-white/90 text-xs font-medium">
-                  Pick a tool below, then tap the pitch to add it
+                <div className="pointer-events-auto flex flex-col items-center gap-3 px-6 py-5 rounded-xl bg-black/55 text-white text-center max-w-[85%]">
+                  <div className="text-sm font-semibold">Start with a ready-made drill</div>
+                  <div className="text-xs text-white/80">
+                    Pick from the Ignite library, or use the toolbar below to draw your own.
+                  </div>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setLibraryOpen(true)}
+                      className="h-9"
+                    >
+                      <FolderOpen className="h-4 w-4 mr-1.5" />
+                      Browse drills
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
