@@ -696,8 +696,6 @@ export default function TrainingBoard({
   );
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* TOP BAR — back · title · mode toggle · settings. Compact (~40px). */}
       <div className="shrink-0 flex items-center gap-1 px-2 h-10 border-b border-border bg-background">
         <Button
           type="button"
