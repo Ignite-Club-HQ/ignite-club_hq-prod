@@ -12,6 +12,7 @@ import {
   Pencil,
   Settings,
   Play as PlayIcon,
+  Pause as PauseIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
@@ -726,9 +727,36 @@ export default function TrainingBoard({
         </div>
       )}
 
-      {/* Run-mode mini bar — only Exit Run, so coach can return to editing. */}
+      {/* Run-mode mini bar — Play/Pause + Exit Run, so coach can control playback. */}
       {runMode && (
-        <div className="shrink-0 flex items-center justify-end px-2 h-9 border-b border-border bg-background">
+        <div className="shrink-0 flex items-center justify-between gap-2 px-2 h-9 border-b border-border bg-background">
+          <Button
+            type="button"
+            size="sm"
+            variant={isPlaying ? "default" : "outline"}
+            onClick={() => {
+              if (frames.length < 2) {
+                toast.info("This drill has only one step.");
+                return;
+              }
+              togglePlayback();
+            }}
+            disabled={frames.length < 2}
+            className="h-7 px-2 text-xs"
+            aria-label={isPlaying ? "Pause drill" : "Play drill"}
+          >
+            {isPlaying ? (
+              <>
+                <PauseIcon className="h-3.5 w-3.5 mr-1" />
+                Pause
+              </>
+            ) : (
+              <>
+                <PlayIcon className="h-3.5 w-3.5 mr-1" />
+                Play
+              </>
+            )}
+          </Button>
           <Button
             type="button"
             size="sm"
