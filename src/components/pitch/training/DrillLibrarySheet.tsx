@@ -60,6 +60,11 @@ export function DrillLibrarySheet({
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const openedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (open) openedAtRef.current = Date.now();
+  }, [open]);
 
   const { data: drills, isLoading } = useDrillList(tab, teamId ?? undefined, search);
   const { data: sessionDrills } = useSessionDrills();
