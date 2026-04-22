@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Annotation, DrillFrame, DrillObject, TrainingTool } from "./types";
+import { Button } from "@/components/ui/button";
+import { Save, FolderOpen, FilePlus2 } from "lucide-react";
+import { toast } from "sonner";
+import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import {
   cloneAnnotation,
@@ -13,6 +16,8 @@ import { TrainingToolbar } from "./TrainingToolbar";
 import { FrameStrip } from "./FrameStrip";
 import { PlaybackController } from "./PlaybackController";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
+import { SaveDrillDialog } from "./SaveDrillDialog";
+import { DrillLibrarySheet } from "./DrillLibrarySheet";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -20,6 +25,12 @@ interface TrainingBoardProps {
   /** Optional: focus the toolbar in landscape (board fills full screen) */
   isLandscape?: boolean;
   readOnly?: boolean;
+  /** Current team context — enables saving/sharing drills with the team */
+  teamId?: string | null;
+  teamName?: string;
+  /** Current club context — enables sharing with the whole club */
+  clubId?: string | null;
+  clubName?: string;
 }
 
 function clamp(v: number) {
@@ -47,11 +58,18 @@ function PitchMarkings() {
 }
 
 /**
- * TrainingBoard — Phase 2.
- * Multi-frame drill editor with rAF playback + presentation mode.
- * Still in-memory only (Phase 3 will persist to Supabase).
+ * TrainingBoard — Phase 3.
+ * Multi-frame drill editor with rAF playback, presentation mode,
+ * and Supabase persistence (save / open / share).
  */
-export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardProps) {
+export default function TrainingBoard({
+  isLandscape,
+  readOnly,
+  teamId,
+  teamName,
+  clubId,
+  clubName,
+}: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
   const [activeTool, setActiveTool] = useState<TrainingTool>("select");
@@ -59,6 +77,14 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
   const [stepCounter, setStepCounter] = useState(1);
   const [playerCounter, setPlayerCounter] = useState(1);
   const [isPresenting, setIsPresenting] = useState(false);
+
+  // Persistence state
+  const [savedDrillId, setSavedDrillId] = useState<string | null>(null);
+  const [savedName, setSavedName] = useState<string>("");
+  const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
+  const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const {
     currentIndex,
@@ -297,6 +323,48 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
     updateCurrentFrame((f) => ({ ...f, objects: [], annotations: [] }));
     setSelectedId(null);
   }, [currentFrame, updateCurrentFrame]);
+
+  // ---- Drill open / new ----
+  const handleNewDrill = useCallback(() => {
+    if (frames.some((f) => f.objects.length || f.annotations.length)) {
+      if (!window.confirm("Start a new drill? Unsaved changes will be lost.")) return;
+    }
+    setFrames([createEmptyFrame(0)]);
+    setSelectedId(null);
+    setStepCounter(1);
+    setPlayerCounter(1);
+    setSavedDrillId(null);
+    setSavedName("");
+    setSavedMetadata(undefined);
+    setSavedVisibility("private");
+    goTo(0);
+  }, [frames, goTo]);
+
+  const handleOpenDrill = useCallback(
+    (drill: Drill) => {
+      const loaded = drill.frames.length > 0 ? drill.frames : [createEmptyFrame(0)];
+      setFrames(loaded);
+      setSelectedId(null);
+      setSavedDrillId(drill.id);
+      setSavedName(drill.name);
+      setSavedMetadata(drill.metadata);
+      setSavedVisibility(drill.visibility);
+      // Reset counters above any existing labels
+      const maxStep = Math.max(
+        0,
+        ...loaded.flatMap((f) =>
+          f.annotations
+            .filter((a) => a.type === "step-marker")
+            .map((a) => (a.geometry as { number: number }).number)
+        )
+      );
+      setStepCounter(maxStep + 1);
+      setPlayerCounter(1);
+      goTo(0);
+      toast.success(`Opened "${drill.name}"`);
+    },
+    [goTo]
+  );
 
   const cursorClass = useMemo(() => {
     if (!editable) return "cursor-default";
