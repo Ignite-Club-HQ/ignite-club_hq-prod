@@ -631,11 +631,13 @@ export default function VaultPage() {
         // Generic vault access stays admin-only.
         if (!isClubAdmin && !isCoachOrTeamAdmin && userClubRoleSet.size === 0) return [];
         filters.club_id = clubId;
-        nullFilters = ["team_id", "mini_league_id"];
+        // vault_folders does not have a mini_league_id column; only filter by team_id.
+        nullFilters = ["team_id"];
       } else if (currentView.type === "team") {
         filters.team_id = teamId;
       } else if (currentView.type === "mini-league") {
-        filters.mini_league_id = miniLeagueId;
+        // vault_folders has no mini_league_id column — there are no folders for mini-leagues.
+        return [];
       }
       
       if (parentFolderId) {
