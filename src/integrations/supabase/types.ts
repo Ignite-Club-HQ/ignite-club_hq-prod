@@ -8052,6 +8052,7 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      mask_email: { Args: { _email: string }; Returns: string }
       move_child_to_team: {
         Args: {
           p_child_id: string
@@ -8143,6 +8144,15 @@ export type Database = {
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
+      search_invitable_profiles: {
+        Args: { _limit?: number; _query: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          masked_email: string
+        }[]
+      }
       season_orphan_events: {
         Args: { _club_id: string }
         Returns: {
