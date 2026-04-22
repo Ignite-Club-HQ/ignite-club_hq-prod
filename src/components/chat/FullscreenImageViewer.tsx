@@ -32,7 +32,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     onTouchEnd: pinchTouchEnd,
     resetZoom,
     onDoubleClick: pinchDoubleClick,
-    isPanningOrPinching,
   } = usePinchZoom(1, 4);
   const [isAnimating, setIsAnimating] = useState(false);
   // Snap-back animation params, recomputed per double-tap based on pan distance.
