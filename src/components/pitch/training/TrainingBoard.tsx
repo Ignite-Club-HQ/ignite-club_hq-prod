@@ -36,6 +36,7 @@ import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesI
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
+import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -56,6 +57,13 @@ interface TrainingBoardProps {
     role: string;
     profiles: { display_name: string | null; avatar_url: string | null } | null;
   }>;
+  /**
+   * Optional linked event ID. When set (typically when the pitch board was
+   * launched from a training event), drill name substitution is restricted to
+   * squad members who RSVP'd "going" so coaches only see players who are
+   * actually expected to be on the pitch tonight.
+   */
+  linkedEventId?: string | null;
 }
 
 function clamp(v: number) {
@@ -95,6 +103,7 @@ export default function TrainingBoard({
   clubId,
   clubName,
   members,
+  linkedEventId,
 }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { settings } = useTrainingSettings();
