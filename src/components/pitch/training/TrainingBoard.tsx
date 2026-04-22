@@ -720,16 +720,20 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* Pitch surface */}
-      <div className="flex-1 min-h-0 p-2 flex items-center justify-center">
+      {/* PITCH SURFACE — the hero. Full width, minimal padding, no border. */}
+      <div className={cn(
+        "flex-1 min-h-0 flex items-stretch justify-center",
+        runMode ? "p-1" : "px-2 py-2"
+      )}>
         <div
           ref={containerRef}
           data-pitch-surface
           onPointerDown={handlePitchPointerDown}
           className={cn(
-            "relative rounded-lg overflow-hidden shadow-lg select-none",
+            "relative rounded-md overflow-hidden select-none",
             cursorClass,
-            isLandscape ? "w-full h-full" : "w-full max-w-[700px] aspect-[2/3]"
+            isLandscape ? "w-full h-full" : "w-full max-w-[820px] aspect-[2/3] mx-auto",
+            !runMode && "shadow-md"
           )}
           style={{
             backgroundColor: "hsl(var(--pitch-green))",
@@ -738,18 +742,31 @@ export default function TrainingBoard({
           }}
         >
           {settings.showPitchMarkings && <PitchMarkings />}
+
+          {/* Floating coaching-points card — only when previewing a saved drill
+              and the user opted in. Constrained width, never blocks centre. */}
           {previewMode &&
+            !runMode &&
             settings.showCoachingPointsInPreview &&
             (savedMetadata?.coachingPoints?.length ?? 0) > 0 && (
-              <div className="absolute top-2 left-2 right-2 max-w-sm bg-background/85 backdrop-blur-sm border border-border rounded-md p-2.5 text-xs shadow-lg pointer-events-none">
-                <div className="font-semibold text-foreground mb-1">Coaching points</div>
-                <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
-                  {savedMetadata!.coachingPoints!.slice(0, 4).map((cp, i) => (
+              <div className="absolute top-2 right-2 z-[55] max-w-[60%] bg-black/60 backdrop-blur-md border border-white/15 rounded-lg p-2 text-[11px] shadow-lg pointer-events-none text-white">
+                <div className="font-semibold mb-0.5">Coaching points</div>
+                <ul className="space-y-0.5 list-disc list-inside text-white/85">
+                  {savedMetadata!.coachingPoints!.slice(0, 3).map((cp, i) => (
                     <li key={i}>{cp}</li>
                   ))}
                 </ul>
               </div>
             )}
+
+          {/* FLOATING DRILL STEP CARD — replaces the old full-width caption bar. */}
+          <DrillStepOverlay
+            frameNumber={currentIndex + 1}
+            totalFrames={frames.length}
+            notes={(isAnimating ? view.notes : currentFrame?.notes) ?? ""}
+            anchor={runMode ? "bottom" : "top"}
+          />
+
           <TrainingObjectLayer
             objects={renderedObjects}
             annotations={renderedAnnotations}
@@ -763,8 +780,48 @@ export default function TrainingBoard({
         </div>
       </div>
 
-      {/* Playback controls */}
-      {!readOnly && (
+      {/* RUN MODE controls — minimal Play / Prev / Next bar. */}
+      {runMode && !readOnly && (
+        <div className="shrink-0 flex items-center justify-center gap-3 px-3 py-2 bg-background/95 backdrop-blur border-t border-border">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={prevFrame}
+            disabled={currentIndex === 0}
+            className="h-10 px-3"
+          >
+            Prev
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              if (frames.length < 2) {
+                toast.info("This drill has only one step.");
+                return;
+              }
+              togglePlayback();
+            }}
+            className="h-11 px-5 rounded-full font-semibold"
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={nextFrame}
+            disabled={currentIndex >= frames.length - 1}
+            className="h-10 px-3"
+          >
+            Next step
+          </Button>
+        </div>
+      )}
+
+      {/* EDIT/PREVIEW MODE — full playback controls, frame strip, toolbar */}
+      {!readOnly && !runMode && (
         <PlaybackController
           isPlaying={isPlaying}
           speed={speed}
@@ -784,8 +841,8 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* Frame strip — hidden during preview/playback so coaches see only the pitch */}
-      {!readOnly && !previewMode && (
+      {/* Frame strip — only in edit mode (not preview, not run) */}
+      {!readOnly && !previewMode && !runMode && (
         <FrameStrip
           frames={frames}
           currentIndex={currentIndex}
@@ -801,8 +858,8 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* Toolbar — hidden in preview mode so the canvas is read-only */}
-      {!readOnly && !previewMode && (
+      {/* Toolbar — only in edit mode */}
+      {!readOnly && !previewMode && !runMode && (
         <TrainingToolbar
           activeTool={activeTool}
           onToolChange={(t) => {
