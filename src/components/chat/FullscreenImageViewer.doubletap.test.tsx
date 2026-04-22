@@ -75,6 +75,11 @@ function renderViewer() {
       />,
     );
   });
+  // The component calls resetZoom() in a mount effect (whenever effectiveSrc
+  // changes). Clear that initial call so the mock counts only reflect what
+  // happens *after* render — i.e. our simulated taps.
+  resetZoomMock.mockClear();
+  onDoubleClickMock.mockClear();
 }
 
 interface TouchPoint {
