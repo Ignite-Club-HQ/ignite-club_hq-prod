@@ -1927,11 +1927,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           touchAction: 'pan-y',
           WebkitOverflowScrolling: 'touch',
           // When the soft keyboard is open (Capacitor Keyboard.resize='none'),
-          // pin the sheet to the visible area above the keyboard. When closed,
-          // use ~96vh so the sheet has plenty of room for the form. We set
-          // BOTH maxHeight and height when the keyboard is open so the inline
-          // value beats the Radix-vaul default and the sheet actually shrinks
-          // to fit (otherwise the form sits behind the keyboard on iOS).
+          // lift the sheet ABOVE the keyboard by offsetting its bottom edge,
+          // and shrink its height so it fits in the remaining viewport. Without
+          // the bottom offset the sheet stays anchored to bottom:0 on iOS,
+          // which leaves the form hidden behind the keyboard.
+          bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
           maxHeight:
             nativeKbHeight > 0
               ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
@@ -1940,6 +1940,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             nativeKbHeight > 0
               ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
               : undefined,
+          transition: 'bottom 200ms ease, height 200ms ease, max-height 200ms ease',
         }}
       >
         <SheetHeader className="mb-3 shrink-0">
