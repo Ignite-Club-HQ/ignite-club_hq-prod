@@ -376,10 +376,10 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Objects — balls render above players for clarity */}
+      {/* Objects — players render above the ball so a chip is never obscured */}
       {objects.map((obj) => {
         const isSel = selectedId === obj.id;
-        const z = obj.type === "ball" ? 50 : 40;
+        const z = obj.type === "ball" ? 38 : 45;
         return (
           <div
             key={obj.id}
