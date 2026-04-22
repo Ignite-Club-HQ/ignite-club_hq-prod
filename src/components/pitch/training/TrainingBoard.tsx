@@ -379,6 +379,7 @@ export default function TrainingBoard({
     setSavedMetadata(undefined);
     setSavedVisibility("private");
     goTo(0);
+    setEditorMode(true);
   }, [frames, goTo]);
 
   const handleOpenDrill = useCallback(
@@ -402,10 +403,28 @@ export default function TrainingBoard({
       setStepCounter(maxStep + 1);
       setPlayerCounter(1);
       goTo(0);
+      setEditorMode(true);
       toast.success(`Opened "${drill.name}"`);
     },
     [goTo]
   );
+
+  const handleExitEditor = useCallback(() => {
+    const dirty = frames.some((f) => f.objects.length || f.annotations.length);
+    if (dirty && !savedDrillId) {
+      if (!window.confirm("Close this drill? Unsaved changes will be lost.")) return;
+    }
+    setFrames([createEmptyFrame(0)]);
+    setSelectedId(null);
+    setStepCounter(1);
+    setPlayerCounter(1);
+    setSavedDrillId(null);
+    setSavedName("");
+    setSavedMetadata(undefined);
+    setSavedVisibility("private");
+    goTo(0);
+    setEditorMode(false);
+  }, [frames, savedDrillId, goTo]);
 
   const cursorClass = useMemo(() => {
     if (!editable) return "cursor-default";
