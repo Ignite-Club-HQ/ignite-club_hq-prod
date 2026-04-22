@@ -5095,7 +5095,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </span>
                   )}
                 </div>
-              </div>
+      </div>
+
+      {/* Training Mode overlay (Phase 1) — covers match body without unmounting it */}
+      {mode === "training" && (
+        <div className="absolute inset-0 top-[calc(env(safe-area-inset-top,0px)+2.5rem)] z-[60] flex flex-col bg-background">
+          <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+            <TrainingBoard isLandscape={isLandscape} readOnly={readOnly} />
+          </Suspense>
+        </div>
+      )}
 
 
               {/* Tab content */}
