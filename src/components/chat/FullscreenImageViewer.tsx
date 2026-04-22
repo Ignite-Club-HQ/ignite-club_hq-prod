@@ -31,36 +31,78 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
     resetZoom,
+    onDoubleClick: pinchDoubleClick,
+    isPanningOrPinching,
   } = usePinchZoom(1, 4);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
 
+  // Trigger smooth animated zoom toggle on double-tap.
+  const triggerZoomToggle = useCallback(() => {
+    setIsAnimating(true);
+    if (isPanningOrPinching()) {
+      resetZoom();
+    } else {
+      // pinchDoubleClick toggles between 1x and 2.2x
+      pinchDoubleClick({} as React.MouseEvent);
+    }
+    // Match the CSS transition duration below
+    window.setTimeout(() => setIsAnimating(false), 220);
+  }, [isPanningOrPinching, pinchDoubleClick, resetZoom]);
+
   // Attach native non-passive touch listeners so preventDefault() actually
   // works on iOS (React's synthetic touch listeners are passive).
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
+    const DOUBLE_TAP_MS = 300;
+    const DOUBLE_TAP_DIST = 32;
+
     const handleStart = (e: globalThis.TouchEvent) => {
       pinchTouchStart(e as unknown as React.TouchEvent);
     };
     const handleMove = (e: globalThis.TouchEvent) => {
       pinchTouchMove(e as unknown as React.TouchEvent);
     };
-    const handleEnd = () => pinchTouchEnd();
+    const handleEnd = (e: globalThis.TouchEvent) => {
+      pinchTouchEnd();
+      // Detect double-tap on touchend (single-finger only).
+      if (e.changedTouches.length === 1 && e.touches.length === 0) {
+        const t = e.changedTouches[0];
+        const now = Date.now();
+        const last = lastTapRef.current;
+        if (
+          last &&
+          now - last.time < DOUBLE_TAP_MS &&
+          Math.hypot(t.clientX - last.x, t.clientY - last.y) < DOUBLE_TAP_DIST
+        ) {
+          e.preventDefault();
+          triggerZoomToggle();
+          lastTapRef.current = null;
+          return;
+        }
+        lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
+      }
+    };
+    const handleCancel = () => {
+      pinchTouchEnd();
+    };
     node.addEventListener("touchstart", handleStart, { passive: false });
     node.addEventListener("touchmove", handleMove, { passive: false });
     node.addEventListener("touchend", handleEnd, { passive: false });
-    node.addEventListener("touchcancel", handleEnd, { passive: false });
+    node.addEventListener("touchcancel", handleCancel, { passive: false });
     return () => {
       node.removeEventListener("touchstart", handleStart);
       node.removeEventListener("touchmove", handleMove);
       node.removeEventListener("touchend", handleEnd);
-      node.removeEventListener("touchcancel", handleEnd);
+      node.removeEventListener("touchcancel", handleCancel);
     };
-  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd]);
+  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd, triggerZoomToggle]);
 
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {
@@ -77,10 +119,8 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   }, [effectiveSrc, resetZoom]);
 
   const handleDoubleClick = useCallback(() => {
-    if (scale > 1) {
-      resetZoom();
-    }
-  }, [scale, resetZoom]);
+    triggerZoomToggle();
+  }, [triggerZoomToggle]);
 
   // Use max(safe-area, 1.75rem) so action icons always clear the Android
   // status bar even inside in-app browsers (Messenger, etc.) where
@@ -167,7 +207,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           style={{
             transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+            transition: isAnimating ? "transform 220ms cubic-bezier(0.32, 0.72, 0, 1)" : "none",
             touchAction: 'none',
+            willChange: 'transform',
           }}
           onClick={(e) => e.stopPropagation()}
           onLoad={() => setLoaded(true)}
