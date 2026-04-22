@@ -327,6 +327,7 @@ function ruleContestFairness(frames: DrillFrame[], push: (i: DrillIssue) => void
     message:
       "Contest drill always resolves the same way (attacker wins every rep). Add a frame where the defender wins the duel — outcomes should rotate as different players cycle through.",
   });
+}
 
 /** Rule 6: duplicate player labels in the same frame ("two #7"s). */
 function ruleDuplicateLabels(frame: DrillFrame, frameIndex: number, push: (i: DrillIssue) => void) {
