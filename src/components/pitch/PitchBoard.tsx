@@ -5893,10 +5893,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div className="h-px bg-border mx-2 my-1" />
                     <button
                       className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                      onClick={() => { setSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
+                      onClick={() => { setTrainingSettingsDialogOpen(true); setTrainingMenuOpen(false); }}
                     >
                       <Settings2 className="h-4 w-4" />
-                      All Settings
+                      Training Settings
                     </button>
                   </div>
                 </>,
