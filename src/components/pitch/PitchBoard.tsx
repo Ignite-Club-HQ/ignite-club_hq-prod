@@ -5751,7 +5751,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         >
           {/* Training-mode header: keep the mode switch reachable so coaches can return to Match */}
           <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
-            <ModeSwitch mode={mode} onChange={setMode} />
+            <ModeSwitch value={mode} onChange={setMode} />
             <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
             <button
               type="button"
