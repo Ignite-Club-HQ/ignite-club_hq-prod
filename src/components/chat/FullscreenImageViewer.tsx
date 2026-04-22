@@ -63,8 +63,14 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
-      style={{ paddingTop: safeTop, paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
+      style={{
+        paddingTop: safeTop,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        touchAction: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
       onClick={scale === 1 ? onClose : undefined}
       onTouchStart={pinchTouchStart}
       onTouchMove={pinchTouchMove}
