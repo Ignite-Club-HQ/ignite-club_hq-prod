@@ -407,3 +407,102 @@ describe("FullscreenImageViewer — long-press gesture arbitration", () => {
     expect(resetZoomMock).not.toHaveBeenCalled();
   });
 });
+
+describe("FullscreenImageViewer — two-finger tap arbitration", () => {
+  // A "two-finger tap" = both fingers down briefly, no movement, both lifted.
+  // iOS apps sometimes treat this as a contextual gesture (e.g. zoom-out in
+  // Maps). For our viewer it must:
+  //   1. Never toggle zoom (it's not a double-tap, it's a multi-touch event).
+  //   2. Clear any pending lastTapRef so a stale single-tap from before the
+  //      two-finger tap can't pair with a tap that follows it.
+  //   3. Not block subsequent legitimate double-taps from working.
+
+  /** Two-finger touchstart immediately followed by two-finger touchend. */
+  function twoFingerTap() {
+    const node = getGestureRoot();
+    act(() => {
+      node.dispatchEvent(
+        makeTouchEvent("touchstart", [
+          { clientX: 100, clientY: 100 },
+          { clientX: 200, clientY: 200 },
+        ]),
+      );
+      // Both fingers lift simultaneously: touches=[] and changedTouches has 2.
+      node.dispatchEvent(
+        makeTouchEvent(
+          "touchend",
+          [],
+          [
+            { clientX: 100, clientY: 100 },
+            { clientX: 200, clientY: 200 },
+          ],
+        ),
+      );
+    });
+  }
+
+  it("a two-finger tap alone does not toggle zoom", () => {
+    renderViewer();
+    twoFingerTap();
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+
+  it("a two-finger tap clears a pending single-tap candidate", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+
+    // Arm a single-tap candidate.
+    tap(150, 150);
+
+    // A two-finger tap arrives shortly after — this must invalidate the
+    // pending tap so the next single tap can NOT pair with it.
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+    });
+    twoFingerTap();
+
+    // A clean single tap right after — should NOT trigger zoom because the
+    // two-finger tap cleared the previous candidate.
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+    });
+    tap(150, 150);
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+
+  it("a two-finger tap does not block a subsequent legitimate double-tap", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+
+    twoFingerTap();
+
+    // After a small pause, two clean single taps should still register.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    tap(150, 150);
+    await act(async () => {
+      vi.advanceTimersByTime(120);
+    });
+    tap(151, 151);
+
+    expect(onDoubleClickMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("two two-finger taps in a row never produce a zoom toggle", () => {
+    renderViewer();
+
+    twoFingerTap();
+    twoFingerTap();
+
+    // Even though both events are "taps" in the loose sense, multi-touch
+    // gestures must never satisfy the double-tap condition (which is strictly
+    // single-finger).
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+});
