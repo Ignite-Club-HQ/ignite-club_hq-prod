@@ -31,7 +31,7 @@ import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";

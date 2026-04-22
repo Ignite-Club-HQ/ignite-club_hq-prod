@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { DrillFrame } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
-import { applyTeamPlayersToObjects, type TeamPlayerLite } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, substitutePlayerNamesInNotes, type TeamPlayerLite } from "./teamPlayerSubstitution";
 
 interface PresentationModeProps {
   frames: DrillFrame[];
