@@ -6982,6 +6982,7 @@ export type Database = {
       }
       vault_folders: {
         Row: {
+          chat_group_id: string | null
           club_id: string | null
           created_at: string
           created_by: string | null
@@ -6989,10 +6990,12 @@ export type Database = {
           id: string
           name: string
           parent_id: string | null
+          restricted_roles: Database["public"]["Enums"]["app_role"][] | null
           team_id: string | null
           updated_at: string
         }
         Insert: {
+          chat_group_id?: string | null
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -7000,10 +7003,12 @@ export type Database = {
           id?: string
           name: string
           parent_id?: string | null
+          restricted_roles?: Database["public"]["Enums"]["app_role"][] | null
           team_id?: string | null
           updated_at?: string
         }
         Update: {
+          chat_group_id?: string | null
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -7011,10 +7016,18 @@ export type Database = {
           id?: string
           name?: string
           parent_id?: string | null
+          restricted_roles?: Database["public"]["Enums"]["app_role"][] | null
           team_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vault_folders_chat_group_id_fkey"
+            columns: ["chat_group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vault_folders_club_id_fkey"
             columns: ["club_id"]
@@ -8005,6 +8018,14 @@ export type Database = {
       }
       user_email_matches_invite: {
         Args: { _invited_email: string; _user_id: string }
+        Returns: boolean
+      }
+      user_has_any_club_role: {
+        Args: {
+          _club_id: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
         Returns: boolean
       }
       validate_eoi_webhook_token: {

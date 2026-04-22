@@ -1,22 +1,60 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Auto-sync chat attachments (images and external links) to the relevant file vault,
- * organized into "Chat Images" and "Chat Links" subfolders.
+ * Auto-sync chat attachments (images and external links) to the relevant file vault.
+ *
+ * Folder strategy (highest priority first):
+ *   1. Role-restricted group chat (e.g. "Coaches", "Team Admins", "Committee") →
+ *      one folder per chat group, named after the group, club-level, with the
+ *      group's allowed_roles persisted on the folder so only those roles see it.
+ *   2. Club Admin Chat (member ↔ club admin DM) → a single "Club Admin Chat"
+ *      folder per club, restricted to club admins.
+ *   3. Team chat → team-level "Chat Images" / "Chat Links" folders.
+ *   4. Club-wide chat (no team, no group) → club-level "Chat Images" /
+ *      "Chat Links" folders.
+ *
  * Called fire-and-forget after a chat message is successfully sent.
  */
+
+// app_role values that, when present in a chat group's allowed_roles, mean the
+// chat is role-restricted (and therefore deserves its own dedicated subfolder).
+// Open groups that simply mirror club / team membership are NOT considered
+// restricted and continue to use the generic Chat Images / Chat Links folders.
+const RESTRICTED_ROLE_MARKERS = new Set([
+  "club_admin",
+  "committee_member",
+  "coach",
+  "team_admin",
+  "league_admin",
+]);
+
+function isRestrictedGroup(allowedRoles?: string[] | null): boolean {
+  if (!allowedRoles || allowedRoles.length === 0) return false;
+  return allowedRoles.some((r) => RESTRICTED_ROLE_MARKERS.has(r));
+}
+
 export async function syncChatAttachmentToVault({
   imageUrl,
   text,
   userId,
   clubId,
   teamId,
+  chatGroupId,
+  chatGroupName,
+  chatGroupAllowedRoles,
+  isClubAdminChat,
 }: {
   imageUrl: string | null;
   text: string;
   userId: string;
   clubId: string;
   teamId?: string | null;
+  /** Set when sending in a chat group — used to scope the folder to that group. */
+  chatGroupId?: string | null;
+  chatGroupName?: string | null;
+  chatGroupAllowedRoles?: string[] | null;
+  /** Set true for Club Admin Chat (member ↔ club admin DM). */
+  isClubAdminChat?: boolean;
 }) {
   try {
     const imageEntries: {
@@ -66,46 +104,94 @@ export async function syncChatAttachmentToVault({
       .in("file_url", allUrls);
 
     const existingUrls = new Set((existing || []).map((e) => e.file_url));
-
-    // Insert images into "Chat Images" folder (team-level if teamId, club-level otherwise)
     const newImages = imageEntries.filter((e) => !existingUrls.has(e.file_url));
-    if (newImages.length > 0) {
-      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId, teamId || null);
-      const rows = newImages.map((e) => ({
-        ...e,
-        club_id: clubId,
-        team_id: teamId || null,
-        uploaded_by: userId,
-        folder_id: folderId,
-      }));
-      const { error } = await supabase.from("vault_files").insert(rows);
-      if (error) console.warn("Failed to sync chat images to vault:", error);
+    const newLinks = linkEntries.filter((e) => !existingUrls.has(e.file_url));
+    if (newImages.length === 0 && newLinks.length === 0) return;
+
+    // Resolve target folder(s) based on chat type.
+    const groupIsRestricted = isRestrictedGroup(chatGroupAllowedRoles);
+
+    // Case 1: dedicated folder per role-restricted chat group.
+    if (chatGroupId && chatGroupName && groupIsRestricted) {
+      const folderId = await getOrCreateGroupFolder(
+        clubId,
+        chatGroupName,
+        userId,
+        chatGroupId,
+        chatGroupAllowedRoles!
+      );
+      await insertVaultRows(folderId, clubId, userId, null, [
+        ...newImages,
+        ...newLinks,
+      ]);
+      return;
     }
 
-    // Insert links into "Chat Links" folder (team-level if teamId, club-level otherwise)
-    const newLinks = linkEntries.filter((e) => !existingUrls.has(e.file_url));
+    // Case 2: Club Admin Chat — single shared folder per club, club admins only.
+    if (isClubAdminChat) {
+      const folderId = await getOrCreateRestrictedFolder(
+        clubId,
+        "Club Admin Chat",
+        userId,
+        ["club_admin"]
+      );
+      await insertVaultRows(folderId, clubId, userId, null, [
+        ...newImages,
+        ...newLinks,
+      ]);
+      return;
+    }
+
+    // Case 3 & 4: existing behavior — generic Chat Images / Chat Links folders.
+    if (newImages.length > 0) {
+      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId, teamId || null);
+      await insertVaultRows(folderId, clubId, userId, teamId || null, newImages);
+    }
+
     if (newLinks.length > 0) {
       const folderId = await getOrCreateFolder(clubId, "Chat Links", userId, teamId || null);
-      const rows = newLinks.map((e) => ({
-        ...e,
-        club_id: clubId,
-        team_id: teamId || null,
-        uploaded_by: userId,
-        folder_id: folderId,
-      }));
-      const { error } = await supabase.from("vault_files").insert(rows);
-      if (error) console.warn("Failed to sync chat links to vault:", error);
+      await insertVaultRows(folderId, clubId, userId, teamId || null, newLinks);
     }
   } catch (err) {
     console.warn("chatVaultSync error:", err);
   }
 }
 
-// Cache folder IDs per club to avoid repeated lookups within a session
+async function insertVaultRows(
+  folderId: string | null,
+  clubId: string,
+  userId: string,
+  teamId: string | null,
+  entries: {
+    file_url: string;
+    name: string;
+    file_type: string | null;
+    is_external_link: boolean;
+    file_size: number | null;
+  }[]
+) {
+  if (entries.length === 0) return;
+  const rows = entries.map((e) => ({
+    ...e,
+    club_id: clubId,
+    team_id: teamId,
+    uploaded_by: userId,
+    folder_id: folderId,
+  }));
+  const { error } = await supabase.from("vault_files").insert(rows);
+  if (error) console.warn("Failed to sync chat attachment to vault:", error);
+}
+
+// Cache folder IDs to avoid repeated lookups within a session.
 const folderCache = new Map<string, string>();
 
-async function getOrCreateFolder(clubId: string, folderName: string, userId: string, teamId?: string | null): Promise<string | null> {
-  const cacheKey = `${clubId}:${teamId || "club"}:${folderName}`;
+async function getOrCreateFolder(
+  clubId: string,
+  folderName: string,
+  userId: string,
+  teamId?: string | null
+): Promise<string | null> {
+  const cacheKey = `${clubId}:${teamId || "club"}:generic:${folderName}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
   let query = supabase
@@ -113,7 +199,9 @@ async function getOrCreateFolder(clubId: string, folderName: string, userId: str
     .select("id")
     .eq("club_id", clubId)
     .eq("name", folderName)
-    .is("parent_id", null);
+    .is("parent_id", null)
+    .is("chat_group_id", null)
+    .is("restricted_roles", null);
 
   if (teamId) {
     query = query.eq("team_id", teamId);
@@ -128,7 +216,12 @@ async function getOrCreateFolder(clubId: string, folderName: string, userId: str
     return data.id;
   }
 
-  const insertData = { club_id: clubId, name: folderName, created_by: userId, team_id: teamId || null };
+  const insertData = {
+    club_id: clubId,
+    name: folderName,
+    created_by: userId,
+    team_id: teamId || null,
+  };
 
   const { data: newFolder, error } = await supabase
     .from("vault_folders")
@@ -138,6 +231,98 @@ async function getOrCreateFolder(clubId: string, folderName: string, userId: str
 
   if (error || !newFolder) {
     console.warn("Failed to create vault folder:", error);
+    return null;
+  }
+
+  folderCache.set(cacheKey, newFolder.id);
+  return newFolder.id;
+}
+
+async function getOrCreateGroupFolder(
+  clubId: string,
+  folderName: string,
+  userId: string,
+  chatGroupId: string,
+  allowedRoles: string[]
+): Promise<string | null> {
+  const cacheKey = `${clubId}:group:${chatGroupId}`;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
+
+  // Look up by chat_group_id (stable even if the group is renamed).
+  const { data } = await supabase
+    .from("vault_folders")
+    .select("id")
+    .eq("club_id", clubId)
+    .eq("chat_group_id", chatGroupId)
+    .is("parent_id", null)
+    .maybeSingle();
+
+  if (data) {
+    folderCache.set(cacheKey, data.id);
+    return data.id;
+  }
+
+  const { data: newFolder, error } = await supabase
+    .from("vault_folders")
+    .insert({
+      club_id: clubId,
+      name: folderName,
+      created_by: userId,
+      team_id: null,
+      chat_group_id: chatGroupId,
+      restricted_roles: allowedRoles as any,
+    } as any)
+    .select("id")
+    .single();
+
+  if (error || !newFolder) {
+    console.warn("Failed to create chat group vault folder:", error);
+    return null;
+  }
+
+  folderCache.set(cacheKey, newFolder.id);
+  return newFolder.id;
+}
+
+async function getOrCreateRestrictedFolder(
+  clubId: string,
+  folderName: string,
+  userId: string,
+  allowedRoles: string[]
+): Promise<string | null> {
+  const cacheKey = `${clubId}:restricted:${folderName}`;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
+
+  const { data } = await supabase
+    .from("vault_folders")
+    .select("id")
+    .eq("club_id", clubId)
+    .eq("name", folderName)
+    .is("team_id", null)
+    .is("parent_id", null)
+    .is("chat_group_id", null)
+    .not("restricted_roles", "is", null)
+    .maybeSingle();
+
+  if (data) {
+    folderCache.set(cacheKey, data.id);
+    return data.id;
+  }
+
+  const { data: newFolder, error } = await supabase
+    .from("vault_folders")
+    .insert({
+      club_id: clubId,
+      name: folderName,
+      created_by: userId,
+      team_id: null,
+      restricted_roles: allowedRoles as any,
+    } as any)
+    .select("id")
+    .single();
+
+  if (error || !newFolder) {
+    console.warn("Failed to create restricted vault folder:", error);
     return null;
   }
 
@@ -159,19 +344,128 @@ function extractFileUrls(text: string): string[] {
       url.includes("docs.google.com") ||
       url.includes("sheets.google.com") ||
       url.includes("slides.google.com") ||
+      url.includes("forms.google.com") ||
+      url.includes("goo.gl") ||
       url.includes("dropbox.com")
   );
 }
 
+// Generic action segments that appear at the end of Google file URLs and are
+// NOT real filenames. Strip these before treating a path segment as a name.
+const GOOGLE_ACTION_SEGMENTS = new Set([
+  "edit",
+  "view",
+  "preview",
+  "comment",
+  "copy",
+  "template",
+  "htmlview",
+  "pub",
+  "embed",
+  "viewform",
+  "formresponse",
+]);
+
 function extractFileName(url: string): string | null {
   try {
+    // Google links never carry the document title in the URL — always defer to
+    // the friendly type-based label so we never end up with "edit" / "view".
+    const googleLabel = googleDocLabel(url);
+    if (googleLabel) return googleLabel;
+
     const pathname = new URL(url).pathname;
     const segments = pathname.split("/").filter(Boolean);
-    const last = segments[segments.length - 1];
-    if (last && last.includes(".")) {
-      return decodeURIComponent(last);
+    // Walk from the end, skipping generic action words, until we find a
+    // segment that looks like a real filename.
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i];
+      if (GOOGLE_ACTION_SEGMENTS.has(seg.toLowerCase())) continue;
+      if (seg.includes(".")) return decodeURIComponent(seg);
+      // Otherwise: not a filename; fall through and bail.
+      break;
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Return a friendly label for a Google Drive / Docs / Sheets / Slides / Forms
+ * URL, e.g. "Google Sheet (1aB2cD)" or "Google Drive folder (1aB2cD)".
+ *
+ * Handles all common URL shapes:
+ *   • https://docs.google.com/{spreadsheets|document|presentation|forms}/d/<id>/edit
+ *   • https://docs.google.com/forms/d/e/<id>/viewform
+ *   • https://drive.google.com/file/d/<id>/view
+ *   • https://drive.google.com/drive/folders/<id>
+ *   • https://drive.google.com/drive/u/0/folders/<id>
+ *   • https://drive.google.com/open?id=<id>
+ *   • https://drive.google.com/uc?id=<id>&export=download
+ *   • https://drive.google.com/thumbnail?id=<id>
+ *   • https://docs.google.com/uc?id=<id>
+ *   • Short links: https://goo.gl/... and https://drive.google.com/...?usp=sharing
+ *
+ * Returns `null` for non-Google URLs.
+ */
+function googleDocLabel(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (
+      !host.endsWith("google.com") &&
+      !host.endsWith("goo.gl") &&
+      !host.endsWith("googleusercontent.com")
+    ) {
+      return null;
+    }
+
+    const path = u.pathname.toLowerCase();
+    let kind: string | null = null;
+    let isFolder = false;
+
+    if (path.includes("/spreadsheets/")) kind = "Google Sheet";
+    else if (path.includes("/document/")) kind = "Google Doc";
+    else if (path.includes("/presentation/")) kind = "Google Slides";
+    else if (path.includes("/forms/")) kind = "Google Form";
+    else if (path.includes("/drawings/")) kind = "Google Drawing";
+    else if (path.includes("/folders/") || path.includes("/folderview")) {
+      kind = "Google Drive folder";
+      isFolder = true;
+    } else if (host === "goo.gl" || host.endsWith(".goo.gl")) {
+      kind = "Google share link";
+    } else if (host.startsWith("drive.") || host.endsWith("googleusercontent.com")) {
+      kind = "Google Drive file";
+    } else if (host.startsWith("docs.")) {
+      kind = "Google Doc";
+    } else {
+      return null;
+    }
+
+    // Try to extract a stable ID for disambiguation. Order matters:
+    //   1. /folders/<id>   (Drive folder)
+    //   2. /d/e/<id>       (Forms with response keys)
+    //   3. /d/<id>         (most Docs/Sheets/Slides/Drive file URLs)
+    //   4. ?id=<id>        (open / uc / thumbnail / older share links)
+    let id: string | null = null;
+    const folderMatch = u.pathname.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    const deMatch = u.pathname.match(/\/d\/e\/([a-zA-Z0-9_-]+)/);
+    const dMatch = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    const fileMatch = u.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    const idParam = u.searchParams.get("id");
+
+    if (isFolder && folderMatch) id = folderMatch[1];
+    else if (fileMatch) id = fileMatch[1];
+    else if (deMatch) id = deMatch[1];
+    else if (dMatch) id = dMatch[1];
+    else if (folderMatch) id = folderMatch[1];
+    else if (idParam) id = idParam;
+
+    if (id) {
+      const shortId = id.slice(0, 6);
+      return `${kind} (${shortId})`;
+    }
+    return kind;
   } catch {
     return null;
   }

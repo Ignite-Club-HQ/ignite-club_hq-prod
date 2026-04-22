@@ -80,6 +80,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     }
   }, [pinchDoubleClick, resetZoom, scale, translateX, translateY]);
 
+  // Stable ref to triggerZoomToggle so the touch-listener effect below can
+  // call the latest version WITHOUT having to re-run (and thus tear down +
+  // re-attach the non-passive touch listeners) every time scale/translate
+  // changes. On iOS, removing a touchmove listener mid-gesture causes the
+  // WebView to fall back to its native pinch handler, which silently
+  // hijacks the gesture — that's why pinch worked on Android but not iOS.
+  const triggerZoomToggleRef = useRef(triggerZoomToggle);
+  triggerZoomToggleRef.current = triggerZoomToggle;
+
   // Attach native non-passive touch listeners so preventDefault() actually
   // works on iOS (React's synthetic touch listeners are passive).
   useEffect(() => {
@@ -176,7 +185,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           Math.hypot(t.clientX - last.x, t.clientY - last.y) < DOUBLE_TAP_DIST
         ) {
           e.preventDefault();
-          triggerZoomToggle();
+          triggerZoomToggleRef.current();
           lastTapRef.current = null;
           return;
         }
@@ -211,7 +220,12 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       node.removeEventListener("touchend", handleEnd);
       node.removeEventListener("touchcancel", handleCancel);
     };
-  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd, triggerZoomToggle]);
+    // IMPORTANT: only re-attach when the pinch hook's stable callbacks change.
+    // triggerZoomToggle is intentionally NOT in deps — it's invoked via a ref
+    // above so this effect doesn't re-run on every scale/translate update,
+    // which would tear down the touch listeners mid-gesture and break iOS
+    // pinch-zoom (Android is more tolerant of this churn).
+  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd]);
 
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {

@@ -262,7 +262,7 @@ export default function MessagesPage() {
   });
 
   // Fetch member clubs with their latest messages in a single query
-  const { data: memberClubsWithMessages, isLoading: memberClubsLoading } = useQuery({
+  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
@@ -335,7 +335,7 @@ export default function MessagesPage() {
   const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
-  const { data: latestBroadcast } = useQuery({
+  const { data: latestBroadcast, isFetched: latestBroadcastFetched } = useQuery({
     queryKey: ["latest-broadcast"],
     queryFn: async () => {
       const { data } = await supabase
@@ -375,7 +375,7 @@ export default function MessagesPage() {
 
 
   // Fetch teams with their latest messages in a single query for efficiency
-  const { data: teamsWithMessages, isLoading: teamsLoading } = useQuery({
+  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
@@ -653,7 +653,7 @@ export default function MessagesPage() {
   });
 
   // Fetch chat groups with their latest messages in a single query
-  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading } = useQuery({
+  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -747,7 +747,7 @@ export default function MessagesPage() {
   });
 
   // Fetch DM conversations
-  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching } = useQuery({
+  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
       const { data: convos, error } = await supabase
@@ -981,7 +981,10 @@ export default function MessagesPage() {
 
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
   const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
-  const showSkeletonLoading = isLoadingFreshData;
+  // Wait for fresh latest-message data before sorting/rendering, so the most recent
+  // thread is at the top on first paint (cached `lastActivity` may be stale).
+  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && (!hasAnyProAccess || dmFetched);
+  const showSkeletonLoading = isLoadingFreshData || (!freshSortDataReady && !hasCachedData);
 
   // Determine which data to display (prefer fresh, fallback to cached)
   const displayTeams = teams || cachedData?.teams || [];
@@ -1819,8 +1822,18 @@ export default function MessagesPage() {
           </>
         )}
 
+        {/* Cached-data placeholder while fresh data is loading (prevents wrong sort order) */}
+        {!showSkeletonLoading && !freshSortDataReady && hasCachedData && (
+          <>
+            <MessageSkeleton />
+            <MessageSkeleton />
+            <MessageSkeleton />
+            <MessageSkeleton />
+          </>
+        )}
+
         {/* Unread Section */}
-        {!showSkeletonLoading && unreadItems.length > 0 && (
+        {!showSkeletonLoading && freshSortDataReady && unreadItems.length > 0 && (
           <>
             <div className="flex items-center gap-2 pb-1.5">
               <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
@@ -1833,7 +1846,7 @@ export default function MessagesPage() {
         )}
 
         {/* Recent Section */}
-        {!showSkeletonLoading && recentItems.length > 0 && (
+        {!showSkeletonLoading && freshSortDataReady && recentItems.length > 0 && (
           <>
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>

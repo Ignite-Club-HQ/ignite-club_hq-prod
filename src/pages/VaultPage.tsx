@@ -130,6 +130,41 @@ export default function VaultPage() {
   const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
   const [googleDriveImportOpen, setGoogleDriveImportOpen] = useState(false);
   const [linkDriveFolderOpen, setLinkDriveFolderOpen] = useState(false);
+  const [resolvingDriveTitles, setResolvingDriveTitles] = useState(false);
+
+  const handleResolveDriveTitles = async () => {
+    const clubId = currentView.type !== "root" ? currentView.clubId : undefined;
+    if (!clubId) return;
+    setResolvingDriveTitles(true);
+    const toastId = toast.loading("Fetching real Google Drive titles…");
+    try {
+      const { data, error } = await supabase.functions.invoke("resolve-drive-titles", {
+        body: { clubId },
+      });
+      if (error) throw error;
+      const summary = (data as any)?.summary;
+      if (!summary || summary.scanned === 0) {
+        toast.success("No Google files needed renaming.", { id: toastId });
+      } else {
+        const parts: string[] = [`${summary.updated} renamed`];
+        if (summary.unresolved > 0) parts.push(`${summary.unresolved} unresolved`);
+        if (summary.errors > 0) parts.push(`${summary.errors} errors`);
+        toast.success(parts.join(" · "), {
+          id: toastId,
+          description:
+            summary.unresolved > 0 && !summary.hasOAuth
+              ? "Tip: link a Google Drive folder so private files can be renamed too."
+              : undefined,
+        });
+        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      }
+    } catch (err: any) {
+      console.error("resolve-drive-titles failed", err);
+      toast.error("Couldn't fetch Drive titles", { id: toastId, description: err?.message });
+    } finally {
+      setResolvingDriveTitles(false);
+    }
+  };
   const [folderExportDialogOpen, setFolderExportDialogOpen] = useState(false);
   const [folderExportData, setFolderExportData] = useState<{
     folderId: string;
@@ -601,8 +636,20 @@ export default function VaultPage() {
 
   const CHAT_FOLDER_NAMES = ["Chat Images", "Chat Links"];
 
+  // Roles the current user holds in the active club (used to filter
+  // role-restricted chat folders like "Coaches Chat", "Club Admin Chat", etc.)
+  const userClubRoleSet = useMemo(() => {
+    const set = new Set<string>();
+    const clubId = getCurrentClubId();
+    if (!clubId || !userRoles) return set;
+    userRoles.forEach((r: any) => {
+      if (r.club_id === clubId && r.role) set.add(r.role as string);
+    });
+    return set;
+  }, [userRoles, currentView]);
+
   const { data: subfolders } = useQuery({
-    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin],
+    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin, isAppAdmin, Array.from(userClubRoleSet).sort().join(",")],
     queryFn: async () => {
       const clubId = getCurrentClubId();
       const teamId = getCurrentTeamId();
@@ -614,13 +661,18 @@ export default function VaultPage() {
       let nullFilters: string[] = [];
       
       if (currentView.type === "club") {
-        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
+        // Allow non-admin users into the club view ONLY if they may have
+        // role-restricted chat folders to see (coaches, team admins, league admins).
+        // Generic vault access stays admin-only.
+        if (!isClubAdmin && !isCoachOrTeamAdmin && userClubRoleSet.size === 0) return [];
         filters.club_id = clubId;
-        nullFilters = ["team_id", "mini_league_id"];
+        // vault_folders does not have a mini_league_id column; only filter by team_id.
+        nullFilters = ["team_id"];
       } else if (currentView.type === "team") {
         filters.team_id = teamId;
       } else if (currentView.type === "mini-league") {
-        filters.mini_league_id = miniLeagueId;
+        // vault_folders has no mini_league_id column — there are no folders for mini-leagues.
+        return [];
       }
       
       if (parentFolderId) {
@@ -641,13 +693,28 @@ export default function VaultPage() {
       }
       
       const { data } = await query.order("name");
-      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
-      
-      // Non-admin coaches/team admins can only see Chat folders at club level
+      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; chat_group_id: string | null; restricted_roles: string[] | null; created_at: string }[];
+
+      // Apply role-restriction filtering for chat-scoped folders.
+      // Club admins, committee members, and app admins can always see them.
+      const isPrivilegedViewer = isAppAdmin || isClubAdmin;
+      folders = folders.filter((f) => {
+        if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
+        if (isPrivilegedViewer) return true;
+        return f.restricted_roles.some((r) => userClubRoleSet.has(r));
+      });
+
+      // Non-admin coaches/team admins at club root can only see chat-scoped folders
+      // (generic Chat Images / Chat Links, plus any role-restricted chat folder
+      // they qualify for via restricted_roles above).
       if (currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin) {
-        folders = folders.filter(f => CHAT_FOLDER_NAMES.includes(f.name));
+        folders = folders.filter(
+          (f) =>
+            CHAT_FOLDER_NAMES.includes(f.name) ||
+            (f.restricted_roles && f.restricted_roles.length > 0)
+        );
       }
-      
+
       return folders;
     },
     enabled: currentView.type !== "root",
@@ -3416,6 +3483,19 @@ export default function VaultPage() {
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder
+                          </DropdownMenuItem>
+                        )}
+                        {isClubAdmin && (
+                          <DropdownMenuItem
+                            onClick={handleResolveDriveTitles}
+                            disabled={resolvingDriveTitles}
+                          >
+                            {resolvingDriveTitles ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Sheet className="h-4 w-4 mr-2" />
+                            )}
+                            Fetch real Google titles
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
