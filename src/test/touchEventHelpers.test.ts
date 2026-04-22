@@ -87,6 +87,6 @@ describe("getGestureRoot", () => {
 
   it("throws a clear error if the container is empty", () => {
     const container = document.createElement("div");
-    expect(() => getGestureRoot(container)).toThrow(/no children/);
+    expect(() => getGestureRoot(container)).toThrow(/no viewer overlay/);
   });
 });

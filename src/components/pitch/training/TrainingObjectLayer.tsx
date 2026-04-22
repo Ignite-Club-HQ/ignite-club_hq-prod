@@ -58,7 +58,7 @@ function clamp(v: number) {
  * the *actual* rendered footprint of each chip rather than a fixed minimum
  * distance. Returns the chip's pixel width / height as drawn in the DOM.
  */
-function chipPixelSize(p: RenderableObject): { w: number; h: number } {
+export function chipPixelSize(p: RenderableObject): { w: number; h: number } {
   const label = (p.label ?? "P").trim();
   const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
   const baseHeight = isWaiting ? 32 : 44;
@@ -93,7 +93,7 @@ function chipPixelSize(p: RenderableObject): { w: number; h: number } {
  * Without it we fall back to a sensible 400×600 default — close enough that
  * the resolver still works during the first paint before measurement lands.
  */
-function resolvePlayerOverlaps(
+export function resolvePlayerOverlaps(
   objects: RenderableObject[],
   containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
