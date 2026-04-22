@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Save, FolderOpen, FilePlus2, Plus, Check, ArrowLeft } from "lucide-react";
+import { Save, FolderOpen, FilePlus2, Plus, Check, ArrowLeft, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -88,6 +88,9 @@ export default function TrainingBoard({
   const [stepCounter, setStepCounter] = useState(1);
   const [playerCounter, setPlayerCounter] = useState(1);
   const [isPresenting, setIsPresenting] = useState(false);
+  // Preview mode — locks editing and shows interpolated playback so coaches
+  // can verify arrows, queue positions, and cone layouts before saving.
+  const [previewMode, setPreviewMode] = useState(false);
 
   // Persistence state
   const [savedDrillId, setSavedDrillId] = useState<string | null>(null);
@@ -126,7 +129,7 @@ export default function TrainingBoard({
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
-  const editable = !readOnly && !isAnimating;
+  const editable = !readOnly && !isAnimating && !previewMode;
   const hasSelection = !!selectedId;
 
   // Auto-open library on first mount — coaches start by picking a drill
@@ -389,6 +392,7 @@ export default function TrainingBoard({
     setSavedVisibility("private");
     goTo(0);
     setEditorMode(true);
+    setPreviewMode(false);
   }, [frames, goTo]);
 
   const handleOpenDrill = useCallback(
@@ -413,6 +417,7 @@ export default function TrainingBoard({
       setPlayerCounter(1);
       goTo(0);
       setEditorMode(true);
+      setPreviewMode(false);
       toast.success(`Opened "${drill.name}"`);
     },
     [goTo]
@@ -433,6 +438,7 @@ export default function TrainingBoard({
     setSavedVisibility("private");
     goTo(0);
     setEditorMode(false);
+    setPreviewMode(false);
   }, [frames, savedDrillId, goTo]);
 
   const cursorClass = useMemo(() => {
@@ -557,6 +563,36 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="sm"
+            variant={previewMode ? "default" : "outline"}
+            onClick={() => {
+              setPreviewMode((p) => {
+                const next = !p;
+                if (next) {
+                  setSelectedId(null);
+                  setActiveTool("select");
+                }
+                return next;
+              });
+            }}
+            className="h-8"
+            aria-pressed={previewMode}
+            title={previewMode ? "Back to editing" : "Preview drill"}
+          >
+            {previewMode ? (
+              <>
+                <Pencil className="h-4 w-4 mr-1.5" />
+                Edit
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 mr-1.5" />
+                Preview
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant="outline"
             onClick={() => setSaveOpen(true)}
             className="h-8"
@@ -634,12 +670,12 @@ export default function TrainingBoard({
           onDuplicate={duplicateFrame}
           onDelete={deleteFrame}
           onReorder={reorderFrame}
-          disabled={isAnimating}
+          disabled={isAnimating || previewMode}
         />
       )}
 
-      {/* Toolbar */}
-      {!readOnly && (
+      {/* Toolbar — hidden in preview mode so the canvas is read-only */}
+      {!readOnly && !previewMode && (
         <TrainingToolbar
           activeTool={activeTool}
           onToolChange={(t) => {
@@ -651,6 +687,13 @@ export default function TrainingBoard({
           onClear={handleClear}
           hasSelection={hasSelection}
         />
+      )}
+
+      {/* Preview-mode hint bar */}
+      {!readOnly && previewMode && (
+        <div className="shrink-0 px-3 py-1.5 text-[11px] font-medium text-center text-muted-foreground bg-muted/60 border-t border-border">
+          Preview mode — editing is locked. Use Play to verify arrows, queues, and cone layouts.
+        </div>
       )}
 
       {/* Presentation overlay */}
