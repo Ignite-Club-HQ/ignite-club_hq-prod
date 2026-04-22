@@ -37,6 +37,10 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   // Snap-back animation params, recomputed per double-tap based on pan distance.
   const [snapAnim, setSnapAnim] = useState({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  // Timestamp (ms) until which any synthesized React onDoubleClick should be
+  // ignored because a 3+ finger system gesture just ended. Browsers can fire
+  // a synthetic dblclick after multi-touch — this poisons that path.
+  const multiFingerSuppressUntilRef = useRef<number>(0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -88,20 +92,37 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     // and whenever a second finger lands. Ensures only one gesture (pinch,
     // drag, long-press, OR double-tap) "wins" any given touch sequence.
     let gestureHadMultiTouch = false;
+    // 3+ finger gestures (system gestures: iOS app switcher swipe, Android
+    // split-screen, accessibility, screenshots) must NEVER trigger zoom.
+    // Once tripped, this flag suppresses double-tap arbitration AND the
+    // React synthetic onDoubleClick handler until the next clean single-tap
+    // sequence begins.
+    let gestureHadMultiFinger = false;
     let gestureMoved = false;
     let gestureStartX = 0;
     let gestureStartY = 0;
     let gestureStartTime = 0;
 
     const handleStart = (e: globalThis.TouchEvent) => {
+      // Track the peak finger count for this whole gesture sequence — a
+      // 3-finger swipe that briefly drops to 1 finger as the user lifts
+      // must still be treated as a system gesture, not a tap candidate.
+      if (e.touches.length >= 3) {
+        gestureHadMultiFinger = true;
+        gestureHadMultiTouch = true;
+        lastTapRef.current = null;
+        // Bail before forwarding to pinch-zoom — 3+ fingers is never a pinch.
+        return;
+      }
       if (e.touches.length === 1) {
         // Fresh single-finger sequence — start tracking for tap/drag/long-press.
         gestureHadMultiTouch = false;
+        gestureHadMultiFinger = false;
         gestureMoved = false;
         gestureStartX = e.touches[0].clientX;
         gestureStartY = e.touches[0].clientY;
         gestureStartTime = Date.now();
-      } else if (e.touches.length >= 2) {
+      } else if (e.touches.length === 2) {
         // Pinch started — kill any pending tap candidate so the pinch can't
         // accidentally trigger a double-tap when fingers lift.
         gestureHadMultiTouch = true;
@@ -110,7 +131,14 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       pinchTouchStart(e as unknown as React.TouchEvent);
     };
     const handleMove = (e: globalThis.TouchEvent) => {
-      if (e.touches.length >= 2) {
+      if (e.touches.length >= 3) {
+        // Promoted to a system multi-finger gesture mid-sequence.
+        gestureHadMultiFinger = true;
+        gestureHadMultiTouch = true;
+        lastTapRef.current = null;
+        return;
+      }
+      if (e.touches.length === 2) {
         gestureHadMultiTouch = true;
         lastTapRef.current = null;
       } else if (e.touches.length === 1 && !gestureMoved) {
@@ -127,13 +155,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       const heldMs = Date.now() - gestureStartTime;
       const wasLongPress = heldMs >= TAP_MAX_HOLD_MS;
       // Detect double-tap on touchend, but only if the gesture was a true
-      // single-finger short tap (no pinch, no drag, no long-press). This
-      // prevents double-tap from firing during pinch-zoom, at the tail of a
-      // pan, or after a long press.
+      // single-finger short tap (no pinch, no 3+ finger system gesture, no
+      // drag, no long-press). This prevents double-tap from firing during
+      // pinch-zoom, at the tail of a pan, after a long press, or after the
+      // user lifts a 3-finger system gesture.
       if (
         e.changedTouches.length === 1 &&
         e.touches.length === 0 &&
         !gestureHadMultiTouch &&
+        !gestureHadMultiFinger &&
         !gestureMoved &&
         !wasLongPress
       ) {
@@ -152,15 +182,23 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         }
         lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
       } else if (e.touches.length === 0) {
-        // Sequence ended as a pinch, drag, or long-press — invalidate any
-        // tap candidate so the next genuine tap can't pair with this one.
+        // Sequence ended as a pinch, drag, long-press, or 3+ finger system
+        // gesture — invalidate any tap candidate so the next genuine tap
+        // can't pair with this one. Also expose the multi-finger flag to
+        // the React onDoubleClick handler via the ref below.
         lastTapRef.current = null;
+        if (gestureHadMultiFinger) {
+          // Briefly poison the React synthetic double-click path too —
+          // some browsers synthesize dblclick after multi-touch ends.
+          multiFingerSuppressUntilRef.current = Date.now() + 350;
+        }
       }
     };
     const handleCancel = () => {
       pinchTouchEnd();
       lastTapRef.current = null;
       gestureHadMultiTouch = false;
+      gestureHadMultiFinger = false;
       gestureMoved = false;
     };
     node.addEventListener("touchstart", handleStart, { passive: false });
@@ -190,6 +228,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   }, [effectiveSrc, resetZoom]);
 
   const handleDoubleClick = useCallback(() => {
+    // Suppress React's synthetic double-click if a 3+ finger system gesture
+    // just ended — those are never meant to zoom the image.
+    if (Date.now() < multiFingerSuppressUntilRef.current) return;
     triggerZoomToggle();
   }, [triggerZoomToggle]);
 
