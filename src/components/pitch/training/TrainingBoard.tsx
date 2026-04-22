@@ -732,11 +732,16 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* PITCH SURFACE — the hero. */}
+      {/* PITCH SURFACE — the hero. In preview/run (no toolbar/frame strip
+          below) we anchor the pitch to the bottom edge so the playback bar
+          sits flush against the pitch instead of floating above a gap. In
+          edit mode the pitch stays vertically stretched so authors get the
+          maximum drawing area before the toolbar/frame strip. */}
       <div
         className={cn(
-          "flex-1 min-h-0 flex items-stretch justify-center",
+          "flex-1 min-h-0 flex justify-center",
           mode === "run" ? "p-1" : "px-2 py-2",
+          (previewMode || runMode || readOnly) ? "items-end" : "items-stretch",
         )}
       >
         <div
