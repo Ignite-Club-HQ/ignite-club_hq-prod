@@ -417,6 +417,7 @@ export default function TrainingBoard({
       setPlayerCounter(1);
       goTo(0);
       setEditorMode(true);
+      setPreviewMode(false);
       toast.success(`Opened "${drill.name}"`);
     },
     [goTo]
