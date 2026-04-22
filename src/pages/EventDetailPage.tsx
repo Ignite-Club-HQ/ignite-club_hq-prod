@@ -2948,6 +2948,7 @@ export default function EventDetailPage() {
             initialLinkedEventId={id}
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
+            initialMode={event?.type === "training" ? "training" : "match"}
             readOnly={!!canViewPitchBoardReadOnly}
           />
         </Suspense>,

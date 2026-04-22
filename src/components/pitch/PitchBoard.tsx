@@ -86,7 +86,7 @@ import {
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
-import { ModeSwitch, type PitchBoardMode } from "./ModeSwitch";
+import { type PitchBoardMode } from "./ModeSwitch";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
