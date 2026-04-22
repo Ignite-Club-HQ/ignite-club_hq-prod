@@ -239,9 +239,18 @@ export function DrillLibrarySheet({
                       >
                         <button
                           type="button"
-                          onClick={() => handleOpen(d.id)}
+                          onPointerDown={(e) => {
+                            // Prevent the synthesized click from leaking to elements
+                            // that appear underneath once the sheet closes.
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleOpen(d.id);
+                          }}
                           disabled={isOpening}
-                          className="w-full text-left p-3"
+                          className="w-full text-left p-3 touch-manipulation"
                         >
                           <div className="flex items-center gap-2">
                             <VisIcon
@@ -279,7 +288,11 @@ export function DrillLibrarySheet({
                             type="button"
                             size="sm"
                             variant={inSession ? "secondary" : "outline"}
-                            onClick={() => handleAddToSession(d.id, d.name)}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToSession(d.id, d.name);
+                            }}
                             disabled={inSession || addToSessionMut.isPending}
                             className="h-8 flex-1"
                           >
@@ -300,7 +313,11 @@ export function DrillLibrarySheet({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(d.id, d.name)}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(d.id, d.name);
+                              }}
                               aria-label={`Delete ${d.name}`}
                               className="h-8 w-8 text-destructive shrink-0"
                             >
