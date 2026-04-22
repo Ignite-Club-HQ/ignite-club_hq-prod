@@ -155,6 +155,12 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
 
   // Realtime subscription — bound to teamId only. The subscription is created
   // once per team and stays alive for as long as the spectator is on the page.
+  //
+  // Multi-coach safety: at scale, two coaches may run boards for the same team
+  // simultaneously (each writes its own active_games row, keyed by user_id).
+  // Without locking, the spectator would flip between coaches' state every
+  // 10s as updated_at oscillates. We "stick" to the first active row we see
+  // and only switch if that row is deactivated.
   useEffect(() => {
     if (!teamId) return;
     const channel = supabase
@@ -170,7 +176,9 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
         (payload) => {
           const row = (payload.new ?? payload.old) as ActiveGameRow | null;
           if (!row) return;
-          // Coach ended this game — clear state if it was the one we watched.
+
+          // Coach ended this game — clear state if it was the one we watched
+          // and let the next active row (if any) take over.
           if (!row.is_active) {
             if (activeRowIdRef.current && row.id === activeRowIdRef.current) {
               setState(null);
@@ -179,7 +187,15 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
             }
             return;
           }
-          // New active row (or update to the existing one) — adopt + project.
+
+          // If we're already locked onto a different active row, ignore the
+          // other coach's writes — switching mid-game corrupts the spectator
+          // view. The locked row will release on its own deactivate above.
+          if (activeRowIdRef.current && activeRowIdRef.current !== row.id) {
+            return;
+          }
+
+          // New active row (or update to the row we already watch) — adopt + project.
           activeRowIdRef.current = row.id;
           setNoActiveGame(false);
           setState(projectRow(row));
