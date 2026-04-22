@@ -37,6 +37,7 @@ interface ActiveGameRow {
   timer_state: Json;
   updated_at: string;
   is_active: boolean;
+  board_session_id?: string | null;
 }
 
 /**
@@ -108,10 +109,18 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
   const [noActiveGame, setNoActiveGame] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Tracked via ref (not state) so the realtime subscription effect doesn't
+  // Tracked via refs (not state) so the realtime subscription effect doesn't
   // re-run when the active row id rotates — that previously caused a
   // tear-down/re-subscribe loop on every coach update.
+  //
+  // We lock by `board_session_id` (stable for the lifetime of a single coach's
+  // hook mount) so the spectator stays attached to one continuous session even
+  // if the underlying `active_games.id` changes (e.g. recovery after a 23505
+  // unique-violation race forces the coach to adopt a different row id).
+  // `activeRowIdRef` is kept as a fallback for legacy rows still in flight
+  // before the board_session_id column existed.
   const activeRowIdRef = useRef<string | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
 
   // Initial fetch — most recently updated active row for this team.
   useEffect(() => {
@@ -124,10 +133,11 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
     setError(null);
     setNoActiveGame(false);
     activeRowIdRef.current = null;
+    activeSessionIdRef.current = null;
     (async () => {
       const { data, error: err } = await supabase
         .from("active_games")
-        .select("id, team_id, pitch_state, timer_state, updated_at, is_active")
+        .select("id, team_id, pitch_state, timer_state, updated_at, is_active, board_session_id")
         .eq("team_id", teamId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
@@ -144,8 +154,10 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
         setIsLoading(false);
         return;
       }
-      activeRowIdRef.current = data.id;
-      setState(projectRow(data as ActiveGameRow));
+      const row = data as ActiveGameRow;
+      activeRowIdRef.current = row.id;
+      activeSessionIdRef.current = row.board_session_id ?? null;
+      setState(projectRow(row));
       setIsLoading(false);
     })();
     return () => {
@@ -157,10 +169,11 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
   // once per team and stays alive for as long as the spectator is on the page.
   //
   // Multi-coach safety: at scale, two coaches may run boards for the same team
-  // simultaneously (each writes its own active_games row, keyed by user_id).
-  // Without locking, the spectator would flip between coaches' state every
-  // 10s as updated_at oscillates. We "stick" to the first active row we see
-  // and only switch if that row is deactivated.
+  // simultaneously (each writes its own active_games row). Without locking,
+  // the spectator would flip between coaches' state every 10s as updated_at
+  // oscillates. We "stick" to the first active session we see (by
+  // board_session_id, falling back to row id for legacy rows) and only switch
+  // if that session is deactivated.
   useEffect(() => {
     if (!teamId) return;
     const channel = supabase
@@ -177,26 +190,46 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
           const row = (payload.new ?? payload.old) as ActiveGameRow | null;
           if (!row) return;
 
-          // Coach ended this game — clear state if it was the one we watched
-          // and let the next active row (if any) take over.
+          const lockedSession = activeSessionIdRef.current;
+          const lockedRowId = activeRowIdRef.current;
+          const incomingSession = row.board_session_id ?? null;
+
+          // Does this event belong to the session we're locked onto?
+          // Prefer board_session_id; fall back to row id when either side is
+          // missing (legacy rows or coaches still on an older client).
+          const matchesLockedSession = lockedSession
+            ? incomingSession === lockedSession
+            : lockedRowId
+              ? row.id === lockedRowId
+              : false;
+
+          // Coach ended this game — clear state if it was the session we
+          // watched and let the next active session (if any) take over.
           if (!row.is_active) {
-            if (activeRowIdRef.current && row.id === activeRowIdRef.current) {
-              setState(null);
-              setNoActiveGame(true);
-              activeRowIdRef.current = null;
+            if (lockedSession || lockedRowId) {
+              if (matchesLockedSession) {
+                setState(null);
+                setNoActiveGame(true);
+                activeRowIdRef.current = null;
+                activeSessionIdRef.current = null;
+              }
             }
             return;
           }
 
-          // If we're already locked onto a different active row, ignore the
-          // other coach's writes — switching mid-game corrupts the spectator
-          // view. The locked row will release on its own deactivate above.
-          if (activeRowIdRef.current && activeRowIdRef.current !== row.id) {
+          // If we're already locked onto a different active session, ignore
+          // the other coach's writes — switching mid-game corrupts the
+          // spectator view. The locked session releases on its own deactivate
+          // above.
+          if ((lockedSession || lockedRowId) && !matchesLockedSession) {
             return;
           }
 
-          // New active row (or update to the row we already watch) — adopt + project.
+          // New active session (or update to the session we already watch) —
+          // adopt + project. Refresh both refs so future events match
+          // regardless of which identifier is populated on the payload.
           activeRowIdRef.current = row.id;
+          activeSessionIdRef.current = incomingSession;
           setNoActiveGame(false);
           setState(projectRow(row));
         }
