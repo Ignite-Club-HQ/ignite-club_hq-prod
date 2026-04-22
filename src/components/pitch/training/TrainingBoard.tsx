@@ -644,6 +644,36 @@ export default function TrainingBoard({
         />
       )}
 
+      {/* Per-frame coaching caption bar — sits directly above the pitch so coaches
+          can read the step-by-step instruction for the frame currently on screen.
+          Falls back to a neutral "Frame N" hint when no notes are present so the
+          strip is always reserved (prevents layout shift while playing back). */}
+      {(() => {
+        const activeNotes = (isAnimating ? view.notes : currentFrame?.notes) ?? "";
+        const totalFrames = frames.length;
+        const frameNum = currentIndex + 1;
+        return (
+          <div className="shrink-0 px-3 py-2 border-b border-border bg-background">
+            <div className="flex items-start gap-2">
+              <span
+                className="shrink-0 inline-flex items-center justify-center min-w-[3.25rem] h-6 px-2 rounded-full bg-primary/15 text-primary text-[11px] font-semibold tabular-nums"
+                aria-label={`Frame ${frameNum} of ${totalFrames}`}
+              >
+                {frameNum} / {totalFrames}
+              </span>
+              <p
+                className={cn(
+                  "flex-1 min-w-0 text-sm leading-snug",
+                  activeNotes ? "text-foreground" : "text-muted-foreground italic"
+                )}
+              >
+                {activeNotes || "No coaching notes for this frame yet — tap a frame in the strip below and add notes to guide the players."}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Pitch surface */}
       <div className="flex-1 min-h-0 p-2 flex items-center justify-center">
         <div
