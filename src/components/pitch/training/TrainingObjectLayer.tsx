@@ -49,15 +49,39 @@ function clamp(v: number) {
 
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
-    case "player":
+    case "player": {
+      const label = obj.label || "P";
+      // Render full label (no truncation). Slightly bigger token + strong
+      // white ring + drop shadow for outdoor / sunlight legibility.
       return (
-        <div
-          className="rounded-full border-2 border-white shadow-md flex items-center justify-center text-[10px] font-bold text-white select-none"
-          style={{ width: 32, height: 32, backgroundColor: obj.color }}
-        >
-          {obj.label || "P"}
+        <div className="flex flex-col items-center gap-0.5 select-none">
+          <div
+            className="rounded-full border-[3px] border-white flex items-center justify-center text-white font-bold"
+            style={{
+              width: 40,
+              height: 40,
+              backgroundColor: obj.color,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.25)",
+              fontSize: label.length > 3 ? 11 : 13,
+              lineHeight: 1,
+            }}
+          >
+            {label.length > 4 ? label.slice(0, 1).toUpperCase() : label}
+          </div>
+          {label.length > 4 && (
+            <span
+              className="px-1 rounded-sm text-[10px] font-semibold text-white whitespace-nowrap"
+              style={{
+                backgroundColor: "rgba(0,0,0,0.55)",
+                textShadow: "0 1px 1px rgba(0,0,0,0.6)",
+              }}
+            >
+              {label}
+            </span>
+          )}
         </div>
       );
+    }
     case "ball":
       return (
         <span
@@ -65,9 +89,9 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
           aria-label="ball"
           className="select-none leading-none"
           style={{
-            fontSize: 22,
+            fontSize: 26,
             lineHeight: 1,
-            filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.45))",
+            filter: "drop-shadow(1px 2px 3px rgba(0,0,0,0.55))",
           }}
         >
           ⚽
