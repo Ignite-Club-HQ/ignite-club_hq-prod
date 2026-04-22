@@ -90,6 +90,12 @@ export default function TrainingBoard({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false);
 
+  const openLibrary = useCallback(() => {
+    // Defer open to the next tick so the same tap doesn't get interpreted
+    // as an immediate outside-click dismissal by the Sheet.
+    window.setTimeout(() => setLibraryOpen(true), 0);
+  }, []);
+
   // Session-plan integration
   const { data: sessionDrills } = useSessionDrills();
   const addToSessionMut = useAddToSession();
@@ -122,10 +128,9 @@ export default function TrainingBoard({
       (frames[0]?.annotations.length ?? 0) === 0 &&
       !savedDrillId;
     if (isBlank) {
-      const t = setTimeout(() => setLibraryOpen(true), 200);
-      return () => clearTimeout(t);
+      openLibrary();
     }
-  }, [readOnly, frames, savedDrillId]);
+  }, [openLibrary, readOnly, frames, savedDrillId]);
 
   const handleAddCurrentToSession = useCallback(() => {
     if (!savedDrillId) {
@@ -423,7 +428,7 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="default"
-            onClick={() => setLibraryOpen(true)}
+            onClick={openLibrary}
             className="h-9 font-semibold"
           >
             <FolderOpen className="h-4 w-4 mr-1.5" />
@@ -518,7 +523,7 @@ export default function TrainingBoard({
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => setLibraryOpen(true)}
+                      onClick={openLibrary}
                       className="h-9"
                     >
                       <FolderOpen className="h-4 w-4 mr-1.5" />

@@ -1,10 +1,5 @@
-import { useState } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +15,7 @@ import {
   Plus,
   Check,
   FilePlus2,
+  X,
 } from "lucide-react";
 import {
   useDrillList,
@@ -60,6 +56,7 @@ export function DrillLibrarySheet({
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   const { data: drills, isLoading } = useDrillList(tab, teamId ?? undefined, search);
   const { data: sessionDrills } = useSessionDrills();
@@ -68,6 +65,23 @@ export function DrillLibrarySheet({
   const addToSessionMut = useAddToSession();
 
   const sessionDrillIds = new Set((sessionDrills ?? []).map((s) => s.drillId));
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onOpenChange(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onOpenChange]);
 
   const handleOpen = async (drillId: string) => {
     setOpeningId(drillId);
@@ -110,29 +124,40 @@ export function DrillLibrarySheet({
     { value: "recent", label: "Recent" },
   ];
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="max-h-[90vh] flex flex-col p-0"
-        // Prevent the search Input from auto-focusing on mobile (pops the keyboard)
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <SheetHeader className="px-4 pt-4 pb-2 shrink-0">
-          <SheetTitle className="flex items-center gap-2">
-            Drill library
-            {sessionDrills && sessionDrills.length > 0 && (
-              <span className="text-xs font-normal text-muted-foreground">
-                · {sessionDrills.length} in today's session
-              </span>
-            )}
-          </SheetTitle>
-        </SheetHeader>
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100020] flex items-end" role="dialog" aria-modal="true" aria-label="Drill library">
+      <button
+        type="button"
+        aria-label="Close drill library"
+        className="absolute inset-0 bg-black/70"
+        onClick={() => onOpenChange(false)}
+      />
+
+      <div className="relative z-[100021] flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-lg">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-foreground">Drill library</h2>
+              {sessionDrills && sessionDrills.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  · {sessionDrills.length} in today's session
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">Choose a ready-made drill or add one to today’s session.</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close drill library">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
         <div className="px-4 pb-2 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search drills..."
@@ -171,7 +196,7 @@ export function DrillLibrarySheet({
               ) : !drills || drills.length === 0 ? (
                 <EmptyState tab={t.value} hasTeam={!!teamId} />
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-2 pb-4">
                   {drills.map((d) => {
                     const VisIcon = d.isOfficial ? Sparkles : VIS_ICON[d.visibility] ?? Lock;
                     const isOpening = openingId === d.id;
@@ -194,7 +219,7 @@ export function DrillLibrarySheet({
                                 d.isOfficial ? "text-primary" : "text-muted-foreground"
                               )}
                             />
-                            <span className="font-medium truncate flex-1">{d.name}</span>
+                            <span className="font-medium truncate flex-1 text-foreground">{d.name}</span>
                             {isOpening && (
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                             )}
@@ -261,7 +286,6 @@ export function DrillLibrarySheet({
           ))}
         </Tabs>
 
-        {/* Footer: create-new escape hatch */}
         {onNewDrill && (
           <div className="shrink-0 border-t border-border px-4 py-3 bg-background">
             <Button
@@ -279,8 +303,9 @@ export function DrillLibrarySheet({
             </Button>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>,
+    document.body
   );
 }
 
