@@ -130,6 +130,41 @@ export default function VaultPage() {
   const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
   const [googleDriveImportOpen, setGoogleDriveImportOpen] = useState(false);
   const [linkDriveFolderOpen, setLinkDriveFolderOpen] = useState(false);
+  const [resolvingDriveTitles, setResolvingDriveTitles] = useState(false);
+
+  const handleResolveDriveTitles = async () => {
+    const clubId = currentView.clubId;
+    if (!clubId) return;
+    setResolvingDriveTitles(true);
+    const toastId = toast.loading("Fetching real Google Drive titles…");
+    try {
+      const { data, error } = await supabase.functions.invoke("resolve-drive-titles", {
+        body: { clubId },
+      });
+      if (error) throw error;
+      const summary = (data as any)?.summary;
+      if (!summary || summary.scanned === 0) {
+        toast.success("No Google files needed renaming.", { id: toastId });
+      } else {
+        const parts: string[] = [`${summary.updated} renamed`];
+        if (summary.unresolved > 0) parts.push(`${summary.unresolved} unresolved`);
+        if (summary.errors > 0) parts.push(`${summary.errors} errors`);
+        toast.success(parts.join(" · "), {
+          id: toastId,
+          description:
+            summary.unresolved > 0 && !summary.hasOAuth
+              ? "Tip: link a Google Drive folder so private files can be renamed too."
+              : undefined,
+        });
+        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      }
+    } catch (err: any) {
+      console.error("resolve-drive-titles failed", err);
+      toast.error("Couldn't fetch Drive titles", { id: toastId, description: err?.message });
+    } finally {
+      setResolvingDriveTitles(false);
+    }
+  };
   const [folderExportDialogOpen, setFolderExportDialogOpen] = useState(false);
   const [folderExportData, setFolderExportData] = useState<{
     folderId: string;
