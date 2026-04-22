@@ -214,8 +214,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         }
       }
     };
-    const handleCancel = () => {
-      pinchTouchEnd();
+    const handleCancel = (e: globalThis.TouchEvent) => {
+      e.stopPropagation();
+      pinchTouchEnd(e);
       lastTapRef.current = null;
       gestureHadMultiTouch = false;
       gestureHadMultiFinger = false;
