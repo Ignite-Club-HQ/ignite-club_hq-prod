@@ -336,12 +336,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryKey: ["user-search-team-member", debouncedNameInput],
     queryFn: async () => {
       if (debouncedNameInput.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedNameInput}%`)
-        .limit(8);
-      return data || [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedNameInput,
+        _limit: 8,
+      });
+      return (data || []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        masked_email: string | null;
+      }>;
     },
     enabled: debouncedNameInput.length >= 2,
   });
