@@ -260,6 +260,75 @@ function ruleRotationCoverage(frames: DrillFrame[], push: (i: DrillIssue) => voi
   });
 }
 
+/**
+ * Rule 8: contest fairness — for drills that pit an attacker (sky-blue,
+ * #0ea5e9) against a defender (red, #ef4444), the demo should NOT always
+ * show the same side winning the contest across reps. As different player
+ * pairs rotate through the drill, outcomes naturally vary; the seeded
+ * frames should reflect that.
+ *
+ * Heuristic: across all frames, find the ball position relative to each
+ * coloured chip. If the ball ends up consistently closer to the attacking
+ * goal (low y) AND on the attacker side every "resolution" frame, with no
+ * alternate frame where the defender clears it back, flag the drill.
+ *
+ * A drill is considered to ROTATE outcomes if at least one frame shows
+ * the ball moving AWAY from the attacking goal (defender clearance:
+ * arrow with dy > +20) anchored to a defender (#ef4444).
+ *
+ * Reported once per drill on frame 0.
+ */
+const ATTACKER_COLOR = "#0ea5e9";
+const DEFENDER_COLOR = "#ef4444";
+function ruleContestFairness(frames: DrillFrame[], push: (i: DrillIssue) => void) {
+  if (frames.length < 2) return;
+
+  // Only applies to drills that actually contain BOTH an attacker and
+  // a defender chip — i.e. an explicit contest drill.
+  const hasAttacker = frames.some((f) =>
+    f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === ATTACKER_COLOR)
+  );
+  const hasDefender = frames.some((f) =>
+    f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === DEFENDER_COLOR)
+  );
+  if (!hasAttacker || !hasDefender) return;
+
+  // Look for at least one defender clearance: an arrow anchored on a
+  // defender chip whose endpoint travels meaningfully AWAY from the
+  // attacking goal (dy > +20). This is the "alternate outcome" signal.
+  let defenderWinsSomewhere = false;
+  for (const f of frames) {
+    const defenders = f.objects.filter(
+      (o) => o.type === "player" && (o.color ?? "").toLowerCase() === DEFENDER_COLOR
+    );
+    if (defenders.length === 0) continue;
+    for (const a of f.annotations) {
+      if (!isArrow(a)) continue;
+      const dy = a.geometry.to.y - a.geometry.from.y;
+      if (dy < 20) continue;
+      // arrow must originate near a defender chip
+      const nearDefender = defenders.some(
+        (d) => dist(d.x, d.y, a.geometry.from.x, a.geometry.from.y) < 6
+      );
+      if (nearDefender) {
+        defenderWinsSomewhere = true;
+        break;
+      }
+    }
+    if (defenderWinsSomewhere) break;
+  }
+
+  if (defenderWinsSomewhere) return;
+
+  push({
+    severity: "warning",
+    rule: "contest-fairness",
+    frameIndex: 0,
+    message:
+      "Contest drill always resolves the same way (attacker wins every rep). Add a frame where the defender wins the duel — outcomes should rotate as different players cycle through.",
+  });
+}
+
 /** Rule 6: duplicate player labels in the same frame ("two #7"s). */
 function ruleDuplicateLabels(frame: DrillFrame, frameIndex: number, push: (i: DrillIssue) => void) {
   const seen = new Map<string, string>(); // label → first object id
@@ -299,6 +368,7 @@ export function validateDrill(input: {
   });
   ruleBallContinuity(input.frames, push);
   ruleRotationCoverage(input.frames, push);
+  ruleContestFairness(input.frames, push);
 
   const counts = issues.reduce(
     (acc, i) => ({ ...acc, [i.severity]: acc[i.severity] + 1 }),

@@ -38,41 +38,60 @@ type Obj = {
  * Key = drill name (matching db). Value = function that takes frame-1 objects
  * and returns frame-2 objects (arrays). Annotations are kept identical.
  */
+// IMPORTANT — 1v1 contest drills:
+// Frame 2 should show the CONTESTED MOMENT (attacker and defender colliding,
+// ball at the point of decision) rather than declaring a winner. The drill
+// is meant to teach how the contest occurs; whoever "wins" varies rep to
+// rep as different players cycle through (see rotation frames in
+// migrations 20260422210857_* and 20260422211404_*).
+//
+// Rule of thumb for 1v1 frame 2: attacker advances slightly into contact,
+// defender holds their line of containment, ball stays glued to the
+// attacker's foot. Do NOT push the attacker past the defender or shrink
+// the defender backwards as if beaten.
 const motions: Record<string, (objs: Obj[]) => Obj[]> = {
   "1v1 attack with feint": (o) =>
     o.map((p) => {
-      if (p.label === "A") return { ...p, x: 62, y: 40 }; // attacker beats defender
-      if (p.id === "o8" && p.type === "ball") return { ...p, x: 64, y: 40 };
-      if (p.label === "D") return { ...p, x: 45, y: 50 }; // defender drops sideways
+      // Contested moment: attacker takes a small touch into the defender's
+      // space and feints; defender shifts laterally to mirror — neither has
+      // won yet.
+      if (p.label === "A") return { ...p, x: 52, y: 48 };
+      if (p.id === "o8" && p.type === "ball") return { ...p, x: 53, y: 48 };
+      if (p.label === "D") return { ...p, x: 49, y: 46 };
       return p;
     }),
   "1v1 defending channel": (o) =>
     o.map((p) => {
-      if (p.label === "A") return { ...p, x: 50, y: 50 }; // attacker drives forward
-      if (p.id === "o8" && p.type === "ball") return { ...p, x: 52, y: 50 };
-      if (p.label === "D") return { ...p, x: 50, y: 42 }; // defender retreats
+      // Attacker drives into the channel, defender jockeys and stays goal-side.
+      // Show the engagement, not the outcome.
+      if (p.label === "A") return { ...p, x: 50, y: 55 };
+      if (p.id === "o8" && p.type === "ball") return { ...p, x: 50, y: 56 };
+      if (p.label === "D") return { ...p, x: 50, y: 50 };
       return p;
     }),
   "1v1 to end-zone": (o) =>
     o.map((p) => {
-      if (p.label === "A") return { ...p, x: 40, y: 40 };
-      if (p.type === "ball") return { ...p, x: 42, y: 40 };
-      if (p.label === "D") return { ...p, x: 48, y: 40 };
+      // Attacker engages the defender mid-channel; defender holds the line.
+      if (p.label === "A") return { ...p, x: 45, y: 45 };
+      if (p.type === "ball") return { ...p, x: 46, y: 46 };
+      if (p.label === "D") return { ...p, x: 47, y: 43 };
       return p;
     }),
   "1v1 to mini-goals": (o) =>
     o.map((p) => {
-      if (p.label === "A") return { ...p, x: 50, y: 50 };
-      if (p.type === "ball") return { ...p, x: 50, y: 52 };
-      if (p.label === "D") return { ...p, x: 50, y: 55 };
+      // Both players meet at the centre with the ball contested between them.
+      if (p.label === "A") return { ...p, x: 49, y: 50 };
+      if (p.type === "ball") return { ...p, x: 50, y: 50 };
+      if (p.label === "D") return { ...p, x: 51, y: 50 };
       return p;
     }),
   "1v1 with overlap option": (o) =>
     o.map((p) => {
-      if (p.label === "A") return { ...p, x: 48, y: 55 };
-      if (p.label === "B") return { ...p, x: 35, y: 50 }; // overlap run
-      if (p.type === "ball") return { ...p, x: 50, y: 55 };
-      if (p.label === "D") return { ...p, x: 48, y: 45 };
+      // Attacker engages defender; B makes the overlap run; outcome stays open.
+      if (p.label === "A") return { ...p, x: 49, y: 50 };
+      if (p.label === "B") return { ...p, x: 38, y: 48 }; // overlap run underway
+      if (p.type === "ball") return { ...p, x: 50, y: 50 };
+      if (p.label === "D") return { ...p, x: 51, y: 48 };
       return p;
     }),
   "4v4 small-sided game": (o) =>
