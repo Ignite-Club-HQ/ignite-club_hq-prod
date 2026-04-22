@@ -423,6 +423,12 @@ describe("useActiveGameSync soccer multi-tenant write concurrency", () => {
         (u.filters as Record<string, unknown>).team_id === "team-X" &&
         (u.payload as Record<string, unknown>)?.is_active === false
     );
+    if (deactivationsAgainstX.length > 0) {
+      // eslint-disable-next-line no-console
+      console.log("DEBUG deactivationsAgainstX:", JSON.stringify(deactivationsAgainstX, null, 2));
+      // eslint-disable-next-line no-console
+      console.log("DEBUG all updates:", JSON.stringify(updateWrites(), null, 2));
+    }
     expect(deactivationsAgainstX.length).toBe(0);
   });
 
