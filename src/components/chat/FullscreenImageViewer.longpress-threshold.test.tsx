@@ -84,7 +84,7 @@ function getGestureRoot(): HTMLElement {
 }
 
 function dispatch(
-  type: string,
+  type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
   touches: { clientX: number; clientY: number }[],
   changed?: { clientX: number; clientY: number }[],
 ) {

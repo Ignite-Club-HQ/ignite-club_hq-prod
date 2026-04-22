@@ -72,7 +72,7 @@ function getGestureRoot(): HTMLElement {
   return container.firstElementChild as HTMLElement;
 }
 
-function dispatch(type: string, touches: { clientX: number; clientY: number }[], changed?: { clientX: number; clientY: number }[]) {
+function dispatch(type: "touchstart" | "touchmove" | "touchend" | "touchcancel", touches: { clientX: number; clientY: number }[], changed?: { clientX: number; clientY: number }[]) {
   act(() => {
     getGestureRoot().dispatchEvent(makeTouchEvent(type, touches, changed));
   });
