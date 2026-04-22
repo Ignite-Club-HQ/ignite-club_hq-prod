@@ -747,7 +747,7 @@ export default function MessagesPage() {
   });
 
   // Fetch DM conversations
-  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching } = useQuery({
+  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
       const { data: convos, error } = await supabase
