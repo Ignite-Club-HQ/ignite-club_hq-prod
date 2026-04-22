@@ -112,6 +112,36 @@ export default function TrainingBoard({
   const editable = !readOnly && !isAnimating;
   const hasSelection = !!selectedId;
 
+  // Auto-open library on first mount when board is empty — coaches start by picking a drill
+  useEffect(() => {
+    if (readOnly || hasAutoOpenedRef.current) return;
+    hasAutoOpenedRef.current = true;
+    const isBlank =
+      frames.length <= 1 &&
+      (frames[0]?.objects.length ?? 0) === 0 &&
+      (frames[0]?.annotations.length ?? 0) === 0 &&
+      !savedDrillId;
+    if (isBlank) {
+      const t = setTimeout(() => setLibraryOpen(true), 200);
+      return () => clearTimeout(t);
+    }
+  }, [readOnly, frames, savedDrillId]);
+
+  const handleAddCurrentToSession = useCallback(() => {
+    if (!savedDrillId) {
+      toast.info("Save the drill first, then add it to today's session");
+      return;
+    }
+    if (inSession) {
+      toast.info("Already in today's session");
+      return;
+    }
+    addToSessionMut.mutate(savedDrillId, {
+      onSuccess: () => toast.success("Added to today's session"),
+      onError: (err: any) => toast.error(err?.message ?? "Failed to add"),
+    });
+  }, [savedDrillId, inSession, addToSessionMut]);
+
   // ---- Frame ops ----
   const addFrame = useCallback(() => {
     setFrames((fs) => {
