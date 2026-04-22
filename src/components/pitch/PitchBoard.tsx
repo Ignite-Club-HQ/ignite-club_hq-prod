@@ -5746,7 +5746,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 2.75rem)' }}
         >
           <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
-            <TrainingBoard isLandscape={isLandscape} readOnly={readOnly} />
+            <TrainingBoard
+              isLandscape={isLandscape}
+              readOnly={readOnly}
+              teamId={teamId}
+              teamName={teamName}
+            />
           </Suspense>
         </div>
       )}
