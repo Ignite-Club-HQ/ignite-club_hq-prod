@@ -29,6 +29,14 @@ export function useBasketballGameSync(
   const { user } = useAuth();
   const activeGameIdRef = useRef<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Stable board session id for the lifetime of this hook mount. Stamped on
+  // every active_games write so spectators can lock onto this session even if
+  // the underlying row id changes (e.g. recovery after a unique-violation race).
+  const boardSessionIdRef = useRef<string>(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `bs-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
   // Deactivate stale rows ONLY for the same (user, team) combination so a
   // coach running boards for two different teams in parallel tabs / devices
@@ -111,6 +119,7 @@ export function useBasketballGameSync(
       pitch_state: pitchPayload,
       is_active: true,
       updated_at: new Date().toISOString(),
+      board_session_id: boardSessionIdRef.current,
     };
 
     try {
