@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal, Play } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -106,6 +106,10 @@ interface PitchSettingsDialogProps {
   
   // Add fill-in player
   onAddFillInPlayer?: () => void;
+
+  // Pitch board mode (Match | Training) — moved from header into settings.
+  pitchBoardMode?: "match" | "training";
+  onPitchBoardModeChange?: (mode: "match" | "training") => void;
 }
 
 export function PitchSettingsDialog({
@@ -148,6 +152,8 @@ export function PitchSettingsDialog({
   onShowLineupPickerChange,
   onOpenLineupPicker,
   onAddFillInPlayer,
+  pitchBoardMode,
+  onPitchBoardModeChange,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
@@ -181,6 +187,52 @@ export function PitchSettingsDialog({
           </ResponsiveDialogHeader>
           
           <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
+            {/* Board mode toggle — Match (live game) vs Training (drill board) */}
+            {!readOnly && pitchBoardMode && onPitchBoardModeChange && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Board Mode</Label>
+                <div
+                  role="tablist"
+                  aria-label="Pitch board mode"
+                  className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted p-0.5"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={pitchBoardMode === "match"}
+                    onClick={() => onPitchBoardModeChange("match")}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors",
+                      pitchBoardMode === "match"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Swords className="h-3.5 w-3.5" />
+                    <span>Match</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={pitchBoardMode === "training"}
+                    onClick={() => onPitchBoardModeChange("training")}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors",
+                      pitchBoardMode === "training"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span>Training</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Switch to Training mode to draw drills on the pitch. Match preserves your live game.
+                </p>
+              </div>
+            )}
+
             {/* Primary: Team Size + Formation - the only thing new users need */}
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
