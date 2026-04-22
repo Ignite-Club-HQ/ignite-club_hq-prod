@@ -122,6 +122,9 @@ export function DrillLibrarySheet({
         className="max-h-[90vh] flex flex-col p-0"
         // Prevent the search Input from auto-focusing on mobile (pops the keyboard)
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          if (Date.now() - openedAtRef.current < 250) e.preventDefault();
+        }}
       >
         <SheetHeader className="px-4 pt-4 pb-2 shrink-0">
           <SheetTitle className="flex items-center gap-2">
