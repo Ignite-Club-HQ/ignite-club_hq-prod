@@ -33,8 +33,34 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     resetZoom,
   } = usePinchZoom(1, 4);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
+
+  // Attach native non-passive touch listeners so preventDefault() actually
+  // works on iOS (React's synthetic touch listeners are passive).
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const handleStart = (e: globalThis.TouchEvent) => {
+      pinchTouchStart(e as unknown as React.TouchEvent);
+    };
+    const handleMove = (e: globalThis.TouchEvent) => {
+      pinchTouchMove(e as unknown as React.TouchEvent);
+    };
+    const handleEnd = () => pinchTouchEnd();
+    node.addEventListener("touchstart", handleStart, { passive: false });
+    node.addEventListener("touchmove", handleMove, { passive: false });
+    node.addEventListener("touchend", handleEnd, { passive: false });
+    node.addEventListener("touchcancel", handleEnd, { passive: false });
+    return () => {
+      node.removeEventListener("touchstart", handleStart);
+      node.removeEventListener("touchmove", handleMove);
+      node.removeEventListener("touchend", handleEnd);
+      node.removeEventListener("touchcancel", handleEnd);
+    };
+  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd]);
 
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {
