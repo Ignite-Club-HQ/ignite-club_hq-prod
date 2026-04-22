@@ -80,22 +80,27 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     // treat it as a drag, not a tap candidate. Keeps double-tap from firing
     // at the end of a pan.
     const TAP_SLOP = 10;
+    // A press held longer than this is a long-press (e.g. iOS context menu),
+    // not a tap. It must NOT count as a candidate for double-tap pairing.
+    const TAP_MAX_HOLD_MS = 500;
 
     // Per-gesture arbitration flags. Reset on touchstart of the first finger
     // and whenever a second finger lands. Ensures only one gesture (pinch,
-    // drag, OR double-tap) "wins" any given touch sequence.
+    // drag, long-press, OR double-tap) "wins" any given touch sequence.
     let gestureHadMultiTouch = false;
     let gestureMoved = false;
     let gestureStartX = 0;
     let gestureStartY = 0;
+    let gestureStartTime = 0;
 
     const handleStart = (e: globalThis.TouchEvent) => {
       if (e.touches.length === 1) {
-        // Fresh single-finger sequence — start tracking for tap/drag.
+        // Fresh single-finger sequence — start tracking for tap/drag/long-press.
         gestureHadMultiTouch = false;
         gestureMoved = false;
         gestureStartX = e.touches[0].clientX;
         gestureStartY = e.touches[0].clientY;
+        gestureStartTime = Date.now();
       } else if (e.touches.length >= 2) {
         // Pinch started — kill any pending tap candidate so the pinch can't
         // accidentally trigger a double-tap when fingers lift.
@@ -119,14 +124,18 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     };
     const handleEnd = (e: globalThis.TouchEvent) => {
       pinchTouchEnd();
+      const heldMs = Date.now() - gestureStartTime;
+      const wasLongPress = heldMs >= TAP_MAX_HOLD_MS;
       // Detect double-tap on touchend, but only if the gesture was a true
-      // single-finger tap (no pinch, no drag). This prevents double-tap from
-      // firing during pinch-zoom or at the tail of a pan.
+      // single-finger short tap (no pinch, no drag, no long-press). This
+      // prevents double-tap from firing during pinch-zoom, at the tail of a
+      // pan, or after a long press.
       if (
         e.changedTouches.length === 1 &&
         e.touches.length === 0 &&
         !gestureHadMultiTouch &&
-        !gestureMoved
+        !gestureMoved &&
+        !wasLongPress
       ) {
         const t = e.changedTouches[0];
         const now = Date.now();
@@ -143,8 +152,8 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         }
         lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
       } else if (e.touches.length === 0) {
-        // Sequence ended as a pinch or drag — invalidate any tap candidate so
-        // the next genuine tap can't pair with this aborted one.
+        // Sequence ended as a pinch, drag, or long-press — invalidate any
+        // tap candidate so the next genuine tap can't pair with this one.
         lastTapRef.current = null;
       }
     };
