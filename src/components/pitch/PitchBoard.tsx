@@ -5659,6 +5659,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamId={teamId}
                   teamName={teamName}
                   members={members}
+                  linkedEventId={linkedEventId}
                 />
               </Suspense>
             </div>
@@ -5925,6 +5926,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamId={teamId}
                 teamName={teamName}
                 members={members}
+                linkedEventId={linkedEventId}
               />
             </Suspense>
           </div>

@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Search,
   Trash2,
@@ -25,6 +32,13 @@ import {
   useAddToSession,
 } from "@/hooks/useDrillLibrary";
 import { loadDrill, type LibraryTab } from "./drillStorage";
+import {
+  AGE_GROUP_FILTER_OPTIONS,
+  PLAYER_COUNT_FILTER_OPTIONS,
+  applyDrillFilters,
+  type AgeGroupFilter,
+  type PlayerCountFilterValue,
+} from "./drillFilters";
 import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -78,6 +92,8 @@ export function DrillLibrarySheet({
 }: DrillLibrarySheetProps) {
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
+  const [ageFilter, setAgeFilter] = useState<AgeGroupFilter>("All");
+  const [playerFilter, setPlayerFilter] = useState<PlayerCountFilterValue>("all");
   const [openingId, setOpeningId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -86,6 +102,12 @@ export function DrillLibrarySheet({
   const deleteDrillMut = useDeleteDrill();
   const stampRecent = useStampRecent();
   const addToSessionMut = useAddToSession();
+
+  const filteredDrills = useMemo(
+    () => (drills ? applyDrillFilters(drills, ageFilter, playerFilter) : drills),
+    [drills, ageFilter, playerFilter],
+  );
+  const filtersActive = ageFilter !== "All" || playerFilter !== "all";
 
   const sessionDrillIds = new Set((sessionDrills ?? []).map((s) => s.drillId));
 
@@ -180,7 +202,7 @@ export function DrillLibrarySheet({
           </Button>
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
+        <div className="px-4 pb-2 shrink-0 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -190,6 +212,55 @@ export function DrillLibrarySheet({
               placeholder="Search drills..."
               className="pl-8"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={ageFilter} onValueChange={(v) => setAgeFilter(v as AgeGroupFilter)}>
+              <SelectTrigger
+                className="h-9 flex-1 text-xs"
+                aria-label="Filter by age group"
+              >
+                <SelectValue placeholder="Age group" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {AGE_GROUP_FILTER_OPTIONS.map((age) => (
+                  <SelectItem key={age} value={age}>
+                    {age === "All" ? "All ages" : age}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={playerFilter}
+              onValueChange={(v) => setPlayerFilter(v as PlayerCountFilterValue)}
+            >
+              <SelectTrigger
+                className="h-9 flex-1 text-xs"
+                aria-label="Filter by number of players active in the activity (excludes players on the sideline)"
+              >
+                <SelectValue placeholder="Active players" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {PLAYER_COUNT_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filtersActive && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAgeFilter("All");
+                  setPlayerFilter("all");
+                }}
+                className="h-9 px-2 text-xs text-muted-foreground"
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
 
@@ -220,11 +291,19 @@ export function DrillLibrarySheet({
                 <div className="flex items-center justify-center py-12 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
-              ) : !drills || drills.length === 0 ? (
-                <EmptyState tab={t.value} hasTeam={!!teamId} />
+              ) : !filteredDrills || filteredDrills.length === 0 ? (
+                <EmptyState
+                  tab={t.value}
+                  hasTeam={!!teamId}
+                  filtersActive={filtersActive && !!drills && drills.length > 0}
+                  onClearFilters={() => {
+                    setAgeFilter("All");
+                    setPlayerFilter("all");
+                  }}
+                />
               ) : (
                 <ul className="space-y-2 pb-4">
-                  {drills.map((d) => {
+                  {filteredDrills.map((d) => {
                     const VisIcon = d.isOfficial ? Sparkles : VIS_ICON[d.visibility] ?? Lock;
                     const isOpening = openingId === d.id;
                     const inSession = sessionDrillIds.has(d.id);
@@ -355,7 +434,29 @@ export function DrillLibrarySheet({
   );
 }
 
-function EmptyState({ tab, hasTeam }: { tab: LibraryTab; hasTeam: boolean }) {
+function EmptyState({
+  tab,
+  hasTeam,
+  filtersActive,
+  onClearFilters,
+}: {
+  tab: LibraryTab;
+  hasTeam: boolean;
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
+}) {
+  if (filtersActive) {
+    return (
+      <div className="text-center py-12 px-4 text-sm text-muted-foreground space-y-3">
+        <p>No drills match the current filters.</p>
+        {onClearFilters && (
+          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
+      </div>
+    );
+  }
   const messages: Record<LibraryTab, string> = {
     ignite: "No drills found. Try a different search.",
     mine: "You haven't created any drills yet. Pick one from the Ignite library or create your own.",

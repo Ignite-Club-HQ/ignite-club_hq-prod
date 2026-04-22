@@ -8022,6 +8022,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_guardian_of_child: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean

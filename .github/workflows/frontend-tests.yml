@@ -42,8 +42,12 @@ jobs:
       # Fast-fail: exercise just the iOS gesture suites first so a regression
       # in the FullscreenImageViewer touch arbitration is visible within
       # seconds, before the full suite finishes.
+      # Vitest treats positional CLI args as substring filters against
+      # resolved test file paths (NOT shell globs). Passing a glob like
+      # "FullscreenImageViewer.*.test.tsx" matches zero files and exits 1
+      # with "No test files found". Use a plain substring instead.
       - name: Smoke-test iOS gesture suites
-        run: bunx vitest run "src/components/chat/FullscreenImageViewer.*.test.tsx"
+        run: bunx vitest run FullscreenImageViewer
 
       - name: Run full test suite
         run: bunx vitest run
