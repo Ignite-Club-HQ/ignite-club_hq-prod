@@ -40,8 +40,9 @@ function blockGhostClicks(durationMs = 600) {
   const stop = (e: Event) => {
     e.stopPropagation();
     e.preventDefault();
-    // @ts-expect-error - non-standard but supported in modern browsers
-    e.stopImmediatePropagation?.();
+    if (typeof (e as Event & { stopImmediatePropagation?: () => void }).stopImmediatePropagation === "function") {
+      (e as Event & { stopImmediatePropagation: () => void }).stopImmediatePropagation();
+    }
   };
   const opts: AddEventListenerOptions = { capture: true };
   const events = ["click", "mouseup", "mousedown", "pointerup", "pointerdown", "touchend", "touchstart"] as const;
