@@ -71,7 +71,7 @@ function rowToSummary(r: DrillRow): DrillSummary {
   };
 }
 
-function rowToDrill(r: DrillRow, frames: DrillFrame[]): Drill {
+export function rowToDrill(r: DrillRow, frames: DrillFrame[]): Drill {
   const metadata: DrillMetadata = {
     ageGroup: r.age_group ?? undefined,
     focus: r.focus ?? [],
@@ -93,7 +93,7 @@ function rowToDrill(r: DrillRow, frames: DrillFrame[]): Drill {
   };
 }
 
-function frameRowToFrame(r: DrillFrameRow): DrillFrame {
+export function frameRowToFrame(r: DrillFrameRow): DrillFrame {
   return {
     id: r.id,
     position: r.position,
@@ -103,6 +103,8 @@ function frameRowToFrame(r: DrillFrameRow): DrillFrame {
     annotations: Array.isArray(r.annotations) ? (r.annotations as DrillFrame["annotations"]) : [],
   };
 }
+
+export type { DrillRow, DrillFrameRow };
 
 // ---------- Library queries ----------
 
