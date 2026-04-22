@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { recordSyncWrite } from "@/lib/syncWriteRateMonitor";
 import type { Json } from "@/integrations/supabase/types";
 
 const SYNC_INTERVAL = 10000; // Sync every 10 seconds
@@ -181,6 +182,9 @@ export function useActiveGameSync() {
 
     try {
       const teamId = timerState.teamId || null;
+      // Telemetry: count this attempted write toward the per-(user,team) rate.
+      // Mirrored server-side by trigger `log_active_game_write`.
+      recordSyncWrite({ userId: user.id, teamId, source: "soccer" });
 
       if (activeGameIdRef.current) {
         await deactivateOtherActiveGames(teamId, activeGameIdRef.current);
