@@ -2061,6 +2061,7 @@ export type Database = {
           equipment: string[]
           focus: string[]
           id: string
+          is_official: boolean
           name: string
           owner_user_id: string
           pitch_size: string
@@ -2083,6 +2084,7 @@ export type Database = {
           equipment?: string[]
           focus?: string[]
           id?: string
+          is_official?: boolean
           name: string
           owner_user_id: string
           pitch_size?: string
@@ -2105,6 +2107,7 @@ export type Database = {
           equipment?: string[]
           focus?: string[]
           id?: string
+          is_official?: boolean
           name?: string
           owner_user_id?: string
           pitch_size?: string
@@ -6815,6 +6818,38 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_session_drills: {
+        Row: {
+          added_at: string
+          drill_id: string
+          id: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          drill_id: string
+          id?: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          drill_id?: string
+          id?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_session_drills_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
             referencedColumns: ["id"]
           },
         ]
