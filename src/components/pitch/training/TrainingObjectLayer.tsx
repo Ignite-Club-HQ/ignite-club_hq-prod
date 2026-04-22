@@ -123,6 +123,62 @@ function resolvePlayerOverlaps(
   return positions;
 }
 
+/**
+ * Push balls away from any player chips so the ball never sits underneath
+ * (or visually overlaps) a player. Uses the resolved player positions so
+ * we account for the nudges applied above.
+ */
+function resolveBallOverlaps(
+  objects: RenderableObject[],
+  playerPositions: Map<string, { x: number; y: number }>,
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const balls = objects.filter((o) => o.type === "ball");
+  if (balls.length === 0) return positions;
+
+  // Pre-compute player footprints (matches resolvePlayerOverlaps sizing).
+  const players = objects.filter((o) => o.type === "player");
+  const playerHalves = players.map((p) => {
+    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
+    const labelLen = (p.label ?? "P").trim().length;
+    const baseRadiusPct = isWaiting ? 4.5 : 6;
+    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
+    const pos = playerPositions.get(p.id) ?? { x: p.x, y: p.y };
+    return { x: pos.x, y: pos.y, rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+  });
+
+  // Ball footprint: ~30px glyph ≈ 4% radius on a typical pitch.
+  const ballR = 4;
+
+  for (const ball of balls) {
+    let bx = ball.x;
+    let by = ball.y;
+    for (let iter = 0; iter < 8; iter++) {
+      let moved = false;
+      for (const ph of playerHalves) {
+        const dx = bx - ph.x;
+        const dy = by - ph.y;
+        const reqX = ph.rx + ballR + 0.6;
+        const reqY = ph.ry + ballR + 0.6;
+        const ndx = dx / reqX;
+        const ndy = dy / reqY;
+        const ndist = Math.hypot(ndx, ndy);
+        if (ndist >= 1) continue;
+        const overlap = 1 - ndist;
+        // If ball sits exactly on the player, push it down-right by default.
+        const nx = ndist > 0.0001 ? ndx / ndist : 0.7071;
+        const ny = ndist > 0.0001 ? ndy / ndist : 0.7071;
+        bx = clamp(bx + nx * overlap * reqX);
+        by = clamp(by + ny * overlap * reqY);
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    positions.set(ball.id, { x: bx, y: by });
+  }
+  return positions;
+}
+
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
     case "player": {
