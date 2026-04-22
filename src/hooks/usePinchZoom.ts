@@ -12,7 +12,7 @@ interface UsePinchZoomReturn {
   translateY: number;
   onTouchStart: (e: TouchEvent) => void;
   onTouchMove: (e: TouchEvent) => void;
-  onTouchEnd: () => void;
+  onTouchEnd: (e?: TouchEvent | globalThis.TouchEvent) => void;
   onWheel: (e: WheelEvent) => void;
   onMouseDown: (e: MouseEvent) => void;
   onMouseMove: (e: MouseEvent) => void;
@@ -164,7 +164,21 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     }
   }, [minScale, maxScale]);
 
-  const onTouchEnd = useCallback(() => {
+  const onTouchEnd = useCallback((e?: TouchEvent | globalThis.TouchEvent) => {
+    // Only finalize the gesture once ALL fingers have lifted. On iOS users
+    // frequently lift one finger slightly before the other; resetting pinch
+    // state on the first lift would discard a valid pinch and snap the
+    // image back to 1× before the gesture truly ends.
+    const remainingTouches = e && "touches" in e ? e.touches.length : 0;
+    if (remainingTouches > 0) {
+      // Pan state always clears (pan needs a fresh deliberate finger), but
+      // we keep pinch refs alive so the staggered second-finger lift still
+      // commits the in-progress pinch.
+      panStart.current = null;
+      isPanning.current = false;
+      return;
+    }
+
     initialDistance.current = null;
     initialCenter.current = null;
     initialAngle.current = null;
@@ -173,7 +187,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     panStart.current = null;
     isPanning.current = false;
 
-    if (stateRef.current.scale < 1.15) {
+    // Lower threshold (was 1.15) — gentle iOS pinches commonly land in the
+    // 1.05–1.12 range and were being silently discarded, making zoom feel
+    // unresponsive. Anything above ~5% scale change counts as intentional.
+    if (stateRef.current.scale < 1.05) {
       setState({ scale: 1, translateX: 0, translateY: 0 });
     }
   }, []);
