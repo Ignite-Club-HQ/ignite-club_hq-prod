@@ -120,12 +120,13 @@ export default function TrainingBoard({
     view,
     isPlaying,
     speed,
+    play: playPlayback,
     toggle: togglePlayback,
     next: nextFrame,
     prev: prevFrame,
     goTo,
     setSpeed,
-  } = useDrillPlayback({ frames });
+  } = useDrillPlayback({ frames, loop: true });
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
@@ -417,10 +418,18 @@ export default function TrainingBoard({
       setPlayerCounter(1);
       goTo(0);
       setEditorMode(true);
-      setPreviewMode(false);
+      // Open in preview (read-only) mode so the toolbar stays hidden until
+      // the coach explicitly taps Edit. Auto-start playback for multi-frame
+      // drills so they immediately animate when opened.
+      setPreviewMode(true);
+      setActiveTool("select");
+      if (loaded.length > 1) {
+        // Defer to next tick so the playback hook sees the new frames first
+        window.setTimeout(() => playPlayback(), 0);
+      }
       toast.success(`Opened "${drill.name}"`);
     },
-    [goTo]
+    [goTo, playPlayback]
   );
 
   const handleExitEditor = useCallback(() => {
