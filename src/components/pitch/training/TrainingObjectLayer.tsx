@@ -667,7 +667,7 @@ function TrainingObjectLayerImpl({
               transition: "left 120ms ease-out, top 120ms ease-out",
             }}
           >
-            <ObjectGlyph obj={obj} />
+            <ObjectGlyph obj={obj} isNextUp={obj.id === nextUpId} />
           </div>
         );
       })}
