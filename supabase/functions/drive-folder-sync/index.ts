@@ -156,8 +156,7 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
           let fileName = file.name;
           if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
           const blob = new Blob([bytes], { type: contentType });
-          const isImage = contentType.startsWith('image/');
-          const bucket = isImage ? 'photos' : 'vault-files';
+          const bucket = 'photos';
           const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
           const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
           if (upErr) { console.error('Upload failed', upErr); continue; }
@@ -179,24 +178,11 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
           let fileName = file.name;
           if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
           const blob = new Blob([bytes], { type: contentType });
-          const isImage = contentType.startsWith('image/');
-          const bucket = isImage ? 'photos' : 'vault-files';
+          const bucket = 'photos';
           const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
           const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
           if (upErr) { console.error('Upload failed', upErr); continue; }
           const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-
-          if (isImage) {
-            await supabase.from('photos').insert({
-              image_url: urlData.publicUrl,
-              title: fileName,
-              club_id: link.club_id,
-              team_id: link.team_id,
-              folder_id: vaultId,
-              uploader_id: null,
-              file_size: bytes.byteLength,
-            });
-          }
           await supabase.from('vault_files').insert({
             file_url: urlData.publicUrl,
             name: fileName,
