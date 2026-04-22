@@ -348,23 +348,39 @@ function extractFileUrls(text: string): string[] {
   );
 }
 
+// Generic action segments that appear at the end of Google file URLs and are
+// NOT real filenames. Strip these before treating a path segment as a name.
+const GOOGLE_ACTION_SEGMENTS = new Set([
+  "edit",
+  "view",
+  "preview",
+  "comment",
+  "copy",
+  "template",
+  "htmlview",
+  "pub",
+  "embed",
+  "viewform",
+  "formresponse",
+]);
+
 function extractFileName(url: string): string | null {
   try {
-    // Google Docs/Sheets/Slides URLs end with /edit, /view, /preview etc.
-    // The actual document title isn't in the URL, so fall back to a friendly
-    // type-based label rather than returning "edit"/"view".
+    // Google links never carry the document title in the URL — always defer to
+    // the friendly type-based label so we never end up with "edit" / "view".
     const googleLabel = googleDocLabel(url);
     if (googleLabel) return googleLabel;
 
     const pathname = new URL(url).pathname;
     const segments = pathname.split("/").filter(Boolean);
-    const last = segments[segments.length - 1];
-    // Skip generic action segments that aren't actual filenames
-    if (last && /^(edit|view|preview|comment|copy|template)$/i.test(last)) {
-      return null;
-    }
-    if (last && last.includes(".")) {
-      return decodeURIComponent(last);
+    // Walk from the end, skipping generic action words, until we find a
+    // segment that looks like a real filename.
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i];
+      if (GOOGLE_ACTION_SEGMENTS.has(seg.toLowerCase())) continue;
+      if (seg.includes(".")) return decodeURIComponent(seg);
+      // Otherwise: not a filename; fall through and bail.
+      break;
     }
     return null;
   } catch {
@@ -372,26 +388,79 @@ function extractFileName(url: string): string | null {
   }
 }
 
+/**
+ * Return a friendly label for a Google Drive / Docs / Sheets / Slides / Forms
+ * URL, e.g. "Google Sheet (1aB2cD)" or "Google Drive folder (1aB2cD)".
+ *
+ * Handles all common URL shapes:
+ *   • https://docs.google.com/{spreadsheets|document|presentation|forms}/d/<id>/edit
+ *   • https://docs.google.com/forms/d/e/<id>/viewform
+ *   • https://drive.google.com/file/d/<id>/view
+ *   • https://drive.google.com/drive/folders/<id>
+ *   • https://drive.google.com/drive/u/0/folders/<id>
+ *   • https://drive.google.com/open?id=<id>
+ *   • https://drive.google.com/uc?id=<id>&export=download
+ *   • https://drive.google.com/thumbnail?id=<id>
+ *   • https://docs.google.com/uc?id=<id>
+ *   • Short links: https://goo.gl/... and https://drive.google.com/...?usp=sharing
+ *
+ * Returns `null` for non-Google URLs.
+ */
 function googleDocLabel(url: string): string | null {
   try {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
-    if (!host.includes("google.com")) return null;
+    if (
+      !host.endsWith("google.com") &&
+      !host.endsWith("goo.gl") &&
+      !host.endsWith("googleusercontent.com")
+    ) {
+      return null;
+    }
 
     const path = u.pathname.toLowerCase();
     let kind: string | null = null;
+    let isFolder = false;
+
     if (path.includes("/spreadsheets/")) kind = "Google Sheet";
     else if (path.includes("/document/")) kind = "Google Doc";
     else if (path.includes("/presentation/")) kind = "Google Slides";
     else if (path.includes("/forms/")) kind = "Google Form";
-    else if (host.startsWith("drive.")) kind = "Google Drive file";
-    else if (host.startsWith("docs.")) kind = "Google Doc";
-    else return null;
+    else if (path.includes("/drawings/")) kind = "Google Drawing";
+    else if (path.includes("/folders/") || path.includes("/folderview")) {
+      kind = "Google Drive folder";
+      isFolder = true;
+    } else if (host === "goo.gl" || host.endsWith(".goo.gl")) {
+      kind = "Google share link";
+    } else if (host.startsWith("drive.") || host.endsWith("googleusercontent.com")) {
+      kind = "Google Drive file";
+    } else if (host.startsWith("docs.")) {
+      kind = "Google Doc";
+    } else {
+      return null;
+    }
 
-    // Include a short id for disambiguation when multiple Google files coexist.
-    const idMatch = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (idMatch) {
-      const shortId = idMatch[1].slice(0, 6);
+    // Try to extract a stable ID for disambiguation. Order matters:
+    //   1. /folders/<id>   (Drive folder)
+    //   2. /d/e/<id>       (Forms with response keys)
+    //   3. /d/<id>         (most Docs/Sheets/Slides/Drive file URLs)
+    //   4. ?id=<id>        (open / uc / thumbnail / older share links)
+    let id: string | null = null;
+    const folderMatch = u.pathname.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    const deMatch = u.pathname.match(/\/d\/e\/([a-zA-Z0-9_-]+)/);
+    const dMatch = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    const fileMatch = u.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    const idParam = u.searchParams.get("id");
+
+    if (isFolder && folderMatch) id = folderMatch[1];
+    else if (fileMatch) id = fileMatch[1];
+    else if (deMatch) id = deMatch[1];
+    else if (dMatch) id = dMatch[1];
+    else if (folderMatch) id = folderMatch[1];
+    else if (idParam) id = idParam;
+
+    if (id) {
+      const shortId = id.slice(0, 6);
       return `${kind} (${shortId})`;
     }
     return kind;
