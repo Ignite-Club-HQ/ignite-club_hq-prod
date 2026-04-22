@@ -185,7 +185,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           Math.hypot(t.clientX - last.x, t.clientY - last.y) < DOUBLE_TAP_DIST
         ) {
           e.preventDefault();
-          triggerZoomToggle();
+          triggerZoomToggleRef.current();
           lastTapRef.current = null;
           return;
         }
