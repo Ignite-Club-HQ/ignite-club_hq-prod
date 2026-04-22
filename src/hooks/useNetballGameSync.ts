@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { setSyncStatus } from "./useSyncStatus";
 import { buildGameSignature } from "@/lib/gameSyncSignature";
+import { recordSyncWrite } from "@/lib/syncWriteRateMonitor";
 import type { Json } from "@/integrations/supabase/types";
 import type { NetballBoardState, NetballTimerState } from "@/components/netball/types";
 
