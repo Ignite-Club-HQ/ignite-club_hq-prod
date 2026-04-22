@@ -98,9 +98,9 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
           aria-label="ball"
           className="select-none leading-none"
           style={{
-            fontSize: 26,
+            fontSize: 30,
             lineHeight: 1,
-            filter: "drop-shadow(1px 2px 3px rgba(0,0,0,0.55))",
+            filter: "drop-shadow(1px 2px 4px rgba(0,0,0,0.65))",
           }}
         >
           ⚽
@@ -327,9 +327,12 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Text + step markers + arrow handles */}
+      {/* Text + step markers + arrow handles. Hide the seeded "wait-label"
+          text — it's replaced by the dedicated <NextUpZone /> visual so the
+          floating "Waiting line — rotate in" caption no longer competes with
+          the pitch. */}
       {annotations
-        .filter((a) => a.type !== "zone")
+        .filter((a) => a.type !== "zone" && a.id !== "wait-label")
         .map((ann) => {
           let ax = 0;
           let ay = 0;
