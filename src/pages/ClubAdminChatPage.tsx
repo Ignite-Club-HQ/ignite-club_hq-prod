@@ -388,6 +388,22 @@ export default function ClubAdminChatPage() {
       toast.error("Failed to send message. Please try again.");
       setLocalMessages((prev) => prev?.filter(m => !m.id.startsWith("temp-")) || null);
     },
+    onSettled: (_data, _err, variables) => {
+      // Auto-sync any file/document links shared in this Club Admin Chat
+      // into a dedicated "Club Admin Chat" vault folder (club admins only).
+      const clubIdForSync = conversation?.club_id;
+      if (user && clubIdForSync && variables?.text) {
+        import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+          syncChatAttachmentToVault({
+            imageUrl: null,
+            text: variables.text,
+            userId: user.id,
+            clubId: clubIdForSync,
+            isClubAdminChat: true,
+          }).catch(() => {});
+        });
+      }
+    },
   });
 
   const updateMessageMutation = useMutation({

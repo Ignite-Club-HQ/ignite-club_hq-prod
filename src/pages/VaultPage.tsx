@@ -601,8 +601,20 @@ export default function VaultPage() {
 
   const CHAT_FOLDER_NAMES = ["Chat Images", "Chat Links"];
 
+  // Roles the current user holds in the active club (used to filter
+  // role-restricted chat folders like "Coaches Chat", "Club Admin Chat", etc.)
+  const userClubRoleSet = useMemo(() => {
+    const set = new Set<string>();
+    const clubId = getCurrentClubId();
+    if (!clubId || !userRoles) return set;
+    userRoles.forEach((r: any) => {
+      if (r.club_id === clubId && r.role) set.add(r.role as string);
+    });
+    return set;
+  }, [userRoles, currentView]);
+
   const { data: subfolders } = useQuery({
-    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin],
+    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin, isAppAdmin, Array.from(userClubRoleSet).sort().join(",")],
     queryFn: async () => {
       const clubId = getCurrentClubId();
       const teamId = getCurrentTeamId();
@@ -614,7 +626,10 @@ export default function VaultPage() {
       let nullFilters: string[] = [];
       
       if (currentView.type === "club") {
-        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
+        // Allow non-admin users into the club view ONLY if they may have
+        // role-restricted chat folders to see (coaches, team admins, league admins).
+        // Generic vault access stays admin-only.
+        if (!isClubAdmin && !isCoachOrTeamAdmin && userClubRoleSet.size === 0) return [];
         filters.club_id = clubId;
         nullFilters = ["team_id", "mini_league_id"];
       } else if (currentView.type === "team") {
@@ -641,13 +656,28 @@ export default function VaultPage() {
       }
       
       const { data } = await query.order("name");
-      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
-      
-      // Non-admin coaches/team admins can only see Chat folders at club level
+      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; chat_group_id: string | null; restricted_roles: string[] | null; created_at: string }[];
+
+      // Apply role-restriction filtering for chat-scoped folders.
+      // Club admins, committee members, and app admins can always see them.
+      const isPrivilegedViewer = isAppAdmin || isClubAdmin;
+      folders = folders.filter((f) => {
+        if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
+        if (isPrivilegedViewer) return true;
+        return f.restricted_roles.some((r) => userClubRoleSet.has(r));
+      });
+
+      // Non-admin coaches/team admins at club root can only see chat-scoped folders
+      // (generic Chat Images / Chat Links, plus any role-restricted chat folder
+      // they qualify for via restricted_roles above).
       if (currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin) {
-        folders = folders.filter(f => CHAT_FOLDER_NAMES.includes(f.name));
+        folders = folders.filter(
+          (f) =>
+            CHAT_FOLDER_NAMES.includes(f.name) ||
+            (f.restricted_roles && f.restricted_roles.length > 0)
+        );
       }
-      
+
       return folders;
     },
     enabled: currentView.type !== "root",

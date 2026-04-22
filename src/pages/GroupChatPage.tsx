@@ -1142,6 +1142,9 @@ export default function GroupChatPage() {
               userId: user.id,
               clubId: group.club_id!,
               teamId: group.team_id,
+              chatGroupId: group.id,
+              chatGroupName: group.name,
+              chatGroupAllowedRoles: group.allowed_roles as any,
             }).catch(() => {});
           });
         }
