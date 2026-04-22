@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Search,
   Trash2,
@@ -25,6 +32,13 @@ import {
   useAddToSession,
 } from "@/hooks/useDrillLibrary";
 import { loadDrill, type LibraryTab } from "./drillStorage";
+import {
+  AGE_GROUP_FILTER_OPTIONS,
+  PLAYER_COUNT_FILTER_OPTIONS,
+  applyDrillFilters,
+  type AgeGroupFilter,
+  type PlayerCountFilterValue,
+} from "./drillFilters";
 import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
