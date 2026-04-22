@@ -1,15 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Search,
   Trash2,
@@ -32,16 +25,16 @@ import {
   useAddToSession,
 } from "@/hooks/useDrillLibrary";
 import { loadDrill, type LibraryTab } from "./drillStorage";
-import {
-  AGE_GROUP_FILTER_OPTIONS,
-  PLAYER_COUNT_FILTER_OPTIONS,
-  applyDrillFilters,
-  type AgeGroupFilter,
-  type PlayerCountFilterValue,
-} from "./drillFilters";
 import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  applyDrillFilters,
+  AGE_GROUP_OPTIONS,
+  PLAYER_COUNT_OPTIONS,
+  type AgeGroupFilter,
+  type PlayerCountFilterValue,
+} from "./drillFilters";
 
 /**
  * On touch devices, when an overlay closes inside a tap handler the synthesized
@@ -92,22 +85,18 @@ export function DrillLibrarySheet({
 }: DrillLibrarySheetProps) {
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
-  const [ageFilter, setAgeFilter] = useState<AgeGroupFilter>("All");
+  const [ageFilter, setAgeFilter] = useState<AgeGroupFilter>("all");
   const [playerFilter, setPlayerFilter] = useState<PlayerCountFilterValue>("all");
   const [openingId, setOpeningId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const { data: drills, isLoading } = useDrillList(tab, teamId ?? undefined, search);
+  const filteredDrills = applyDrillFilters(drills, ageFilter, playerFilter);
+  const filtersActive = ageFilter !== "all" || playerFilter !== "all";
   const { data: sessionDrills } = useSessionDrills();
   const deleteDrillMut = useDeleteDrill();
   const stampRecent = useStampRecent();
   const addToSessionMut = useAddToSession();
-
-  const filteredDrills = useMemo(
-    () => (drills ? applyDrillFilters(drills, ageFilter, playerFilter) : drills),
-    [drills, ageFilter, playerFilter],
-  );
-  const filtersActive = ageFilter !== "All" || playerFilter !== "all";
 
   const sessionDrillIds = new Set((sessionDrills ?? []).map((s) => s.drillId));
 
@@ -202,7 +191,7 @@ export function DrillLibrarySheet({
           </Button>
         </div>
 
-        <div className="px-4 pb-2 shrink-0 space-y-2">
+        <div className="px-4 pb-2 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -212,55 +201,6 @@ export function DrillLibrarySheet({
               placeholder="Search drills..."
               className="pl-8"
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={ageFilter} onValueChange={(v) => setAgeFilter(v as AgeGroupFilter)}>
-              <SelectTrigger
-                className="h-9 flex-1 text-xs"
-                aria-label="Filter by age group"
-              >
-                <SelectValue placeholder="Age group" />
-              </SelectTrigger>
-              <SelectContent className="z-[1000003]">
-                {AGE_GROUP_FILTER_OPTIONS.map((age) => (
-                  <SelectItem key={age} value={age}>
-                    {age === "All" ? "All ages" : age}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={playerFilter}
-              onValueChange={(v) => setPlayerFilter(v as PlayerCountFilterValue)}
-            >
-              <SelectTrigger
-                className="h-9 flex-1 text-xs"
-                aria-label="Filter by number of players active in the activity (excludes players on the sideline)"
-              >
-                <SelectValue placeholder="Active players" />
-              </SelectTrigger>
-              <SelectContent className="z-[1000003]">
-                {PLAYER_COUNT_FILTER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {filtersActive && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setAgeFilter("All");
-                  setPlayerFilter("all");
-                }}
-                className="h-9 px-2 text-xs text-muted-foreground"
-              >
-                Clear
-              </Button>
-            )}
           </div>
         </div>
 
@@ -295,9 +235,9 @@ export function DrillLibrarySheet({
                 <EmptyState
                   tab={t.value}
                   hasTeam={!!teamId}
-                  filtersActive={filtersActive && !!drills && drills.length > 0}
+                  filtersActive={filtersActive}
                   onClearFilters={() => {
-                    setAgeFilter("All");
+                    setAgeFilter("all");
                     setPlayerFilter("all");
                   }}
                 />
@@ -445,18 +385,6 @@ function EmptyState({
   filtersActive?: boolean;
   onClearFilters?: () => void;
 }) {
-  if (filtersActive) {
-    return (
-      <div className="text-center py-12 px-4 text-sm text-muted-foreground space-y-3">
-        <p>No drills match the current filters.</p>
-        {onClearFilters && (
-          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        )}
-      </div>
-    );
-  }
   const messages: Record<LibraryTab, string> = {
     ignite: "No drills found. Try a different search.",
     mine: "You haven't created any drills yet. Pick one from the Ignite library or create your own.",
@@ -466,6 +394,17 @@ function EmptyState({
     recent: "No recently used drills. Open one from the library to see it here next time.",
   };
   return (
-    <div className="text-center py-12 px-4 text-sm text-muted-foreground">{messages[tab]}</div>
+    <div className="text-center py-12 px-4 text-sm text-muted-foreground space-y-2">
+      <p>{filtersActive ? "No drills match your filters." : messages[tab]}</p>
+      {filtersActive && onClearFilters && (
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="text-xs text-primary hover:underline"
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
   );
 }
