@@ -9,6 +9,13 @@ import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 import { isVideoUrl } from "@/lib/videoUtils";
+import {
+  TAP_MAX_HOLD_MS,
+  DOUBLE_TAP_MS,
+  DOUBLE_TAP_DIST,
+  TAP_SLOP,
+  MULTI_FINGER_SUPPRESS_MS,
+} from "./fullscreenImageViewerConfig";
 
 interface FullscreenImageViewerProps {
   src: string;
@@ -78,15 +85,8 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
-    const DOUBLE_TAP_MS = 300;
-    const DOUBLE_TAP_DIST = 32;
-    // Tap is "moved" once the finger travels past this in a single gesture —
-    // treat it as a drag, not a tap candidate. Keeps double-tap from firing
-    // at the end of a pan.
-    const TAP_SLOP = 10;
-    // A press held longer than this is a long-press (e.g. iOS context menu),
-    // not a tap. It must NOT count as a candidate for double-tap pairing.
-    const TAP_MAX_HOLD_MS = 500;
+    // Gesture-arbitration thresholds live in fullscreenImageViewerConfig.ts
+    // so tests and future per-device tuning share a single source of truth.
 
     // Per-gesture arbitration flags. Reset on touchstart of the first finger
     // and whenever a second finger lands. Ensures only one gesture (pinch,
