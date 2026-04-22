@@ -47,22 +47,27 @@ export default function TrackInviteSheet({
     id: string;
     display_name: string | null;
     avatar_url: string | null;
+    masked_email?: string | null;
   } | null>(null);
   const [customLabel, setCustomLabel] = useState("");
   
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Search for existing users
+  // Search for existing users (with masked email for disambiguation)
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-invite", debouncedSearch],
     queryFn: async () => {
       if (debouncedSearch.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSearch}%`)
-        .limit(5);
-      return data || [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedSearch,
+        _limit: 5,
+      });
+      return (data || []) as Array<{
+        id: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        masked_email: string | null;
+      }>;
     },
     enabled: debouncedSearch.length >= 2,
   });
@@ -200,7 +205,12 @@ export default function TrackInviteSheet({
                             {result.display_name?.[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{result.display_name || "Unknown"}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm truncate">{result.display_name || "Unknown"}</span>
+                          {result.masked_email && (
+                            <span className="text-xs text-muted-foreground truncate">{result.masked_email}</span>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
