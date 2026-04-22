@@ -5604,6 +5604,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
+        <ModeSwitch value={mode} onChange={setMode} />
         <h1 className="text-sm font-semibold flex-1 truncate min-w-0">{teamName}</h1>
         {readOnly && (
           <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
