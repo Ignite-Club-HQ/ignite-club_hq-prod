@@ -660,6 +660,7 @@ export default function TrainingBoard({
             frames={frames}
             initialIndex={currentIndex}
             onClose={() => setIsPresenting(false)}
+            teamPlayers={membersToTeamPlayers(members)}
           />
         </Suspense>
       )}
