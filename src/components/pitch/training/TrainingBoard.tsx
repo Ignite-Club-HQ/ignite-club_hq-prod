@@ -324,6 +324,48 @@ export default function TrainingBoard({
     setSelectedId(null);
   }, [currentFrame, updateCurrentFrame]);
 
+  // ---- Drill open / new ----
+  const handleNewDrill = useCallback(() => {
+    if (frames.some((f) => f.objects.length || f.annotations.length)) {
+      if (!window.confirm("Start a new drill? Unsaved changes will be lost.")) return;
+    }
+    setFrames([createEmptyFrame(0)]);
+    setSelectedId(null);
+    setStepCounter(1);
+    setPlayerCounter(1);
+    setSavedDrillId(null);
+    setSavedName("");
+    setSavedMetadata(undefined);
+    setSavedVisibility("private");
+    goTo(0);
+  }, [frames, goTo]);
+
+  const handleOpenDrill = useCallback(
+    (drill: Drill) => {
+      const loaded = drill.frames.length > 0 ? drill.frames : [createEmptyFrame(0)];
+      setFrames(loaded);
+      setSelectedId(null);
+      setSavedDrillId(drill.id);
+      setSavedName(drill.name);
+      setSavedMetadata(drill.metadata);
+      setSavedVisibility(drill.visibility);
+      // Reset counters above any existing labels
+      const maxStep = Math.max(
+        0,
+        ...loaded.flatMap((f) =>
+          f.annotations
+            .filter((a) => a.type === "step-marker")
+            .map((a) => (a.geometry as { number: number }).number)
+        )
+      );
+      setStepCounter(maxStep + 1);
+      setPlayerCounter(1);
+      goTo(0);
+      toast.success(`Opened "${drill.name}"`);
+    },
+    [goTo]
+  );
+
   const cursorClass = useMemo(() => {
     if (!editable) return "cursor-default";
     if (activeTool === "select") return "cursor-default";
