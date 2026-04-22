@@ -85,8 +85,10 @@ function renderViewer() {
   onDoubleClickMock.mockClear();
 }
 
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
+
 function gestureRoot(): HTMLElement {
-  return container.firstElementChild as HTMLElement;
+  return getPortalledGestureRoot(container);
 }
 
 function dispatch(

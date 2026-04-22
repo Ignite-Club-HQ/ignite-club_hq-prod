@@ -68,8 +68,10 @@ let root: Root;
 // Touch-event polyfill is shared across gesture suites — see module docs.
 import { makeTouchEvent } from "@/test/touchEventHelpers";
 
+import { getGestureRoot as getPortalledGestureRoot } from "@/test/touchEventHelpers";
+
 function getGestureRoot(): HTMLElement {
-  return container.firstElementChild as HTMLElement;
+  return getPortalledGestureRoot(container);
 }
 
 function dispatch(type: "touchstart" | "touchmove" | "touchend" | "touchcancel", touches: { clientX: number; clientY: number }[], changed?: { clientX: number; clientY: number }[]) {

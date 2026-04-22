@@ -31,6 +31,7 @@ import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
+import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 
 interface Reaction {
   id: string;
@@ -645,7 +646,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
-  if (isSystemMessage) {
+  if (isSystemMessage || isMembershipSystemText(text)) {
     return (
       <div className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">

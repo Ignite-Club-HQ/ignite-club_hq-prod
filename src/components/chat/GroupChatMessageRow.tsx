@@ -28,6 +28,7 @@ import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
+import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
 
@@ -327,7 +328,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
-  if (msg.is_system_message) {
+  if (msg.is_system_message || isMembershipSystemText(msg.text)) {
     return (
       <div id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">

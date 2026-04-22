@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { downloadImage } from "@/lib/downloadImage";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
@@ -113,6 +114,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     let gestureStartTime = 0;
 
     const handleStart = (e: globalThis.TouchEvent) => {
+      // Stop propagation so the viewer's gesture sequence is fully isolated
+      // from any chat / swipe-to-reply / long-press handlers on ancestors.
+      // Combined with the React portal below this guarantees iOS pinch never
+      // races against a parent's onPointerDown(preventDefault).
+      e.stopPropagation();
       // Track the peak finger count for this whole gesture sequence — a
       // 3-finger swipe that briefly drops to 1 finger as the user lifts
       // must still be treated as a system gesture, not a tap candidate.
@@ -140,6 +146,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       pinchTouchStart(e as unknown as React.TouchEvent);
     };
     const handleMove = (e: globalThis.TouchEvent) => {
+      e.stopPropagation();
       if (e.touches.length >= 3) {
         // Promoted to a system multi-finger gesture mid-sequence.
         gestureHadMultiFinger = true;
@@ -160,7 +167,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       pinchTouchMove(e as unknown as React.TouchEvent);
     };
     const handleEnd = (e: globalThis.TouchEvent) => {
-      pinchTouchEnd();
+      // Stop propagation so chat-message swipe-to-reply / long-press handlers
+      // on ancestor DOM nodes (the viewer is rendered as a portal but legacy
+      // call sites may still nest it) can't intercept the gesture finalisation.
+      e.stopPropagation();
+      pinchTouchEnd(e);
       const heldMs = Date.now() - gestureStartTime;
       const wasLongPress = heldMs >= TAP_MAX_HOLD_MS;
       // Detect double-tap on touchend, but only if the gesture was a true
@@ -203,8 +214,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         }
       }
     };
-    const handleCancel = () => {
-      pinchTouchEnd();
+    const handleCancel = (e: globalThis.TouchEvent) => {
+      e.stopPropagation();
+      pinchTouchEnd(e);
       lastTapRef.current = null;
       gestureHadMultiTouch = false;
       gestureHadMultiFinger = false;
@@ -253,7 +265,13 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   // env(safe-area-inset-top) reports 0.
   const safeTop = "max(env(safe-area-inset-top), 1.75rem)";
 
-  return (
+  // Render via a portal to document.body so the viewer escapes the chat
+  // message subtree. Inside the chat tree, ancestor handlers (swipe-to-reply,
+  // long-press timers, onPointerDown(preventDefault) on message bubbles)
+  // intercept touch events on iOS WebView and starve the pinch gesture.
+  // Portalling guarantees the viewer's touch sequence is owned exclusively
+  // by its own listeners.
+  const content = (
     <div
       ref={containerRef}
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
@@ -285,7 +303,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           size="icon"
           variant="ghost"
           className="text-white hover:bg-white/20"
-          onClick={(e) => { e.stopPropagation(); safeOpenUrl(effectiveSrc); }}
+          onClick={(e) => { e.stopPropagation(); void downloadImage(effectiveSrc, "ignite-photo"); }}
         >
           <Download className="h-6 w-6" />
         </Button>
@@ -344,4 +362,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       )}
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(content, document.body);
 }
