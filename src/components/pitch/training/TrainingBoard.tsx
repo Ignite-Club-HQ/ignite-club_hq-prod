@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Save, FolderOpen, FilePlus2, Plus, Check } from "lucide-react";
+import { Save, FolderOpen, FilePlus2, Plus, Check, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -86,7 +86,9 @@ export default function TrainingBoard({
   const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
   const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
   const [saveOpen, setSaveOpen] = useState(false);
-  // Library opens by default — coaches mostly browse & pick rather than draw
+  // Editor is hidden until coach opens a drill or explicitly creates one.
+  // Default lands on the library prompt + today's session list.
+  const [editorMode, setEditorMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false);
 
@@ -118,19 +120,14 @@ export default function TrainingBoard({
   const editable = !readOnly && !isAnimating;
   const hasSelection = !!selectedId;
 
-  // Auto-open library on first mount when board is empty — coaches start by picking a drill
+  // Auto-open library on first mount — coaches start by picking a drill
   useEffect(() => {
     if (readOnly || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
-    const isBlank =
-      frames.length <= 1 &&
-      (frames[0]?.objects.length ?? 0) === 0 &&
-      (frames[0]?.annotations.length ?? 0) === 0 &&
-      !savedDrillId;
-    if (isBlank) {
+    if (!editorMode) {
       openLibrary();
     }
-  }, [openLibrary, readOnly, frames, savedDrillId]);
+  }, [openLibrary, readOnly, editorMode]);
 
   const handleAddCurrentToSession = useCallback(() => {
     if (!savedDrillId) {
@@ -382,6 +379,7 @@ export default function TrainingBoard({
     setSavedMetadata(undefined);
     setSavedVisibility("private");
     goTo(0);
+    setEditorMode(true);
   }, [frames, goTo]);
 
   const handleOpenDrill = useCallback(
@@ -405,10 +403,28 @@ export default function TrainingBoard({
       setStepCounter(maxStep + 1);
       setPlayerCounter(1);
       goTo(0);
+      setEditorMode(true);
       toast.success(`Opened "${drill.name}"`);
     },
     [goTo]
   );
+
+  const handleExitEditor = useCallback(() => {
+    const dirty = frames.some((f) => f.objects.length || f.annotations.length);
+    if (dirty && !savedDrillId) {
+      if (!window.confirm("Close this drill? Unsaved changes will be lost.")) return;
+    }
+    setFrames([createEmptyFrame(0)]);
+    setSelectedId(null);
+    setStepCounter(1);
+    setPlayerCounter(1);
+    setSavedDrillId(null);
+    setSavedName("");
+    setSavedMetadata(undefined);
+    setSavedVisibility("private");
+    goTo(0);
+    setEditorMode(false);
+  }, [frames, savedDrillId, goTo]);
 
   const cursorClass = useMemo(() => {
     if (!editable) return "cursor-default";
@@ -420,10 +436,10 @@ export default function TrainingBoard({
   const renderedObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
-  return (
-    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
-      {/* Drill action bar — Library is the primary action; New is demoted */}
-      {!readOnly && (
+  // ---- Landing view (no editor) — shown until coach opens or creates a drill ----
+  if (!editorMode && !readOnly) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col bg-background">
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
           <Button
             type="button"
@@ -434,8 +450,77 @@ export default function TrainingBoard({
             <FolderOpen className="h-4 w-4 mr-1.5" />
             Browse drills
           </Button>
-          <div className="flex-1 min-w-0 text-sm text-muted-foreground truncate">
-            {savedName || (savedDrillId ? "Drill" : "Pick a drill to load")}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleNewDrill}
+            className="h-9"
+          >
+            <FilePlus2 className="h-4 w-4 mr-1.5" />
+            New drill
+          </Button>
+        </div>
+
+        <SessionPlanStrip
+          loadedDrillId={savedDrillId}
+          onOpenDrill={handleOpenDrill}
+        />
+
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <div className="max-w-sm w-full text-center flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <FolderOpen className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Pick a drill to get started</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose from the Ignite library or your saved drills. You can also create a new drill from scratch.
+              </p>
+            </div>
+            <div className="flex flex-col w-full gap-2">
+              <Button type="button" onClick={openLibrary} className="w-full">
+                <FolderOpen className="h-4 w-4 mr-1.5" />
+                Browse drill library
+              </Button>
+              <Button type="button" variant="outline" onClick={handleNewDrill} className="w-full">
+                <FilePlus2 className="h-4 w-4 mr-1.5" />
+                Create new drill
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Library sheet */}
+        <DrillLibrarySheet
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          teamId={teamId}
+          onOpenDrill={handleOpenDrill}
+          onNewDrill={handleNewDrill}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
+      {/* Drill action bar — Library is the primary action; New is demoted */}
+      {!readOnly && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleExitEditor}
+            className="h-9"
+            aria-label="Back to drill library"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Library
+          </Button>
+          <div className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">
+            {savedName || (savedDrillId ? "Drill" : "New drill")}
             {savedName && !savedDrillId ? " · unsaved" : ""}
           </div>
           {savedDrillId && (
@@ -509,30 +594,6 @@ export default function TrainingBoard({
             containerRef={containerRef}
             readOnly={!editable}
           />
-          {currentFrame &&
-            currentFrame.objects.length === 0 &&
-            currentFrame.annotations.length === 0 &&
-            !isAnimating && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="pointer-events-auto flex flex-col items-center gap-3 px-6 py-5 rounded-xl bg-black/55 text-white text-center max-w-[85%]">
-                  <div className="text-sm font-semibold">Start with a ready-made drill</div>
-                  <div className="text-xs text-white/80">
-                    Pick from the Ignite library, or use the toolbar below to draw your own.
-                  </div>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={openLibrary}
-                      className="h-9"
-                    >
-                      <FolderOpen className="h-4 w-4 mr-1.5" />
-                      Browse drills
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
         </div>
       </div>
 
