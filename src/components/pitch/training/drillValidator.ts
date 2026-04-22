@@ -368,6 +368,7 @@ export function validateDrill(input: {
   });
   ruleBallContinuity(input.frames, push);
   ruleRotationCoverage(input.frames, push);
+  ruleContestFairness(input.frames, push);
 
   const counts = issues.reduce(
     (acc, i) => ({ ...acc, [i.severity]: acc[i.severity] + 1 }),
