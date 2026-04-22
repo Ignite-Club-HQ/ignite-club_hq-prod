@@ -89,6 +89,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
       style={{
         paddingTop: safeTop,
@@ -98,9 +99,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         userSelect: 'none',
       }}
       onClick={scale === 1 ? onClose : undefined}
-      onTouchStart={pinchTouchStart}
-      onTouchMove={pinchTouchMove}
-      onTouchEnd={pinchTouchEnd}
       onDoubleClick={handleDoubleClick}
     >
       <Button
