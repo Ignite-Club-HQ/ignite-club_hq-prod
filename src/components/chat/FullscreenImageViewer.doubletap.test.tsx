@@ -251,3 +251,159 @@ describe("FullscreenImageViewer — double-tap detection", () => {
     expect(img.style.transition).toContain("cubic-bezier(0.22, 1, 0.36, 1)");
   });
 });
+
+describe("FullscreenImageViewer — long-press gesture arbitration", () => {
+  // A "long press" on iOS = finger down for ~600ms+ without significant
+  // movement, then lifted. It must NOT pair with a subsequent tap as a
+  // double-tap (the elapsed time exceeds the 300ms double-tap window) AND
+  // must not block a real follow-up double-tap or pinch from working.
+
+  it("a single long-press alone does not trigger zoom toggle", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+    const node = getGestureRoot();
+
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 150, clientY: 150 }]));
+    });
+    // Hold finger down for 700ms — well past the 300ms double-tap window.
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+    });
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 150, clientY: 150 }]));
+    });
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+
+  it("a long-press followed by a quick tap does NOT register as double-tap", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+    const node = getGestureRoot();
+
+    // Long press: hold ~600ms then release.
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 150, clientY: 150 }]));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 150, clientY: 150 }]));
+    });
+
+    // Immediately follow with a quick tap nearby. The first "tap" already
+    // exceeded the 300ms window, so it should NOT pair with this one.
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    tap(151, 151);
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+
+  it("a long-press does not block a subsequent genuine double-tap", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+    const node = getGestureRoot();
+
+    // Long press completes (the 1st "tap" of any potential pair is too old).
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 150, clientY: 150 }]));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+    });
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 150, clientY: 150 }]));
+    });
+
+    // Small pause, then two quick taps that DO form a valid double-tap.
+    await act(async () => {
+      vi.advanceTimersByTime(80);
+    });
+    tap(150, 150);
+    await act(async () => {
+      vi.advanceTimersByTime(120);
+    });
+    tap(151, 151);
+
+    // The double-tap must still fire — the long-press should not have
+    // poisoned the gesture arbiter.
+    expect(onDoubleClickMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a long-press that drifts past slop is treated as a drag, not a tap", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+    const node = getGestureRoot();
+
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 100, clientY: 100 }]));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    // Finger drifts > 10px slop while held.
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchmove", [{ clientX: 130, clientY: 130 }]));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 130, clientY: 130 }]));
+    });
+
+    // Quick follow-up tap — must not pair (gesture was a drag, lastTapRef
+    // should have been cleared).
+    tap(131, 131);
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+
+  it("a long-press does not interfere with a subsequent pinch", async () => {
+    vi.useFakeTimers();
+    renderViewer();
+    const node = getGestureRoot();
+
+    // Long press, release.
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchstart", [{ clientX: 150, clientY: 150 }]));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(650);
+    });
+    act(() => {
+      node.dispatchEvent(makeTouchEvent("touchend", [], [{ clientX: 150, clientY: 150 }]));
+    });
+
+    // Now the user starts a pinch. The 2nd finger landing must clear any
+    // stale tap candidate so the pinch-end can't accidentally trigger a
+    // zoom toggle.
+    act(() => {
+      node.dispatchEvent(
+        makeTouchEvent("touchstart", [
+          { clientX: 100, clientY: 100 },
+          { clientX: 200, clientY: 200 },
+        ]),
+      );
+      node.dispatchEvent(
+        makeTouchEvent("touchend", [], [
+          { clientX: 100, clientY: 100 },
+          { clientX: 200, clientY: 200 },
+        ]),
+      );
+    });
+
+    // Single tap right after pinch — must not trigger toggle either.
+    tap(150, 150);
+
+    expect(onDoubleClickMock).not.toHaveBeenCalled();
+    expect(resetZoomMock).not.toHaveBeenCalled();
+  });
+});
