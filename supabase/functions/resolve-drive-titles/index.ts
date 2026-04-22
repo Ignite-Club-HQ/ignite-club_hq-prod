@@ -36,15 +36,28 @@ interface ResolveResult {
 }
 
 const PLACEHOLDER_NAME_RE =
-  /^(Google (Sheet|Doc|Slides|Form|Drive file)( \([a-zA-Z0-9_-]{1,12}\))?|edit|view|preview|comment|copy|template)$/i;
+  /^(Google (Sheet|Doc|Slides|Form|Drawing|Drive file|Drive folder|share link)( \([a-zA-Z0-9_-]{1,12}\))?|edit|view|preview|comment|copy|template|htmlview|pub|embed|viewform|formresponse)$/i;
 
 function extractDriveFileId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (!u.hostname.toLowerCase().includes('google.com')) return null;
-    const m = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (m) return m[1];
-    // Forms uses /forms/d/e/<id> too — already covered. Drive open URLs:
+    const host = u.hostname.toLowerCase();
+    if (
+      !host.endsWith('google.com') &&
+      !host.endsWith('goo.gl') &&
+      !host.endsWith('googleusercontent.com')
+    ) {
+      return null;
+    }
+    // Order matches client parser: file/d > /d/e/ > /d/ > /folders/ > ?id=
+    const fileMatch = u.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileMatch) return fileMatch[1];
+    const deMatch = u.pathname.match(/\/d\/e\/([a-zA-Z0-9_-]+)/);
+    if (deMatch) return deMatch[1];
+    const dMatch = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (dMatch) return dMatch[1];
+    const folderMatch = u.pathname.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (folderMatch) return folderMatch[1];
     const idParam = u.searchParams.get('id');
     if (idParam) return idParam;
     return null;
