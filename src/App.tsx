@@ -62,6 +62,7 @@ const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
 const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
+const AdminActiveGamesPage = lazy(() => import("./pages/AdminActiveGamesPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -300,6 +301,7 @@ const App = () => {
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/admin/online-users" element={<OnlineUsersPage />} />
+                  <Route path="/admin/active-games" element={<AdminActiveGamesPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
