@@ -20,7 +20,7 @@ import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { membersToTeamPlayers } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -456,8 +456,16 @@ export default function TrainingBoard({
     return "cursor-crosshair";
   }, [activeTool, editable]);
 
+  // Substitute generic drill labels ("A", "B", "1"...) with real squad names
+  // so coaches see actual players on the pitch in both editor + playback views.
+  const teamPlayers = useMemo(() => membersToTeamPlayers(members), [members]);
+
   // The view we render: live interpolation while playing, raw current frame while editing
-  const renderedObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
+  const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
+  const renderedObjects = useMemo(
+    () => (teamPlayers.length ? applyTeamPlayersToObjects(rawObjects, teamPlayers) : rawObjects),
+    [rawObjects, teamPlayers]
+  );
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
   // ---- Landing view (no editor) — shown until coach opens or creates a drill ----
