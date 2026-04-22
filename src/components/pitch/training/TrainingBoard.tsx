@@ -560,6 +560,36 @@ export default function TrainingBoard({
           <Button
             type="button"
             size="sm"
+            variant={previewMode ? "default" : "outline"}
+            onClick={() => {
+              setPreviewMode((p) => {
+                const next = !p;
+                if (next) {
+                  setSelectedId(null);
+                  setActiveTool("select");
+                }
+                return next;
+              });
+            }}
+            className="h-8"
+            aria-pressed={previewMode}
+            title={previewMode ? "Back to editing" : "Preview drill"}
+          >
+            {previewMode ? (
+              <>
+                <Pencil className="h-4 w-4 mr-1.5" />
+                Edit
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 mr-1.5" />
+                Preview
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant="outline"
             onClick={() => setSaveOpen(true)}
             className="h-8"
