@@ -127,7 +127,7 @@ export function DrillLibrarySheet({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100020] flex items-end" role="dialog" aria-modal="true" aria-label="Drill library">
+    <div className="fixed inset-0 z-[1000001] flex items-end" role="dialog" aria-modal="true" aria-label="Drill library">
       <button
         type="button"
         aria-label="Close drill library"
@@ -135,7 +135,7 @@ export function DrillLibrarySheet({
         onClick={() => onOpenChange(false)}
       />
 
-      <div className="relative z-[100021] flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-lg">
+      <div className="relative z-[1000002] flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-lg">
         <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
