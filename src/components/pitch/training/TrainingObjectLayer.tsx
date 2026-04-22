@@ -256,13 +256,18 @@ function ObjectGlyph({ obj, isNextUp }: { obj: DrillObject; isNextUp?: boolean }
             ? (isWaiting ? 10 : 12)
             : (isWaiting ? 9 : 11);
       const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
+      // The "next up" waiting chip gets a brighter pulsing amber ring + a
+      // small "NEXT" pill so the coach (and the squad) can see at a glance
+      // who is stepping in for the next rep. Only applies to waiting chips.
+      const showNextUp = !!isNextUp && isWaiting;
       return (
-        <div className="select-none">
+        <div className="select-none relative">
           <div
             className={cn(
               "flex items-center justify-center text-white font-bold whitespace-nowrap",
               isShort ? "rounded-full" : "rounded-full",
               isWaiting ? "border-2" : "border-[3px]",
+              showNextUp && "animate-pulse",
             )}
             style={{
               height: baseHeight,
@@ -270,18 +275,34 @@ function ObjectGlyph({ obj, isNextUp }: { obj: DrillObject; isNextUp?: boolean }
               paddingLeft: horizontalPadding,
               paddingRight: horizontalPadding,
               backgroundColor: obj.color,
-              borderColor: "#ffffff",
-              boxShadow: isWaiting
-                ? "0 1px 3px rgba(0,0,0,0.35)"
-                : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
+              borderColor: showNextUp ? "#fbbf24" : "#ffffff",
+              boxShadow: showNextUp
+                ? "0 0 0 3px rgba(251,191,36,0.55), 0 2px 6px rgba(0,0,0,0.45)"
+                : isWaiting
+                  ? "0 1px 3px rgba(0,0,0,0.35)"
+                  : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
               fontSize,
               lineHeight: 1,
-              opacity: isWaiting ? 0.85 : 1,
+              // Lift the next-up chip out of the muted bench so it reads as
+              // "warming up" rather than "sitting out".
+              opacity: showNextUp ? 1 : isWaiting ? 0.85 : 1,
               textShadow: "0 1px 1px rgba(0,0,0,0.5)",
             }}
           >
             {label}
           </div>
+          {showNextUp && (
+            <span
+              className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-black shadow"
+              style={{
+                backgroundColor: "#fbbf24",
+                letterSpacing: "0.08em",
+                lineHeight: "12px",
+              }}
+            >
+              Next
+            </span>
+          )}
         </div>
       );
     }
