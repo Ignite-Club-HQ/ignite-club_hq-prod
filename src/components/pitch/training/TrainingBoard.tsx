@@ -30,6 +30,7 @@ import { useDrillPlayback } from "@/hooks/useDrillPlayback";
 import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
+import { RecentDrillsList } from "./RecentDrillsList";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
@@ -510,57 +511,49 @@ export default function TrainingBoard({
   if (!editorMode && !readOnly) {
     return (
       <div className="flex-1 min-h-0 flex flex-col bg-background">
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
-          <Button
-            type="button"
-            size="default"
-            onClick={openLibrary}
-            className="h-9 font-semibold"
-          >
-            <FolderOpen className="h-4 w-4 mr-1.5" />
-            Browse drills
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleNewDrill}
-            className="h-9"
-          >
-            <FilePlus2 className="h-4 w-4 mr-1.5" />
-            New drill
-          </Button>
-        </div>
-
+        {/* Session strip kept (it auto-hides when empty) so coaches can resume
+            today's plan without an extra trip into the library. */}
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
         />
 
-        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-          <div className="max-w-sm w-full text-center flex flex-col items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <FolderOpen className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Opening drill library…</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Pick a drill from the list, or build your own from scratch.
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="max-w-sm w-full mx-auto px-6 pt-10 pb-8 flex flex-col items-center gap-6">
+            {/* Title block — short, decision-oriented (not a loading state). */}
+            <div className="text-center space-y-1.5">
+              <h2 className="text-lg font-semibold text-foreground">Plan your session</h2>
+              <p className="text-sm text-muted-foreground">
+                Choose a drill from the library or create your own.
               </p>
             </div>
-            <div className="flex flex-col w-full gap-2">
-              <Button type="button" onClick={openLibrary} className="w-full">
-                <FolderOpen className="h-4 w-4 mr-1.5" />
-                Browse drill library
-              </Button>
-              <button
+
+            {/* Primary actions — single clear hierarchy. */}
+            <div className="w-full flex flex-col gap-3">
+              <Button
                 type="button"
-                onClick={handleNewDrill}
-                className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
+                size="lg"
+                onClick={openLibrary}
+                className="w-full font-semibold"
               >
-                or create your own drill
-              </button>
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Browse Drill Library
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={handleNewDrill}
+                className="w-full"
+              >
+                <FilePlus2 className="h-4 w-4 mr-2" />
+                Create New Drill
+              </Button>
             </div>
+
+            {/* Recent drills — only renders when the coach has used drills before.
+                Keeps the screen quiet for first-time users (no empty state). */}
+            <RecentDrillsList teamId={teamId} onOpenDrill={handleOpenDrill} />
           </div>
         </div>
 
