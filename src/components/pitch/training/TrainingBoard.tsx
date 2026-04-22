@@ -106,6 +106,11 @@ export default function TrainingBoard({
   // Preview mode — locks editing and shows interpolated playback so coaches
   // can verify arrows, queue positions, and cone layouts before saving.
   const [previewMode, setPreviewMode] = useState(false);
+  // Run Drill mode — coach is actively running the session. Hides ALL editing
+  // chrome (toolbar, frame strip, action bar, session strip) so the pitch
+  // dominates the screen. Coach only needs Next Step + Play.
+  const [runMode, setRunMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Persistence state
   const [savedDrillId, setSavedDrillId] = useState<string | null>(null);
