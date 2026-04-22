@@ -39,20 +39,19 @@ function NextUpZoneImpl({ objects, annotations: _annotations }: NextUpZoneProps)
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
 
-  // Detect orientation. A horizontal row of waiting players (typical bottom /
-  // top edges) gets a wider zone; a vertical column (right edge) gets a taller
-  // narrow zone.
-  const isVertical = maxY - minY > maxX - minX;
-
-  const PADDING_X = isVertical ? 6 : 8;
-  const PADDING_Y = isVertical ? 8 : 6;
+  // Always treat the waiting area as a horizontal bench along the bottom-most
+  // edge of the waiting chips (per the "waiting section is always at bottom"
+  // rule). We pad more vertically than horizontally so the zone clearly reads
+  // as a bench strip rather than a free-floating box.
+  const PADDING_X = 6;
+  const PADDING_Y = 8;
   const left = Math.max(0, minX - PADDING_X);
   const right = Math.min(100, maxX + PADDING_X);
   const top = Math.max(0, minY - PADDING_Y);
   const bottom = Math.min(100, maxY + PADDING_Y);
 
-  // Decide where the "Next Up" pill sits — opposite the closest pitch edge so
-  // the label never sits off-pitch.
+  // Place the "Next Up" pill above the zone whenever the zone is in the
+  // bottom half (typical), otherwise below — never off-pitch.
   const labelOnTop = minY > 50;
   const labelOnLeft = minX > 50;
 
