@@ -912,6 +912,9 @@ export default function TrainingBoard({
         onOpenDrill={handleOpenDrill}
         onNewDrill={handleNewDrill}
       />
+
+      {/* Drill settings */}
+      <TrainingSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
