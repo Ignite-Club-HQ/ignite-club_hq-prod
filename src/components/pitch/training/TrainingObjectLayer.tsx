@@ -236,7 +236,7 @@ function resolveBallOverlaps(
   return positions;
 }
 
-function ObjectGlyph({ obj }: { obj: DrillObject }) {
+function ObjectGlyph({ obj, isNextUp }: { obj: DrillObject; isNextUp?: boolean }) {
   switch (obj.type) {
     case "player": {
       const label = (obj.label || "P").trim();
