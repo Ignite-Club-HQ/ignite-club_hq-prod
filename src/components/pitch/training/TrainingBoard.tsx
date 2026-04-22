@@ -644,58 +644,10 @@ export default function TrainingBoard({
     );
   }
 
-  // -- Mode helpers ----------------------------------------------------------
-  const mode: "edit" | "run" = runMode ? "run" : "edit";
-  const enterRun = useCallback(() => {
-    setRunMode(true);
-    setPreviewMode(true);
-    setSelectedId(null);
-    setActiveTool("select");
-    if (frames.length > 1) {
-      window.setTimeout(() => playPlayback(), 0);
-    }
-  }, [frames.length, playPlayback]);
-  const exitRun = useCallback(() => {
-    setRunMode(false);
-    setPreviewMode(false);
-  }, []);
-  const handleModeChange = useCallback(
-    (next: "edit" | "run") => {
-      if (next === "run") enterRun();
-      else exitRun();
-    },
-    [enterRun, exitRun],
-  );
-
-  // Swipe-to-advance on the pitch surface (Run mode only).
-  const swipeRef = useRef<{ x: number; y: number } | null>(null);
-  const handlePitchTouchStart = useCallback(
-    (e: React.TouchEvent<HTMLDivElement>) => {
-      if (!runMode) return;
-      const t = e.touches[0];
-      if (!t) return;
-      swipeRef.current = { x: t.clientX, y: t.clientY };
-    },
-    [runMode],
-  );
-  const handlePitchTouchEnd = useCallback(
-    (e: React.TouchEvent<HTMLDivElement>) => {
-      if (!runMode) return;
-      const start = swipeRef.current;
-      swipeRef.current = null;
-      if (!start) return;
-      const t = e.changedTouches[0];
-      if (!t) return;
-      const dx = t.clientX - start.x;
-      const dy = t.clientY - start.y;
-      if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
-      if (dx < 0) nextFrame();
-      else prevFrame();
-    },
-    [runMode, nextFrame, prevFrame],
-  );
-
   return (
+    <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
+      {/* TOP BAR — back · title · mode toggle · settings. Compact (~40px). */}
+      <div className="shrink-0 flex items-center gap-1 px-2 h-10 border-b border-border bg-background">
       <div className="shrink-0 flex items-center gap-1 px-2 h-10 border-b border-border bg-background">
         <Button
           type="button"
