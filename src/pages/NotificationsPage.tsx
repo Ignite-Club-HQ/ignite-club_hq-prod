@@ -539,28 +539,48 @@ export default function NotificationsPage() {
         break;
       case "photo_comment":
       case "photo_uploaded":
-      case "photo_reaction":
+      case "photo_reaction": {
+        const { data: photoCheck } = await supabase
+          .from("photos")
+          .select("id, deleted_at")
+          .eq("id", relatedId)
+          .maybeSingle();
+        if (!photoCheck || photoCheck.deleted_at) {
+          toast.info("This photo is no longer available.");
+          break;
+        }
         navigate(`/media?photo=${relatedId}`);
         break;
+      }
       case "comment_reaction":
-      case "comment_reply":
-        // related_id is the photo_id for comment_reply, or comment_id for comment_reaction
+      case "comment_reply": {
+        let targetPhotoId: string | null = null;
         if (notification.type === "comment_reply") {
-          navigate(`/media?photo=${relatedId}`);
+          targetPhotoId = relatedId;
         } else {
-          // related_id is the comment id, get the photo_id from the comment
           const { data: commentData } = await supabase
             .from("photo_comments")
             .select("photo_id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (commentData?.photo_id) {
-            navigate(`/media?photo=${commentData.photo_id}`);
-          } else {
-            navigate("/media");
-          }
+          targetPhotoId = commentData?.photo_id ?? null;
         }
+        if (!targetPhotoId) {
+          toast.info("This photo is no longer available.");
+          break;
+        }
+        const { data: photoCheck2 } = await supabase
+          .from("photos")
+          .select("id, deleted_at")
+          .eq("id", targetPhotoId)
+          .maybeSingle();
+        if (!photoCheck2 || photoCheck2.deleted_at) {
+          toast.info("This photo is no longer available.");
+          break;
+        }
+        navigate(`/media?photo=${targetPhotoId}`);
         break;
+      }
       case "team_invite": {
         // related_id is the pending_invite id — look up status and team
         const { data: inviteData } = await supabase

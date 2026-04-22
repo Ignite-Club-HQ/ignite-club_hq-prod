@@ -600,26 +600,48 @@ export function AppHeader() {
           return;
         case "photo_comment":
         case "photo_uploaded":
-        case "photo_reaction":
+        case "photo_reaction": {
+          const { data: photoCheck } = await supabase
+            .from("photos")
+            .select("id, deleted_at")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (!photoCheck || photoCheck.deleted_at) {
+            toast.info("This photo is no longer available.");
+            return;
+          }
           navigate(`/media?photo=${relatedId}`);
           return;
+        }
         case "comment_reaction":
-        case "comment_reply":
+        case "comment_reply": {
+          let targetPhotoId: string | null = null;
           if (notification.type === "comment_reply") {
-            navigate(`/media?photo=${relatedId}`);
+            targetPhotoId = relatedId;
           } else {
             const { data: commentData } = await supabase
               .from("photo_comments")
               .select("photo_id")
               .eq("id", relatedId)
               .maybeSingle();
-            if (commentData?.photo_id) {
-              navigate(`/media?photo=${commentData.photo_id}`);
-              return;
-            }
-            navigate("/media");
+            targetPhotoId = commentData?.photo_id ?? null;
           }
+          if (!targetPhotoId) {
+            toast.info("This photo is no longer available.");
+            return;
+          }
+          const { data: photoCheck2 } = await supabase
+            .from("photos")
+            .select("id, deleted_at")
+            .eq("id", targetPhotoId)
+            .maybeSingle();
+          if (!photoCheck2 || photoCheck2.deleted_at) {
+            toast.info("This photo is no longer available.");
+            return;
+          }
+          navigate(`/media?photo=${targetPhotoId}`);
           return;
+        }
         case "join_request":
           navigate("/notifications");
           return;
