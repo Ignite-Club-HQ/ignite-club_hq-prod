@@ -66,6 +66,8 @@ import { useCourtSpectator } from "./useCourtSpectator";
 const TEAM_ID = "team-123";
 const COACH_A_ROW_ID = "row-coach-a";
 const COACH_B_ROW_ID = "row-coach-b";
+const COACH_A_SESSION_ID = "session-coach-a";
+const COACH_B_SESSION_ID = "session-coach-b";
 
 interface BoardSnapshot {
   rowId: string;
@@ -73,13 +75,23 @@ interface BoardSnapshot {
   awayScore: number;
   isActive: boolean;
   updatedAt: string;
+  sessionId?: string | null;
 }
 
-const buildRow = ({ rowId, homeScore, awayScore, isActive, updatedAt }: BoardSnapshot) => ({
+const buildRow = ({
+  rowId,
+  homeScore,
+  awayScore,
+  isActive,
+  updatedAt,
+  sessionId,
+}: BoardSnapshot) => ({
   id: rowId,
   team_id: TEAM_ID,
   is_active: isActive,
   updated_at: updatedAt,
+  // undefined → omit so legacy-row tests still cover the id-fallback branch.
+  ...(sessionId !== undefined ? { board_session_id: sessionId } : {}),
   pitch_state: {
     sport: "basketball",
     players: [],
