@@ -68,7 +68,8 @@ function getGestureRoot(): HTMLElement {
 }
 
 function getImage(): HTMLImageElement {
-  const img = container.querySelector("img");
+  // Image lives in the portalled viewer overlay, not in the test container.
+  const img = getGestureRoot().querySelector("img");
   if (!img) throw new Error("expected <img> in viewer");
   return img;
 }
