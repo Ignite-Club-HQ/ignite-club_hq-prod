@@ -327,7 +327,7 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
         className="h-[85vh] max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+        <SheetHeader className="px-4 pt-4 pb-3 pr-12 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             {pathStack.length > 1 && (
               <Button
