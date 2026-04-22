@@ -99,6 +99,7 @@ const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
+const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
 const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
@@ -321,7 +322,8 @@ const App = () => {
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
                   <Route path="/admin/settings" element={<AppSettingsPage />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
-                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
+                 <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
+                 <Route path="/admin/drills" element={<AdminDrillsPage />} />
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />
