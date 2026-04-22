@@ -205,7 +205,12 @@ export default function TrackInviteSheet({
                             {result.display_name?.[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{result.display_name || "Unknown"}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm truncate">{result.display_name || "Unknown"}</span>
+                          {result.masked_email && (
+                            <span className="text-xs text-muted-foreground truncate">{result.masked_email}</span>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
