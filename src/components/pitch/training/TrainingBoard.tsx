@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Annotation, DrillFrame, DrillObject, TrainingTool } from "./types";
+import { Button } from "@/components/ui/button";
+import { Save, FolderOpen, FilePlus2 } from "lucide-react";
+import { toast } from "sonner";
+import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
 import {
   cloneAnnotation,
@@ -13,6 +16,8 @@ import { TrainingToolbar } from "./TrainingToolbar";
 import { FrameStrip } from "./FrameStrip";
 import { PlaybackController } from "./PlaybackController";
 import { useDrillPlayback } from "@/hooks/useDrillPlayback";
+import { SaveDrillDialog } from "./SaveDrillDialog";
+import { DrillLibrarySheet } from "./DrillLibrarySheet";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
@@ -20,6 +25,12 @@ interface TrainingBoardProps {
   /** Optional: focus the toolbar in landscape (board fills full screen) */
   isLandscape?: boolean;
   readOnly?: boolean;
+  /** Current team context — enables saving/sharing drills with the team */
+  teamId?: string | null;
+  teamName?: string;
+  /** Current club context — enables sharing with the whole club */
+  clubId?: string | null;
+  clubName?: string;
 }
 
 function clamp(v: number) {
