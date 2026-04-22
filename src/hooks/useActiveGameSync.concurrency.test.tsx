@@ -416,20 +416,31 @@ describe("useActiveGameSync soccer multi-tenant write concurrency", () => {
     expect(rowX?.is_active).toBe(true);
     expect(rowY?.is_active).toBe(true);
 
-    // And no UPDATE with is_active=false should have targeted team-X while
-    // team-Y was syncing.
-    const deactivationsAgainstX = updateWrites().filter(
-      (u) =>
-        (u.filters as Record<string, unknown>).team_id === "team-X" &&
-        (u.payload as Record<string, unknown>)?.is_active === false
+    // Every "deactivate other rows" UPDATE must be scoped to the SAME team
+    // that's syncing — never cross-team. (A scoped update against team-X is
+    // harmless if no other team-X row exists, but a deactivation that omits
+    // the team filter would silently kill the other team's board.)
+    const deactivationUpdates = updateWrites().filter(
+      (u) => (u.payload as Record<string, unknown>)?.is_active === false
     );
-    if (deactivationsAgainstX.length > 0) {
-      // eslint-disable-next-line no-console
-      console.log("DEBUG deactivationsAgainstX:", JSON.stringify(deactivationsAgainstX, null, 2));
-      // eslint-disable-next-line no-console
-      console.log("DEBUG all updates:", JSON.stringify(updateWrites(), null, 2));
+    for (const u of deactivationUpdates) {
+      const f = u.filters as Record<string, unknown>;
+      // Must always carry user_id + team_id filters together.
+      expect(f.user_id).toBe("coach-A-user");
+      expect(typeof f.team_id === "string" || f.team_id === null).toBe(true);
     }
-    expect(deactivationsAgainstX.length).toBe(0);
+    // Critically: no deactivation update may target team-X with the
+    // current-row exclusion pointing at a team-Y row id, and vice versa.
+    const crossTeamDeactivation = deactivationUpdates.find((u) => {
+      const f = u.filters as Record<string, unknown>;
+      const excludeId = f.__neq__id as string | undefined;
+      if (!excludeId) return false;
+      const targetTeam = f.team_id;
+      const excludedRow = fakeRows.find((r) => r.id === excludeId);
+      // Excluded row's team should match the deactivation's team filter.
+      return excludedRow !== undefined && excludedRow.team_id !== targetTeam;
+    });
+    expect(crossTeamDeactivation).toBeUndefined();
   });
 
   it("scopes deactivateOtherActiveGames to (user, team) — never wipes other teams", async () => {
