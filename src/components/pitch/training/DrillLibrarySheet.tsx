@@ -92,6 +92,8 @@ export function DrillLibrarySheet({
 }: DrillLibrarySheetProps) {
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
+  const [ageFilter, setAgeFilter] = useState<AgeGroupFilter>("All");
+  const [playerFilter, setPlayerFilter] = useState<PlayerCountFilterValue>("all");
   const [openingId, setOpeningId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -100,6 +102,12 @@ export function DrillLibrarySheet({
   const deleteDrillMut = useDeleteDrill();
   const stampRecent = useStampRecent();
   const addToSessionMut = useAddToSession();
+
+  const filteredDrills = useMemo(
+    () => (drills ? applyDrillFilters(drills, ageFilter, playerFilter) : drills),
+    [drills, ageFilter, playerFilter],
+  );
+  const filtersActive = ageFilter !== "All" || playerFilter !== "all";
 
   const sessionDrillIds = new Set((sessionDrills ?? []).map((s) => s.drillId));
 
