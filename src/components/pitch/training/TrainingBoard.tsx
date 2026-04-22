@@ -8,15 +8,14 @@ import {
   Plus,
   Check,
   ArrowLeft,
-  Eye,
-  Pencil,
   Settings,
-  Play as PlayIcon,
-  Pause as PauseIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
+import { ModeToggle } from "./ModeToggle";
+import { NextUpZone } from "./NextUpZone";
+import { RunModeControls } from "./RunModeControls";
 import {
   cloneAnnotation,
   cloneObject,
