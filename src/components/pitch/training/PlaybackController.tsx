@@ -59,7 +59,7 @@ function PlaybackControllerImpl({
           <button
             type="button"
             onClick={onToggle}
-            disabled={!canPlay}
+            
             aria-label={isPlaying ? "Pause" : "Play"}
             title={!canPlay ? "Add a second frame to animate" : undefined}
             className={cn(
