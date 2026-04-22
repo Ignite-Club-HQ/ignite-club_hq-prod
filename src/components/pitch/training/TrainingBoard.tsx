@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Annotation, DrillFrame, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -10,6 +10,11 @@ import {
   createObject,
 } from "./objectFactories";
 import { TrainingToolbar } from "./TrainingToolbar";
+import { FrameStrip } from "./FrameStrip";
+import { PlaybackController } from "./PlaybackController";
+import { useDrillPlayback } from "@/hooks/useDrillPlayback";
+
+const PresentationMode = lazy(() => import("./PresentationMode"));
 
 interface TrainingBoardProps {
   /** Optional: focus the toolbar in landscape (board fills full screen) */
@@ -21,10 +26,6 @@ function clamp(v: number) {
   return Math.max(0, Math.min(100, v));
 }
 
-/**
- * Pitch SVG markings — reused styling from existing match pitch but standalone
- * so we don't import or alter PitchBoard internals.
- */
 function PitchMarkings() {
   return (
     <svg
@@ -33,17 +34,12 @@ function PitchMarkings() {
       preserveAspectRatio="none"
       aria-hidden
     >
-      {/* outer */}
       <rect x="2" y="2" width="96" height="96" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
-      {/* halfway line */}
       <line x1="2" y1="50" x2="98" y2="50" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
-      {/* centre circle */}
       <circle cx="50" cy="50" r="9" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
       <circle cx="50" cy="50" r="0.7" fill="white" fillOpacity="0.7" />
-      {/* top penalty area */}
       <rect x="22" y="2" width="56" height="14" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
       <rect x="36" y="2" width="28" height="6" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
-      {/* bottom penalty area */}
       <rect x="22" y="84" width="56" height="14" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
       <rect x="36" y="92" width="28" height="6" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.4" />
     </svg>
@@ -51,79 +47,178 @@ function PitchMarkings() {
 }
 
 /**
- * TrainingBoard — Phase 1 MVP.
- * Single in-memory frame, full toolbar, free positioning, multi-ball, overlapping zones.
- * Does NOT touch active_games, the timer, or any match logic.
+ * TrainingBoard — Phase 2.
+ * Multi-frame drill editor with rAF playback + presentation mode.
+ * Still in-memory only (Phase 3 will persist to Supabase).
  */
 export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [frame, setFrame] = useState<DrillFrame>(() => createEmptyFrame(0));
+  const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
   const [activeTool, setActiveTool] = useState<TrainingTool>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [stepCounter, setStepCounter] = useState(1);
   const [playerCounter, setPlayerCounter] = useState(1);
+  const [isPresenting, setIsPresenting] = useState(false);
 
+  const {
+    currentIndex,
+    view,
+    isPlaying,
+    speed,
+    toggle: togglePlayback,
+    next: nextFrame,
+    prev: prevFrame,
+    goTo,
+    setSpeed,
+  } = useDrillPlayback({ frames });
+
+  const currentFrame = frames[currentIndex] ?? frames[0];
+  const isAnimating = isPlaying;
+  const editable = !readOnly && !isAnimating;
   const hasSelection = !!selectedId;
 
-  // ---- Object / annotation mutators ----
-  const addObject = useCallback(
-    (obj: DrillObject) => {
-      setFrame((f) => ({ ...f, objects: [...f.objects, obj] }));
-      setSelectedId(obj.id);
+  // ---- Frame ops ----
+  const addFrame = useCallback(() => {
+    setFrames((fs) => {
+      // Carry forward objects from the current frame so coaches animate from the same setup
+      const base = fs[currentIndex];
+      const next: DrillFrame = base
+        ? {
+            ...createEmptyFrame(fs.length),
+            objects: base.objects.map((o) => ({ ...o })),
+          }
+        : createEmptyFrame(fs.length);
+      const inserted = [...fs.slice(0, currentIndex + 1), next, ...fs.slice(currentIndex + 1)];
+      return inserted.map((f, i) => ({ ...f, position: i }));
+    });
+    setSelectedId(null);
+    // Move selection to the newly inserted frame
+    setTimeout(() => goTo(currentIndex + 1), 0);
+  }, [currentIndex, goTo]);
+
+  const duplicateFrame = useCallback(
+    (idx: number) => {
+      setFrames((fs) => {
+        const src = fs[idx];
+        if (!src) return fs;
+        const dup: DrillFrame = {
+          ...createEmptyFrame(idx + 1),
+          notes: src.notes,
+          durationMs: src.durationMs,
+          objects: src.objects.map((o) => ({ ...o })),
+          annotations: src.annotations.map((a) => ({ ...a })),
+        };
+        const inserted = [...fs.slice(0, idx + 1), dup, ...fs.slice(idx + 1)];
+        return inserted.map((f, i) => ({ ...f, position: i }));
+      });
+      setSelectedId(null);
+      setTimeout(() => goTo(idx + 1), 0);
     },
-    []
+    [goTo]
   );
 
-  const addAnnotation = useCallback((ann: Annotation) => {
-    setFrame((f) => ({ ...f, annotations: [...f.annotations, ann] }));
-    setSelectedId(ann.id);
-  }, []);
+  const deleteFrame = useCallback(
+    (idx: number) => {
+      setFrames((fs) => {
+        if (fs.length <= 1) return fs;
+        const filtered = fs.filter((_, i) => i !== idx);
+        return filtered.map((f, i) => ({ ...f, position: i }));
+      });
+      setSelectedId(null);
+      setTimeout(() => goTo(Math.max(0, idx - 1)), 0);
+    },
+    [goTo]
+  );
 
-  const moveObject = useCallback((id: string, x: number, y: number) => {
-    setFrame((f) => ({
-      ...f,
-      objects: f.objects.map((o) => (o.id === id ? { ...o, x: clamp(x), y: clamp(y) } : o)),
-    }));
-  }, []);
+  const reorderFrame = useCallback(
+    (from: number, to: number) => {
+      if (to < 0 || to >= frames.length || from === to) return;
+      setFrames((fs) => {
+        const copy = [...fs];
+        const [moved] = copy.splice(from, 1);
+        copy.splice(to, 0, moved);
+        return copy.map((f, i) => ({ ...f, position: i }));
+      });
+      setTimeout(() => goTo(to), 0);
+    },
+    [frames.length, goTo]
+  );
 
-  const moveAnnotation = useCallback((id: string, x: number, y: number) => {
-    setFrame((f) => ({
-      ...f,
-      annotations: f.annotations.map((a) => {
-        if (a.id !== id) return a;
-        const cx = clamp(x);
-        const cy = clamp(y);
-        switch (a.type) {
-          case "arrow-solid":
-          case "arrow-dashed": {
-            // Translate both endpoints by delta from "from" anchor
-            const g = a.geometry as { from: { x: number; y: number }; to: { x: number; y: number } };
-            const dx = cx - g.from.x;
-            const dy = cy - g.from.y;
-            return {
-              ...a,
-              geometry: {
-                from: { x: cx, y: cy },
-                to: { x: clamp(g.to.x + dx), y: clamp(g.to.y + dy) },
-              },
-            };
+  // ---- Object / annotation mutators (operate on currentFrame) ----
+  const updateCurrentFrame = useCallback(
+    (updater: (f: DrillFrame) => DrillFrame) => {
+      setFrames((fs) => fs.map((f, i) => (i === currentIndex ? updater(f) : f)));
+    },
+    [currentIndex]
+  );
+
+  const addObject = useCallback(
+    (obj: DrillObject) => {
+      updateCurrentFrame((f) => ({ ...f, objects: [...f.objects, obj] }));
+      setSelectedId(obj.id);
+    },
+    [updateCurrentFrame]
+  );
+
+  const addAnnotation = useCallback(
+    (ann: Annotation) => {
+      updateCurrentFrame((f) => ({ ...f, annotations: [...f.annotations, ann] }));
+      setSelectedId(ann.id);
+    },
+    [updateCurrentFrame]
+  );
+
+  const moveObject = useCallback(
+    (id: string, x: number, y: number) => {
+      updateCurrentFrame((f) => ({
+        ...f,
+        objects: f.objects.map((o) =>
+          o.id === id ? { ...o, x: clamp(x), y: clamp(y) } : o
+        ),
+      }));
+    },
+    [updateCurrentFrame]
+  );
+
+  const moveAnnotation = useCallback(
+    (id: string, x: number, y: number) => {
+      updateCurrentFrame((f) => ({
+        ...f,
+        annotations: f.annotations.map((a) => {
+          if (a.id !== id) return a;
+          const cx = clamp(x);
+          const cy = clamp(y);
+          switch (a.type) {
+            case "arrow-solid":
+            case "arrow-dashed": {
+              const g = a.geometry as { from: { x: number; y: number }; to: { x: number; y: number } };
+              const dx = cx - g.from.x;
+              const dy = cy - g.from.y;
+              return {
+                ...a,
+                geometry: {
+                  from: { x: cx, y: cy },
+                  to: { x: clamp(g.to.x + dx), y: clamp(g.to.y + dy) },
+                },
+              };
+            }
+            case "zone":
+              return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
+            case "text":
+              return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
+            case "step-marker":
+              return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
           }
-          case "zone":
-            return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
-          case "text":
-            return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
-          case "step-marker":
-            return { ...a, geometry: { ...(a.geometry as any), x: cx, y: cy } };
-        }
-      }),
-    }));
-  }, []);
+        }),
+      }));
+    },
+    [updateCurrentFrame]
+  );
 
   // ---- Pitch tap handler — places the active tool ----
   const handlePitchPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (readOnly) return;
-      // Only act if clicking the pitch surface itself (not a child object)
+      if (!editable) return;
       if (e.target !== e.currentTarget && !(e.target as HTMLElement).hasAttribute("data-pitch-surface")) {
         return;
       }
@@ -137,7 +232,6 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
         return;
       }
 
-      // Object tools
       if (
         activeTool === "player" ||
         activeTool === "ball" ||
@@ -152,7 +246,6 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
         return;
       }
 
-      // Annotation tools
       if (activeTool === "step-marker") {
         addAnnotation(createAnnotation("step-marker", x, y, { stepNumber: stepCounter }));
         setStepCounter((n) => n + 1);
@@ -166,13 +259,13 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
       }
       addAnnotation(createAnnotation(activeTool, x, y));
     },
-    [activeTool, addAnnotation, addObject, playerCounter, readOnly, stepCounter]
+    [activeTool, addAnnotation, addObject, editable, playerCounter, stepCounter]
   );
 
   // ---- Toolbar actions ----
   const handleDuplicate = useCallback(() => {
     if (!selectedId) return;
-    setFrame((f) => {
+    updateCurrentFrame((f) => {
       const obj = f.objects.find((o) => o.id === selectedId);
       if (obj) {
         const next = cloneObject(obj);
@@ -185,31 +278,35 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
       }
       return f;
     });
-  }, [selectedId]);
+  }, [selectedId, updateCurrentFrame]);
 
   const handleDelete = useCallback(() => {
     if (!selectedId) return;
-    setFrame((f) => ({
+    updateCurrentFrame((f) => ({
       ...f,
       objects: f.objects.filter((o) => o.id !== selectedId),
       annotations: f.annotations.filter((a) => a.id !== selectedId),
     }));
     setSelectedId(null);
-  }, [selectedId]);
+  }, [selectedId, updateCurrentFrame]);
 
   const handleClear = useCallback(() => {
-    if (frame.objects.length === 0 && frame.annotations.length === 0) return;
-    if (!window.confirm("Clear the entire board? This cannot be undone.")) return;
-    setFrame((f) => ({ ...f, objects: [], annotations: [] }));
+    if (!currentFrame) return;
+    if (currentFrame.objects.length === 0 && currentFrame.annotations.length === 0) return;
+    if (!window.confirm("Clear this frame?")) return;
+    updateCurrentFrame((f) => ({ ...f, objects: [], annotations: [] }));
     setSelectedId(null);
-    setStepCounter(1);
-    setPlayerCounter(1);
-  }, [frame.annotations.length, frame.objects.length]);
+  }, [currentFrame, updateCurrentFrame]);
 
   const cursorClass = useMemo(() => {
+    if (!editable) return "cursor-default";
     if (activeTool === "select") return "cursor-default";
     return "cursor-crosshair";
-  }, [activeTool]);
+  }, [activeTool, editable]);
+
+  // The view we render: live interpolation while playing, raw current frame while editing
+  const renderedObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
+  const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
@@ -226,32 +323,65 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
           )}
           style={{
             backgroundColor: "hsl(var(--pitch-green))",
-            // subtle horizontal stripes for grass feel
             backgroundImage:
               "repeating-linear-gradient(0deg, hsla(0,0%,100%,0.03) 0 8%, transparent 8% 16%)",
           }}
         >
           <PitchMarkings />
           <TrainingObjectLayer
-            objects={frame.objects}
-            annotations={frame.annotations}
-            selectedId={selectedId}
+            objects={renderedObjects}
+            annotations={renderedAnnotations}
+            selectedId={editable ? selectedId : null}
             onSelect={setSelectedId}
             onObjectMove={moveObject}
             onAnnotationMove={moveAnnotation}
             containerRef={containerRef}
-            readOnly={readOnly}
+            readOnly={!editable}
           />
-          {/* Empty-state hint */}
-          {frame.objects.length === 0 && frame.annotations.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="px-3 py-1.5 rounded-md bg-black/40 text-white/90 text-xs font-medium">
-                Pick a tool below, then tap the pitch to add it
+          {currentFrame &&
+            currentFrame.objects.length === 0 &&
+            currentFrame.annotations.length === 0 &&
+            !isAnimating && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="px-3 py-1.5 rounded-md bg-black/40 text-white/90 text-xs font-medium">
+                  Pick a tool below, then tap the pitch to add it
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
+
+      {/* Playback controls */}
+      {!readOnly && (
+        <PlaybackController
+          isPlaying={isPlaying}
+          speed={speed}
+          currentIndex={currentIndex}
+          frameCount={frames.length}
+          onToggle={togglePlayback}
+          onPrev={prevFrame}
+          onNext={nextFrame}
+          onSpeedChange={setSpeed}
+          onPresent={() => setIsPresenting(true)}
+        />
+      )}
+
+      {/* Frame strip */}
+      {!readOnly && (
+        <FrameStrip
+          frames={frames}
+          currentIndex={currentIndex}
+          onSelect={(i) => {
+            setSelectedId(null);
+            goTo(i);
+          }}
+          onAdd={addFrame}
+          onDuplicate={duplicateFrame}
+          onDelete={deleteFrame}
+          onReorder={reorderFrame}
+          disabled={isAnimating}
+        />
+      )}
 
       {/* Toolbar */}
       {!readOnly && (
@@ -266,6 +396,17 @@ export default function TrainingBoard({ isLandscape, readOnly }: TrainingBoardPr
           onClear={handleClear}
           hasSelection={hasSelection}
         />
+      )}
+
+      {/* Presentation overlay */}
+      {isPresenting && (
+        <Suspense fallback={null}>
+          <PresentationMode
+            frames={frames}
+            initialIndex={currentIndex}
+            onClose={() => setIsPresenting(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
