@@ -599,6 +599,7 @@ export default function TrainingBoard({
         onOpenChange={setLibraryOpen}
         teamId={teamId}
         onOpenDrill={handleOpenDrill}
+        onNewDrill={handleNewDrill}
       />
     </div>
   );
