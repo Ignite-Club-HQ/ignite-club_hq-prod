@@ -53,3 +53,90 @@ describe("rotation-coverage rule", () => {
     expect(r.issues.find((i) => i.rule === "rotation-coverage")).toBeUndefined();
   });
 });
+
+const ATTACKER = "#0ea5e9";
+const DEFENDER = "#ef4444";
+
+function arrow(id: string, fromX: number, fromY: number, toX: number, toY: number) {
+  return {
+    id,
+    type: "arrow-solid" as const,
+    geometry: { from: { x: fromX, y: fromY }, to: { x: toX, y: toY } },
+  };
+}
+
+describe("contest-fairness rule", () => {
+  it("flags 1v1 contest drills where the attacker always wins", () => {
+    // Attacker (sky) drives at goal (low y) in every frame, defender just
+    // shifts a tiny bit. No defender clearance arrow anywhere.
+    const frames = [
+      frame(0, [
+        { id: "a", type: "player", x: 50, y: 70, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 50, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 50, y: 71, color: "#fff" },
+      ]),
+      frame(1, [
+        { id: "a", type: "player", x: 50, y: 40, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 45, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 50, y: 20, color: "#fff" },
+      ], [arrow("ar1", 50, 70, 50, 15)]), // attacker shoots at goal
+    ];
+    const r = validateDrill({ id: "cf1", name: "always attacker wins", frames });
+    const issue = r.issues.find((i) => i.rule === "contest-fairness");
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe("warning");
+    expect(issue?.message).toMatch(/attacker wins every rep|outcomes should rotate/i);
+  });
+
+  it("passes when at least one frame shows the defender clearing the ball", () => {
+    const frames = [
+      frame(0, [
+        { id: "a", type: "player", x: 50, y: 70, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 50, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 50, y: 71, color: "#fff" },
+      ], [arrow("ar1", 50, 70, 50, 15)]),
+      // Alternate-outcome frame: defender clears ball away from goal (dy big & positive)
+      frame(1, [
+        { id: "a", type: "player", x: 50, y: 60, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 50, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 30, y: 85, color: "#fff" },
+      ], [arrow("ar2", 50, 50, 30, 85)]),
+    ];
+    const r = validateDrill({ id: "cf2", name: "rotated outcomes", frames });
+    expect(r.issues.find((i) => i.rule === "contest-fairness")).toBeUndefined();
+  });
+
+  it("does not apply to drills without both an attacker and defender", () => {
+    // Attacker only — passing/dribbling drill, not a contest.
+    const frames = [
+      frame(0, [
+        { id: "a", type: "player", x: 50, y: 70, color: ATTACKER, label: "A" },
+        { id: "b", type: "ball", x: 50, y: 71, color: "#fff" },
+      ], [arrow("ar1", 50, 70, 50, 20)]),
+      frame(1, [
+        { id: "a", type: "player", x: 50, y: 30, color: ATTACKER, label: "A" },
+        { id: "b", type: "ball", x: 50, y: 20, color: "#fff" },
+      ]),
+    ];
+    const r = validateDrill({ id: "cf3", name: "no defender", frames });
+    expect(r.issues.find((i) => i.rule === "contest-fairness")).toBeUndefined();
+  });
+
+  it("ignores attacker arrows — only defender-anchored clearances count", () => {
+    // Attacker arrow goes downward (toward own goal) — should NOT count as defender clearance.
+    const frames = [
+      frame(0, [
+        { id: "a", type: "player", x: 50, y: 30, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 60, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 50, y: 30, color: "#fff" },
+      ], [arrow("ar1", 50, 30, 50, 80)]), // attacker passes backwards — not a defender clearance
+      frame(1, [
+        { id: "a", type: "player", x: 50, y: 30, color: ATTACKER, label: "A" },
+        { id: "d", type: "player", x: 50, y: 60, color: DEFENDER, label: "D" },
+        { id: "b", type: "ball", x: 50, y: 80, color: "#fff" },
+      ]),
+    ];
+    const r = validateDrill({ id: "cf4", name: "attacker-only arrow", frames });
+    expect(r.issues.find((i) => i.rule === "contest-fairness")).toBeDefined();
+  });
+});
