@@ -305,6 +305,12 @@ function TrainingObjectLayerImpl({
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
 
+  // Pre-compute non-overlapping display positions for player chips.
+  const displayPositions = useMemo(
+    () => resolvePlayerOverlaps(objects),
+    [objects],
+  );
+
   return (
     <>
       {/* Arrow lines */}
