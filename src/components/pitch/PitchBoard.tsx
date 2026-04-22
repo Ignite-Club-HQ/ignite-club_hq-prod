@@ -86,7 +86,7 @@ import {
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
-import { ModeSwitch, type PitchBoardMode } from "./ModeSwitch";
+import { type PitchBoardMode } from "./ModeSwitch";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
@@ -115,6 +115,9 @@ interface PitchBoardProps {
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
   initialShowLineupPicker?: boolean;
+  // Initial board mode — defaults to "match". Pass "training" when launched
+  // from a Training event so coaches land directly on the drill board.
+  initialMode?: PitchBoardMode;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
 }
@@ -140,7 +143,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -298,7 +301,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [mode, setMode] = useState<PitchBoardMode>("match"); // Match | Training mode toggle (Phase 1)
+  const [mode, setMode] = useState<PitchBoardMode>(initialMode); // Match | Training — default Match unless launched from a Training event
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -4279,6 +4282,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideTrigger
                   externalOpen={settingsDialogOpen}
                   onExternalOpenChange={setSettingsDialogOpen}
+                  pitchBoardMode={mode}
+                  onPitchBoardModeChange={setMode}
                 />
               </>
             )}
@@ -5586,7 +5591,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             style={{ height: '100dvh', zIndex: 999999 }}
           >
             <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
-              <ModeSwitch value={mode} onChange={setMode} />
               <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
               <button
                 type="button"
@@ -5635,7 +5639,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <ModeSwitch value={mode} onChange={setMode} />
         <h1 className="text-sm font-semibold flex-1 truncate min-w-0">{teamName}</h1>
         {readOnly && (
           <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
@@ -5764,6 +5767,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
+                pitchBoardMode={mode}
+                onPitchBoardModeChange={setMode}
               />
             )}
           </>
@@ -5785,9 +5790,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           }}
         >
-          {/* Training-mode header: keep the mode switch reachable so coaches can return to Match */}
+          {/* Training-mode header */}
           <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
-            <ModeSwitch value={mode} onChange={setMode} />
             <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
             <button
               type="button"
