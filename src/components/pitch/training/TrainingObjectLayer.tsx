@@ -53,8 +53,49 @@ function clamp(v: number) {
  * adjusted — the underlying drill coordinates are never mutated, so editing
  * and persistence remain authored-correct.
  */
+/**
+ * Mirror of the chip sizing logic inside `ObjectGlyph` so the resolver knows
+ * the *actual* rendered footprint of each chip rather than a fixed minimum
+ * distance. Returns the chip's pixel width / height as drawn in the DOM.
+ */
+function chipPixelSize(p: RenderableObject): { w: number; h: number } {
+  const label = (p.label ?? "P").trim();
+  const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
+  const baseHeight = isWaiting ? 32 : 44;
+  const isShort = label.length <= 2;
+  const fontSize = isShort
+    ? (isWaiting ? 13 : 15)
+    : label.length <= 4
+      ? (isWaiting ? 11 : 13)
+      : label.length <= 7
+        ? (isWaiting ? 10 : 12)
+        : (isWaiting ? 9 : 11);
+  const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
+  // Approximate text width — bold sans-serif glyphs average ~0.6× font size.
+  // We don't need pixel-perfect accuracy here, just a tight upper bound that
+  // tracks the real chip width as labels grow.
+  const textWidth = label.length * fontSize * 0.6;
+  const contentWidth = textWidth + horizontalPadding * 2;
+  // The chip is `min-width: baseHeight` (circular when short), expanding into
+  // a pill once the text demands more room.
+  const w = Math.max(baseHeight, contentWidth);
+  return { w, h: baseHeight };
+}
+
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ *
+ * `containerSize` provides the live pitch dimensions in pixels so we can
+ * convert each chip's actual rendered width/height into accurate % units.
+ * Without it we fall back to a sensible 400×600 default — close enough that
+ * the resolver still works during the first paint before measurement lands.
+ */
 function resolvePlayerOverlaps(
   objects: RenderableObject[],
+  containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   // Only player chips need separation — other objects (cones, goals, ball)
@@ -65,20 +106,25 @@ function resolvePlayerOverlaps(
     return positions;
   }
 
-  // Per-chip half-width / half-height in % of pitch.
-  // Pitches typically render ~360–460px wide. A 44px active chip ≈ 11% wide;
-  // a 32px waiting chip ≈ 8% wide. Pills (longer labels) are wider still.
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Convert each chip's real rendered pixel size into pitch-% half-extents.
+  // Half-extent + a tiny breathing-room pad = the minimum centre-to-centre
+  // distance required on each axis to avoid any visual overlap.
   const halfFor = (p: RenderableObject) => {
-    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
-    const labelLen = (p.label ?? "P").trim().length;
-    // Base radius in % units (height-equivalent, approximating circular footprint).
-    const baseRadiusPct = isWaiting ? 4.5 : 6;
-    // Pill chips grow horizontally with the label. Approximate the extra
-    // horizontal footprint as ~1.2% per character beyond 2.
-    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
-    return { rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+    const { w, h } = chipPixelSize(p);
+    return {
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
   };
   const halves = new Map(players.map((p) => [p.id, halfFor(p)]));
+
+  // Padding gap (in pitch-%) — a small visual breathing space between chips.
+  // 4px on a typical 400px-wide pitch ≈ 1% — keeps chips from kissing.
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
 
   const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
   // A few relaxation passes are enough for typical drill densities.
@@ -92,9 +138,9 @@ function resolvePlayerOverlaps(
         const hb = halves.get(b.id)!;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        // Required spacing on each axis = sum of half-widths/heights + small gap.
-        const reqX = ha.rx + hb.rx + 0.6;
-        const reqY = ha.ry + hb.ry + 0.6;
+        // Required spacing on each axis = sum of half-widths/heights + gap.
+        const reqX = ha.rx + hb.rx + padX;
+        const reqY = ha.ry + hb.ry + padY;
         // Normalise into a single distance metric: a chip is "colliding" when
         // it sits inside the bounding ellipse defined by reqX/reqY.
         const ndx = dx / reqX;
