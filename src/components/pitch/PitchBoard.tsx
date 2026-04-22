@@ -4282,6 +4282,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideTrigger
                   externalOpen={settingsDialogOpen}
                   onExternalOpenChange={setSettingsDialogOpen}
+                  pitchBoardMode={mode}
+                  onPitchBoardModeChange={setMode}
                 />
               </>
             )}
@@ -5765,6 +5767,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
+                pitchBoardMode={mode}
+                onPitchBoardModeChange={setMode}
               />
             )}
           </>
