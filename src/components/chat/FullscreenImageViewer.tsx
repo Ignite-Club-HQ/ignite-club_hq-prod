@@ -220,7 +220,12 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       node.removeEventListener("touchend", handleEnd);
       node.removeEventListener("touchcancel", handleCancel);
     };
-  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd, triggerZoomToggle]);
+    // IMPORTANT: only re-attach when the pinch hook's stable callbacks change.
+    // triggerZoomToggle is intentionally NOT in deps — it's invoked via a ref
+    // above so this effect doesn't re-run on every scale/translate update,
+    // which would tear down the touch listeners mid-gesture and break iOS
+    // pinch-zoom (Android is more tolerant of this churn).
+  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd]);
 
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {
