@@ -344,6 +344,8 @@ function extractFileUrls(text: string): string[] {
       url.includes("docs.google.com") ||
       url.includes("sheets.google.com") ||
       url.includes("slides.google.com") ||
+      url.includes("forms.google.com") ||
+      url.includes("goo.gl") ||
       url.includes("dropbox.com")
   );
 }
