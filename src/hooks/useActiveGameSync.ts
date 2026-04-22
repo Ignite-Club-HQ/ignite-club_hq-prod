@@ -180,8 +180,10 @@ export function useActiveGameSync() {
     };
 
     try {
+      const teamId = timerState.teamId || null;
+
       if (activeGameIdRef.current) {
-        await deactivateOtherActiveGames(activeGameIdRef.current);
+        await deactivateOtherActiveGames(teamId, activeGameIdRef.current);
 
         // Update existing game
         const { error } = await supabase
@@ -194,26 +196,29 @@ export function useActiveGameSync() {
           activeGameIdRef.current = null;
         }
       } else {
-        // Reuse the most recent active game for this user and deactivate any extras.
-        const { data: existingGames, error: existingError } = await supabase
+        // Look up an existing active row that BELONGS to this exact (user, team).
+        // The previous fallback `?? existingGames?.[0]` would silently adopt a
+        // different team's row and overwrite it — corrupting the other game at
+        // scale. Now scoped server-side to (user, team).
+        let existingQ = supabase
           .from('active_games')
           .select('id, team_id, updated_at')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .order('updated_at', { ascending: false })
-          .limit(20);
+          .limit(5);
+        existingQ = teamId ? existingQ.eq('team_id', teamId) : existingQ.is('team_id', null);
+        const { data: existingGames, error: existingError } = await existingQ;
 
         if (existingError) {
           console.error('[SYNC] Failed to fetch existing active games:', existingError);
         }
 
-        const matchingGame = existingGames?.find((game) => game.team_id === (timerState.teamId || null));
-        const fallbackGame = existingGames?.[0];
-        const existing = matchingGame || fallbackGame;
+        const existing = existingGames?.[0];
 
         if (existing) {
           activeGameIdRef.current = existing.id;
-          await deactivateOtherActiveGames(existing.id);
+          await deactivateOtherActiveGames(teamId, existing.id);
           await supabase
             .from('active_games')
             .update(gameData)
@@ -226,10 +231,29 @@ export function useActiveGameSync() {
             .single();
 
           if (error) {
-            console.error('[SYNC] Failed to create game:', error);
+            // 23505 = unique_violation. The DB enforces one active row per
+            // team via uniq_active_games_team_active. If a race lands here,
+            // adopt the existing row instead of leaving the board un-synced.
+            if ((error as { code?: string }).code === '23505' && teamId) {
+              const { data: claimed } = await supabase
+                .from('active_games')
+                .select('id')
+                .eq('team_id', teamId)
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle();
+              if (claimed) {
+                activeGameIdRef.current = claimed.id;
+                await supabase.from('active_games').update(gameData).eq('id', claimed.id);
+              } else {
+                console.error('[SYNC] Insert race but no claimed row', error);
+              }
+            } else {
+              console.error('[SYNC] Failed to create game:', error);
+            }
           } else {
             activeGameIdRef.current = newGame.id;
-            await deactivateOtherActiveGames(newGame.id);
+            await deactivateOtherActiveGames(teamId, newGame.id);
             console.log('[SYNC] Created new active game:', newGame.id);
           }
         }
