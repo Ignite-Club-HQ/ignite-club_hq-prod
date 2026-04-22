@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type {
   Annotation,
@@ -45,6 +45,57 @@ function rectFromContainer(
 
 function clamp(v: number) {
   return Math.max(0, Math.min(100, v));
+}
+
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ */
+function resolvePlayerOverlaps(
+  objects: RenderableObject[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  // Only player chips need separation — other objects (cones, goals, ball)
+  // either render at different z-orders or have intentionally different sizes.
+  const players = objects.filter((o) => o.type === "player");
+  if (players.length < 2) {
+    for (const p of players) positions.set(p.id, { x: p.x, y: p.y });
+    return positions;
+  }
+  // Approximate chip footprint in % of pitch. Active chips ~44px on a typical
+  // 360–500px wide pitch ≈ 9–12% wide. We use a conservative 8% min spacing.
+  const minDist = 8;
+  const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
+  // A few relaxation passes are enough for typical drill densities.
+  for (let iter = 0; iter < 6; iter++) {
+    let moved = false;
+    for (let i = 0; i < work.length; i++) {
+      for (let j = i + 1; j < work.length; j++) {
+        const a = work[i];
+        const b = work[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= minDist) continue;
+        // Collision — push the two chips apart along the connecting axis.
+        const overlap = minDist - dist;
+        // Avoid div-by-zero when chips share exact coordinates.
+        const nx = dist > 0.0001 ? dx / dist : 1;
+        const ny = dist > 0.0001 ? dy / dist : 0;
+        const shift = overlap / 2 + 0.05;
+        a.x = clamp(a.x - nx * shift);
+        a.y = clamp(a.y - ny * shift);
+        b.x = clamp(b.x + nx * shift);
+        b.y = clamp(b.y + ny * shift);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  for (const p of work) positions.set(p.id, { x: p.x, y: p.y });
+  return positions;
 }
 
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
@@ -254,6 +305,12 @@ function TrainingObjectLayerImpl({
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
 
+  // Pre-compute non-overlapping display positions for player chips.
+  const displayPositions = useMemo(
+    () => resolvePlayerOverlaps(objects),
+    [objects],
+  );
+
   return (
     <>
       {/* Arrow lines */}
@@ -376,10 +433,18 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Objects — players render above the ball so a chip is never obscured */}
+      {/* Objects — players render above the ball so a chip is never obscured.
+          Player chips are nudged apart so they never visually overlap, while
+          their underlying drill coordinates stay untouched (drag/edit logic
+          still uses the authored x/y). */}
+      {/* Objects — players render above the ball so a chip is never obscured.
+          Player chips are nudged apart so they never visually overlap, while
+          their underlying drill coordinates stay untouched (drag/edit logic
+          still uses the authored x/y). */}
       {objects.map((obj) => {
         const isSel = selectedId === obj.id;
         const z = obj.type === "ball" ? 38 : 45;
+        const pos = displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
         return (
           <div
             key={obj.id}
@@ -390,10 +455,11 @@ function TrainingObjectLayerImpl({
               isSel && "ring-2 ring-primary ring-offset-2 ring-offset-pitch-green rounded-full"
             )}
             style={{
-              left: `${obj.x}%`,
-              top: `${obj.y}%`,
+              left: `${pos.x}%`,
+              top: `${pos.y}%`,
               zIndex: z,
               opacity: obj.opacity ?? 1,
+              transition: "left 120ms ease-out, top 120ms ease-out",
             }}
           >
             <ObjectGlyph obj={obj} />
