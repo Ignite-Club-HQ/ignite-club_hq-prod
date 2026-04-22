@@ -42,13 +42,20 @@ export function TrainingSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0"
+        className={cn(
+          // Full-screen sheet on mobile, centered modal on tablet+
+          "p-0 gap-0 !flex flex-col !overflow-hidden",
+          // Mobile: edge-to-edge, full viewport height, no rounded corners
+          "!max-w-none !w-screen !h-[100dvh] !max-h-[100dvh] !rounded-none !left-0 !top-0 !translate-x-0 !translate-y-0 !border-0",
+          // Tablet+: centered card with comfortable max size
+          "sm:!w-auto sm:!h-auto sm:!max-w-md sm:!max-h-[85vh] sm:!rounded-lg sm:!border sm:!left-[50%] sm:!top-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%]"
+        )}
         onOpenAutoFocus={(e) => {
           // Prevent the underlying training overlay from stealing focus back
           e.preventDefault();
         }}
       >
-        <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
+        <DialogHeader className="px-6 pt-6 sm:pt-6 pb-3 shrink-0 pt-safe">
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
             Training Mode Settings
@@ -155,7 +162,7 @@ export function TrainingSettingsDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="px-6 py-4 border-t shrink-0 flex-row sm:justify-between gap-2">
+        <DialogFooter className="px-6 py-4 pb-safe border-t shrink-0 flex-row justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
