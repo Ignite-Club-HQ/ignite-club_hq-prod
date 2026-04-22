@@ -1,8 +1,23 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, isTomorrow } from "date-fns";
-import { ArrowLeft, Clock, Pencil, X, AlertCircle, Image as ImageIcon, Repeat } from "lucide-react";
+import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
+import {
+  ArrowLeft,
+  Clock,
+  Pencil,
+  X,
+  AlertCircle,
+  Image as ImageIcon,
+  Repeat,
+  CheckCircle2,
+  Users,
+  Hash,
+  User as UserIcon,
+  Megaphone,
+  Shield,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
