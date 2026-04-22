@@ -553,23 +553,34 @@ export default function TrainingBoard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
+      {/* Always-visible exit bar — works in edit, preview, and read-only modes
+          so coaches and spectators can always get back to the drill list. */}
+      <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border bg-background">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleExitEditor}
+          className="h-9 px-2 -ml-1 font-medium"
+          aria-label="Exit drill and return to library"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1.5" />
+          Exit drill
+        </Button>
+        <div className="flex-1 min-w-0 text-sm font-medium text-foreground truncate text-center">
+          {savedName || (savedDrillId ? "Drill" : "New drill")}
+          {savedName && !savedDrillId ? " · unsaved" : ""}
+          {previewMode && <span className="ml-2 text-xs text-muted-foreground">· Preview</span>}
+        </div>
+        {/* Spacer to balance the back button so the title stays centred */}
+        <div className="w-[88px] shrink-0" aria-hidden />
+      </div>
+
       {/* Drill action bar — Library is the primary action; New is demoted */}
       {!readOnly && (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleExitEditor}
-            className="h-9"
-            aria-label="Back to drill library"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Library
-          </Button>
-          <div className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">
-            {savedName || (savedDrillId ? "Drill" : "New drill")}
-            {savedName && !savedDrillId ? " · unsaved" : ""}
+          <div className="flex-1 min-w-0 text-xs font-medium text-muted-foreground truncate">
+            Drill actions
           </div>
           {savedDrillId && (
             <Button
