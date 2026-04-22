@@ -5869,6 +5869,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         >
           {/* Training-mode header */}
           <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 -ml-1"
+              onClick={onClose}
+              aria-label="Close training mode"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
             <div className="relative">
               <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setTrainingMenuOpen(prev => !prev)}>
