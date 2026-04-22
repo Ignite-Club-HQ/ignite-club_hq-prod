@@ -133,7 +133,7 @@ export default function VaultPage() {
   const [resolvingDriveTitles, setResolvingDriveTitles] = useState(false);
 
   const handleResolveDriveTitles = async () => {
-    const clubId = currentView.clubId;
+    const clubId = currentView.type !== "root" ? currentView.clubId : undefined;
     if (!clubId) return;
     setResolvingDriveTitles(true);
     const toastId = toast.loading("Fetching real Google Drive titles…");
