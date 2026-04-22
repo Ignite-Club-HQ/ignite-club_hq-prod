@@ -83,6 +83,7 @@ export default function TrainingBoard({
   members,
 }: TrainingBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { settings } = useTrainingSettings();
   const [frames, setFrames] = useState<DrillFrame[]>(() => [createEmptyFrame(0)]);
   const [activeTool, setActiveTool] = useState<TrainingTool>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
