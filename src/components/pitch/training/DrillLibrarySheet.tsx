@@ -236,14 +236,16 @@ export function DrillLibrarySheet({
                         <button
                           type="button"
                           onPointerDown={(e) => {
-                            // Prevent the synthesized click from leaking to elements
-                            // that appear underneath once the sheet closes.
                             e.stopPropagation();
+                          }}
+                          onPointerUp={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleOpen(d.id);
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            handleOpen(d.id);
                           }}
                           disabled={isOpening}
                           className="w-full text-left p-3 touch-manipulation"
