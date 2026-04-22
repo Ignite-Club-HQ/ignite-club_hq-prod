@@ -803,6 +803,8 @@ export default function TrainingBoard({
               teamPlayers
             )}
             anchor={runMode ? "bottom" : "top"}
+            objects={renderedObjects}
+            annotations={renderedAnnotations}
           />
 
           <TrainingObjectLayer
