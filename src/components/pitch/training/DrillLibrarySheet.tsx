@@ -28,6 +28,13 @@ import { loadDrill, type LibraryTab } from "./drillStorage";
 import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  applyDrillFilters,
+  AGE_GROUP_OPTIONS,
+  PLAYER_COUNT_OPTIONS,
+  type AgeGroupFilter,
+  type PlayerCountFilterValue,
+} from "./drillFilters";
 
 /**
  * On touch devices, when an overlay closes inside a tap handler the synthesized
@@ -78,10 +85,14 @@ export function DrillLibrarySheet({
 }: DrillLibrarySheetProps) {
   const [tab, setTab] = useState<LibraryTab>("ignite");
   const [search, setSearch] = useState("");
+  const [ageFilter, setAgeFilter] = useState<AgeGroupFilter>("all");
+  const [playerFilter, setPlayerFilter] = useState<PlayerCountFilterValue>("all");
   const [openingId, setOpeningId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const { data: drills, isLoading } = useDrillList(tab, teamId ?? undefined, search);
+  const filteredDrills = applyDrillFilters(drills, ageFilter, playerFilter);
+  const filtersActive = ageFilter !== "all" || playerFilter !== "all";
   const { data: sessionDrills } = useSessionDrills();
   const deleteDrillMut = useDeleteDrill();
   const stampRecent = useStampRecent();
