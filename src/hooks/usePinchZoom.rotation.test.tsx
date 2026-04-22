@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderHook, act } from "react";
+import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { usePinchZoom } from "./usePinchZoom";
 
