@@ -219,6 +219,18 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     }
   }, [effectiveImageUrl]);
 
+  // Stop ALL touch / pointer events from bubbling up to the chat bubble.
+  // Without this, the parent's `handleLongPressStart` arms a 600ms timer
+  // and `useSwipeToReply` starts tracking the gesture — both of which then
+  // fire WHILE the user is mid-pinch inside the FullscreenImageViewer that
+  // this tap just opened. The viewer itself is portalled and stops its own
+  // propagation, but it can't retroactively cancel a setTimeout that was
+  // armed by a touchstart that fired before it mounted. Stopping touch
+  // bubbling at the image source is the only reliable cure.
+  const stopMediaGesture = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  }, []);
+
   const handleLinkClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
   }, []);
@@ -304,6 +316,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               <div
                 className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
                 onClick={handleImageClick}
+                onTouchStart={stopMediaGesture}
+                onTouchMove={stopMediaGesture}
+                onTouchEnd={stopMediaGesture}
+                onPointerDown={stopMediaGesture}
               >
                 <video
                   src={effectiveImageUrl}
@@ -329,6 +345,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 onClick={handleImageClick}
+                onTouchStart={stopMediaGesture}
+                onTouchMove={stopMediaGesture}
+                onTouchEnd={stopMediaGesture}
+                onPointerDown={stopMediaGesture}
               />
             )
           )}
