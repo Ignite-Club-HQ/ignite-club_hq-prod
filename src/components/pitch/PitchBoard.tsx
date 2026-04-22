@@ -5739,13 +5739,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
       </div>
 
-      {/* Training Mode overlay — fixed, covers full viewport above match UI and global chat dock.
-          Match body stays mounted underneath so its state (timer, subs, players) is preserved. */}
-      {mode === "training" && (
+      {/* Training Mode overlay — portal'd to document.body so it sits above the
+          PitchBoard portal AND any global dock/header. Match body stays mounted
+          so its state (timer, subs, players) is preserved. */}
+      {mode === "training" && createPortal(
         <div
-          className="fixed inset-0 z-[200] flex flex-col bg-background"
+          className={cn(
+            "fixed top-0 left-0 right-0 bottom-0 w-screen h-screen flex flex-col bg-background",
+            isNative && "pt-safe"
+          )}
           style={{
-            paddingTop: 'env(safe-area-inset-top, 0px)',
+            height: '100dvh',
+            zIndex: 999999,
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           }}
         >
@@ -5771,7 +5776,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               />
             </Suspense>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Mini-league team selector strip - portrait */}
