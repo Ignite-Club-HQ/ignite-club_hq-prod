@@ -64,31 +64,56 @@ function resolvePlayerOverlaps(
     for (const p of players) positions.set(p.id, { x: p.x, y: p.y });
     return positions;
   }
-  // Approximate chip footprint in % of pitch. Active chips ~44px on a typical
-  // 360–500px wide pitch ≈ 9–12% wide. We use a conservative 8% min spacing.
-  const minDist = 8;
+
+  // Per-chip half-width / half-height in % of pitch.
+  // Pitches typically render ~360–460px wide. A 44px active chip ≈ 11% wide;
+  // a 32px waiting chip ≈ 8% wide. Pills (longer labels) are wider still.
+  const halfFor = (p: RenderableObject) => {
+    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
+    const labelLen = (p.label ?? "P").trim().length;
+    // Base radius in % units (height-equivalent, approximating circular footprint).
+    const baseRadiusPct = isWaiting ? 4.5 : 6;
+    // Pill chips grow horizontally with the label. Approximate the extra
+    // horizontal footprint as ~1.2% per character beyond 2.
+    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
+    return { rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+  };
+  const halves = new Map(players.map((p) => [p.id, halfFor(p)]));
+
   const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
   // A few relaxation passes are enough for typical drill densities.
-  for (let iter = 0; iter < 6; iter++) {
+  for (let iter = 0; iter < 8; iter++) {
     let moved = false;
     for (let i = 0; i < work.length; i++) {
       for (let j = i + 1; j < work.length; j++) {
         const a = work[i];
         const b = work[j];
+        const ha = halves.get(a.id)!;
+        const hb = halves.get(b.id)!;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist >= minDist) continue;
-        // Collision — push the two chips apart along the connecting axis.
-        const overlap = minDist - dist;
-        // Avoid div-by-zero when chips share exact coordinates.
-        const nx = dist > 0.0001 ? dx / dist : 1;
-        const ny = dist > 0.0001 ? dy / dist : 0;
-        const shift = overlap / 2 + 0.05;
-        a.x = clamp(a.x - nx * shift);
-        a.y = clamp(a.y - ny * shift);
-        b.x = clamp(b.x + nx * shift);
-        b.y = clamp(b.y + ny * shift);
+        // Required spacing on each axis = sum of half-widths/heights + small gap.
+        const reqX = ha.rx + hb.rx + 0.6;
+        const reqY = ha.ry + hb.ry + 0.6;
+        // Normalise into a single distance metric: a chip is "colliding" when
+        // it sits inside the bounding ellipse defined by reqX/reqY.
+        const ndx = dx / reqX;
+        const ndy = dy / reqY;
+        const ndist = Math.hypot(ndx, ndy);
+        if (ndist > 1) continue; // No overlap — skip.
+        // Push apart along the connecting axis until the ellipse condition holds.
+        const overlap = 1 - ndist;
+        // Avoid div-by-zero when chips share exact coordinates: pick a default
+        // axis based on row/column orientation (horizontal nudge for rows).
+        const nx = ndist > 0.0001 ? ndx / ndist : 1;
+        const ny = ndist > 0.0001 ? ndy / ndist : 0;
+        // Convert the normalised push back to % units, scaled by required dist.
+        const shiftX = nx * overlap * reqX * 0.55;
+        const shiftY = ny * overlap * reqY * 0.55;
+        a.x = clamp(a.x - shiftX);
+        a.y = clamp(a.y - shiftY);
+        b.x = clamp(b.x + shiftX);
+        b.y = clamp(b.y + shiftY);
         moved = true;
       }
     }
