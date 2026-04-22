@@ -86,7 +86,14 @@ export default function TrainingBoard({
   const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
   const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
   const [saveOpen, setSaveOpen] = useState(false);
+  // Library opens by default — coaches mostly browse & pick rather than draw
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const hasAutoOpenedRef = useRef(false);
+
+  // Session-plan integration
+  const { data: sessionDrills } = useSessionDrills();
+  const addToSessionMut = useAddToSession();
+  const inSession = !!savedDrillId && (sessionDrills ?? []).some((s) => s.drillId === savedDrillId);
 
   const {
     currentIndex,
