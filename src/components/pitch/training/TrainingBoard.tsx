@@ -21,6 +21,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
+import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
