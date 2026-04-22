@@ -350,13 +350,51 @@ function extractFileUrls(text: string): string[] {
 
 function extractFileName(url: string): string | null {
   try {
+    // Google Docs/Sheets/Slides URLs end with /edit, /view, /preview etc.
+    // The actual document title isn't in the URL, so fall back to a friendly
+    // type-based label rather than returning "edit"/"view".
+    const googleLabel = googleDocLabel(url);
+    if (googleLabel) return googleLabel;
+
     const pathname = new URL(url).pathname;
     const segments = pathname.split("/").filter(Boolean);
     const last = segments[segments.length - 1];
+    // Skip generic action segments that aren't actual filenames
+    if (last && /^(edit|view|preview|comment|copy|template)$/i.test(last)) {
+      return null;
+    }
     if (last && last.includes(".")) {
       return decodeURIComponent(last);
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+function googleDocLabel(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (!host.includes("google.com")) return null;
+
+    const path = u.pathname.toLowerCase();
+    let kind: string | null = null;
+    if (path.includes("/spreadsheets/")) kind = "Google Sheet";
+    else if (path.includes("/document/")) kind = "Google Doc";
+    else if (path.includes("/presentation/")) kind = "Google Slides";
+    else if (path.includes("/forms/")) kind = "Google Form";
+    else if (host.startsWith("drive.")) kind = "Google Drive file";
+    else if (host.startsWith("docs.")) kind = "Google Doc";
+    else return null;
+
+    // Include a short id for disambiguation when multiple Google files coexist.
+    const idMatch = u.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (idMatch) {
+      const shortId = idMatch[1].slice(0, 6);
+      return `${kind} (${shortId})`;
+    }
+    return kind;
   } catch {
     return null;
   }
