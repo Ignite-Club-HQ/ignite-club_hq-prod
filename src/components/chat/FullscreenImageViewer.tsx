@@ -80,6 +80,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     }
   }, [pinchDoubleClick, resetZoom, scale, translateX, translateY]);
 
+  // Stable ref to triggerZoomToggle so the touch-listener effect below can
+  // call the latest version WITHOUT having to re-run (and thus tear down +
+  // re-attach the non-passive touch listeners) every time scale/translate
+  // changes. On iOS, removing a touchmove listener mid-gesture causes the
+  // WebView to fall back to its native pinch handler, which silently
+  // hijacks the gesture — that's why pinch worked on Android but not iOS.
+  const triggerZoomToggleRef = useRef(triggerZoomToggle);
+  triggerZoomToggleRef.current = triggerZoomToggle;
+
   // Attach native non-passive touch listeners so preventDefault() actually
   // works on iOS (React's synthetic touch listeners are passive).
   useEffect(() => {
