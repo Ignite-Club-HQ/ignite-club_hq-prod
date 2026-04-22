@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.search_invitable_profiles(text, integer) TO authenticated;
