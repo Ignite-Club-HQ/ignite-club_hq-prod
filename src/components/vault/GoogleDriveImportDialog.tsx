@@ -309,9 +309,8 @@ export function GoogleDriveImportDialog({
 
           const blob = new Blob([bytes], { type: contentType });
 
-          // Upload to Supabase storage using the same private bucket/path scheme
-          // as standard vault uploads so Drive imports stay vault-only and never
-          // surface in the Media gallery feed.
+          // Upload to Supabase storage using the same vault-only storage path
+          // as standard Vault uploads so Drive imports never create Media posts.
           const timestamp = Date.now();
           const randomSuffix = Math.random().toString(36).substring(7);
           const safeExt = fileName.split('.').pop() || 'bin';
