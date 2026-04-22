@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,13 +29,12 @@ interface ActiveGameRow {
   created_at: string;
   timer_state: Record<string, unknown> | null;
   pitch_state: Record<string, unknown> | null;
-  team?: { id: string; name: string; club_id: string | null; club?: { id: string; name: string } | null } | null;
-  coach?: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null;
-}
-
-interface WriteRateRow {
-  team_id: string;
-  writes_last_minute: number;
+  team?: {
+    id: string;
+    name: string;
+    club_id: string | null;
+    club?: { id: string; name: string } | null;
+  } | null;
 }
 
 const SPORT_BADGE: Record<string, string> = {
@@ -48,15 +47,6 @@ function detectSport(row: ActiveGameRow): string {
   const a = (row.pitch_state as { sport?: string } | null)?.sport;
   const b = (row.timer_state as { sport?: string } | null)?.sport;
   return a || b || "soccer";
-}
-
-function coachName(row: ActiveGameRow): string {
-  const c = row.coach;
-  if (!c) return row.user_id.slice(0, 8);
-  const fn = (c.first_name || "").trim();
-  const ln = (c.last_name || "").trim();
-  const full = `${fn} ${ln}`.trim();
-  return full || c.email || row.user_id.slice(0, 8);
 }
 
 export default function AdminActiveGamesPage() {
@@ -81,7 +71,6 @@ export default function AdminActiveGamesPage() {
     enabled: !!user?.id,
   });
 
-  // Active rows (is_active = true). Refetched on realtime tick + every 15s safety net.
   const { data: activeRows, isLoading: activeLoading, refetch: refetchActive } = useQuery({
     queryKey: ["admin-active-games", "active", bumpKey],
     enabled: !!isAppAdmin,
@@ -91,31 +80,16 @@ export default function AdminActiveGamesPage() {
         .from("active_games")
         .select(
           `id, team_id, user_id, is_active, updated_at, created_at, timer_state, pitch_state,
-           team:teams ( id, name, club_id, club:clubs ( id, name ) ),
-           coach:profiles!active_games_user_id_fkey ( id, first_name, last_name, email )`
+           team:teams ( id, name, club_id, club:clubs ( id, name ) )`
         )
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
         .limit(500);
-      if (error) {
-        // Fall back without the profiles join if the FK alias isn't available.
-        const { data: plain, error: e2 } = await supabase
-          .from("active_games")
-          .select(
-            `id, team_id, user_id, is_active, updated_at, created_at, timer_state, pitch_state,
-             team:teams ( id, name, club_id, club:clubs ( id, name ) )`
-          )
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(500);
-        if (e2) throw e2;
-        return (plain ?? []) as unknown as ActiveGameRow[];
-      }
+      if (error) throw error;
       return (data ?? []) as unknown as ActiveGameRow[];
     },
   });
 
-  // Recently deactivated (last hour) — useful to see who finished/got bumped.
   const { data: recentRows, isLoading: recentLoading } = useQuery({
     queryKey: ["admin-active-games", "recent", bumpKey],
     enabled: !!isAppAdmin && tab === "recent",
@@ -137,7 +111,33 @@ export default function AdminActiveGamesPage() {
     },
   });
 
-  // Per-team write rate over the last 60s (uses the write log we added).
+  // Profiles for the union of coaches across both lists. profiles.id = auth.users.id
+  // (no FK on active_games.user_id → profiles, so we fetch separately).
+  const coachIds = useMemo(() => {
+    const ids = new Set<string>();
+    (activeRows ?? []).forEach((r) => ids.add(r.user_id));
+    (recentRows ?? []).forEach((r) => ids.add(r.user_id));
+    return Array.from(ids);
+  }, [activeRows, recentRows]);
+
+  const { data: profileMap } = useQuery({
+    queryKey: ["admin-active-games", "coach-profiles", coachIds.sort().join(",")],
+    enabled: !!isAppAdmin && coachIds.length > 0,
+    queryFn: async (): Promise<Record<string, { id: string; display_name: string | null }>> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", coachIds);
+      if (error) throw error;
+      const map: Record<string, { id: string; display_name: string | null }> = {};
+      (data ?? []).forEach((p) => {
+        map[p.id] = p;
+      });
+      return map;
+    },
+  });
+
+  // Per-team write rate over the last 60s (uses the write log).
   const { data: writeRates } = useQuery({
     queryKey: ["admin-active-games", "write-rate", bumpKey],
     enabled: !!isAppAdmin,
@@ -155,7 +155,7 @@ export default function AdminActiveGamesPage() {
         return new Map();
       }
       const counts = new Map<string, number>();
-      for (const row of (data ?? []) as WriteRateRow[]) {
+      for (const row of (data ?? []) as Array<{ team_id: string | null }>) {
         if (!row.team_id) continue;
         counts.set(row.team_id, (counts.get(row.team_id) ?? 0) + 1);
       }
@@ -179,6 +179,11 @@ export default function AdminActiveGamesPage() {
     };
   }, [isAppAdmin]);
 
+  const coachLabel = (userId: string) => {
+    const p = profileMap?.[userId];
+    return p?.display_name?.trim() || userId.slice(0, 8);
+  };
+
   const filteredActive = useMemo(() => {
     const list = activeRows ?? [];
     const q = search.trim().toLowerCase();
@@ -186,10 +191,11 @@ export default function AdminActiveGamesPage() {
     return list.filter((r) => {
       const team = r.team?.name?.toLowerCase() ?? "";
       const club = r.team?.club?.name?.toLowerCase() ?? "";
-      const coach = coachName(r).toLowerCase();
+      const coach = coachLabel(r.user_id).toLowerCase();
       return team.includes(q) || club.includes(q) || coach.includes(q);
     });
-  }, [activeRows, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRows, search, profileMap]);
 
   const filteredRecent = useMemo(() => {
     const list = recentRows ?? [];
@@ -198,9 +204,22 @@ export default function AdminActiveGamesPage() {
     return list.filter((r) => {
       const team = r.team?.name?.toLowerCase() ?? "";
       const club = r.team?.club?.name?.toLowerCase() ?? "";
-      return team.includes(q) || club.includes(q);
+      const coach = coachLabel(r.user_id).toLowerCase();
+      return team.includes(q) || club.includes(q) || coach.includes(q);
     });
-  }, [recentRows, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentRows, search, profileMap]);
+
+  const stormCount = useMemo(() => {
+    if (!writeRates) return 0;
+    let n = 0;
+    writeRates.forEach((c) => {
+      if (c >= 30) n += 1;
+    });
+    return n;
+  }, [writeRates]);
+
+  const activeCount = activeRows?.length ?? 0;
 
   if (roleLoading) return <PageLoading />;
 
@@ -219,16 +238,6 @@ export default function AdminActiveGamesPage() {
       </div>
     );
   }
-
-  const activeCount = activeRows?.length ?? 0;
-  const stormCount = useMemo(() => {
-    if (!writeRates) return 0;
-    let n = 0;
-    writeRates.forEach((c) => {
-      if (c >= 30) n += 1;
-    });
-    return n;
-  }, [writeRates]);
 
   return (
     <div className="py-6 space-y-6">
@@ -270,7 +279,9 @@ export default function AdminActiveGamesPage() {
             <div className="text-xs uppercase text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" /> Sync storms (now)
             </div>
-            <div className={`text-2xl font-bold ${stormCount > 0 ? "text-destructive" : ""}`}>
+            <div
+              className={`text-2xl font-bold ${stormCount > 0 ? "text-destructive" : ""}`}
+            >
               {stormCount}
             </div>
           </CardContent>
@@ -308,7 +319,10 @@ export default function AdminActiveGamesPage() {
                   const rate = row.team_id ? writeRates?.get(row.team_id) ?? 0 : 0;
                   const isStorm = rate >= 30;
                   return (
-                    <Card key={row.id} className={isStorm ? "border-destructive" : undefined}>
+                    <Card
+                      key={row.id}
+                      className={isStorm ? "border-destructive" : undefined}
+                    >
                       <CardContent className="p-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -319,7 +333,10 @@ export default function AdminActiveGamesPage() {
                               {row.team?.club?.name ?? "—"}
                             </div>
                           </div>
-                          <Badge className={SPORT_BADGE[sport] ?? "bg-muted"} variant="secondary">
+                          <Badge
+                            className={SPORT_BADGE[sport] ?? "bg-muted"}
+                            variant="secondary"
+                          >
                             {sport}
                           </Badge>
                         </div>
@@ -327,10 +344,13 @@ export default function AdminActiveGamesPage() {
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1 text-muted-foreground min-w-0">
                             <Users className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{coachName(row)}</span>
+                            <span className="truncate">{coachLabel(row.user_id)}</span>
                           </div>
                           <div className="text-muted-foreground shrink-0 ml-2">
-                            updated {formatDistanceToNow(new Date(row.updated_at), { addSuffix: true })}
+                            updated{" "}
+                            {formatDistanceToNow(new Date(row.updated_at), {
+                              addSuffix: true,
+                            })}
                           </div>
                         </div>
 
@@ -378,15 +398,22 @@ export default function AdminActiveGamesPage() {
                               {row.team?.name ?? "(no team)"}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {row.team?.club?.name ?? "—"} · coach {row.user_id.slice(0, 8)}
+                              {row.team?.club?.name ?? "—"} · coach{" "}
+                              {coachLabel(row.user_id)}
                             </div>
                           </div>
-                          <Badge className={SPORT_BADGE[sport] ?? "bg-muted"} variant="secondary">
+                          <Badge
+                            className={SPORT_BADGE[sport] ?? "bg-muted"}
+                            variant="secondary"
+                          >
                             {sport}
                           </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          ended {formatDistanceToNow(new Date(row.updated_at), { addSuffix: true })}
+                          ended{" "}
+                          {formatDistanceToNow(new Date(row.updated_at), {
+                            addSuffix: true,
+                          })}
                         </div>
                       </CardContent>
                     </Card>
