@@ -35,24 +35,33 @@ export function useActiveGameSync() {
   const activeGameIdRef = useRef<string | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const deactivateOtherActiveGames = useCallback(async (currentGameId?: string | null) => {
-    if (!user?.id) return;
+  // Scope deactivation to (user, team) — without the team filter, a coach
+  // running boards for two teams in parallel tabs would flip each other off
+  // every 10s. Mirrors the basketball/netball sync hooks.
+  const deactivateOtherActiveGames = useCallback(
+    async (teamId: string | null, currentGameId?: string | null) => {
+      if (!user?.id) return;
 
-    let query = supabase
-      .from('active_games')
-      .update({ is_active: false })
-      .eq('user_id', user.id)
-      .eq('is_active', true);
+      let query = supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
 
-    if (currentGameId) {
-      query = query.neq('id', currentGameId);
-    }
+      if (teamId) query = query.eq('team_id', teamId);
+      else query = query.is('team_id', null);
 
-    const { error } = await query;
-    if (error) {
-      console.error('[SYNC] Failed to deactivate other active games:', error);
-    }
-  }, [user?.id]);
+      if (currentGameId) {
+        query = query.neq('id', currentGameId);
+      }
+
+      const { error } = await query;
+      if (error) {
+        console.error('[SYNC] Failed to deactivate other active games:', error);
+      }
+    },
+    [user?.id]
+  );
 
   const loadTimerState = useCallback((): TimerState | null => {
     try {
