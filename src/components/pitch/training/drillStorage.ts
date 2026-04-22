@@ -229,12 +229,14 @@ export async function saveDrill(input: SaveDrillInput): Promise<string> {
 
   if (input.frames.length > 0) {
     const framePayload = input.frames.map((f, i) => ({
-      drill_id: drillId,
+      drill_id: drillId!,
       position: i,
       duration_ms: f.durationMs ?? 1500,
       notes: f.notes ?? null,
-      objects: f.objects,
-      annotations: f.annotations,
+      // Cast through unknown — Supabase generated types require Json shape, but
+      // our domain objects (DrillObject/Annotation) are valid JSON at runtime.
+      objects: f.objects as unknown as never,
+      annotations: f.annotations as unknown as never,
     }));
     const { error: insErr } = await supabase.from("drill_frames").insert(framePayload);
     if (insErr) throw insErr;
