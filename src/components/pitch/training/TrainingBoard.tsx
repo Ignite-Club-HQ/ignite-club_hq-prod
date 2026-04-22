@@ -86,7 +86,9 @@ export default function TrainingBoard({
   const [savedMetadata, setSavedMetadata] = useState<DrillMetadata | undefined>(undefined);
   const [savedVisibility, setSavedVisibility] = useState<"private" | "team" | "club">("private");
   const [saveOpen, setSaveOpen] = useState(false);
-  // Library opens by default — coaches mostly browse & pick rather than draw
+  // Editor is hidden until coach opens a drill or explicitly creates one.
+  // Default lands on the library prompt + today's session list.
+  const [editorMode, setEditorMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false);
 
@@ -118,19 +120,14 @@ export default function TrainingBoard({
   const editable = !readOnly && !isAnimating;
   const hasSelection = !!selectedId;
 
-  // Auto-open library on first mount when board is empty — coaches start by picking a drill
+  // Auto-open library on first mount — coaches start by picking a drill
   useEffect(() => {
     if (readOnly || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
-    const isBlank =
-      frames.length <= 1 &&
-      (frames[0]?.objects.length ?? 0) === 0 &&
-      (frames[0]?.annotations.length ?? 0) === 0 &&
-      !savedDrillId;
-    if (isBlank) {
+    if (!editorMode) {
       openLibrary();
     }
-  }, [openLibrary, readOnly, frames, savedDrillId]);
+  }, [openLibrary, readOnly, editorMode]);
 
   const handleAddCurrentToSession = useCallback(() => {
     if (!savedDrillId) {
