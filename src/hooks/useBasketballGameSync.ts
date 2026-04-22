@@ -154,7 +154,27 @@ export function useBasketballGameSync(
           .select("id")
           .single();
         if (error) {
-          console.error("[basketball-sync] insert failed", error);
+          // 23505 = unique_violation. The DB now enforces one active row per
+          // team via uniq_active_games_team_active, so a race between two
+          // coaches starting the same team lands here. Recover by adopting
+          // the existing row instead of leaving the board un-synced.
+          if ((error as { code?: string }).code === "23505" && teamId) {
+            const { data: claimed } = await supabase
+              .from("active_games")
+              .select("id")
+              .eq("team_id", teamId)
+              .eq("is_active", true)
+              .limit(1)
+              .maybeSingle();
+            if (claimed) {
+              activeGameIdRef.current = claimed.id;
+              await supabase.from("active_games").update(gameData).eq("id", claimed.id);
+            } else {
+              console.error("[basketball-sync] insert race but no claimed row", error);
+            }
+          } else {
+            console.error("[basketball-sync] insert failed", error);
+          }
         } else if (created) {
           activeGameIdRef.current = created.id;
           await deactivateOtherGames(teamId, created.id);
