@@ -60,10 +60,18 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
       );
     case "ball":
       return (
-        <div
-          className="rounded-full border border-foreground/40 shadow"
-          style={{ width: 18, height: 18, backgroundColor: obj.color }}
-        />
+        <span
+          role="img"
+          aria-label="ball"
+          className="select-none leading-none"
+          style={{
+            fontSize: 22,
+            lineHeight: 1,
+            filter: "drop-shadow(1px 2px 2px rgba(0,0,0,0.45))",
+          }}
+        >
+          ⚽
+        </span>
       );
     case "cone":
       return (
