@@ -3486,7 +3486,7 @@ export default function VaultPage() {
                             Import from Drive
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.folderId && currentView.type !== 'root' && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.type !== 'root' && currentView.folderId && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder
