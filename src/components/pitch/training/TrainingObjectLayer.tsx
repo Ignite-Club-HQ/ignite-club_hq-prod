@@ -51,29 +51,38 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
     case "player": {
       const label = obj.label || "P";
-      // Render full label (no truncation). Slightly bigger token + strong
-      // white ring + drop shadow for outdoor / sunlight legibility.
+      // Waiting / bench players (seeded with ids w1..wN) read as muted so the
+      // active players on the pitch immediately stand out.
+      const isWaiting = typeof obj.id === "string" && /^w\d+$/i.test(obj.id);
+      const size = isWaiting ? 32 : 44; // active +15-20% over previous baseline
       return (
         <div className="flex flex-col items-center gap-0.5 select-none">
           <div
-            className="rounded-full border-[3px] border-white flex items-center justify-center text-white font-bold"
+            className={cn(
+              "rounded-full flex items-center justify-center text-white font-bold",
+              isWaiting ? "border-2" : "border-[3px]",
+            )}
             style={{
-              width: 40,
-              height: 40,
+              width: size,
+              height: size,
               backgroundColor: obj.color,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.25)",
-              fontSize: label.length > 3 ? 11 : 13,
+              borderColor: "#ffffff",
+              boxShadow: isWaiting
+                ? "0 1px 3px rgba(0,0,0,0.35)"
+                : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
+              fontSize: label.length > 3 ? 11 : isWaiting ? 12 : 14,
               lineHeight: 1,
+              opacity: isWaiting ? 0.85 : 1,
             }}
           >
             {label.length > 4 ? label.slice(0, 1).toUpperCase() : label}
           </div>
           {label.length > 4 && (
             <span
-              className="px-1 rounded-sm text-[10px] font-semibold text-white whitespace-nowrap"
+              className="px-1.5 py-px rounded text-[10px] font-semibold text-white whitespace-nowrap"
               style={{
-                backgroundColor: "rgba(0,0,0,0.55)",
-                textShadow: "0 1px 1px rgba(0,0,0,0.6)",
+                backgroundColor: "rgba(0,0,0,0.7)",
+                textShadow: "0 1px 1px rgba(0,0,0,0.7)",
               }}
             >
               {label}
