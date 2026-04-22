@@ -4,6 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Search,
   Trash2,
   Lock,
@@ -191,7 +198,7 @@ export function DrillLibrarySheet({
           </Button>
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
+        <div className="px-4 pb-2 shrink-0 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -201,6 +208,47 @@ export function DrillLibrarySheet({
               placeholder="Search drills..."
               className="pl-8"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={ageFilter} onValueChange={(v) => setAgeFilter(v as AgeGroupFilter)}>
+              <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Filter by age group">
+                <SelectValue placeholder="All ages" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {AGE_GROUP_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={playerFilter} onValueChange={(v) => setPlayerFilter(v as PlayerCountFilterValue)}>
+              <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Filter by player count">
+                <SelectValue placeholder="Any number" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {PLAYER_COUNT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filtersActive && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAgeFilter("all");
+                  setPlayerFilter("all");
+                }}
+                className="h-9 px-2 text-xs text-muted-foreground"
+                aria-label="Clear filters"
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
 
