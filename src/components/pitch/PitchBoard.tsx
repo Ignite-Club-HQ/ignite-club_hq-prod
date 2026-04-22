@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
+import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
 
