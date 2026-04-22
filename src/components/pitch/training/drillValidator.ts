@@ -283,15 +283,22 @@ const DEFENDER_COLOR = "#ef4444";
 function ruleContestFairness(frames: DrillFrame[], push: (i: DrillIssue) => void) {
   if (frames.length < 2) return;
 
-  // Only applies to drills that actually contain BOTH an attacker and
-  // a defender chip — i.e. an explicit contest drill.
-  const hasAttacker = frames.some((f) =>
-    f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === ATTACKER_COLOR)
-  );
-  const hasDefender = frames.some((f) =>
-    f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === DEFENDER_COLOR)
-  );
-  if (!hasAttacker || !hasDefender) return;
+  // Only applies to drills where BOTH an attacker and a defender chip
+  // are present in MULTIPLE frames — i.e. a sustained contest. Single
+  // frame appearances (e.g. a red coach-signal chip in one frame of a
+  // warm-up) are intentionally ignored to avoid false positives.
+  const MIN_PRESENCE_FRAMES = 2;
+  let attackerFrames = 0;
+  let defenderFrames = 0;
+  for (const f of frames) {
+    if (f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === ATTACKER_COLOR)) {
+      attackerFrames++;
+    }
+    if (f.objects.some((o) => o.type === "player" && (o.color ?? "").toLowerCase() === DEFENDER_COLOR)) {
+      defenderFrames++;
+    }
+  }
+  if (attackerFrames < MIN_PRESENCE_FRAMES || defenderFrames < MIN_PRESENCE_FRAMES) return;
 
   // Look for at least one defender clearance: an arrow anchored on a
   // defender chip whose endpoint travels meaningfully AWAY from the
