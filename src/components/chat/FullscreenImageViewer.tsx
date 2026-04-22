@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
