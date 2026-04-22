@@ -47,6 +47,57 @@ function clamp(v: number) {
   return Math.max(0, Math.min(100, v));
 }
 
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ */
+function resolvePlayerOverlaps(
+  objects: RenderableObject[],
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  // Only player chips need separation — other objects (cones, goals, ball)
+  // either render at different z-orders or have intentionally different sizes.
+  const players = objects.filter((o) => o.type === "player");
+  if (players.length < 2) {
+    for (const p of players) positions.set(p.id, { x: p.x, y: p.y });
+    return positions;
+  }
+  // Approximate chip footprint in % of pitch. Active chips ~44px on a typical
+  // 360–500px wide pitch ≈ 9–12% wide. We use a conservative 8% min spacing.
+  const minDist = 8;
+  const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
+  // A few relaxation passes are enough for typical drill densities.
+  for (let iter = 0; iter < 6; iter++) {
+    let moved = false;
+    for (let i = 0; i < work.length; i++) {
+      for (let j = i + 1; j < work.length; j++) {
+        const a = work[i];
+        const b = work[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= minDist) continue;
+        // Collision — push the two chips apart along the connecting axis.
+        const overlap = minDist - dist;
+        // Avoid div-by-zero when chips share exact coordinates.
+        const nx = dist > 0.0001 ? dx / dist : 1;
+        const ny = dist > 0.0001 ? dy / dist : 0;
+        const shift = overlap / 2 + 0.05;
+        a.x = clamp(a.x - nx * shift);
+        a.y = clamp(a.y - ny * shift);
+        b.x = clamp(b.x + nx * shift);
+        b.y = clamp(b.y + ny * shift);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  for (const p of work) positions.set(p.id, { x: p.x, y: p.y });
+  return positions;
+}
+
 function ObjectGlyph({ obj }: { obj: DrillObject }) {
   switch (obj.type) {
     case "player": {
