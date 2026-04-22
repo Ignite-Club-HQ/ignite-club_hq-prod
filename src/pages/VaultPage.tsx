@@ -3485,6 +3485,19 @@ export default function VaultPage() {
                             Sync with Drive folder
                           </DropdownMenuItem>
                         )}
+                        {isClubAdmin && currentView.type !== "root" && (
+                          <DropdownMenuItem
+                            onClick={handleResolveDriveTitles}
+                            disabled={resolvingDriveTitles}
+                          >
+                            {resolvingDriveTitles ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Sheet className="h-4 w-4 mr-2" />
+                            )}
+                            Fetch real Google titles
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
