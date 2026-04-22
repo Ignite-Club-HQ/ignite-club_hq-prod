@@ -378,6 +378,45 @@ export default function TrainingBoard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-pitch-green">
+      {/* Drill action bar — Library / New / Save */}
+      {!readOnly && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-background">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setLibraryOpen(true)}
+            className="h-8"
+          >
+            <FolderOpen className="h-4 w-4 mr-1.5" />
+            Library
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleNewDrill}
+            className="h-8"
+          >
+            <FilePlus2 className="h-4 w-4 mr-1.5" />
+            New
+          </Button>
+          <div className="flex-1 min-w-0 text-sm text-muted-foreground truncate">
+            {savedName || "Untitled drill"}
+            {savedDrillId ? "" : " · unsaved"}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setSaveOpen(true)}
+            className="h-8"
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {savedDrillId ? "Update" : "Save"}
+          </Button>
+        </div>
+      )}
+
       {/* Pitch surface */}
       <div className="flex-1 min-h-0 p-2 flex items-center justify-center">
         <div
