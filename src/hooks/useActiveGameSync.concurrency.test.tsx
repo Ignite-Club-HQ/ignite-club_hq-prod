@@ -176,7 +176,7 @@ function matchesFilters(row: FakeRow, filters: Record<string, unknown>): boolean
       if (row[col] === v) return false;
       continue;
     }
-    if ((row as Record<string, unknown>)[k] !== v) return false;
+    if ((row as unknown as Record<string, unknown>)[k] !== v) return false;
   }
   return true;
 }
