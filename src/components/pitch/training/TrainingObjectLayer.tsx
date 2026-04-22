@@ -359,9 +359,10 @@ function TrainingObjectLayerImpl({
           );
         })}
 
-      {/* Objects */}
+      {/* Objects — balls render above players for clarity */}
       {objects.map((obj) => {
         const isSel = selectedId === obj.id;
+        const z = obj.type === "ball" ? 50 : 40;
         return (
           <div
             key={obj.id}
@@ -374,7 +375,7 @@ function TrainingObjectLayerImpl({
             style={{
               left: `${obj.x}%`,
               top: `${obj.y}%`,
-              zIndex: 40,
+              zIndex: z,
               opacity: obj.opacity ?? 1,
             }}
           >
