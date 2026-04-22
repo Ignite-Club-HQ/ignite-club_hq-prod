@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       active_games: {
         Row: {
+          board_session_id: string
           created_at: string
           id: string
           is_active: boolean
@@ -27,6 +28,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          board_session_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -38,6 +40,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          board_session_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
