@@ -169,12 +169,13 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "!w-[calc(100vw-1rem)] !max-w-none" : "w-72"} ${showGifTab && !useGifSheet ? "h-[360px] flex flex-col" : ""}`}
+        className={`p-2 ${isMobile ? "!w-[calc(100vw-1rem)] !max-w-none !left-1/2 !-translate-x-1/2 !fixed" : "w-72"} ${showGifTab && !useGifSheet ? "h-[360px] flex flex-col" : ""}`}
         side="top"
         align={isMobile ? "center" : "start"}
         sideOffset={8}
         collisionPadding={8}
-        avoidCollisions={false}
+        avoidCollisions={!isMobile}
+        style={isMobile ? { left: "50%", transform: "translateX(-50%)" } : undefined}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onFocusOutside={(e) => {
