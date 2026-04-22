@@ -392,6 +392,7 @@ export default function TrainingBoard({
     setSavedVisibility("private");
     goTo(0);
     setEditorMode(true);
+    setPreviewMode(false);
   }, [frames, goTo]);
 
   const handleOpenDrill = useCallback(
