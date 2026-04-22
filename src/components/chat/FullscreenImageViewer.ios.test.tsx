@@ -165,13 +165,16 @@ describe("FullscreenImageViewer — iOS gesture safety", () => {
     const overlayButtons = viewerRoot.querySelectorAll("button");
     expect(overlayButtons.length).toBeGreaterThan(0);
 
-    // Re-spy to verify NO new touch listeners are added when buttons exist.
-    // We simply check that the only touch listeners attached belong to the
-    // single gesture root (count == 4: start/move/end/cancel).
-    const touchListenerCount = captured.filter((c) =>
-      ["touchstart", "touchmove", "touchend", "touchcancel"].includes(c.type),
+    // The viewer must attach exactly one non-passive listener per touch
+    // type (start/move/end/cancel = 4). React 18 also installs its own
+    // delegated passive listeners on the portal root — those are filtered
+    // out here because they don't affect iOS gesture safety.
+    const viewerListenerCount = captured.filter(
+      (c) =>
+        c.passive === false &&
+        ["touchstart", "touchmove", "touchend", "touchcancel"].includes(c.type),
     ).length;
-    expect(touchListenerCount).toBe(4);
+    expect(viewerListenerCount).toBe(4);
   });
 
   it("forwards touchstart/move/end on the container to the pinch-zoom hook", () => {
