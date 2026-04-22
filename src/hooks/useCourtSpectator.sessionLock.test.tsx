@@ -319,7 +319,7 @@ describe("useCourtSpectator board_session_id lock under contention", () => {
     expect(result.current.noActiveGame).toBe(false);
   });
 
-  it("stays on the locked session even when some payloads omit board_session_id (rolling deploy)", async () => {
+  it("ignores session-less payloads once a session lock is established (rolling deploy safety)", async () => {
     // Initial fetch carries the session id — lock established on SESSION_A.
     initialFetchResult = {
       data: buildRow({
@@ -336,22 +336,25 @@ describe("useCourtSpectator board_session_id lock under contention", () => {
     const { result } = renderHook(() => useCourtSpectator(TEAM_ID));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // A subsequent Coach A update arrives from an older client that doesn't
-    // populate board_session_id — but the row id matches the locked row, so
-    // the id-fallback branch keeps us attached.
+    // A subsequent payload from an older client omits board_session_id.
+    // Without a session id we cannot prove it belongs to the locked session,
+    // so the spectator must NOT adopt it — the safe default is to keep
+    // showing the last known good state from the locked session. (This is the
+    // conservative behavior that prevents Coach B's older-client writes from
+    // ever sneaking in via id collisions.)
     emit({
       new: buildRow({
         rowId: "row-A",
         // sessionId omitted on purpose
-        homeScore: 10,
-        awayScore: 6,
+        homeScore: 999,
+        awayScore: 999,
         isActive: true,
         updatedAt: "2026-04-22T17:00:05.000Z",
       }),
     });
-    expect(readScore(result)).toBe(10);
+    expect(readScore(result)).toBe(8);
 
-    // Coach B writes (with their own session id) — ignored.
+    // Coach B writes (with their own session id) — also ignored.
     emit({
       new: buildRow({
         rowId: "row-B",
@@ -362,9 +365,9 @@ describe("useCourtSpectator board_session_id lock under contention", () => {
         updatedAt: "2026-04-22T17:00:10.000Z",
       }),
     });
-    expect(readScore(result)).toBe(10);
+    expect(readScore(result)).toBe(8);
 
-    // Coach A's next update has the session id again — still us.
+    // Coach A's next update has the session id again — adopted.
     emit({
       new: buildRow({
         rowId: "row-A",
