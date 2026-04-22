@@ -35,20 +35,19 @@ import { cn } from "@/lib/utils";
  * (e.g. the pitch board's settings cog). Briefly intercept clicks at the
  * document root in the CAPTURE phase to swallow that ghost click.
  */
-function blockGhostClicks(durationMs = 350) {
+function blockGhostClicks(durationMs = 600) {
   if (typeof window === "undefined") return;
   const stop = (e: Event) => {
     e.stopPropagation();
     e.preventDefault();
+    // @ts-expect-error - non-standard but supported in modern browsers
+    e.stopImmediatePropagation?.();
   };
   const opts: AddEventListenerOptions = { capture: true };
-  window.addEventListener("click", stop, opts);
-  window.addEventListener("mouseup", stop, opts);
-  window.addEventListener("pointerup", stop, opts);
+  const events = ["click", "mouseup", "mousedown", "pointerup", "pointerdown", "touchend", "touchstart"] as const;
+  events.forEach((evt) => window.addEventListener(evt, stop, opts));
   window.setTimeout(() => {
-    window.removeEventListener("click", stop, opts);
-    window.removeEventListener("mouseup", stop, opts);
-    window.removeEventListener("pointerup", stop, opts);
+    events.forEach((evt) => window.removeEventListener(evt, stop, opts));
   }, durationMs);
 }
 
