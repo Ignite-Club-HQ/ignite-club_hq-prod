@@ -41,12 +41,8 @@ export function TrainingSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Training Mode renders inside a portal with z-index ~999999 (PitchBoard
-          training overlay). Force this dialog above it so it isn't trapped
-          underneath. */}
       <DialogContent
-        className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0 !z-[1000001]"
-        style={{ zIndex: 1000001 }}
+        className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0"
         onOpenAutoFocus={(e) => {
           // Prevent the underlying training overlay from stealing focus back
           e.preventDefault();
