@@ -115,6 +115,9 @@ export function useNetballGameSync(
 
     try {
       const teamId = state.teamId || null;
+      // Telemetry: count this attempted write toward the per-(user,team) rate.
+      // Mirrored server-side by trigger `log_active_game_write`.
+      recordSyncWrite({ userId: user.id, teamId, source: "netball" });
 
       if (activeGameIdRef.current) {
         await deactivateOtherGames(teamId, activeGameIdRef.current);
