@@ -177,24 +177,35 @@ function resolvePlayerOverlaps(
 function resolveBallOverlaps(
   objects: RenderableObject[],
   playerPositions: Map<string, { x: number; y: number }>,
+  containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   const balls = objects.filter((o) => o.type === "ball");
   if (balls.length === 0) return positions;
 
-  // Pre-compute player footprints (matches resolvePlayerOverlaps sizing).
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Pre-compute player footprints from their actual rendered chip sizes,
+  // converted into pitch-% half-extents using the live container dimensions.
   const players = objects.filter((o) => o.type === "player");
   const playerHalves = players.map((p) => {
-    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
-    const labelLen = (p.label ?? "P").trim().length;
-    const baseRadiusPct = isWaiting ? 4.5 : 6;
-    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
+    const { w, h } = chipPixelSize(p);
     const pos = playerPositions.get(p.id) ?? { x: p.x, y: p.y };
-    return { x: pos.x, y: pos.y, rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+    return {
+      x: pos.x,
+      y: pos.y,
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
   });
 
-  // Ball footprint: ~30px glyph ≈ 4% radius on a typical pitch.
-  const ballR = 4;
+  // Ball glyph is ~30px tall/wide → derive its half-extent from the actual
+  // pitch size so it scales with the surface.
+  const ballRx = (15 / cw) * 100;
+  const ballRy = (15 / ch) * 100;
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
 
   for (const ball of balls) {
     let bx = ball.x;
@@ -204,8 +215,8 @@ function resolveBallOverlaps(
       for (const ph of playerHalves) {
         const dx = bx - ph.x;
         const dy = by - ph.y;
-        const reqX = ph.rx + ballR + 0.6;
-        const reqY = ph.ry + ballR + 0.6;
+        const reqX = ph.rx + ballRx + padX;
+        const reqY = ph.ry + ballRy + padY;
         const ndx = dx / reqX;
         const ndy = dy / reqY;
         const ndist = Math.hypot(ndx, ndy);
