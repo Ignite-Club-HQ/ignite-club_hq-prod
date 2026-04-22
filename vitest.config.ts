@@ -27,9 +27,7 @@ export default defineConfig({
     // races between gesture mocks. Slightly slower than threads but the
     // FullscreenImageViewer suites are tiny so the trade-off is worth it.
     pool: "forks",
-    poolOptions: {
-      forks: { singleFork: true },
-    },
+    forks: { singleFork: true },
     // Pin the simulated origin so window.location-based code paths produce
     // identical output everywhere.
     environmentOptions: {
