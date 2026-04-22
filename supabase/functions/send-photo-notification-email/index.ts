@@ -110,11 +110,11 @@ serve(async (req: Request): Promise<Response> => {
       .eq('user_id', recipientUserId)
       .single();
 
-    // Default to true if no preference exists
-    const emailMediaEnabled = prefs?.email_media_enabled ?? true;
+    // Default to FALSE — users must explicitly opt in to photo email notifications
+    const emailMediaEnabled = prefs?.email_media_enabled === true;
     
     if (!emailMediaEnabled) {
-      console.log(`Email media notifications disabled for user ${recipientUserId}`);
+      console.log(`Email media notifications not explicitly enabled for user ${recipientUserId} (opt-in required)`);
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: 'email_media_disabled' }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
