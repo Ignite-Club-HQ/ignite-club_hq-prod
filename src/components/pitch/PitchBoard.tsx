@@ -5739,6 +5739,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
       </div>
 
+      {/* Training Mode overlay (Phase 1) — covers match body without unmounting it,
+          so match state (timer, players, subs) is preserved when the coach toggles back. */}
+      {mode === "training" && (
+        <div className="flex-1 min-h-0 flex flex-col bg-background">
+          <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+            <TrainingBoard isLandscape={isLandscape} readOnly={readOnly} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Match body — hidden (but kept mounted) when in Training Mode */}
+      <div className={cn("contents", mode === "training" && "hidden")}>
+
       {/* Mini-league team selector strip - portrait */}
       {miniLeagueTeams && !readOnly && (
         <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 border-b border-border bg-background">
