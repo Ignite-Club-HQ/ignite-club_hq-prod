@@ -1,7 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Save, FolderOpen, FilePlus2, Plus, Check, ArrowLeft, Eye, Pencil } from "lucide-react";
+import {
+  Save,
+  FolderOpen,
+  FilePlus2,
+  Plus,
+  Check,
+  ArrowLeft,
+  Eye,
+  Pencil,
+  Settings,
+  Play as PlayIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { Annotation, Drill, DrillFrame, DrillMetadata, DrillObject, TrainingTool } from "./types";
 import { TrainingObjectLayer } from "./TrainingObjectLayer";
@@ -22,6 +33,7 @@ import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
 import { applyTeamPlayersToObjects, membersToTeamPlayers } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
+import { DrillStepOverlay } from "./DrillStepOverlay";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
