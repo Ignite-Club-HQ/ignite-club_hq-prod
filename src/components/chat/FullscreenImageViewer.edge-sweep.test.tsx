@@ -239,8 +239,13 @@ describe("Pinch → tap-pair edge-timing sweep: pinch must never leak into zoom"
         // armed by the first tap — which is legitimate non-pinch
         // behavior already covered in posttap.test.tsx. We assert that
         // outcome here based on the cell's parameters.
+        // The pairing comparison is `secondTouchend - firstTouchend < DOUBLE_TAP_MS`.
+        // End-to-end interval = `gap` (advance between taps) + the second
+        // tap's hold (30 ms). The first tap's hold doesn't enter this term.
+        const SECOND_TAP_HOLD_MS = 30;
+        const endToEndIntervalMs = gap + SECOND_TAP_HOLD_MS;
         const firstTapWasLongPress = firstHold >= TAP_MAX_HOLD_MS;
-        const pairWithinWindow = gap < DOUBLE_TAP_MS;
+        const pairWithinWindow = endToEndIntervalMs < DOUBLE_TAP_MS;
         const expectZoomFromFreshPair =
           !firstTapWasLongPress && pairWithinWindow;
 
