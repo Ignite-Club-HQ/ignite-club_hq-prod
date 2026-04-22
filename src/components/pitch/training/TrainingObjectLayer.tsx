@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type {
   Annotation,
@@ -53,8 +53,49 @@ function clamp(v: number) {
  * adjusted — the underlying drill coordinates are never mutated, so editing
  * and persistence remain authored-correct.
  */
+/**
+ * Mirror of the chip sizing logic inside `ObjectGlyph` so the resolver knows
+ * the *actual* rendered footprint of each chip rather than a fixed minimum
+ * distance. Returns the chip's pixel width / height as drawn in the DOM.
+ */
+function chipPixelSize(p: RenderableObject): { w: number; h: number } {
+  const label = (p.label ?? "P").trim();
+  const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
+  const baseHeight = isWaiting ? 32 : 44;
+  const isShort = label.length <= 2;
+  const fontSize = isShort
+    ? (isWaiting ? 13 : 15)
+    : label.length <= 4
+      ? (isWaiting ? 11 : 13)
+      : label.length <= 7
+        ? (isWaiting ? 10 : 12)
+        : (isWaiting ? 9 : 11);
+  const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
+  // Approximate text width — bold sans-serif glyphs average ~0.6× font size.
+  // We don't need pixel-perfect accuracy here, just a tight upper bound that
+  // tracks the real chip width as labels grow.
+  const textWidth = label.length * fontSize * 0.6;
+  const contentWidth = textWidth + horizontalPadding * 2;
+  // The chip is `min-width: baseHeight` (circular when short), expanding into
+  // a pill once the text demands more room.
+  const w = Math.max(baseHeight, contentWidth);
+  return { w, h: baseHeight };
+}
+
+/**
+ * Resolve overlapping player chips by gently nudging colliding pairs apart.
+ * Operates in pitch-percentage space (0–100). Only the player chips are
+ * adjusted — the underlying drill coordinates are never mutated, so editing
+ * and persistence remain authored-correct.
+ *
+ * `containerSize` provides the live pitch dimensions in pixels so we can
+ * convert each chip's actual rendered width/height into accurate % units.
+ * Without it we fall back to a sensible 400×600 default — close enough that
+ * the resolver still works during the first paint before measurement lands.
+ */
 function resolvePlayerOverlaps(
   objects: RenderableObject[],
+  containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   // Only player chips need separation — other objects (cones, goals, ball)
@@ -65,20 +106,25 @@ function resolvePlayerOverlaps(
     return positions;
   }
 
-  // Per-chip half-width / half-height in % of pitch.
-  // Pitches typically render ~360–460px wide. A 44px active chip ≈ 11% wide;
-  // a 32px waiting chip ≈ 8% wide. Pills (longer labels) are wider still.
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Convert each chip's real rendered pixel size into pitch-% half-extents.
+  // Half-extent + a tiny breathing-room pad = the minimum centre-to-centre
+  // distance required on each axis to avoid any visual overlap.
   const halfFor = (p: RenderableObject) => {
-    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
-    const labelLen = (p.label ?? "P").trim().length;
-    // Base radius in % units (height-equivalent, approximating circular footprint).
-    const baseRadiusPct = isWaiting ? 4.5 : 6;
-    // Pill chips grow horizontally with the label. Approximate the extra
-    // horizontal footprint as ~1.2% per character beyond 2.
-    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
-    return { rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+    const { w, h } = chipPixelSize(p);
+    return {
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
   };
   const halves = new Map(players.map((p) => [p.id, halfFor(p)]));
+
+  // Padding gap (in pitch-%) — a small visual breathing space between chips.
+  // 4px on a typical 400px-wide pitch ≈ 1% — keeps chips from kissing.
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
 
   const work = players.map((p) => ({ id: p.id, x: p.x, y: p.y }));
   // A few relaxation passes are enough for typical drill densities.
@@ -92,9 +138,9 @@ function resolvePlayerOverlaps(
         const hb = halves.get(b.id)!;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        // Required spacing on each axis = sum of half-widths/heights + small gap.
-        const reqX = ha.rx + hb.rx + 0.6;
-        const reqY = ha.ry + hb.ry + 0.6;
+        // Required spacing on each axis = sum of half-widths/heights + gap.
+        const reqX = ha.rx + hb.rx + padX;
+        const reqY = ha.ry + hb.ry + padY;
         // Normalise into a single distance metric: a chip is "colliding" when
         // it sits inside the bounding ellipse defined by reqX/reqY.
         const ndx = dx / reqX;
@@ -131,24 +177,35 @@ function resolvePlayerOverlaps(
 function resolveBallOverlaps(
   objects: RenderableObject[],
   playerPositions: Map<string, { x: number; y: number }>,
+  containerSize: { w: number; h: number } | null,
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   const balls = objects.filter((o) => o.type === "ball");
   if (balls.length === 0) return positions;
 
-  // Pre-compute player footprints (matches resolvePlayerOverlaps sizing).
+  const cw = containerSize?.w && containerSize.w > 0 ? containerSize.w : 400;
+  const ch = containerSize?.h && containerSize.h > 0 ? containerSize.h : 600;
+
+  // Pre-compute player footprints from their actual rendered chip sizes,
+  // converted into pitch-% half-extents using the live container dimensions.
   const players = objects.filter((o) => o.type === "player");
   const playerHalves = players.map((p) => {
-    const isWaiting = typeof p.id === "string" && /^w\d+$/i.test(p.id);
-    const labelLen = (p.label ?? "P").trim().length;
-    const baseRadiusPct = isWaiting ? 4.5 : 6;
-    const extraXPct = labelLen > 2 ? Math.min(4, (labelLen - 2) * 1.2) : 0;
+    const { w, h } = chipPixelSize(p);
     const pos = playerPositions.get(p.id) ?? { x: p.x, y: p.y };
-    return { x: pos.x, y: pos.y, rx: baseRadiusPct + extraXPct, ry: baseRadiusPct };
+    return {
+      x: pos.x,
+      y: pos.y,
+      rx: (w / 2 / cw) * 100,
+      ry: (h / 2 / ch) * 100,
+    };
   });
 
-  // Ball footprint: ~30px glyph ≈ 4% radius on a typical pitch.
-  const ballR = 4;
+  // Ball glyph is ~30px tall/wide → derive its half-extent from the actual
+  // pitch size so it scales with the surface.
+  const ballRx = (15 / cw) * 100;
+  const ballRy = (15 / ch) * 100;
+  const padX = (4 / cw) * 100;
+  const padY = (4 / ch) * 100;
 
   for (const ball of balls) {
     let bx = ball.x;
@@ -158,8 +215,8 @@ function resolveBallOverlaps(
       for (const ph of playerHalves) {
         const dx = bx - ph.x;
         const dy = by - ph.y;
-        const reqX = ph.rx + ballR + 0.6;
-        const reqY = ph.ry + ballR + 0.6;
+        const reqX = ph.rx + ballRx + padX;
+        const reqY = ph.ry + ballRy + padY;
         const ndx = dx / reqX;
         const ndy = dy / reqY;
         const ndist = Math.hypot(ndx, ndy);
@@ -386,15 +443,32 @@ function TrainingObjectLayerImpl({
     (a) => a.type === "arrow-solid" || a.type === "arrow-dashed"
   );
 
+  // Track the live pitch container size so the resolver can convert each
+  // chip's actual pixel footprint into accurate pitch-% half-extents. Falls
+  // back to a sensible default until the first measurement lands.
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setContainerSize({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [containerRef]);
+
   // Pre-compute non-overlapping display positions for player chips.
   const displayPositions = useMemo(
-    () => resolvePlayerOverlaps(objects),
-    [objects],
+    () => resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize],
   );
   // Then push balls away from any player they would otherwise sit under.
   const ballPositions = useMemo(
-    () => resolveBallOverlaps(objects, displayPositions),
-    [objects, displayPositions],
+    () => resolveBallOverlaps(objects, displayPositions, containerSize),
+    [objects, displayPositions, containerSize],
   );
 
   return (
