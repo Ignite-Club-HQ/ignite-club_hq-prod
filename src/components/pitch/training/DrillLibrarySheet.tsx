@@ -202,7 +202,7 @@ export function DrillLibrarySheet({
           </Button>
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
+        <div className="px-4 pb-2 shrink-0 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -212,6 +212,55 @@ export function DrillLibrarySheet({
               placeholder="Search drills..."
               className="pl-8"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={ageFilter} onValueChange={(v) => setAgeFilter(v as AgeGroupFilter)}>
+              <SelectTrigger
+                className="h-9 flex-1 text-xs"
+                aria-label="Filter by age group"
+              >
+                <SelectValue placeholder="Age group" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {AGE_GROUP_FILTER_OPTIONS.map((age) => (
+                  <SelectItem key={age} value={age}>
+                    {age === "All" ? "All ages" : age}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={playerFilter}
+              onValueChange={(v) => setPlayerFilter(v as PlayerCountFilterValue)}
+            >
+              <SelectTrigger
+                className="h-9 flex-1 text-xs"
+                aria-label="Filter by number of players active in the activity (excludes players on the sideline)"
+              >
+                <SelectValue placeholder="Active players" />
+              </SelectTrigger>
+              <SelectContent className="z-[1000003]">
+                {PLAYER_COUNT_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filtersActive && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAgeFilter("All");
+                  setPlayerFilter("all");
+                }}
+                className="h-9 px-2 text-xs text-muted-foreground"
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
 
