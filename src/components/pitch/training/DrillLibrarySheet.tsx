@@ -29,6 +29,29 @@ import type { Drill } from "./types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/**
+ * On touch devices, when an overlay closes inside a tap handler the synthesized
+ * `click` that follows can land on the element that was underneath the tap
+ * (e.g. the pitch board's settings cog). Briefly intercept clicks at the
+ * document root in the CAPTURE phase to swallow that ghost click.
+ */
+function blockGhostClicks(durationMs = 350) {
+  if (typeof window === "undefined") return;
+  const stop = (e: Event) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  const opts: AddEventListenerOptions = { capture: true };
+  window.addEventListener("click", stop, opts);
+  window.addEventListener("mouseup", stop, opts);
+  window.addEventListener("pointerup", stop, opts);
+  window.setTimeout(() => {
+    window.removeEventListener("click", stop, opts);
+    window.removeEventListener("mouseup", stop, opts);
+    window.removeEventListener("pointerup", stop, opts);
+  }, durationMs);
+}
+
 interface DrillLibrarySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
