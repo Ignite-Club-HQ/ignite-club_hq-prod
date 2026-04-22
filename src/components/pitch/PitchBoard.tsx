@@ -5739,20 +5739,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
       </div>
 
-      {/* Training Mode overlay (Phase 1) — absolute overlay, match body stays mounted underneath */}
+      {/* Training Mode overlay — fixed, covers full viewport above match UI and global chat dock.
+          Match body stays mounted underneath so its state (timer, subs, players) is preserved. */}
       {mode === "training" && (
         <div
-          className="absolute left-0 right-0 bottom-0 z-[60] flex flex-col bg-background"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 2.75rem)' }}
+          className="fixed inset-0 z-[200] flex flex-col bg-background"
+          style={{
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
         >
-          <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
-            <TrainingBoard
-              isLandscape={isLandscape}
-              readOnly={readOnly}
-              teamId={teamId}
-              teamName={teamName}
-            />
-          </Suspense>
+          {/* Training-mode header: keep the mode switch reachable so coaches can return to Match */}
+          <div className="shrink-0 flex items-center gap-2 px-3 h-11 border-b border-border bg-background">
+            <ModeSwitch mode={mode} onChange={setMode} />
+            <div className="flex-1 min-w-0 text-sm font-medium truncate">{teamName}</div>
+            <button
+              type="button"
+              onClick={() => setMode("match")}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted"
+            >
+              Back to Match
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            <Suspense fallback={<PitchBoardLoading message="Loading Training Mode..." />}>
+              <TrainingBoard
+                isLandscape={isLandscape}
+                readOnly={readOnly}
+                teamId={teamId}
+                teamName={teamName}
+              />
+            </Suspense>
+          </div>
         </div>
       )}
 
