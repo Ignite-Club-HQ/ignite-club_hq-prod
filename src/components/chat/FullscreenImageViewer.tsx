@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,8 +33,34 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
     resetZoom,
   } = usePinchZoom(1, 4);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
+
+  // Attach native non-passive touch listeners so preventDefault() actually
+  // works on iOS (React's synthetic touch listeners are passive).
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const handleStart = (e: globalThis.TouchEvent) => {
+      pinchTouchStart(e as unknown as React.TouchEvent);
+    };
+    const handleMove = (e: globalThis.TouchEvent) => {
+      pinchTouchMove(e as unknown as React.TouchEvent);
+    };
+    const handleEnd = () => pinchTouchEnd();
+    node.addEventListener("touchstart", handleStart, { passive: false });
+    node.addEventListener("touchmove", handleMove, { passive: false });
+    node.addEventListener("touchend", handleEnd, { passive: false });
+    node.addEventListener("touchcancel", handleEnd, { passive: false });
+    return () => {
+      node.removeEventListener("touchstart", handleStart);
+      node.removeEventListener("touchmove", handleMove);
+      node.removeEventListener("touchend", handleEnd);
+      node.removeEventListener("touchcancel", handleEnd);
+    };
+  }, [pinchTouchStart, pinchTouchMove, pinchTouchEnd]);
 
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {
@@ -63,12 +89,16 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
-      style={{ paddingTop: safeTop, paddingBottom: 'env(safe-area-inset-bottom)' }}
+      ref={containerRef}
+      className="fixed inset-0 z-[100] bg-black flex items-center justify-center overscroll-none"
+      style={{
+        paddingTop: safeTop,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        touchAction: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
       onClick={scale === 1 ? onClose : undefined}
-      onTouchStart={pinchTouchStart}
-      onTouchMove={pinchTouchMove}
-      onTouchEnd={pinchTouchEnd}
       onDoubleClick={handleDoubleClick}
     >
       <Button
