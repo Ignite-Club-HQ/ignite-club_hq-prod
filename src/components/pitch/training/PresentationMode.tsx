@@ -111,6 +111,12 @@ export default function PresentationMode({
   // Progress shown as fraction of frames "completed" (currentIndex / lastIndex)
   const progressPct = total > 1 ? (currentIndex / (total - 1)) * 100 : 100;
 
+  const hasTeamPlayers = (teamPlayers?.length ?? 0) > 0;
+  const renderedObjects = useMemo(() => {
+    if (!useTeamRoster || !teamPlayers || teamPlayers.length === 0) return view.objects;
+    return applyTeamPlayersToObjects(view.objects, teamPlayers);
+  }, [view.objects, teamPlayers, useTeamRoster]);
+
   const overlay = (
     <div
       className="fixed inset-0 z-[100] bg-black flex flex-col"
