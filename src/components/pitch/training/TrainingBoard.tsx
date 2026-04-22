@@ -529,6 +529,59 @@ export default function TrainingBoard({
   );
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
+  // -- Mode helpers ----------------------------------------------------------
+  // NOTE: These hooks must be defined BEFORE any early return to obey the
+  // Rules of Hooks (React error #310 otherwise).
+  const mode: "edit" | "run" = runMode ? "run" : "edit";
+  const enterRun = useCallback(() => {
+    setRunMode(true);
+    setPreviewMode(true);
+    setSelectedId(null);
+    setActiveTool("select");
+    if (frames.length > 1) {
+      window.setTimeout(() => playPlayback(), 0);
+    }
+  }, [frames.length, playPlayback]);
+  const exitRun = useCallback(() => {
+    setRunMode(false);
+    setPreviewMode(false);
+  }, []);
+  const handleModeChange = useCallback(
+    (next: "edit" | "run") => {
+      if (next === "run") enterRun();
+      else exitRun();
+    },
+    [enterRun, exitRun],
+  );
+
+  // Swipe-to-advance on the pitch surface (Run mode only).
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const handlePitchTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!runMode) return;
+      const t = e.touches[0];
+      if (!t) return;
+      swipeRef.current = { x: t.clientX, y: t.clientY };
+    },
+    [runMode],
+  );
+  const handlePitchTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (!runMode) return;
+      const start = swipeRef.current;
+      swipeRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+      if (dx < 0) nextFrame();
+      else prevFrame();
+    },
+    [runMode, nextFrame, prevFrame],
+  );
+
   // ---- Landing view (no editor) — shown until coach opens or creates a drill ----
   if (!editorMode && !readOnly) {
     return (
