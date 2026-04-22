@@ -20,6 +20,7 @@ import { SaveDrillDialog } from "./SaveDrillDialog";
 import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
+import { membersToTeamPlayers } from "./teamPlayerSubstitution";
 
 const PresentationMode = lazy(() => import("./PresentationMode"));
 
