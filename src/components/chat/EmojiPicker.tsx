@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import { GifGrid } from "@/components/chat/GifGrid";
 import { GifPickerMobileSheet } from "@/components/chat/GifPickerMobileSheet";
 
@@ -80,7 +81,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNative = Capacitor.isNativePlatform();
+  const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
   const showGifTab = !!onGifSelect;
@@ -103,6 +105,17 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
       (document.activeElement as HTMLElement | null)?.blur();
     }, 120);
   }, [isNativeIOS]);
+
+  // Dismiss the soft keyboard before showing the picker on any native platform.
+  // Android uses `Keyboard.resize: 'none'`, so the visible viewport doesn't
+  // shrink when the keyboard is open — meaning the emoji popover would render
+  // partially behind the keyboard. Hiding it guarantees a known-good layout.
+  const dismissNativeKeyboard = useCallback(() => {
+    if (!isNative) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && typeof active.blur === "function") active.blur();
+    Keyboard.hide().catch(() => {});
+  }, [isNative]);
 
   // Keep refs updated
   useEffect(() => {
@@ -154,6 +167,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     <Popover open={open} onOpenChange={(newOpen) => {
       if (newOpen) {
         dismissIOSKeyboardAccessory();
+        dismissNativeKeyboard();
       }
       setOpen(newOpen);
     }}>
@@ -224,6 +238,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
               onClick={() => {
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
+                  dismissIOSKeyboardAccessory();
+                  dismissNativeKeyboard();
                   setGifSheetOpen(true);
                   setOpen(false);
                 } else {

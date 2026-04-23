@@ -159,12 +159,20 @@ export function useInitialChatBottomPin({
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return;
 
-      // Only watch for resize changes (layout shifts), not DOM mutations
-      // which fire on every render and fight user scrolling
+      // Watch for size changes on BOTH the viewport (e.g. keyboard opens) and
+      // the inner content (e.g. composer height changes that grow padding-bottom,
+      // images loading, late-rendered messages). Without observing the inner
+      // content, dynamic padding-bottom changes after reveal would push content
+      // up and leave the user above the bottom.
       postPinResizeObserver?.disconnect();
       if (typeof ResizeObserver !== "undefined") {
         postPinResizeObserver = new ResizeObserver(() => guardSnap());
         postPinResizeObserver.observe(viewport);
+
+        const innerContent = viewport.firstElementChild;
+        if (innerContent instanceof HTMLElement) {
+          postPinResizeObserver.observe(innerContent);
+        }
       }
 
       // Re-snap whenever an image inside the viewport finishes loading.
