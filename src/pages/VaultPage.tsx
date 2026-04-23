@@ -5109,11 +5109,27 @@ function ContentSection({
                       onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
                     />
                   ) : (
-                    <Item
-                      icon={Download}
-                      label="Download"
-                      onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
-                    />
+                    <>
+                      <Item
+                        icon={ExternalLink}
+                        label="Open"
+                        onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
+                      />
+                      <Item
+                        icon={Download}
+                        label="Download"
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = file.file_url;
+                          a.download = file.name || '';
+                          a.rel = 'noopener';
+                          a.target = '_blank';
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        }}
+                      />
+                    </>
                   )}
                   {!isExternalLink && isSpreadsheetFile(file.name || '') && (
                     <Item
