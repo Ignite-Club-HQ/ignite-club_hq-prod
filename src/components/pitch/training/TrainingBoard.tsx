@@ -524,8 +524,13 @@ export default function TrainingBoard({
   // The view we render: live interpolation while playing, raw current frame while editing
   const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
   const renderedObjects = useMemo(
-    () => (teamPlayers.length ? applyTeamPlayersToObjects(rawObjects, teamPlayers) : rawObjects),
-    [rawObjects, teamPlayers]
+    // When roster substitution is on, ALWAYS filter — even with zero real
+    // players — so the pitch never shows fake "Player 1/2/3" placeholders.
+    () =>
+      settings.substituteRealNames
+        ? applyTeamPlayersToObjects(rawObjects, teamPlayers)
+        : rawObjects,
+    [rawObjects, teamPlayers, settings.substituteRealNames]
   );
   const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
 
