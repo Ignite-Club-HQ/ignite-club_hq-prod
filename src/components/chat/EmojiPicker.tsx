@@ -238,6 +238,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
               onClick={() => {
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
+                  dismissIOSKeyboardAccessory();
+                  dismissNativeKeyboard();
                   setGifSheetOpen(true);
                   setOpen(false);
                 } else {
