@@ -60,6 +60,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet as UISheet,
+  SheetContent as UISheetContent,
+  SheetHeader as UISheetHeader,
+  SheetTitle as UISheetTitle,
+} from "@/components/ui/sheet";
 
 type FolderView = 
   | { type: "root" }
