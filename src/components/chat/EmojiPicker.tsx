@@ -242,7 +242,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         )}
 
         {tab === "emoji" || !showGifTab || useGifSheet ? (
-          <div className={showGifTab ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
+          <div className={useInlineGifLayout ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
             {/* Recent emojis row */}
             {recentEmojis.length > 0 && (
               <div className="mb-2 pb-2 border-b shrink-0">
