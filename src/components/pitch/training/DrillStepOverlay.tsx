@@ -215,7 +215,8 @@ function DrillStepOverlayImpl({
     const el = containerRef.current;
     const parent = el?.parentElement;
     if (!el || !parent) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+    e.stopPropagation();
     dragState.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
@@ -227,45 +228,46 @@ function DrillStepOverlayImpl({
     };
   }, [dragOffset]);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    const s = dragState.current;
-    if (!s || s.pointerId !== e.pointerId) return;
-    const dx = e.clientX - s.startX;
-    const dy = e.clientY - s.startY;
-    if (!s.moved && Math.hypot(dx, dy) < 4) return;
-    s.moved = true;
-    e.preventDefault();
-    const el = containerRef.current;
-    if (!el) return;
-    const elRect = el.getBoundingClientRect();
-    // Clamp so the card stays within the pitch bounds.
-    const maxDx = s.parentRect.right - elRect.right - s.startDx + (e.clientX - s.startX) + (s.parentRect.width - elRect.width);
-    const minDxAbs = -(elRect.left - s.parentRect.left);
-    const minDyAbs = -(elRect.top - s.parentRect.top);
-    const maxDxAbs = s.parentRect.right - elRect.right;
-    const maxDyAbs = s.parentRect.bottom - elRect.bottom;
-    void maxDx;
-    const nextDx = Math.min(Math.max(s.startDx + dx, s.startDx + minDxAbs), s.startDx + maxDxAbs);
-    const nextDy = Math.min(Math.max(s.startDy + dy, s.startDy + minDyAbs), s.startDy + maxDyAbs);
-    setDragOffset({ dx: nextDx, dy: nextDy });
-  }, []);
+  useEffect(() => {
+    const handleWindowPointerMove = (e: PointerEvent) => {
+      const s = dragState.current;
+      if (!s || s.pointerId !== e.pointerId) return;
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      if (!s.moved && Math.hypot(dx, dy) < 4) return;
+      s.moved = true;
+      const el = containerRef.current;
+      if (!el) return;
+      const elRect = el.getBoundingClientRect();
+      const maxDx = s.parentRect.right - elRect.right - s.startDx + (e.clientX - s.startX) + (s.parentRect.width - elRect.width);
+      const minDxAbs = -(elRect.left - s.parentRect.left);
+      const minDyAbs = -(elRect.top - s.parentRect.top);
+      const maxDxAbs = s.parentRect.right - elRect.right;
+      const maxDyAbs = s.parentRect.bottom - elRect.bottom;
+      void maxDx;
+      const nextDx = Math.min(Math.max(s.startDx + dx, s.startDx + minDxAbs), s.startDx + maxDxAbs);
+      const nextDy = Math.min(Math.max(s.startDy + dy, s.startDy + minDyAbs), s.startDy + maxDyAbs);
+      setDragOffset({ dx: nextDx, dy: nextDy });
+    };
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    const s = dragState.current;
-    if (!s || s.pointerId !== e.pointerId) {
+    const handleWindowPointerUp = (e: PointerEvent) => {
+      const s = dragState.current;
+      if (!s || s.pointerId !== e.pointerId) return;
+      const moved = s.moved;
       dragState.current = null;
-      return;
-    }
-    const moved = s.moved;
-    dragState.current = null;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-    if (!moved && hasNotes) {
-      setExpanded((v) => !v);
-    }
+      if (!moved && hasNotes) {
+        setExpanded((v) => !v);
+      }
+    };
+
+    window.addEventListener("pointermove", handleWindowPointerMove, { passive: false });
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerUp);
+    };
   }, [hasNotes]);
 
   return (
@@ -287,9 +289,6 @@ function DrillStepOverlayImpl({
       <button
         type="button"
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
         className={cn(
           "w-full text-left rounded-lg backdrop-blur-md border border-white/15 shadow-lg",
           "bg-black/65 text-white px-3 py-2 transition-colors touch-none select-none",

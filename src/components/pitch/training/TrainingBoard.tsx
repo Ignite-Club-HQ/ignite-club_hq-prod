@@ -167,7 +167,8 @@ export default function TrainingBoard({
 
   const currentFrame = frames[currentIndex] ?? frames[0];
   const isAnimating = isPlaying;
-  const editable = !readOnly && !isAnimating && !previewMode && !runMode;
+  const canDragItems = !readOnly && !isAnimating && !runMode;
+  const editable = canDragItems && !previewMode;
   const hasSelection = !!selectedId;
 
   // Auto-open library on first mount — coaches start by picking a drill
@@ -807,12 +808,12 @@ export default function TrainingBoard({
           <TrainingObjectLayer
             objects={renderedObjects}
             annotations={renderedAnnotations}
-            selectedId={editable ? selectedId : null}
+            selectedId={canDragItems ? selectedId : null}
             onSelect={setSelectedId}
             onObjectMove={moveObject}
             onAnnotationMove={moveAnnotation}
             containerRef={containerRef}
-            readOnly={!editable}
+            readOnly={!canDragItems}
           />
         </div>
       </div>
