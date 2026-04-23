@@ -110,6 +110,8 @@ interface PitchSettingsDialogProps {
   // Pitch board mode (Match | Training) — moved from header into settings.
   pitchBoardMode?: "match" | "training";
   onPitchBoardModeChange?: (mode: "match" | "training") => void;
+  // When false, the Match/Training toggle is hidden (Training is gated to club admins).
+  canUseTrainingMode?: boolean;
 }
 
 export function PitchSettingsDialog({
