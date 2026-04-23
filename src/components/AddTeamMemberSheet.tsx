@@ -161,6 +161,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const nativeKbHeight = useNativeKeyboardHeight();
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
+  const roleSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // When the name is confirmed (or an existing user is selected), the role
+  // selector becomes the active step. Dismiss the soft keyboard and scroll
+  // the role buttons into view so the user can see what they're picking on
+  // small iOS viewports where the keyboard previously hid them.
+  useEffect(() => {
+    if (!nameConfirmed && !selectedUser) return;
+    try {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && typeof active.blur === "function") active.blur();
+    } catch {}
+    const t = setTimeout(() => {
+      roleSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [nameConfirmed, selectedUser]);
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
