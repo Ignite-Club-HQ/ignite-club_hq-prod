@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
