@@ -4939,6 +4939,7 @@ function ContentSection({
   onPermanentDeleteFile,
 }: ContentSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
+  const [actionSheetFile, setActionSheetFile] = useState<any | null>(null);
 
   if (!hasContent) {
     return (
