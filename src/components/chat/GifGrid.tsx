@@ -35,7 +35,7 @@ export function GifGrid({
   onQueryChange,
   onFocusChange,
   className,
-  scrollClassName = "max-h-72",
+  scrollClassName,
   gridClassName = "grid-cols-2",
   showAttribution = true,
 }: GifGridProps) {
