@@ -5077,6 +5077,73 @@ function ContentSection({
           </div>
         </div>
       )}
+
+      {/* File actions bottom sheet */}
+      <UISheet open={!!actionSheetFile} onOpenChange={(o) => { if (!o) setActionSheetFile(null); }}>
+        <UISheetContent side="bottom" className="rounded-t-xl pb-[max(env(safe-area-inset-bottom),1rem)]">
+          {actionSheetFile && (() => {
+            const file = actionSheetFile;
+            const isExternalLink = file.is_external_link;
+            const externalLinkInfo = isExternalLink ? getExternalLinkInfo(file.file_url) : null;
+            const close = () => setActionSheetFile(null);
+            const Item = ({ icon: Icon, label, onClick, destructive = false }: { icon: any; label: string; onClick: () => void; destructive?: boolean }) => (
+              <button
+                type="button"
+                onClick={() => { onClick(); close(); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm hover:bg-accent active:bg-accent transition-colors ${destructive ? 'text-destructive' : 'text-foreground'}`}
+              >
+                <Icon className="h-5 w-5" />
+                <span>{label}</span>
+              </button>
+            );
+            return (
+              <>
+                <UISheetHeader className="text-left">
+                  <UISheetTitle className="truncate">{file.name}</UISheetTitle>
+                </UISheetHeader>
+                <div className="mt-2 flex flex-col gap-1">
+                  {isExternalLink ? (
+                    <Item
+                      icon={ExternalLink}
+                      label={`Open ${externalLinkInfo?.type || 'Link'}`}
+                      onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
+                    />
+                  ) : (
+                    <Item
+                      icon={Download}
+                      label="Download"
+                      onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
+                    />
+                  )}
+                  {!isExternalLink && isSpreadsheetFile(file.name || '') && (
+                    <Item
+                      icon={Sheet}
+                      label="Open in Google Sheets"
+                      onClick={() => openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast)}
+                    />
+                  )}
+                  {!isExternalLink && isDocumentFile(file.name || '') && (
+                    <Item
+                      icon={HardDrive}
+                      label="Open in Google Drive"
+                      onClick={() => openInGoogleDrive(file.file_url, file.name || 'document', toast)}
+                    />
+                  )}
+                  {canMoveFile?.(file) && onMoveFile && (
+                    <Item icon={FolderDown} label="Move to Folder" onClick={() => onMoveFile(file)} />
+                  )}
+                  {canRenameFile?.(file) && onRenameFile && (
+                    <Item icon={Pencil} label="Rename" onClick={() => onRenameFile(file)} />
+                  )}
+                  {canDeleteFile(file) && (
+                    <Item icon={Trash2} label="Delete" destructive onClick={() => onDeleteFile(file.id)} />
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </UISheetContent>
+      </UISheet>
     </div>
   );
 }
