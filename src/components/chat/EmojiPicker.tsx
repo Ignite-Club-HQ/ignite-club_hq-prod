@@ -293,7 +293,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </div>
 
             {/* Emoji grid */}
-            <div className={`grid gap-1 ${showGifTab ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
+            <div className={`grid gap-1 ${useInlineGifLayout ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
               isMobile ? "grid-cols-7" : "grid-cols-8"
             }`}>
               {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
