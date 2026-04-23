@@ -87,6 +87,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
   // of inside the popover so the search input + results never get covered.
   const useGifSheet = isMobile && showGifTab;
+  // The popover only needs the tall flex layout when GIFs render INSIDE it
+  // (desktop with GIF tab). On mobile we use a dedicated sheet, so the popover
+  // should size to its emoji content (with the grid scrolling internally).
+  const useInlineGifLayout = showGifTab && !useGifSheet;
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -169,7 +173,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "!w-[calc(100vw-1rem)] !max-w-none" : "w-72"} ${showGifTab && !useGifSheet ? "h-[360px] flex flex-col" : ""}`}
+        className={`p-2 ${isMobile ? "!w-[calc(100vw-1rem)] !max-w-none" : "w-72"} ${useInlineGifLayout ? "h-[360px] flex flex-col" : ""}`}
         side="top"
         align={isMobile ? "center" : "start"}
         sideOffset={8}
@@ -238,7 +242,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         )}
 
         {tab === "emoji" || !showGifTab || useGifSheet ? (
-          <div className={showGifTab ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
+          <div className={useInlineGifLayout ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
             {/* Recent emojis row */}
             {recentEmojis.length > 0 && (
               <div className="mb-2 pb-2 border-b shrink-0">
@@ -289,7 +293,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </div>
 
             {/* Emoji grid */}
-            <div className={`grid gap-1 ${showGifTab ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
+            <div className={`grid gap-1 ${useInlineGifLayout ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
               isMobile ? "grid-cols-7" : "grid-cols-8"
             }`}>
               {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
