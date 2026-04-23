@@ -249,7 +249,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
             onQueryChange={(query) => setSearchActive(query.trim().length > 0)}
             onFocusChange={setInputFocused}
             scrollClassName="flex-1 min-h-0"
-            gridClassName="grid-cols-2"
+            gridClassName="grid-cols-3"
             className="flex-1 min-h-0"
           />
         </div>
