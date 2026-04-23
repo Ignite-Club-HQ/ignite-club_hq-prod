@@ -2033,6 +2033,18 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
+                      onFocus={(e) => {
+                        // On iOS the soft keyboard covers the input because the
+                        // sheet sits above the keyboard but the input is below
+                        // the role selector. Scroll the field into view once the
+                        // keyboard has begun to animate up.
+                        const el = e.currentTarget;
+                        setTimeout(() => {
+                          try {
+                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          } catch {}
+                        }, 250);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && nameInput.trim()) {
                           setNameConfirmed(true);
