@@ -164,16 +164,21 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       lastMeasuredKeyboardTopRef.current = layoutViewportHeight;
     }
 
+    // When the keyboard is closed, prefer the visible viewport bottom (which
+    // already excludes browser chrome on mobile Safari) and subtract the
+    // home-indicator inset so the sheet never overlaps the iOS bottom bar.
+    const visibleBottom = Math.min(layoutViewportHeight, visualViewportBottom || layoutViewportHeight);
+    const closedBottom = Math.max(0, visibleBottom - safeAreaBottom);
+
     const keyboardTop = keyboardSessionActive
-      ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || layoutViewportHeight)
-      : layoutViewportHeight;
+      ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || closedBottom)
+      : closedBottom;
 
     const availableHeight = Math.max(SHEET_MIN_HEIGHT, keyboardTop - TOP_GAP - KEYBOARD_GAP);
     const compactHeight = Math.min(
       SHEET_DEFAULT_HEIGHT,
-      Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
+      Math.max(SHEET_MIN_HEIGHT, closedBottom - TOP_GAP - 16),
     );
-    // Always maximise to the available area above the keyboard for consistency.
     const preferredHeight = keyboardSessionActive ? availableHeight : compactHeight;
     const nextSheetHeight = Math.min(availableHeight, preferredHeight);
     const nextSheetTop = keyboardSessionActive
@@ -190,6 +195,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     inputFocused,
     iosKeyboardHeight,
     layoutViewportHeight,
+    safeAreaBottom,
     searchActive,
     visualViewportHeight,
     visualViewportOffsetTop,
