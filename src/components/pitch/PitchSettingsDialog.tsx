@@ -190,8 +190,9 @@ export function PitchSettingsDialog({
           </ResponsiveDialogHeader>
           
           <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
-            {/* Board mode toggle — Match (live game) vs Training (drill board) */}
-            {!readOnly && pitchBoardMode && onPitchBoardModeChange && (
+            {/* Board mode toggle — Match (live game) vs Training (drill board).
+                Hidden when the user lacks Training access (currently club admins only). */}
+            {!readOnly && pitchBoardMode && onPitchBoardModeChange && canUseTrainingMode && (
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Board Mode</Label>
                 <div
