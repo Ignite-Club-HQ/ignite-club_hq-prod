@@ -146,9 +146,19 @@ export function substitutePlayerNamesInNotes<T extends DrillObject>(
 
   if (tokenToName.size === 0) return notes;
 
-  // Whole-token match: letters+digits surrounded by non-alphanumerics.
-  return notes.replace(/\b([A-Za-z]{1,3}\d{1,2})\b/g, (match) => {
+  // First pass: spaced "Player N" / "player N" → real name. Drills authored as
+  // a generic loop ("Player 2 pushes forward...") read much better when those
+  // numbers become the actual squad member's name.
+  let out = notes.replace(/\b[Pp]layer\s+(\d{1,2})\b/g, (_m, n) => {
+    return tokenToName.get(String(n).toUpperCase()) ?? `Player ${n}`;
+  });
+
+  // Second pass: compact tokens (A1, D2, GK1, S1, or bare "1") still in the
+  // string get swapped for real names too.
+  out = out.replace(/\b([A-Za-z]{1,3}\d{1,2}|\d{1,2})\b/g, (match) => {
     const replacement = tokenToName.get(match.toUpperCase());
     return replacement ?? match;
   });
+
+  return out;
 }

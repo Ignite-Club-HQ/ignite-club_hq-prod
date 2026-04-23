@@ -169,15 +169,10 @@ export function resolvePlayerOverlaps(
   return positions;
 }
 
-function directPlayerPositions(
-  objects: RenderableObject[],
-): Map<string, { x: number; y: number }> {
-  return new Map(
-    objects
-      .filter((o) => o.type === "player")
-      .map((o) => [o.id, { x: o.x, y: o.y }]),
-  );
-}
+// (directPlayerPositions removed — the resolver is now always active so the
+// raw-coord fast path is no longer needed. Stationary chips still receive
+// gentle nudging to clear visual collisions while moving performers follow
+// their authored / interpolated path unchanged.)
 
 /**
  * Approximate footprint of an object in pitch-% coordinates. Used so floating
@@ -558,22 +553,19 @@ function TrainingObjectLayerImpl({
     return () => ro.disconnect();
   }, [containerRef]);
 
-  const isPlaybackView = useMemo(
-    () =>
-      objects.some((o) => typeof o.opacity === "number") ||
-      annotations.some((a) => typeof a.opacity === "number"),
-    [objects, annotations],
-  );
+  // (Previously bypassed the resolver during playback to keep authored coords;
+  // we now run it always so dense queues don't render as a single stacked pile.
+  // The resolver leaves any chip that's already non-colliding alone, so moving
+  // performers continue to follow their interpolated path frame-by-frame.)
 
-  // During animated playback we must preserve the authored coordinates exactly;
-  // otherwise the overlap resolver can re-pack a queue into the same visual
-  // slots each frame, making it look like chips never advance.
+  // Always resolve overlaps — even during playback. Without it, tightly-spaced
+  // queue chips (e.g. waiting line at y=75 spaced 4% apart) render stacked
+  // because each chip is ~11% of pitch width. The resolver only nudges
+  // siblings that are *visually* colliding, so a moving performer alone in
+  // open space keeps its authored position; only the bunched queue spreads.
   const displayPositions = useMemo(
-    () =>
-      isPlaybackView
-        ? directPlayerPositions(objects)
-        : resolvePlayerOverlaps(objects, containerSize),
-    [objects, containerSize, isPlaybackView],
+    () => resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize],
   );
   // Then push balls away from any player they would otherwise sit under.
   const ballPositions = useMemo(
