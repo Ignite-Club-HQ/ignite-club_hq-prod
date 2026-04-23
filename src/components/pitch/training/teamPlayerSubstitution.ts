@@ -76,11 +76,20 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     if (player) substitutions.set(obj.id, shortPlayerLabel(player.name));
   });
 
-  if (substitutions.size === 0) return objects;
+  if (substitutions.size === 0) {
+    // No real players matched — strip every player chip so the pitch never
+    // shows fake numeric placeholders. Equipment (cones, balls, goals) stays.
+    return objects.filter((o) => o.type !== "player");
+  }
 
-  return objects.map((obj) => {
+  // Drop any player chip that didn't get a real squad name. This keeps the
+  // pitch limited to actual attendees instead of padding with "Player 4",
+  // "Player 5" etc. that confuse coaches and parents.
+  return objects.flatMap((obj) => {
+    if (obj.type !== "player") return [obj];
     const replacement = substitutions.get(obj.id);
-    return replacement ? { ...obj, label: replacement } : obj;
+    if (!replacement) return [];
+    return [{ ...obj, label: replacement }];
   });
 }
 
