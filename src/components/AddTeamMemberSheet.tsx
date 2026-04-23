@@ -434,20 +434,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   );
 
   const { data: bulkSearchResults = [] } = useQuery({
-    queryKey: ["bulk-user-search-team-member", bulkSearchTerms],
+    queryKey: ["bulk-user-search-team-member", bulkSearchTerms, clubId, teamId],
     queryFn: async () => {
       if (bulkSearchTerms.length === 0) return [];
 
       const searches = await Promise.all(
         bulkSearchTerms.map(async (term) => {
-          // Search profiles
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("id, display_name, avatar_url")
-            .ilike("display_name", `%${term}%`)
-            .limit(6);
+          // Use the same SECURITY DEFINER RPC as single mode so we get
+          // consistent visibility across club members (avoids RLS gaps
+          // when searching parents who belong only to other teams).
+          const { data: rpcData } = await supabase.rpc("search_invitable_profiles", {
+            _query: term,
+            _limit: 8,
+          });
 
-          const profileResults = (profileData || []).filter(
+          const profileResults = ((rpcData || []) as Array<{
+            id: string;
+            display_name: string | null;
+            avatar_url: string | null;
+            masked_email: string | null;
+          }>).filter(
             (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
           );
 
