@@ -565,15 +565,14 @@ function TrainingObjectLayerImpl({
     [objects, annotations],
   );
 
-  // During animated playback we must preserve the authored coordinates exactly;
-  // otherwise the overlap resolver can re-pack a queue into the same visual
-  // slots each frame, making it look like chips never advance.
+  // Always resolve overlaps — even during playback. Without it, tightly-spaced
+  // queue chips (e.g. waiting line at y=75 spaced 4% apart) render stacked
+  // because each chip is ~11% of pitch width. The resolver only nudges
+  // siblings that are *visually* colliding, so a moving performer alone in
+  // open space keeps its authored position; only the bunched queue spreads.
   const displayPositions = useMemo(
-    () =>
-      isPlaybackView
-        ? directPlayerPositions(objects)
-        : resolvePlayerOverlaps(objects, containerSize),
-    [objects, containerSize, isPlaybackView],
+    () => resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize],
   );
   // Then push balls away from any player they would otherwise sit under.
   const ballPositions = useMemo(

@@ -105,8 +105,10 @@ function scoreCorner(
     const ox1 = x + hx;
     const oy1 = y + hy;
     if (rectsIntersect(x0, y0, x1, y1, ox0, oy0, ox1, oy1)) {
-      // Goals are sacrosanct — never cover them.
-      score += o.type === "full-goal" || o.type === "mini-goal" ? 500 : 150;
+      // Goals are sacrosanct — never cover them. Use a huge penalty so the
+      // overlay always prefers ANY other corner, even one that clips a player
+      // chip, over hiding the goal mouth.
+      score += o.type === "full-goal" || o.type === "mini-goal" ? 10000 : 150;
     } else {
       const dx = Math.max(0, x0 - ox1, ox0 - x1);
       const dy = Math.max(0, y0 - oy1, oy0 - y1);
