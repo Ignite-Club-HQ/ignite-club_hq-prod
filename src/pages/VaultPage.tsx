@@ -5056,96 +5056,18 @@ function ContentSection({
                           )}
                         </>
                       ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
-                            {/* Download / Open */}
-                            {isExternalLink ? (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
-                              }}>
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                Open {externalLinkInfo?.type || 'Link'}
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
-                              }}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Open in Google Sheets - for spreadsheets */}
-                            {!isExternalLink && isSpreadsheetFile(file.name || '') && (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
-                              }}>
-                                <Sheet className="h-4 w-4 mr-2" />
-                                Open in Google Sheets
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Open in Google Drive - for documents */}
-                            {!isExternalLink && isDocumentFile(file.name || '') && (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                openInGoogleDrive(file.file_url, file.name || 'document', toast);
-                              }}>
-                                <HardDrive className="h-4 w-4 mr-2" />
-                                Open in Google Drive
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Move to folder */}
-                            {canMoveFile?.(file) && onMoveFile && (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                onMoveFile(file);
-                              }}>
-                                <FolderDown className="h-4 w-4 mr-2" />
-                                Move to Folder
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Rename */}
-                            {canRenameFile?.(file) && onRenameFile && (
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                onRenameFile(file);
-                              }}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Rename
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Delete */}
-                            {canDeleteFile(file) && (
-                              <DropdownMenuItem 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteFile(file.id);
-                                }}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionSheetFile(file);
+                          }}
+                          aria-label="File actions"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                 </CardContent>
