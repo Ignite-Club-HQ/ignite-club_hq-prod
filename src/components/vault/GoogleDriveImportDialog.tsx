@@ -244,8 +244,18 @@ export function GoogleDriveImportDialog({
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
 
+      // Resolve user once up-front so failed inserts don't silently no-op
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) {
+        toast.error("You must be signed in to import files");
+        setImporting(false);
+        return;
+      }
+
       // Process each file
       let successCount = 0;
+      const failures: { name: string; reason: string }[] = [];
       const folderCache: Record<string, string> = {}; // path -> folder_id mapping
 
       for (let i = 0; i < filesToImport.length; i++) {
@@ -270,7 +280,9 @@ export function GoogleDriveImportDialog({
           });
 
           if (downloadError || downloadData?.error) {
-            console.error(`Failed to download ${file.name}:`, downloadData?.error || downloadError);
+            const reason = downloadData?.error || downloadError?.message || "Download failed";
+            console.error(`Failed to download ${file.name}:`, reason);
+            failures.push({ name: file.name, reason });
             continue;
           }
 
@@ -280,11 +292,11 @@ export function GoogleDriveImportDialog({
           for (let j = 0; j < binaryString.length; j++) {
             bytes[j] = binaryString.charCodeAt(j);
           }
-          
+
           // Determine file extension and name
           let fileName = file.name;
           let contentType = file.mimeType;
-          
+
           if (downloadData.exportedMimeType) {
             contentType = downloadData.exportedMimeType;
             // Add appropriate extension for exported Google docs
@@ -296,55 +308,74 @@ export function GoogleDriveImportDialog({
           }
 
           const blob = new Blob([bytes], { type: contentType });
-          
-          // Upload to Supabase storage
-          const isImage = contentType.startsWith('image/');
-          const bucket = isImage ? 'photos' : 'vault-files';
-          const storagePath = `${targetClubId}/${crypto.randomUUID()}-${fileName}`;
-          
+
+          // Upload to Supabase storage using the same vault-only storage path
+          // as standard Vault uploads so Drive imports never create Media posts.
+          const timestamp = Date.now();
+          const randomSuffix = Math.random().toString(36).substring(7);
+          const safeExt = fileName.split('.').pop() || 'bin';
+          let storagePath: string;
+          if (targetTeamId) {
+            storagePath = `clubs/${targetClubId}/teams/${targetTeamId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
+          } else {
+            storagePath = `clubs/${targetClubId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
+          }
+
           const { error: uploadError } = await supabase.storage
-            .from(bucket)
+            .from('photos')
             .upload(storagePath, blob, { contentType });
 
           if (uploadError) {
             console.error(`Failed to upload ${file.name}:`, uploadError);
+            failures.push({ name: file.name, reason: uploadError.message });
             continue;
           }
 
-          // Get public URL
-          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+          // Store the storage URL; the vault resolves signed URLs on demand.
+          const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
+          const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
 
-          // Create database record
-          const userId = (await supabase.auth.getUser()).data.user?.id;
-          if (isImage) {
-            await supabase.from('photos').insert({
-              image_url: urlData.publicUrl,
-              title: fileName,
-              club_id: targetClubId,
-              team_id: targetTeamId,
-              folder_id: uploadFolderId,
-              uploader_id: userId!,
-              file_size: downloadData.size,
-            });
-          } else {
-            await supabase.from('vault_files').insert({
-              file_url: urlData.publicUrl,
-              name: fileName,
-              club_id: targetClubId,
-              team_id: targetTeamId,
-              folder_id: uploadFolderId,
-              uploaded_by: userId!,
-              file_size: downloadData.size,
-            });
+          // Always insert into vault_files so the file appears in the Vault.
+          // Images are still classified as photos by the vault UI via file_type,
+          // but they live in vault_files rather than the public media gallery.
+          const { error: insertError } = await supabase.from('vault_files').insert({
+            file_url: fileUrl,
+            name: fileName,
+            club_id: targetClubId,
+            team_id: targetTeamId,
+            folder_id: uploadFolderId,
+            uploaded_by: userId,
+            file_size: downloadData.size ?? blob.size,
+            file_type: contentType,
+          });
+
+          if (insertError) {
+            console.error(`Failed to record ${file.name} in vault:`, insertError);
+            failures.push({ name: file.name, reason: insertError.message });
+            continue;
           }
 
           successCount++;
-        } catch (fileError) {
+        } catch (fileError: any) {
+          const reason = fileError?.message || "Unknown error";
           console.error(`Error processing ${file.name}:`, fileError);
+          failures.push({ name: file.name, reason });
         }
       }
 
-      toast.success(`Successfully imported ${successCount} of ${filesToImport.length} files`);
+      if (successCount > 0) {
+        toast.success(`Imported ${successCount} of ${filesToImport.length} file${filesToImport.length === 1 ? '' : 's'} to your vault`);
+      }
+      if (failures.length > 0) {
+        const preview = failures.slice(0, 3).map((f) => `• ${f.name}: ${f.reason}`).join('\n');
+        const more = failures.length > 3 ? `\n…and ${failures.length - 3} more` : '';
+        toast.error(`${failures.length} file${failures.length === 1 ? '' : 's'} failed to import`, {
+          description: `${preview}${more}`,
+          duration: 8000,
+        });
+      } else if (successCount === 0) {
+        toast.error("No files were imported");
+      }
       onImportComplete();
       onOpenChange(false);
 

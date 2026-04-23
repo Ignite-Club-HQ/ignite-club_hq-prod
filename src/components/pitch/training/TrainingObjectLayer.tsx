@@ -236,7 +236,7 @@ function resolveBallOverlaps(
   return positions;
 }
 
-function ObjectGlyph({ obj }: { obj: DrillObject }) {
+function ObjectGlyph({ obj, isNextUp }: { obj: DrillObject; isNextUp?: boolean }) {
   switch (obj.type) {
     case "player": {
       const label = (obj.label || "P").trim();
@@ -256,13 +256,18 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
             ? (isWaiting ? 10 : 12)
             : (isWaiting ? 9 : 11);
       const horizontalPadding = isShort ? 0 : (label.length <= 4 ? 8 : 10);
+      // The "next up" waiting chip gets a brighter pulsing amber ring + a
+      // small "NEXT" pill so the coach (and the squad) can see at a glance
+      // who is stepping in for the next rep. Only applies to waiting chips.
+      const showNextUp = !!isNextUp && isWaiting;
       return (
-        <div className="select-none">
+        <div className="select-none relative">
           <div
             className={cn(
               "flex items-center justify-center text-white font-bold whitespace-nowrap",
               isShort ? "rounded-full" : "rounded-full",
               isWaiting ? "border-2" : "border-[3px]",
+              showNextUp && "animate-pulse",
             )}
             style={{
               height: baseHeight,
@@ -270,18 +275,34 @@ function ObjectGlyph({ obj }: { obj: DrillObject }) {
               paddingLeft: horizontalPadding,
               paddingRight: horizontalPadding,
               backgroundColor: obj.color,
-              borderColor: "#ffffff",
-              boxShadow: isWaiting
-                ? "0 1px 3px rgba(0,0,0,0.35)"
-                : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
+              borderColor: showNextUp ? "#fbbf24" : "#ffffff",
+              boxShadow: showNextUp
+                ? "0 0 0 3px rgba(251,191,36,0.55), 0 2px 6px rgba(0,0,0,0.45)"
+                : isWaiting
+                  ? "0 1px 3px rgba(0,0,0,0.35)"
+                  : "0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3)",
               fontSize,
               lineHeight: 1,
-              opacity: isWaiting ? 0.85 : 1,
+              // Lift the next-up chip out of the muted bench so it reads as
+              // "warming up" rather than "sitting out".
+              opacity: showNextUp ? 1 : isWaiting ? 0.85 : 1,
               textShadow: "0 1px 1px rgba(0,0,0,0.5)",
             }}
           >
             {label}
           </div>
+          {showNextUp && (
+            <span
+              className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-black shadow"
+              style={{
+                backgroundColor: "#fbbf24",
+                letterSpacing: "0.08em",
+                lineHeight: "12px",
+              }}
+            >
+              Next
+            </span>
+          )}
         </div>
       );
     }
@@ -471,6 +492,27 @@ function TrainingObjectLayerImpl({
     [objects, displayPositions, containerSize],
   );
 
+  // Identify the "next up" waiting chip — the lowest-numbered W chip that's
+  // still on the bench (muted grey). When a W chip has been promoted into a
+  // role its colour is no longer grey, so we can detect "still waiting" by
+  // the seeded muted colour. Only one chip wins the highlight at a time.
+  const nextUpId = useMemo(() => {
+    const waitingMuted = objects
+      .filter(
+        (o) =>
+          o.type === "player" &&
+          typeof o.id === "string" &&
+          /^w\d+$/i.test(o.id) &&
+          (o.color ?? "").toLowerCase() === "#94a3b8",
+      )
+      .sort((a, b) => {
+        const na = parseInt(a.id.slice(1), 10) || 0;
+        const nb = parseInt(b.id.slice(1), 10) || 0;
+        return na - nb;
+      });
+    return waitingMuted[0]?.id ?? null;
+  }, [objects]);
+
   return (
     <>
       {/* Arrow lines */}
@@ -625,7 +667,7 @@ function TrainingObjectLayerImpl({
               transition: "left 120ms ease-out, top 120ms ease-out",
             }}
           >
-            <ObjectGlyph obj={obj} />
+            <ObjectGlyph obj={obj} isNextUp={obj.id === nextUpId} />
           </div>
         );
       })}

@@ -429,29 +429,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       }
       throw insertError;
     }
-    
-    // 2. Also insert into vault_files (for vault access)
-    // This ensures media photos also appear in the vault
-    const vaultInsertData: any = {
-      file_url: storageUrl,
-      uploaded_by: user!.id,
-      name: file.name,
-      file_size: file.size,
-      file_type: file.type,
-      club_id: clubId || null,
-      team_id: teamId || null,
-    };
-    
-    if (miniLeagueId) {
-      vaultInsertData.mini_league_id = miniLeagueId;
-    }
 
-    // Insert into vault_files - don't fail if this errors (photo is already in media)
-    const { error: vaultError } = await supabase.from("vault_files").insert(vaultInsertData);
-    if (vaultError) {
-      console.warn("Failed to add photo to vault (continuing anyway):", vaultError);
-    }
-    
+    // Note: Media gallery uploads are intentionally NOT mirrored into vault_files.
+    // Media and Vault are independent — uploads to one must not appear in the other.
+
     return storageUrl;
   };
 

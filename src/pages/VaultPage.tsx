@@ -67,6 +67,13 @@ type FolderView =
   | { type: "team"; clubId: string; clubName: string; teamId: string; teamName: string; folderId?: string; folderName?: string }
   | { type: "mini-league"; clubId: string; clubName: string; miniLeagueId: string; miniLeagueName: string; folderId?: string; folderName?: string };
 
+// Clubs allowed to use Google Drive import / sync features.
+// Currently limited to Bridgewater Soccer Club and Basket Range Cricket Club.
+const DRIVE_IMPORT_ALLOWED_CLUB_IDS = new Set<string>([
+  "966bdaec-ebf1-46da-b2b3-cc53bf05c422", // Bridgewater Soccer Club
+  "493ee2e3-c834-487d-93be-d1c8a0dbc4a8", // Basket Range Cricket Club
+]);
+
 export default function VaultPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -3473,13 +3480,13 @@ export default function VaultPage() {
                             Add Link
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
                             Import from Drive
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && currentView.folderId && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && currentView.folderId && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder
