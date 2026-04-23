@@ -48,6 +48,23 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
   const rafRef = useRef<number | null>(null);
   const timeoutsRef = useRef<number[]>([]);
   const lastMeasuredKeyboardTopRef = useRef(0);
+  const [safeAreaBottom, setSafeAreaBottom] = useState(0);
+
+  // Read --safe-area-bottom (set by StatusBarManager) so we can stop the sheet
+  // above the home indicator on iOS when the keyboard is closed.
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    const read = () => {
+      const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue("--safe-area-bottom")
+        .trim();
+      const px = Number.parseFloat(raw || "0");
+      setSafeAreaBottom(Number.isFinite(px) ? px : 0);
+    };
+    read();
+    const id = window.setTimeout(read, 100);
+    return () => window.clearTimeout(id);
+  }, [open]);
 
   // Dismiss any existing soft keyboard when the sheet opens. On Android the
   // chat input is often still focused (so the keyboard remained visible), and
