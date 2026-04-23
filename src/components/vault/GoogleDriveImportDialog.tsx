@@ -426,27 +426,34 @@ export function GoogleDriveImportDialog({
 
     for (let i = 0; i < parts.length; i++) {
       const partPath = parts.slice(0, i + 1).join('/');
-      
+
       if (cache[partPath]) {
         parentId = cache[partPath];
         continue;
       }
 
       const folderName = parts[i];
-      
-      // Check if folder exists - use simple query to avoid TypeScript issues
-      const { data: existingFolders } = await supabase
+
+      // Look up an existing folder with the same name UNDER THE CORRECT PARENT
+      // and matching team scope. Without these filters every subfolder with the
+      // same name would collapse onto the first match and the Drive structure
+      // would be lost on import.
+      let lookup = supabase
         .from('vault_folders')
         .select('id')
         .eq('name', folderName)
         .eq('club_id', targetClubId);
-        
-      // Filter manually for parent and team
-      const existing = (existingFolders || []).find(f => {
-        // This is a simple ID match, would need additional fetch for full logic
-        // For now, just use the first match
-        return true;
-      });
+
+      lookup = parentId
+        ? lookup.eq('parent_folder_id', parentId)
+        : lookup.is('parent_folder_id', null);
+
+      lookup = targetTeamId
+        ? lookup.eq('team_id', targetTeamId)
+        : lookup.is('team_id', null);
+
+      const { data: existingFolders } = await lookup.limit(1);
+      const existing = existingFolders?.[0];
 
       if (existing) {
         cache[partPath] = existing.id;
