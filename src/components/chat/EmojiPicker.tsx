@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import { GifGrid } from "@/components/chat/GifGrid";
 import { GifPickerMobileSheet } from "@/components/chat/GifPickerMobileSheet";
 
