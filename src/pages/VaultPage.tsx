@@ -68,10 +68,10 @@ type FolderView =
   | { type: "mini-league"; clubId: string; clubName: string; miniLeagueId: string; miniLeagueName: string; folderId?: string; folderName?: string };
 
 // Clubs allowed to use Google Drive import / sync features.
-// Currently limited to Bridgewater Soccer Club and Basket Range Cricket Club.
 const DRIVE_IMPORT_ALLOWED_CLUB_IDS = new Set<string>([
   "966bdaec-ebf1-46da-b2b3-cc53bf05c422", // Bridgewater Soccer Club
   "493ee2e3-c834-487d-93be-d1c8a0dbc4a8", // Basket Range Cricket Club
+  "36231b76-5313-478e-b8d5-23ac4f5e8b10", // Riverside FC
 ]);
 
 export default function VaultPage() {
