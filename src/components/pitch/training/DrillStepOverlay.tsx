@@ -1,6 +1,6 @@
-import { memo, useState, useMemo } from "react";
+import { memo, useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import type {
   DrillObject,
   Annotation,
@@ -159,6 +159,17 @@ function DrillStepOverlayImpl({
   autoPlace = true,
 }: DrillStepOverlayProps) {
   const [expanded, setExpanded] = useState(false);
+  const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startDx: number;
+    startDy: number;
+    parentRect: DOMRect;
+    moved: boolean;
+  } | null>(null);
   const hasNotes = !!notes?.trim();
 
   const placement: Corner = useMemo(() => {
@@ -181,6 +192,12 @@ function DrillStepOverlayImpl({
     return best;
   }, [autoPlace, objects, annotations, anchor]);
 
+  // Reset manual drag offset when auto-placement target changes (e.g. new step,
+  // new auto-chosen corner). Keeps the card relevant without trapping the user.
+  useEffect(() => {
+    setDragOffset(null);
+  }, [placement, frameNumber]);
+
   const positionClass = (() => {
     switch (placement) {
       case "top-left":
@@ -194,27 +211,95 @@ function DrillStepOverlayImpl({
     }
   })();
 
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const el = containerRef.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragState.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startDx: dragOffset?.dx ?? 0,
+      startDy: dragOffset?.dy ?? 0,
+      parentRect: parent.getBoundingClientRect(),
+      moved: false,
+    };
+  }, [dragOffset]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const s = dragState.current;
+    if (!s || s.pointerId !== e.pointerId) return;
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+    if (!s.moved && Math.hypot(dx, dy) < 4) return;
+    s.moved = true;
+    e.preventDefault();
+    const el = containerRef.current;
+    if (!el) return;
+    const elRect = el.getBoundingClientRect();
+    // Clamp so the card stays within the pitch bounds.
+    const maxDx = s.parentRect.right - elRect.right - s.startDx + (e.clientX - s.startX) + (s.parentRect.width - elRect.width);
+    const minDxAbs = -(elRect.left - s.parentRect.left);
+    const minDyAbs = -(elRect.top - s.parentRect.top);
+    const maxDxAbs = s.parentRect.right - elRect.right;
+    const maxDyAbs = s.parentRect.bottom - elRect.bottom;
+    void maxDx;
+    const nextDx = Math.min(Math.max(s.startDx + dx, s.startDx + minDxAbs), s.startDx + maxDxAbs);
+    const nextDy = Math.min(Math.max(s.startDy + dy, s.startDy + minDyAbs), s.startDy + maxDyAbs);
+    setDragOffset({ dx: nextDx, dy: nextDy });
+  }, []);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const s = dragState.current;
+    if (!s || s.pointerId !== e.pointerId) {
+      dragState.current = null;
+      return;
+    }
+    const moved = s.moved;
+    dragState.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    if (!moved && hasNotes) {
+      setExpanded((v) => !v);
+    }
+  }, [hasNotes]);
+
   return (
     <div
+      ref={containerRef}
       className={cn(
         // ~40% of pitch width on phones, narrower on larger screens.
-        // Animate placement so it never feels like the card "jumps" between
-        // corners as the drill advances.
-        "absolute z-[60] pointer-events-auto max-w-[60%] sm:max-w-[40%] animate-fade-in transition-[top,bottom,left,right] duration-300 ease-out",
+        "absolute z-[60] pointer-events-auto max-w-[60%] sm:max-w-[40%] animate-fade-in",
+        // Only animate corner snapping when the user isn't dragging.
+        !dragOffset && "transition-[top,bottom,left,right] duration-300 ease-out",
         positionClass,
       )}
+      style={
+        dragOffset
+          ? { transform: `translate3d(${dragOffset.dx}px, ${dragOffset.dy}px, 0)` }
+          : undefined
+      }
     >
       <button
         type="button"
-        onClick={() => hasNotes && setExpanded((e) => !e)}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         className={cn(
           "w-full text-left rounded-lg backdrop-blur-md border border-white/15 shadow-lg",
-          "bg-black/65 text-white px-3 py-2 transition-colors",
-          hasNotes ? "hover:bg-black/75 active:bg-black/80 cursor-pointer" : "cursor-default"
+          "bg-black/65 text-white px-3 py-2 transition-colors touch-none select-none",
+          hasNotes ? "hover:bg-black/75 active:bg-black/80 cursor-grab active:cursor-grabbing" : "cursor-grab active:cursor-grabbing"
         )}
         aria-expanded={expanded}
+        aria-label="Drill step instructions — drag to move"
       >
         <div className="flex items-center gap-2 mb-0.5">
+          <GripVertical className="h-3.5 w-3.5 text-white/50 -ml-1" />
           <span className="inline-flex items-center justify-center h-5 px-2 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold tabular-nums">
             Step {frameNumber} of {totalFrames}
           </span>
