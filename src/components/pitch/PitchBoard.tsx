@@ -4366,6 +4366,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onExternalOpenChange={setSettingsDialogOpen}
                   pitchBoardMode={mode}
                   onPitchBoardModeChange={setMode}
+                  canUseTrainingMode={canUseTraining}
                 />
               </>
             )}
