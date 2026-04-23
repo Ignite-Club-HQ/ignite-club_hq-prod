@@ -33,7 +33,20 @@ export function useNativeAndroidKeyboardState(): number {
     const handleShow = ({ keyboardHeight: h }: { keyboardHeight: number }) => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        applyHeight(Math.max(0, h || 0));
+        // Capacitor Keyboard plugin on Android reports height in raw device
+        // pixels. Convert to CSS pixels so it can be compared against
+        // window.innerHeight (which is in CSS pixels). On iOS the plugin
+        // already returns CSS pixels, but this hook is Android-only.
+        const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0
+          ? window.devicePixelRatio
+          : 1;
+        const cssHeight = (h || 0) / dpr;
+        // Sanity guard: if the value already looks like CSS px (smaller than
+        // the layout viewport), don't divide again. This handles future
+        // plugin versions that may switch to CSS px.
+        const layoutH = typeof window !== "undefined" ? window.innerHeight : 0;
+        const finalHeight = h > layoutH ? cssHeight : (h || 0);
+        applyHeight(Math.max(0, finalHeight));
       });
     };
 
