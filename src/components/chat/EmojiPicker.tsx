@@ -87,6 +87,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
   // of inside the popover so the search input + results never get covered.
   const useGifSheet = isMobile && showGifTab;
+  // The popover only needs the tall flex layout when GIFs render INSIDE it
+  // (desktop with GIF tab). On mobile we use a dedicated sheet, so the popover
+  // should size to its emoji content (with the grid scrolling internally).
+  const useInlineGifLayout = showGifTab && !useGifSheet;
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
