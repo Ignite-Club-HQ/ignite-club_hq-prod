@@ -12,7 +12,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
-import GlobalSubMonitor from "@/components/pitch/GlobalSubMonitor";
+import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
@@ -235,7 +235,7 @@ const App = () => {
           <BrowserRouter>
             <ScrollToTop />
             <PWAPendingInviteHandler />
-            <GlobalSubMonitor />
+            <GlobalSubMonitorGate />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Public routes */}
