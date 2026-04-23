@@ -1,7 +1,14 @@
 import { memo, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { DrillObject, Annotation } from "./types";
+import type {
+  DrillObject,
+  Annotation,
+  ArrowGeometry,
+  TextGeometry,
+  StepMarkerGeometry,
+  ZoneGeometry,
+} from "./types";
 
 interface DrillStepOverlayProps {
   frameNumber: number;
@@ -23,12 +30,58 @@ type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
  * The card occupies roughly this fraction of the pitch (0-100 coords).
  * Conservative — better to over-estimate than to clip players.
  */
-const CARD_W = 46;
-const CARD_H = 22;
+const CARD_W = 50;
+const CARD_H = 26;
 
 /**
- * Score how "clear" a corner is by summing inverse-distance penalties from any
- * drill content that falls inside the corner's rectangle. Lower score = clearer.
+ * Approximate footprint of a drill object in pitch-% coordinates. Goals span
+ * a wide horizontal area, balls/cones are small, players are mid-sized.
+ */
+function objectExtent(o: DrillObject): { hx: number; hy: number } {
+  switch (o.type) {
+    case "full-goal":
+      return { hx: 14, hy: 4 };
+    case "mini-goal":
+      return { hx: 10, hy: 3 };
+    case "player":
+      return { hx: 5, hy: 5 };
+    case "ball":
+    case "cone":
+      return { hx: 3, hy: 3 };
+    default:
+      return { hx: 4, hy: 4 };
+  }
+}
+
+function rectsIntersect(
+  ax0: number, ay0: number, ax1: number, ay1: number,
+  bx0: number, by0: number, bx1: number, by1: number,
+): boolean {
+  return ax0 < bx1 && ax1 > bx0 && ay0 < by1 && ay1 > by0;
+}
+
+function pointInRect(x: number, y: number, x0: number, y0: number, x1: number, y1: number): boolean {
+  return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+}
+
+function segmentIntersectsRect(
+  x1: number, y1: number, x2: number, y2: number,
+  rx0: number, ry0: number, rx1: number, ry1: number,
+): boolean {
+  if (pointInRect(x1, y1, rx0, ry0, rx1, ry1)) return true;
+  if (pointInRect(x2, y2, rx0, ry0, rx1, ry1)) return true;
+  // Quick AABB rejection on the segment's bounding box.
+  const sx0 = Math.min(x1, x2);
+  const sx1 = Math.max(x1, x2);
+  const sy0 = Math.min(y1, y2);
+  const sy1 = Math.max(y1, y2);
+  return rectsIntersect(sx0, sy0, sx1, sy1, rx0, ry0, rx1, ry1);
+}
+
+/**
+ * Score how "clear" a corner is. Lower = clearer. Penalises any drill content
+ * (players, balls, cones, goals, arrows, text labels, zones) that overlaps or
+ * sits near the card's rectangle so the overlay never covers play.
  */
 function scoreCorner(
   corner: Corner,
@@ -46,24 +99,42 @@ function scoreCorner(
     const x = (o as { x?: number }).x;
     const y = (o as { y?: number }).y;
     if (typeof x !== "number" || typeof y !== "number") continue;
-    if (x >= x0 && x <= x1 && y >= y0 && y <= y1) {
-      // Player inside the card area — heavy penalty
-      score += 100;
+    const { hx, hy } = objectExtent(o);
+    const ox0 = x - hx;
+    const oy0 = y - hy;
+    const ox1 = x + hx;
+    const oy1 = y + hy;
+    if (rectsIntersect(x0, y0, x1, y1, ox0, oy0, ox1, oy1)) {
+      // Goals are sacrosanct — never cover them.
+      score += o.type === "full-goal" || o.type === "mini-goal" ? 500 : 150;
     } else {
-      // Soft penalty for being near the edge of the card
-      const dx = Math.max(0, x0 - x, x - x1);
-      const dy = Math.max(0, y0 - y, y - y1);
+      const dx = Math.max(0, x0 - ox1, ox0 - x1);
+      const dy = Math.max(0, y0 - oy1, oy0 - y1);
       const d = Math.hypot(dx, dy);
-      if (d < 8) score += (8 - d) * 2;
+      if (d < 8) score += (8 - d) * 3;
     }
   }
 
   for (const a of annotations) {
-    const pts = (a as { points?: { x: number; y: number }[] }).points;
-    if (!pts) continue;
-    for (const p of pts) {
-      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
-        score += 30;
+    if (a.type === "arrow-solid" || a.type === "arrow-dashed") {
+      const g = a.geometry as ArrowGeometry;
+      if (segmentIntersectsRect(g.from.x, g.from.y, g.to.x, g.to.y, x0, y0, x1, y1)) {
+        score += 80;
+      }
+    } else if (a.type === "text") {
+      const g = a.geometry as TextGeometry;
+      if (pointInRect(g.x, g.y, x0 - 4, y0 - 3, x1 + 4, y1 + 3)) {
+        score += 60;
+      }
+    } else if (a.type === "step-marker") {
+      const g = a.geometry as StepMarkerGeometry;
+      if (pointInRect(g.x, g.y, x0 - 2, y0 - 2, x1 + 2, y1 + 2)) {
+        score += 50;
+      }
+    } else if (a.type === "zone") {
+      const g = a.geometry as ZoneGeometry;
+      if (rectsIntersect(x0, y0, x1, y1, g.x, g.y, g.x + g.width, g.y + g.height)) {
+        score += 40;
       }
     }
   }

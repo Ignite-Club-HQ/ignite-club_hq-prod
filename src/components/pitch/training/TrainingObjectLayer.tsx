@@ -180,6 +180,73 @@ function directPlayerPositions(
 }
 
 /**
+ * Approximate footprint of an object in pitch-% coordinates. Used so floating
+ * text labels can be nudged out of the way of players, balls, cones, and goals.
+ */
+function objectFootprint(o: RenderableObject): { hx: number; hy: number } {
+  switch (o.type) {
+    case "full-goal":
+      return { hx: 14, hy: 4 };
+    case "mini-goal":
+      return { hx: 10, hy: 3 };
+    case "player":
+      return { hx: 6, hy: 6 };
+    case "ball":
+    case "cone":
+      return { hx: 3, hy: 3 };
+    default:
+      return { hx: 4, hy: 4 };
+  }
+}
+
+/**
+ * Move a free-floating text label off any player / ball / goal so it never
+ * obscures live action. Only nudges along the Y axis to keep horizontal
+ * alignment with the underlying drill cue (e.g. "Next up: 3" near the queue).
+ */
+function nudgeTextAwayFromObjects(
+  ax: number,
+  ay: number,
+  objects: RenderableObject[],
+  positions: Map<string, { x: number; y: number }>,
+): { x: number; y: number } {
+  // Half-extent of the rendered text pill (≈ pixels → pitch %). Conservative
+  // so multi-word labels still clear even if they wrap.
+  const TEXT_HX = 14;
+  const TEXT_HY = 3.5;
+  const PAD = 1.5;
+  let y = ay;
+  // A few relaxation passes — enough for typical clusters.
+  for (let iter = 0; iter < 6; iter++) {
+    let pushed = false;
+    for (const o of objects) {
+      if (o.type !== "player" && o.type !== "ball" && o.type !== "cone" && o.type !== "mini-goal" && o.type !== "full-goal") continue;
+      const pos = positions.get(o.id) ?? { x: o.x, y: o.y };
+      const { hx, hy } = objectFootprint(o);
+      const dx = Math.abs(ax - pos.x);
+      if (dx > hx + TEXT_HX + PAD) continue;
+      const dy = y - pos.y;
+      const minDy = hy + TEXT_HY + PAD;
+      if (Math.abs(dy) >= minDy) continue;
+      // Push along the shorter vertical exit so the label stays near the cue.
+      const upRoom = y;
+      const downRoom = 100 - y;
+      const goUp = upRoom > downRoom ? false : true;
+      if (goUp) {
+        y = pos.y + minDy;
+      } else {
+        y = pos.y - minDy;
+      }
+      // Clamp to pitch.
+      y = Math.max(2, Math.min(98, y));
+      pushed = true;
+    }
+    if (!pushed) break;
+  }
+  return { x: ax, y };
+}
+
+/**
  * Push balls away from any player chips so the ball never sits underneath
  * (or visually overlaps) a player. Uses the resolved player positions so
  * we account for the nudges applied above.
@@ -634,6 +701,14 @@ function TrainingObjectLayerImpl({
             const g = ann.geometry as StepMarkerGeometry;
             ax = g.x;
             ay = g.y;
+          }
+          // Free-floating text labels (e.g. "Next up: 3", "Goal!", coaching
+          // cues) get nudged out of any player / ball / goal so they never
+          // obscure live action while playback advances.
+          if (ann.type === "text") {
+            const safe = nudgeTextAwayFromObjects(ax, ay, objects, displayPositions);
+            ax = safe.x;
+            ay = safe.y;
           }
           const isSel = selectedId === ann.id;
           return (
