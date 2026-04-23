@@ -169,6 +169,16 @@ export function resolvePlayerOverlaps(
   return positions;
 }
 
+function directPlayerPositions(
+  objects: RenderableObject[],
+): Map<string, { x: number; y: number }> {
+  return new Map(
+    objects
+      .filter((o) => o.type === "player")
+      .map((o) => [o.id, { x: o.x, y: o.y }]),
+  );
+}
+
 /**
  * Push balls away from any player chips so the ball never sits underneath
  * (or visually overlaps) a player. Uses the resolved player positions so
@@ -481,10 +491,22 @@ function TrainingObjectLayerImpl({
     return () => ro.disconnect();
   }, [containerRef]);
 
-  // Pre-compute non-overlapping display positions for player chips.
+  const isPlaybackView = useMemo(
+    () =>
+      objects.some((o) => typeof o.opacity === "number") ||
+      annotations.some((a) => typeof a.opacity === "number"),
+    [objects, annotations],
+  );
+
+  // During animated playback we must preserve the authored coordinates exactly;
+  // otherwise the overlap resolver can re-pack a queue into the same visual
+  // slots each frame, making it look like chips never advance.
   const displayPositions = useMemo(
-    () => resolvePlayerOverlaps(objects, containerSize),
-    [objects, containerSize],
+    () =>
+      isPlaybackView
+        ? directPlayerPositions(objects)
+        : resolvePlayerOverlaps(objects, containerSize),
+    [objects, containerSize, isPlaybackView],
   );
   // Then push balls away from any player they would otherwise sit under.
   const ballPositions = useMemo(
@@ -543,12 +565,12 @@ function TrainingObjectLayerImpl({
               <polygon points="0 0, 6 3, 0 6" fill="#a78bfa" />
             </marker>
           </defs>
-          {arrows.map((ann) => {
+          {arrows.map((ann, index) => {
             const g = ann.geometry as ArrowGeometry;
             const isDashed = ann.type === "arrow-dashed";
             return (
               <line
-                key={ann.id}
+                key={`${ann.id}-${index}`}
                 x1={`${g.from.x}%`}
                 y1={`${g.from.y}%`}
                 x2={`${g.to.x}%`}
@@ -567,12 +589,12 @@ function TrainingObjectLayerImpl({
       {/* Zones */}
       {annotations
         .filter((a) => a.type === "zone")
-        .map((ann) => {
+        .map((ann, index) => {
           const g = ann.geometry as ZoneGeometry;
           const isSel = selectedId === ann.id;
           return (
             <div
-              key={ann.id}
+              key={`${ann.id}-${index}`}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", g.x, g.y)}
               className={cn(
                 "absolute touch-none",
@@ -597,7 +619,7 @@ function TrainingObjectLayerImpl({
           the pitch. */}
       {annotations
         .filter((a) => a.type !== "zone" && a.id !== "wait-label")
-        .map((ann) => {
+        .map((ann, index) => {
           let ax = 0;
           let ay = 0;
           if (ann.type === "arrow-solid" || ann.type === "arrow-dashed") {
@@ -616,7 +638,7 @@ function TrainingObjectLayerImpl({
           const isSel = selectedId === ann.id;
           return (
             <div
-              key={ann.id}
+              key={`${ann.id}-${index}`}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", ax, ay)}
               className={cn(
                 "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
@@ -643,7 +665,7 @@ function TrainingObjectLayerImpl({
           Player chips are nudged apart so they never visually overlap, while
           their underlying drill coordinates stay untouched (drag/edit logic
           still uses the authored x/y). */}
-      {objects.map((obj) => {
+      {objects.map((obj, index) => {
         const isSel = selectedId === obj.id;
         const z = obj.type === "ball" ? 38 : 45;
         const pos =
@@ -652,7 +674,7 @@ function TrainingObjectLayerImpl({
             : displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
         return (
           <div
-            key={obj.id}
+            key={`${obj.id}-${index}`}
             onPointerDown={(e) => handlePointerDown(e, obj.id, "object", obj.x, obj.y)}
             className={cn(
               "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
