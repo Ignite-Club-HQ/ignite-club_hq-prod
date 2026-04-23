@@ -438,22 +438,21 @@ export function GoogleDriveImportDialog({
       // and matching team scope. Without these filters every subfolder with the
       // same name would collapse onto the first match and the Drive structure
       // would be lost on import.
-      let lookup = supabase
+      const { data: candidateFolders } = await supabase
         .from('vault_folders')
-        .select('id')
+        .select('id, parent_folder_id, team_id')
         .eq('name', folderName)
         .eq('club_id', targetClubId);
 
-      lookup = parentId
-        ? lookup.eq('parent_folder_id', parentId)
-        : lookup.is('parent_folder_id', null);
-
-      lookup = targetTeamId
-        ? lookup.eq('team_id', targetTeamId)
-        : lookup.is('team_id', null);
-
-      const { data: existingFolders } = await lookup.limit(1);
-      const existing = existingFolders?.[0];
+      const existing = (candidateFolders ?? []).find((f: any) => {
+        const parentMatches = parentId
+          ? f.parent_folder_id === parentId
+          : f.parent_folder_id === null;
+        const teamMatches = targetTeamId
+          ? f.team_id === targetTeamId
+          : f.team_id === null;
+        return parentMatches && teamMatches;
+      });
 
       if (existing) {
         cache[partPath] = existing.id;
