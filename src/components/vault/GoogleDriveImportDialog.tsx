@@ -400,15 +400,24 @@ export function GoogleDriveImportDialog({
         },
       });
 
-      if (error || data?.error) return;
+      if (error || data?.error) {
+        const reason = data?.error || error?.message || 'unknown error';
+        console.error(`collectFolderFiles: failed to list folder ${folderId} (${pathPrefix}): ${reason}`);
+        toast.error(`Couldn't list "${pathPrefix || 'folder'}"`, { description: reason });
+        return;
+      }
+
+      const folderFiles = (data?.files ?? []) as DriveFile[];
+      const subfolders = (data?.folders ?? []) as DriveFile[];
+      console.log(`collectFolderFiles: ${pathPrefix || '(root)'} -> ${folderFiles.length} files, ${subfolders.length} subfolders`);
 
       // Add files from this folder
-      for (const file of data.files || []) {
+      for (const file of folderFiles) {
         collected.push({ file, folderPath: pathPrefix });
       }
 
       // Recursively process subfolders
-      for (const subfolder of data.folders || []) {
+      for (const subfolder of subfolders) {
         await collectFolderFiles(subfolder.id, `${pathPrefix}/${subfolder.name}`, collected);
       }
     } catch (err) {
