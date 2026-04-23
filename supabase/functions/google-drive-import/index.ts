@@ -203,7 +203,11 @@ serve(async (req) => {
       let downloadUrl: string;
       let exportMimeType: string | null = null;
       
-      // Handle Google Docs/Sheets/Slides - need to export
+      // Handle Google Docs/Sheets/Slides - need to export.
+      // For any other Google Workspace ("Docs Editors") file (forms, drawings,
+      // jams, sites, scripts, shortcuts, etc.) Google's API forbids alt=media,
+      // so fall back to exporting as PDF when possible, or reject with a clear
+      // error when the type cannot be exported.
       if (mimeType === 'application/vnd.google-apps.document') {
         exportMimeType = 'application/pdf';
         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
@@ -213,6 +217,21 @@ serve(async (req) => {
       } else if (mimeType === 'application/vnd.google-apps.presentation') {
         exportMimeType = 'application/pdf';
         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
+      } else if (mimeType === 'application/vnd.google-apps.drawing') {
+        exportMimeType = 'application/pdf';
+        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
+      } else if (typeof mimeType === 'string' && mimeType.startsWith('application/vnd.google-apps.')) {
+        // Unsupported Google Workspace type (form, jam, site, script, shortcut, folder, etc.)
+        const friendly = mimeType.replace('application/vnd.google-apps.', '');
+        console.error(`Unsupported Google Workspace file type: ${mimeType} (file: ${fileName})`);
+        return new Response(
+          JSON.stringify({
+            error: `Google ${friendly} files can't be imported. Please convert it to a Doc, Sheet, Slide, PDF, or other downloadable file first.`,
+            code: 'unsupported_google_apps_type',
+            mimeType,
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
         // Regular file - direct download
         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
