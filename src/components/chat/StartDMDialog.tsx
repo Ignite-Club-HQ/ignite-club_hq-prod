@@ -384,21 +384,30 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       
       if (groupError) throw groupError;
       
-      // Add all selected users + current user to group_members
-      const memberInserts = [
-        { group_id: groupData.id, user_id: user!.id, added_by: user!.id },
-        ...users.map(u => ({ group_id: groupData.id, user_id: u.id, added_by: user!.id }))
-      ];
-      
-      const { error: membersError } = await supabase
-        .from("group_members")
-        .insert(memberInserts);
-      
-      if (membersError) {
-        console.error("Failed to add members:", membersError);
-        // Don't throw - group was created, members just didn't get added
+      // Add all selected users to group_members. The creator is auto-added by
+      // a DB trigger (add_creator_to_personal_group), so we only add the others
+      // here. If this fails, roll back the group so the user doesn't end up
+      // stranded in an empty group where their own messages would silently
+      // fail RLS ("messages vanish" bug).
+      const memberInserts = users.map(u => ({
+        group_id: groupData.id,
+        user_id: u.id,
+        added_by: user!.id,
+      }));
+
+      if (memberInserts.length > 0) {
+        const { error: membersError } = await supabase
+          .from("group_members")
+          .insert(memberInserts);
+
+        if (membersError) {
+          console.error("Failed to add members, rolling back group:", membersError);
+          // Best-effort cleanup so we don't leave an orphan group behind.
+          await supabase.from("chat_groups").delete().eq("id", groupData.id);
+          throw new Error("Could not add members to the group. Please try again.");
+        }
       }
-      
+
       return groupData.id as string;
     },
     onSuccess: (groupId) => {
