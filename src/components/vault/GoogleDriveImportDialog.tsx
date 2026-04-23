@@ -440,14 +440,14 @@ export function GoogleDriveImportDialog({
       // would be lost on import.
       const { data: candidateFolders } = await supabase
         .from('vault_folders')
-        .select('id, parent_folder_id, team_id')
+        .select('id, parent_id, team_id')
         .eq('name', folderName)
         .eq('club_id', targetClubId);
 
-      const existing = (candidateFolders ?? []).find((f: any) => {
+      const existing = (candidateFolders ?? []).find((f) => {
         const parentMatches = parentId
-          ? f.parent_folder_id === parentId
-          : f.parent_folder_id === null;
+          ? f.parent_id === parentId
+          : f.parent_id === null;
         const teamMatches = targetTeamId
           ? f.team_id === targetTeamId
           : f.team_id === null;
@@ -466,7 +466,7 @@ export function GoogleDriveImportDialog({
             name: folderName,
             club_id: targetClubId,
             team_id: targetTeamId,
-            parent_folder_id: parentId,
+            parent_id: parentId,
             created_by: userId,
           })
           .select('id')
