@@ -81,8 +81,19 @@ export function useInitialChatBottomPin({
       const grew = itemCount > lastItemCountRef.current;
       const wasEmptyPin = pinnedWhileEmptyRef.current && itemCount > 0;
 
-      if ((wasEmptyPin || grew) && !userScrolledAwayRef.current) {
+      if (wasEmptyPin && !userScrolledAwayRef.current) {
+        // Messages arrived AFTER we declared an empty-pin (e.g. first open
+        // post-login while auth was still resolving). Re-run the full pin
+        // sequence so we get settle attempts + post-pin guard with image
+        // load listeners — same robustness as the initial open path.
         pinnedWhileEmptyRef.current = false;
+        lastItemCountRef.current = itemCount;
+        // Reset so the main effect re-runs on the next render via dependency
+        // change. We invalidate the pinned key to force a fresh pin pass.
+        pinnedKeyRef.current = undefined;
+        setIsPinned(false);
+        // Fall through to the main pin sequence below.
+      } else if (grew && !userScrolledAwayRef.current) {
         lastItemCountRef.current = itemCount;
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
@@ -103,10 +114,11 @@ export function useInitialChatBottomPin({
           guardObserver.observe(viewport);
           setTimeout(() => guardObserver.disconnect(), 1000);
         }
+        return;
       } else {
         lastItemCountRef.current = itemCount;
+        return;
       }
-      return;
     }
 
     if (itemCount <= 0) {
