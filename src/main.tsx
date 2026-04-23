@@ -40,6 +40,8 @@
   }
 })();
 
+// IMPORTANT: silencer must be imported before anything that logs on evaluation
+import "./lib/prodConsoleSilencer";
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
