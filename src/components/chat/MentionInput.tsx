@@ -683,7 +683,7 @@ export function MentionInput({
         </div>
       )}
 
-      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-full bg-muted/60 pl-1 pr-1 min-h-[40px] ring-1 ring-transparent focus-within:ring-2 focus-within:ring-ring/40 transition-all duration-150">
+      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/60 pl-1 pr-1 min-h-[40px] ring-1 ring-transparent focus-within:ring-2 focus-within:ring-ring/40 transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-10 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />

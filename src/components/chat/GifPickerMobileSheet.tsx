@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
@@ -46,6 +48,22 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
   const rafRef = useRef<number | null>(null);
   const timeoutsRef = useRef<number[]>([]);
   const lastMeasuredKeyboardTopRef = useRef(0);
+
+  // Dismiss any existing soft keyboard when the sheet opens. On Android the
+  // chat input is often still focused (so the keyboard remained visible), and
+  // because Capacitor uses `Keyboard.resize: 'none'`, neither window.innerHeight
+  // nor visualViewport shrinks — meaning our positioning math thinks the full
+  // viewport is available and renders the sheet partially behind the keyboard.
+  // Hiding it first guarantees a known-good baseline; the user can re-open it
+  // by tapping the search field, at which point we reposition above it.
+  useEffect(() => {
+    if (!open) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && typeof active.blur === "function") active.blur();
+    if (Capacitor.isNativePlatform()) {
+      Keyboard.hide().catch(() => {});
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
