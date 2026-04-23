@@ -156,6 +156,7 @@ export function PitchSettingsDialog({
   onAddFillInPlayer,
   pitchBoardMode,
   onPitchBoardModeChange,
+  canUseTrainingMode = true,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
