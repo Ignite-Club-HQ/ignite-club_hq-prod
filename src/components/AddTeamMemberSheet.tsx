@@ -1932,13 +1932,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           // the bottom offset the sheet stays anchored to bottom:0 on iOS,
           // which leaves the form hidden behind the keyboard.
           bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
+          // Cap the sheet so it never crosses the iOS status bar / Dynamic Island.
+          // Reserve env(safe-area-inset-top) plus a small visual gap.
           maxHeight:
             nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
-              : '96dvh',
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
+              : 'calc(100dvh - env(safe-area-inset-top, 0px) - 8px)',
           height:
             nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - 8px)`
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
               : undefined,
           transition: 'bottom 200ms ease, height 200ms ease, max-height 200ms ease',
         }}
