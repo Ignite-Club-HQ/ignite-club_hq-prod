@@ -161,6 +161,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const nativeKbHeight = useNativeKeyboardHeight();
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
+  const roleSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // When the name is confirmed (or an existing user is selected), the role
+  // selector becomes the active step. Dismiss the soft keyboard and scroll
+  // the role buttons into view so the user can see what they're picking on
+  // small iOS viewports where the keyboard previously hid them.
+  useEffect(() => {
+    if (!nameConfirmed && !selectedUser) return;
+    try {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && typeof active.blur === "function") active.blur();
+    } catch {}
+    const t = setTimeout(() => {
+      roleSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [nameConfirmed, selectedUser]);
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
@@ -1976,7 +1993,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* 1. NAME INPUT - Primary first action */}
+            {/* 1. ROLE SELECTION - shown first so the user sees their options on open */}
+            <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
+              <Label className="text-sm font-medium">Select role</Label>
+              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {roleOptions.map((opt) => (
+                  <button
+                    key={`top-${opt.value}`}
+                    type="button"
+                    onClick={() => setSelectedRole(opt.value)}
+                    className={`p-3 rounded-xl text-center transition-all border ${
+                      selectedRole === opt.value
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="text-sm font-medium">
+                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                    </p>
+                    {opt.value === "parent" && (
+                      <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        adds child player
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. NAME INPUT */}
             {!selectedUser && !nameConfirmed ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Name</Label>
@@ -1988,7 +2033,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
-                      autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && nameInput.trim()) {
                           setNameConfirmed(true);
@@ -2130,33 +2174,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
 
-            {/* 2. ROLE SELECTION - compact cards */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Select role</Label>
-              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {roleOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setSelectedRole(opt.value)}
-                    className={`p-3 rounded-xl text-center transition-all border ${
-                      selectedRole === opt.value
-                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
-                    }`}
-                  >
-                    <p className="text-sm font-medium">
-                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
-                    </p>
-                    {opt.value === "parent" && (
-                      <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                        adds child player
-                      </p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Role selection moved to top of form */}
 
             {/* Email field for existing user with non-parent role (coach/admin/player) */}
             {selectedUser && selectedRole !== "parent" && (
