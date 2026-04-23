@@ -113,8 +113,10 @@ export default function PresentationMode({
 
   const hasTeamPlayers = (teamPlayers?.length ?? 0) > 0;
   const renderedObjects = useMemo(() => {
-    if (!useTeamRoster || !teamPlayers || teamPlayers.length === 0) return view.objects;
-    return applyTeamPlayersToObjects(view.objects, teamPlayers);
+    if (!useTeamRoster) return view.objects;
+    // Always filter when roster mode is on so fake numeric chips never appear,
+    // even if zero real players are mapped.
+    return applyTeamPlayersToObjects(view.objects, teamPlayers ?? []);
   }, [view.objects, teamPlayers, useTeamRoster]);
 
   // Replace placeholder tokens in coaching notes (A1, D2, GK1...) with real
