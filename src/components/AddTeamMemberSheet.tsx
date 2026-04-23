@@ -2148,7 +2148,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             )}
 
             {/* 2. ROLE SELECTION - compact cards */}
-            <div className="space-y-2">
+            <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
               <Label className="text-sm font-medium">Select role</Label>
               <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 {roleOptions.map((opt) => (
