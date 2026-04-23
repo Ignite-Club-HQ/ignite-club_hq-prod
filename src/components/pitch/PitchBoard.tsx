@@ -302,7 +302,68 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [mode, setMode] = useState<PitchBoardMode>(initialMode); // Match | Training — default Match unless launched from a Training event
+  const [mode, setModeRaw] = useState<PitchBoardMode>(initialMode); // Match | Training — default Match unless launched from a Training event
+
+  // Temporary access gate: Training mode is restricted to club admins (and app admins)
+  // while the feature is being rolled out. Non-admins are forced into Match mode and
+  // the Training toggle is hidden in PitchSettingsDialog.
+  const { data: canUseTraining = false } = useQuery({
+    queryKey: ["pitch-training-access", user?.id, teamId],
+    enabled: !!user?.id && !!teamId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!user?.id || !teamId) return false;
+      // App admins always have access
+      const { data: appAdminRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .limit(1);
+      if (appAdminRows && appAdminRows.length > 0) return true;
+
+      // Resolve the team's club, then check for a club_admin role on that club.
+      // Mini-league / event-group "team ids" are synthetic and won't match a real
+      // team row — in that case we fall back to any club_admin role for the user.
+      const realTeamId = teamId.startsWith("event-group-") ? null : teamId;
+      let clubId: string | null = null;
+      if (realTeamId) {
+        const { data: teamRow } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", realTeamId)
+          .maybeSingle();
+        clubId = teamRow?.club_id ?? null;
+      }
+
+      const query = supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user.id)
+        .eq("role", "club_admin");
+      const { data: adminRows } = clubId
+        ? await query.eq("club_id", clubId).limit(1)
+        : await query.limit(1);
+      return !!(adminRows && adminRows.length > 0);
+    },
+  });
+
+  // Wrap setMode so non-admins can never end up in Training mode, even if a
+  // stale "training" value is restored from saved state or props.
+  const setMode = useCallback((next: PitchBoardMode | ((prev: PitchBoardMode) => PitchBoardMode)) => {
+    setModeRaw((prev) => {
+      const resolved = typeof next === "function" ? (next as (p: PitchBoardMode) => PitchBoardMode)(prev) : next;
+      if (resolved === "training" && !canUseTraining) return "match";
+      return resolved;
+    });
+  }, [canUseTraining]);
+
+  // If access changes (e.g. role revoked while board is open), force back to Match.
+  useEffect(() => {
+    if (!canUseTraining && mode === "training") {
+      setModeRaw("match");
+    }
+  }, [canUseTraining, mode]);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
