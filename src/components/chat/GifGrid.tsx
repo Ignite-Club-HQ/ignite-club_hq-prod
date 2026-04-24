@@ -117,7 +117,17 @@ export function GifGrid({
         )}
       </div>
 
-      <div className={cn("mt-1.5 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-1", scrollClassName ?? "max-h-72")}>
+      <div
+        className={cn(
+          "mt-1.5 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-2",
+          scrollClassName ?? "max-h-72",
+        )}
+        // touch-action: pan-y guarantees the scroll container always claims
+        // vertical pan gestures on Android, so swiping up at the bottom doesn't
+        // bubble out to a parent scroller (which was preventing scroll-back-up
+        // after reaching the end of the GIF list).
+        style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+      >
         {loading && gifs.length === 0 ? (
           <div className="flex min-h-[132px] items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

@@ -45,16 +45,35 @@ const LINK_SELECT = 'id, drive_folder_name, google_account_email, sync_enabled, 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  vaultFolderId: string;
+  /**
+   * The vault folder that the Drive folder will sync into. Pass `null` to link
+   * at the club vault root — the dialog will then prompt the user to either
+   * pick an existing top-level folder or auto-create a new wrapper folder
+   * (named after the chosen Drive folder by default). This handles Drive
+   * folders that have loose files at the top level alongside subfolders.
+   */
+  vaultFolderId: string | null;
   clubId: string;
   teamId: string | null;
   onChanged: () => void;
 }
 
+interface RootFolderOption {
+  id: string;
+  name: string;
+}
+
 export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubId, teamId, onChanged }: Props) {
   const [existing, setExisting] = useState<ExistingLink | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
-  const [step, setStep] = useState<"connect" | "browse">("connect");
+  // "destination" only used when vaultFolderId is null (root link) — lets the
+  // user choose where in the vault the Drive folder should be mirrored.
+  const [step, setStep] = useState<"connect" | "browse" | "destination">("connect");
+  const [pendingDriveFolder, setPendingDriveFolder] = useState<DriveFolder | null>(null);
+  const [rootFolders, setRootFolders] = useState<RootFolderOption[]>([]);
+  const [destinationMode, setDestinationMode] = useState<"new" | "existing">("new");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [selectedExistingId, setSelectedExistingId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
@@ -81,6 +100,13 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
 
   useEffect(() => {
     if (!open) return;
+    // Root-link mode: there's no single existing link to show — skip the lookup
+    // and go straight to the connect/destination flow.
+    if (!vaultFolderId) {
+      setExisting(null);
+      setCheckingExisting(false);
+      return;
+    }
     setCheckingExisting(true);
     supabase
       .from('vault_drive_links')
@@ -120,6 +146,11 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       setFolders([]);
       setFolderPath([]);
       setCurrentFolderId(null);
+      setPendingDriveFolder(null);
+      setRootFolders([]);
+      setDestinationMode("new");
+      setNewFolderName("");
+      setSelectedExistingId(null);
     }
   }, [open]);
 
@@ -163,42 +194,80 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
     }
   };
 
+  // Load top-level vault folders for the destination chooser (root-link mode).
+  // Filters by team scope so users only see folders they can write into.
+  const loadRootFolders = useCallback(async () => {
+    let q = supabase
+      .from('vault_folders')
+      .select('id, name')
+      .eq('club_id', clubId)
+      .is('parent_id', null)
+      .is('deleted_at', null)
+      .order('name');
+    if (teamId) {
+      q = q.eq('team_id', teamId);
+    } else {
+      q = q.is('team_id', null);
+    }
+    const { data } = await q;
+    setRootFolders((data ?? []) as RootFolderOption[]);
+  }, [clubId, teamId]);
+
+  /**
+   * Performs the actual `vault_drive_links` insert + initial sync against a
+   * known vault folder id. Shared by the two entry paths:
+   *   1. `vaultFolderId` prop is set → link directly into that folder.
+   *   2. `vaultFolderId` is null → user picks/creates a folder in the
+   *      destination step, then we call this with the resolved id.
+   */
+  const performLink = async (driveFolder: DriveFolder, targetVaultFolderId: string) => {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error("Not authenticated");
+
+    // Mark vault folder with drive id (best-effort; non-fatal if it conflicts).
+    await supabase.from('vault_folders').update({ drive_folder_id: driveFolder.id }).eq('id', targetVaultFolderId);
+
+    const { data: newLink, error: insertErr } = await supabase
+      .from('vault_drive_links')
+      .insert({
+        club_id: clubId,
+        team_id: teamId,
+        vault_folder_id: targetVaultFolderId,
+        drive_folder_id: driveFolder.id,
+        drive_folder_name: driveFolder.name,
+        refresh_token: refreshToken,
+        google_account_email: googleEmail,
+        created_by: userId,
+      })
+      .select('*')
+      .single();
+    if (insertErr) throw insertErr;
+
+    toast.success(`Linked "${driveFolder.name}" — running initial sync...`);
+    await supabase.functions.invoke('drive-folder-sync', { body: { linkId: newLink.id } });
+    toast.success("Initial sync complete");
+  };
+
   const linkFolder = async (folder: DriveFolder) => {
     if (!refreshToken) {
       toast.error("Missing refresh token. Please disconnect Google Drive in your Google account and reconnect.");
       return;
     }
+
+    // Root-link mode: defer the actual link until the user chooses a vault destination.
+    if (!vaultFolderId) {
+      setPendingDriveFolder(folder);
+      setNewFolderName(folder.name);
+      setDestinationMode("new");
+      setSelectedExistingId(null);
+      setStep("destination");
+      void loadRootFolders();
+      return;
+    }
+
     try {
       setLinking(true);
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Not authenticated");
-
-      // Mark vault folder with drive id
-      await supabase.from('vault_folders').update({ drive_folder_id: folder.id }).eq('id', vaultFolderId);
-
-      const { data: newLink, error: insertErr } = await supabase
-        .from('vault_drive_links')
-        .insert({
-          club_id: clubId,
-          team_id: teamId,
-          vault_folder_id: vaultFolderId,
-          drive_folder_id: folder.id,
-          drive_folder_name: folder.name,
-          refresh_token: refreshToken,
-          google_account_email: googleEmail,
-          created_by: userId,
-        })
-        .select('*')
-        .single();
-
-      if (insertErr) throw insertErr;
-
-      toast.success(`Linked "${folder.name}" — running initial sync...`);
-
-      // Trigger first sync
-      await supabase.functions.invoke('drive-folder-sync', { body: { linkId: newLink.id } });
-
-      toast.success("Initial sync complete");
+      await performLink(folder, vaultFolderId);
       onChanged();
       onOpenChange(false);
     } catch (err) {
@@ -206,6 +275,65 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       const msg = err instanceof Error ? err.message : 'Unknown';
       if (msg.includes('duplicate')) {
         toast.error("This vault folder is already linked to a Drive folder");
+      } else {
+        toast.error(`Failed to link folder: ${msg}`);
+      }
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  /**
+   * Root-link mode: resolve the user's destination choice (existing folder or
+   * new wrapper folder) into a vault_folder_id, then call performLink.
+   */
+  const confirmDestination = async () => {
+    if (!pendingDriveFolder) return;
+    try {
+      setLinking(true);
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Not authenticated");
+
+      let targetId: string;
+
+      if (destinationMode === "existing") {
+        if (!selectedExistingId) {
+          toast.error("Pick a folder first");
+          setLinking(false);
+          return;
+        }
+        targetId = selectedExistingId;
+      } else {
+        const trimmed = newFolderName.trim();
+        if (!trimmed) {
+          toast.error("Enter a folder name");
+          setLinking(false);
+          return;
+        }
+        const insertData: any = {
+          name: trimmed,
+          created_by: userId,
+          parent_id: null,
+          club_id: clubId,
+        };
+        if (teamId) insertData.team_id = teamId;
+        const { data: created, error: createErr } = await supabase
+          .from('vault_folders')
+          .insert(insertData)
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        targetId = created.id;
+      }
+
+      await performLink(pendingDriveFolder, targetId);
+      onChanged();
+      onOpenChange(false);
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Unknown';
+      if (msg.includes('duplicate')) {
+        toast.error("That vault folder is already linked to a Drive folder — pick another");
       } else {
         toast.error(`Failed to link folder: ${msg}`);
       }
@@ -425,6 +553,94 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
               {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <HardDrive className="h-4 w-4 mr-2" />}
               Connect Google Drive
             </Button>
+          </div>
+        ) : step === "destination" && pendingDriveFolder ? (
+          <div className="p-4 space-y-4">
+            <div className="rounded-lg border p-3 bg-muted/30">
+              <p className="text-xs text-muted-foreground">Linking Drive folder</p>
+              <p className="font-medium truncate">{pendingDriveFolder.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Includes loose files at the top level + everything in subfolders.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Where should it sync to?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDestinationMode("new")}
+                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                    destinationMode === "new" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                  }`}
+                >
+                  <p className="font-medium">Create new folder</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Recommended</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDestinationMode("existing"); void loadRootFolders(); }}
+                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                    destinationMode === "existing" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                  }`}
+                >
+                  <p className="font-medium">Use existing folder</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Pick one below</p>
+                </button>
+              </div>
+            </div>
+
+            {destinationMode === "new" ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New folder name</label>
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="e.g. Riverside FC Drive"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Pick a folder</label>
+                <ScrollArea className="max-h-64 rounded-md border">
+                  {rootFolders.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground text-center">
+                      No top-level folders yet — create a new one instead.
+                    </p>
+                  ) : (
+                    <div className="p-1 space-y-1">
+                      {rootFolders.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setSelectedExistingId(f.id)}
+                          className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-left transition-colors ${
+                            selectedExistingId === f.id ? "bg-primary/10" : "hover:bg-accent/50"
+                          }`}
+                        >
+                          <Folder className="h-4 w-4 text-primary shrink-0" />
+                          <span className="truncate">{f.name}</span>
+                          {selectedExistingId === f.id && <Check className="h-4 w-4 ml-auto text-primary shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" disabled={linking} onClick={() => setStep("browse")}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button className="flex-1" disabled={linking} onClick={confirmDestination}>
+                {linking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                Link & sync
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col h-full min-h-0">
