@@ -5,10 +5,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2 } from "lucide-react";
+import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2, ShieldCheck, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import ManageRolesDialog from "@/components/ManageRolesDialog";
 
 const ROLE_LABELS: Record<string, string> = {
   app_admin: "App Admin",
@@ -51,6 +52,17 @@ interface MemberDetailSheetProps {
   onMove: () => void;
   onRemove: () => void;
   onRemoveRole: (roleItem: MemberRole) => void;
+  /**
+   * When provided alongside `canManage`, the sheet renders a single
+   * "Manage roles" entry (opens the unified ManageRolesDialog) instead of
+   * the legacy inline X chip removals + "Add Role" button. Falls back to
+   * the legacy UX when these props are not supplied (e.g. chat surfaces).
+   */
+  teamId?: string;
+  teamName?: string;
+  clubId?: string;
+  /** Called after a successful save in the unified dialog. */
+  onRolesUpdated?: () => void;
 }
 
 export default function MemberDetailSheet({
