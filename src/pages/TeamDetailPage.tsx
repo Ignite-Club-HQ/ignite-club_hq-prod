@@ -1193,6 +1193,12 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
+      {/* Post-creation onboarding nudge — shown to admins until both
+          "invite members" and "add first event" are complete (or dismissed). */}
+      {(isAdmin || isClubAdmin) && (
+        <TeamNextStepsCard teamId={id!} onInvite={() => setHeaderInviteOpen(true)} />
+      )}
+
       {/* Next Event Card - no label, card speaks for itself */}
       {isMember && (
         <TeamNextEventCard teamId={id!} clubId={team.club_id} />
