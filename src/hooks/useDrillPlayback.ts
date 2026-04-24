@@ -71,6 +71,11 @@ export function useDrillPlayback({
     else setView({ objects: [], annotations: [] });
   }, [frames, currentIndex, isPlaying]);
 
+  // Reset rotation cycle when the underlying drill changes.
+  useEffect(() => {
+    setCycleStep(0);
+  }, [rawFrames]);
+
   // Clamp index if frames shrink
   useEffect(() => {
     if (currentIndex > frames.length - 1) {
