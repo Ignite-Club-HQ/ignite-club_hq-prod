@@ -562,6 +562,19 @@ export function ChatParticipantsList({
         );
       })()}
 
+      {isPersonalGroupChat && !!user && memberIds.includes(user.id) && (
+        <div className="mt-3 px-1">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setLeaveConfirmOpen(true)}
+          >
+            <LogOut className="h-4 w-4" />
+            Leave group
+          </Button>
+        </div>
+      )}
+
       {selectedMember && effectiveTeamId && (
         <MemberDetailSheet
           open={!!selectedMember}
