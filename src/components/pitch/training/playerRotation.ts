@@ -19,10 +19,18 @@ function bucket(o: DrillObject): 0 | 1 | 2 {
 
 /** Stable canonical ordering of player chip ids across all frames. */
 function canonicalPlayerOrder(frames: DrillFrame[]): string[] {
-  const first = frames[0];
-  if (!first) return [];
-  const players = first.objects.filter((o) => o.type === "player");
-  return [...players]
+  // Collect every unique player chip across the whole drill, preserving the
+  // order in which they first appear. This avoids dropping chips that are
+  // introduced after frame 0 (e.g. a substitute jogging on mid-drill).
+  const seen = new Map<string, DrillObject>();
+  for (const frame of frames) {
+    for (const obj of frame.objects) {
+      if (obj.type === "player" && !seen.has(obj.id)) {
+        seen.set(obj.id, obj);
+      }
+    }
+  }
+  return [...seen.values()]
     .sort((a, b) => bucket(a) - bucket(b))
     .map((p) => p.id);
 }
@@ -47,18 +55,21 @@ function rotatePlayerRoles(
       if (obj.type === "player") playersById.set(obj.id, obj);
     }
 
-    const remapped: DrillObject[] = [];
+    // Build remap: for each canonical id present in THIS frame, adopt the
+    // position of the canonical id at (i + cycleStep). If the source id isn't
+    // present in this frame, keep the chip's own position (don't drop it).
+    const remappedById = new Map<string, DrillObject>();
     for (let i = 0; i < n; i++) {
       const id = order[i];
+      const own = playersById.get(id);
+      if (!own) continue; // chip not in this frame — nothing to remap
       const sourceId = order[(i + cycleStep) % n];
       const source = playersById.get(sourceId);
-      const own = playersById.get(id);
-      if (!own) continue;
       if (!source) {
-        remapped.push(own);
+        remappedById.set(id, own);
         continue;
       }
-      remapped.push({
+      remappedById.set(id, {
         ...own,
         x: source.x,
         y: source.y,
@@ -67,8 +78,13 @@ function rotatePlayerRoles(
       });
     }
 
-    const nonPlayers = frame.objects.filter((o) => o.type !== "player");
-    return { ...frame, objects: [...remapped, ...nonPlayers] };
+    // Preserve original frame ordering AND keep any player chips that aren't
+    // in the canonical order (e.g. chips introduced after frame 0).
+    const newObjects = frame.objects.map((o) => {
+      if (o.type !== "player") return o;
+      return remappedById.get(o.id) ?? o;
+    });
+    return { ...frame, objects: newObjects };
   });
 }
 
