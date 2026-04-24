@@ -349,3 +349,83 @@ export async function clearSession(): Promise<void> {
     .eq("user_id", userId);
   if (error) throw error;
 }
+
+// ---------- Event-linked session plan ----------
+
+export interface UpcomingTrainingEvent {
+  id: string;
+  title: string;
+  event_date: string;
+  start_time: string | null;
+  team_id: string | null;
+}
+
+/** Upcoming training events for a team that the coach can attach a plan to. */
+export async function listUpcomingTrainingEvents(
+  teamId: string,
+): Promise<UpcomingTrainingEvent[]> {
+  // Include events from the last 12 hours so a plan can still be attached to
+  // a session that started recently (e.g., coach saving mid-session).
+  const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, title, event_date, start_time, team_id")
+    .eq("team_id", teamId)
+    .eq("type", "training")
+    .eq("is_cancelled", false)
+    .gte("event_date", since)
+    .order("event_date", { ascending: true })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []) as UpcomingTrainingEvent[];
+}
+
+export async function listEventDrills(eventId: string): Promise<SessionDrill[]> {
+  const { data, error } = await supabase
+    .from("event_session_drills")
+    .select("id, drill_id, position, drills:drill_id(*)")
+    .eq("event_id", eventId)
+    .order("position", { ascending: true });
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as SessionDrillRow[])
+    .filter((r) => !!r.drills)
+    .map((r) => ({
+      id: r.id,
+      drillId: r.drill_id,
+      position: r.position,
+      drill: rowToSummary(r.drills as DrillRow),
+    }));
+}
+
+/**
+ * Replace the saved plan for an event with the supplied ordered drill ids.
+ * Idempotent: existing rows are removed first so the order matches exactly.
+ */
+export async function saveSessionToEvent(
+  eventId: string,
+  drillIds: string[],
+): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error("You must be signed in");
+
+  const { error: delErr } = await supabase
+    .from("event_session_drills")
+    .delete()
+    .eq("event_id", eventId);
+  if (delErr) throw delErr;
+
+  if (drillIds.length === 0) return;
+
+  const payload = drillIds.map((drill_id, position) => ({
+    event_id: eventId,
+    drill_id,
+    position,
+    added_by: userId,
+  }));
+  const { error: insErr } = await supabase
+    .from("event_session_drills")
+    .insert(payload);
+  if (insErr) throw insErr;
+}

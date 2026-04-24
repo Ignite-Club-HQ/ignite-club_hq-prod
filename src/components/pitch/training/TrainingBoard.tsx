@@ -606,6 +606,7 @@ export default function TrainingBoard({
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
+          teamId={teamId ?? null}
         />
 
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -744,6 +745,7 @@ export default function TrainingBoard({
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
+          teamId={teamId ?? null}
         />
       )}
 
