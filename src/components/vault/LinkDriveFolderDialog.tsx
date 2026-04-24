@@ -100,6 +100,13 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
 
   useEffect(() => {
     if (!open) return;
+    // Root-link mode: there's no single existing link to show — skip the lookup
+    // and go straight to the connect/destination flow.
+    if (!vaultFolderId) {
+      setExisting(null);
+      setCheckingExisting(false);
+      return;
+    }
     setCheckingExisting(true);
     supabase
       .from('vault_drive_links')
@@ -139,6 +146,11 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       setFolders([]);
       setFolderPath([]);
       setCurrentFolderId(null);
+      setPendingDriveFolder(null);
+      setRootFolders([]);
+      setDestinationMode("new");
+      setNewFolderName("");
+      setSelectedExistingId(null);
     }
   }, [open]);
 
