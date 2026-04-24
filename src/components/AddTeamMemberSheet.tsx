@@ -3376,6 +3376,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               || singleChildren.some(c => c.name.trim().length > 0);
             const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
             const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
+            const submitNeedsEmail =
+              isFinalStep && deliveryMethod === "email" && !selectedUser && !customEmail.trim();
+
+            // Guardrail: human-readable reason explaining why the primary
+            // action is currently blocked. Surfaced inline above the footer
+            // buttons so users aren't left guessing why "Next" is greyed out.
+            let blockedReason: string | null = null;
+            if (wizardStep === 1 && !canAdvanceFromStep1) {
+              blockedReason = "Search for a member or type a name to continue.";
+            } else if (wizardStep === 2 && !canAdvanceFromStep2) {
+              blockedReason = "Add at least one child's name to continue.";
+            } else if (submitNeedsEmail) {
+              blockedReason = "Enter an email address to send the invite.";
+            }
 
             const handleNext = () => {
               if (wizardStep === 1) {
@@ -3399,7 +3413,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             };
 
             const handleSubmit = () => {
-              if (deliveryMethod === "email" && !selectedUser && !customEmail.trim()) return;
+              if (submitNeedsEmail) return;
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
@@ -3409,43 +3423,54 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               (wizardStep === 2 && !canAdvanceFromStep2);
 
             return (
-              <div className="flex gap-2">
-                {wizardStep > 1 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 px-4"
-                    disabled={isPending}
-                    onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
+              <div className="space-y-2">
+                {blockedReason && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"
                   >
-                    Back
-                  </Button>
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{blockedReason}</span>
+                  </div>
                 )}
-                {isFinalStep ? (
-                  <Button
-                    className="flex-1 h-12 text-base font-semibold"
-                    onClick={handleSubmit}
-                    disabled={isPending || (deliveryMethod === "email" && !selectedUser && !customEmail.trim())}
-                  >
-                    {isPending ? (
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    ) : (
-                      <UserPlus className="h-5 w-5 mr-2" />
-                    )}
-                    {deliveryMethod === "email" && !selectedUser && !customEmail.trim()
-                      ? "Enter email to continue"
-                      : selectedUser ? "Add to Team" : "Create Invite"}
-                  </Button>
-                ) : (
-                  <Button
-                    className="flex-1 h-12 text-base font-semibold"
-                    onClick={handleNext}
-                    disabled={nextDisabled}
-                    variant={nextDisabled ? "outline" : "default"}
-                  >
-                    {wizardStep === 1 ? "Next: Role" : "Next: Send"}
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  {wizardStep > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 px-4"
+                      disabled={isPending}
+                      onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
+                    >
+                      Back
+                    </Button>
+                  )}
+                  {isFinalStep ? (
+                    <Button
+                      className="flex-1 h-12 text-base font-semibold"
+                      onClick={handleSubmit}
+                      disabled={isPending || submitNeedsEmail}
+                      variant={submitNeedsEmail ? "outline" : "default"}
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      ) : (
+                        <UserPlus className="h-5 w-5 mr-2" />
+                      )}
+                      {selectedUser ? "Add to Team" : "Create Invite"}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="flex-1 h-12 text-base font-semibold"
+                      onClick={handleNext}
+                      disabled={nextDisabled}
+                      variant={nextDisabled ? "outline" : "default"}
+                    >
+                      {wizardStep === 1 ? "Next: Role" : "Next: Send"}
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })() : (
