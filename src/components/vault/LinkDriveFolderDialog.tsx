@@ -250,7 +250,8 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
 
   const linkFolder = async (folder: DriveFolder) => {
     if (!refreshToken) {
-      toast.error("Missing refresh token. Please disconnect Google Drive in your Google account and reconnect.");
+      toast.error("Google didn't return a refresh token. Tap 'Connect Google Drive' again and approve the consent screen.", { duration: 6000 });
+      setStep("connect");
       return;
     }
 
