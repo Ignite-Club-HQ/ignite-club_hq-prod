@@ -157,14 +157,7 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
   const playerObjs = objects.filter((o) => o.type === "player");
   if (playerObjs.length === 0) return objects;
 
-  const sortedPlayerObjs = [...playerObjs].sort((a, b) => {
-    const score = (o: DrillObject) => {
-      if (!o.color || o.color === "#0ea5e9") return 0; // attackers first
-      if (o.color === "#ef4444") return 1;             // defenders second
-      return 2;                                         // coach/server etc last
-    };
-    return score(a) - score(b);
-  });
+  const sortedPlayerObjs = sortPlayerObjectsForSubstitution(playerObjs);
 
   const substitutions = new Map<string, string>();
   sortedPlayerObjs.forEach((obj, idx) => {
@@ -174,8 +167,11 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
 
   if (substitutions.size === 0) {
     // No real players matched — strip every player chip so the pitch never
-    // shows fake numeric placeholders. Equipment (cones, balls, goals) stays.
-    return objects.filter((o) => o.type !== "player");
+    // shows fake numeric placeholders. Equipment (cones, balls, goals) stays
+    // unless caller supplied a stable orphan list.
+    return objects.filter(
+      (o) => o.type !== "player" && !(orphanEquipmentIds?.has(o.id) ?? false)
+    );
   }
 
   // Drop any player chip that didn't get a real squad name. This keeps the
@@ -184,6 +180,10 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
   // Track the on-pitch positions of dropped players so we can also drop any
   // ball/cone that was visually attached to them — otherwise the pitch shows
   // a "ghost" ball rolling on its own with no owner chip nearby.
+  // When a stable `orphanEquipmentIds` set is supplied (computed from the
+  // entire drill via `getOrphanEquipmentIds`), it takes precedence so that
+  // orphan balls/cones stay hidden DURING animation too — not just when the
+  // dropped chip happens to be co-located in the current keyframe.
   const droppedPositions: Array<{ x: number; y: number }> = [];
   for (const obj of playerObjs) {
     if (substitutions.has(obj.id)) continue;
@@ -194,9 +194,9 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     }
   }
   const isOrphanEquipment = (obj: DrillObject): boolean => {
-    // Drop balls AND cones that sit on top of a dropped player chip — those
-    // were placed to mark that player's start spot. Without the chip, they
-    // become confusing "ghost" markers.
+    if (orphanEquipmentIds?.has(obj.id)) return true;
+    // Fallback (no precomputed set): drop balls/cones that sit on top of a
+    // dropped player chip in the CURRENT frame.
     if (obj.type !== "ball" && obj.type !== "cone") return false;
     const ox = (obj as { x?: number }).x;
     const oy = (obj as { y?: number }).y;
