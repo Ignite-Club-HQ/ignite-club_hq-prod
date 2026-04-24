@@ -119,14 +119,14 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
             name: sub.name,
             club_id: link.club_id,
             team_id: link.team_id,
-            parent_folder_id: vaultId,
+            parent_id: vaultId,
             drive_folder_id: sub.id,
             created_by: null,
           })
           .select('id')
           .single();
         if (folderErr || !newFolder) {
-          console.error('Failed to create subfolder', folderErr);
+          console.error(`Failed to create subfolder "${sub.name}" (drive_id=${sub.id}) under vault parent ${vaultId}:`, folderErr);
           continue;
         }
         subVaultId = newFolder.id;
