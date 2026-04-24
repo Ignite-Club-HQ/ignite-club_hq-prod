@@ -283,6 +283,65 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
     }
   };
 
+  /**
+   * Root-link mode: resolve the user's destination choice (existing folder or
+   * new wrapper folder) into a vault_folder_id, then call performLink.
+   */
+  const confirmDestination = async () => {
+    if (!pendingDriveFolder) return;
+    try {
+      setLinking(true);
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Not authenticated");
+
+      let targetId: string;
+
+      if (destinationMode === "existing") {
+        if (!selectedExistingId) {
+          toast.error("Pick a folder first");
+          setLinking(false);
+          return;
+        }
+        targetId = selectedExistingId;
+      } else {
+        const trimmed = newFolderName.trim();
+        if (!trimmed) {
+          toast.error("Enter a folder name");
+          setLinking(false);
+          return;
+        }
+        const insertData: any = {
+          name: trimmed,
+          created_by: userId,
+          parent_id: null,
+          club_id: clubId,
+        };
+        if (teamId) insertData.team_id = teamId;
+        const { data: created, error: createErr } = await supabase
+          .from('vault_folders')
+          .insert(insertData)
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        targetId = created.id;
+      }
+
+      await performLink(pendingDriveFolder, targetId);
+      onChanged();
+      onOpenChange(false);
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Unknown';
+      if (msg.includes('duplicate')) {
+        toast.error("That vault folder is already linked to a Drive folder — pick another");
+      } else {
+        toast.error(`Failed to link folder: ${msg}`);
+      }
+    } finally {
+      setLinking(false);
+    }
+  };
+
   const triggerManualSync = async () => {
     if (!existing) return;
     try {
