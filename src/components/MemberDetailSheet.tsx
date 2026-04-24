@@ -257,18 +257,30 @@ export default function MemberDetailSheet({
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                {canManage && (
+                {useUnifiedDialog ? (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
-                    onClick={() => {
-                      onOpenChange(false);
-                      onAddRole();
-                    }}
+                    onClick={() => setManageRolesOpen(true)}
                   >
-                    <Plus className="h-4 w-4 text-blue-500" />
-                    Add Role
+                    <Settings2 className="h-4 w-4 text-primary" />
+                    Manage roles
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
                   </Button>
+                ) : (
+                  canManage && (
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 h-11"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onAddRole();
+                      }}
+                    >
+                      <Plus className="h-4 w-4 text-blue-500" />
+                      Add Role
+                    </Button>
+                  )
                 )}
                 {canManage && showMoveAction && canMove && (
                   <Button
