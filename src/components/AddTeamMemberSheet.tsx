@@ -839,12 +839,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       
       if (result?.roleWasDuplicate) {
         const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
-        toast({
+        void toastInviteSuccess({
           title: "Already a member",
           description: `${selectedUser?.display_name} is already a ${roleName} on this team. Any new children have been linked.`,
         });
       } else {
-        toast({
+        void toastInviteSuccess({
           title: "Member added",
           description: `${selectedUser?.display_name} has been added to the team`,
         });
