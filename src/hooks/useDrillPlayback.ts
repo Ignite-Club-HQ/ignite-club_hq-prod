@@ -219,6 +219,9 @@ export function useDrillPlayback({
     setCycleStep(0);
   }, []);
 
+  const authoredFrameCount = rawFrames.length;
+  const authoredIndex = Math.min(currentIndex, Math.max(0, authoredFrameCount - 1));
+
   return {
     currentIndex,
     view,
@@ -232,5 +235,7 @@ export function useDrillPlayback({
     goTo,
     setSpeed,
     reset,
+    authoredFrameCount,
+    authoredIndex,
   };
 }
