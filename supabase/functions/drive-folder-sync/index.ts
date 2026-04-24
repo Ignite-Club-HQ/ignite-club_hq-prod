@@ -17,6 +17,7 @@ interface DriveLink {
   sync_enabled: boolean;
   files_imported_count: number;
   files_updated_count: number;
+  last_failed_file_ids?: string[] | null;
 }
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
