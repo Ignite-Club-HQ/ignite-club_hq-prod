@@ -3492,7 +3492,7 @@ export default function VaultPage() {
                             Import from Drive
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && currentView.folderId && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder
@@ -3602,11 +3602,11 @@ export default function VaultPage() {
               targetClubId={currentView.clubId}
             />
 
-            {currentView.folderId && (
+            {'clubId' in currentView && (
               <LinkDriveFolderDialog
                 open={linkDriveFolderOpen}
                 onOpenChange={setLinkDriveFolderOpen}
-                vaultFolderId={currentView.folderId}
+                vaultFolderId={currentView.folderId ?? null}
                 clubId={currentView.clubId}
                 teamId={currentView.type === "team" ? currentView.teamId : null}
                 onChanged={() => {
