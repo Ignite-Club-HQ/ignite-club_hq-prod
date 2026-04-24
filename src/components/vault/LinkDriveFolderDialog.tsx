@@ -45,16 +45,35 @@ const LINK_SELECT = 'id, drive_folder_name, google_account_email, sync_enabled, 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  vaultFolderId: string;
+  /**
+   * The vault folder that the Drive folder will sync into. Pass `null` to link
+   * at the club vault root — the dialog will then prompt the user to either
+   * pick an existing top-level folder or auto-create a new wrapper folder
+   * (named after the chosen Drive folder by default). This handles Drive
+   * folders that have loose files at the top level alongside subfolders.
+   */
+  vaultFolderId: string | null;
   clubId: string;
   teamId: string | null;
   onChanged: () => void;
 }
 
+interface RootFolderOption {
+  id: string;
+  name: string;
+}
+
 export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubId, teamId, onChanged }: Props) {
   const [existing, setExisting] = useState<ExistingLink | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
-  const [step, setStep] = useState<"connect" | "browse">("connect");
+  // "destination" only used when vaultFolderId is null (root link) — lets the
+  // user choose where in the vault the Drive folder should be mirrored.
+  const [step, setStep] = useState<"connect" | "browse" | "destination">("connect");
+  const [pendingDriveFolder, setPendingDriveFolder] = useState<DriveFolder | null>(null);
+  const [rootFolders, setRootFolders] = useState<RootFolderOption[]>([]);
+  const [destinationMode, setDestinationMode] = useState<"new" | "existing">("new");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [selectedExistingId, setSelectedExistingId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
