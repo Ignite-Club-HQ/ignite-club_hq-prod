@@ -1886,6 +1886,7 @@ export type Database = {
       direct_conversations: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           participant_1: string
           participant_2: string
@@ -1893,6 +1894,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           participant_1: string
           participant_2: string
@@ -1900,12 +1902,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           participant_1?: string
           participant_2?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "direct_conversations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "direct_conversations_participant_1_fkey"
             columns: ["participant_1"]
