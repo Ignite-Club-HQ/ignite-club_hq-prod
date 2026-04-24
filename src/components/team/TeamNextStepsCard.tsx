@@ -26,13 +26,13 @@ export function TeamNextStepsCard({ teamId, onInvite }: TeamNextStepsCardProps) 
     setDismissed(localStorage.getItem(dismissKey) === "1");
   }, [dismissKey]);
 
-  // Count invited members (team_members + outstanding pending_invites)
+  // Count invited members (user_roles for this team + outstanding pending_invites)
   const { data: memberCount = 0, isLoading: loadingMembers } = useQuery({
     queryKey: ["team-next-steps-members", teamId],
     queryFn: async () => {
-      const [membersRes, invitesRes] = await Promise.all([
+      const [rolesRes, invitesRes] = await Promise.all([
         supabase
-          .from("team_members")
+          .from("user_roles")
           .select("user_id", { count: "exact", head: true })
           .eq("team_id", teamId),
         supabase
@@ -41,7 +41,9 @@ export function TeamNextStepsCard({ teamId, onInvite }: TeamNextStepsCardProps) 
           .eq("team_id", teamId)
           .eq("status", "pending"),
       ]);
-      return (membersRes.count ?? 0) + (invitesRes.count ?? 0);
+      // Distinct member count is approximate (a user may hold multiple roles);
+      // for the "is just the creator" check this is good enough.
+      return (rolesRes.count ?? 0) + (invitesRes.count ?? 0);
     },
     enabled: !!teamId,
     staleTime: 30 * 1000,
