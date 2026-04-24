@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { HardDrive, Folder, Loader2, ChevronRight, ArrowLeft, Check, Link as LinkIcon, RefreshCw, Trash2, Power } from "lucide-react";
+import { HardDrive, Folder, Loader2, ChevronRight, ArrowLeft, Check, Link as LinkIcon, RefreshCw, Trash2, Power, AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,12 @@ interface DriveFolder {
   mimeType: string;
 }
 
+interface FailedFileRef {
+  drive_file_id: string;
+  vault_folder_id: string;
+  name?: string;
+}
+
 interface ExistingLink {
   id: string;
   drive_folder_name: string;
@@ -31,7 +37,10 @@ interface ExistingLink {
   last_sync_error: string | null;
   files_imported_count: number;
   files_updated_count: number;
+  last_failed_files: FailedFileRef[];
 }
+
+const LINK_SELECT = 'id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count, last_failed_files';
 
 interface Props {
   open: boolean;
@@ -55,6 +64,7 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const getRedirectUri = useCallback(() => {
     if (Capacitor.isNativePlatform()) return 'https://igniteclubhq.app/vault';
