@@ -1,4 +1,4 @@
-import type { DrillObject } from "./types";
+import type { Annotation, ArrowGeometry, DrillObject, TextGeometry } from "./types";
 
 export interface TeamPlayerLite {
   id: string;
