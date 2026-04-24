@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DrillFrame } from "@/components/pitch/training/types";
 import {
   interpolateFrames,
   staticFrame,
   type InterpolatedFrame,
 } from "@/components/pitch/training/interpolation";
+import { withRotationTransition } from "@/components/pitch/training/playerRotation";
+import { normalizeFramesForPlayback } from "@/components/pitch/training/normalizeFrames";
 
 export type PlaybackSpeed = 0.5 | 1 | 2;
 
@@ -30,6 +32,18 @@ interface UseDrillPlaybackReturn {
   setSpeed: (s: PlaybackSpeed) => void;
   /** Reset to first frame and pause */
   reset: () => void;
+  /**
+   * Number of AUTHORED frames the caller passed in. UI counters/jump-buttons
+   * should use this — it intentionally excludes the synthetic rotation
+   * transition frame appended internally when looping is enabled.
+   */
+  authoredFrameCount: number;
+  /**
+   * Currently visible authored-frame index, clamped so the synthetic rotation
+   * transition surfaces as "still on the last authored frame" for UI
+   * highlighting purposes.
+   */
+  authoredIndex: number;
 }
 
 /**
@@ -38,12 +52,32 @@ interface UseDrillPlaybackReturn {
  * - Each transition uses the SOURCE frame's durationMs / speed.
  */
 export function useDrillPlayback({
-  frames,
+  frames: rawFrames,
   loop = false,
 }: UseDrillPlaybackOptions): UseDrillPlaybackReturn {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  const [cycleStep, setCycleStep] = useState(0);
+
+  // Effective frames include a synthetic "rotate to next position" transition
+  // appended after the last frame. This makes every drill end its play-through
+  // by visibly cycling each player to the next player's starting spot.
+  //
+  // IMPORTANT: only append the rotation transition when looping is enabled.
+  // In the editor (loop=false) we never want chips to drift away from the
+  // authored positions when playback finishes — that looks like chips
+  // "disappeared" or "moved on their own".
+  const frames = useMemo(() => {
+    // Step 1: ensure no player chip vanishes mid-drill. Legacy drills sometimes
+    // omit chips from intermediate frames, which made them fade out and pop
+    // back in during playback. Hold each chip in its last known position when
+    // a frame doesn't author it.
+    const normalized = normalizeFramesForPlayback(rawFrames);
+    // Step 2: optionally append the synthetic rotation transition (loop only).
+    return loop ? withRotationTransition(normalized, cycleStep) : normalized;
+  }, [rawFrames, cycleStep, loop]);
+
   const [view, setView] = useState<InterpolatedFrame>(() =>
     frames[0] ? staticFrame(frames[0]) : { objects: [], annotations: [] }
   );
@@ -59,6 +93,19 @@ export function useDrillPlayback({
     if (f) setView(staticFrame(f));
     else setView({ objects: [], annotations: [] });
   }, [frames, currentIndex, isPlaying]);
+
+  // Reset the rotation cycle whenever the underlying drill's IDENTITY changes
+  // (different drill loaded, frames added/removed). We deliberately compare by
+  // length + first frame id rather than by array reference so that callers
+  // re-creating the same logical frame array each render don't keep stomping
+  // the cycle counter back to 0 mid-playback.
+  const drillSignature = useMemo(() => {
+    if (rawFrames.length === 0) return "empty";
+    return `${rawFrames.length}:${rawFrames[0]?.id ?? ""}:${rawFrames[rawFrames.length - 1]?.id ?? ""}`;
+  }, [rawFrames]);
+  useEffect(() => {
+    setCycleStep(0);
+  }, [drillSignature]);
 
   // Clamp index if frames shrink
   useEffect(() => {
@@ -95,12 +142,13 @@ export function useDrillPlayback({
       const to = frames[toIdx];
 
       if (!to) {
-        // End of sequence
+        // End of sequence (after the rotation transition has played).
         if (loop) {
-          segmentIndexRef.current = 0;
-          segmentStartRef.current = now;
+          // Advance the cycle so the next iteration starts each player at the
+          // next slot they just rotated into. The frames memo will rebuild and
+          // the effect will re-run from index 0.
+          setCycleStep((c) => c + 1);
           setCurrentIndex(0);
-          rafRef.current = requestAnimationFrame(tick);
           return;
         }
         if (from) setView(staticFrame(from));
@@ -173,7 +221,11 @@ export function useDrillPlayback({
   const reset = useCallback(() => {
     setIsPlaying(false);
     setCurrentIndex(0);
+    setCycleStep(0);
   }, []);
+
+  const authoredFrameCount = rawFrames.length;
+  const authoredIndex = Math.min(currentIndex, Math.max(0, authoredFrameCount - 1));
 
   return {
     currentIndex,
@@ -188,5 +240,7 @@ export function useDrillPlayback({
     goTo,
     setSpeed,
     reset,
+    authoredFrameCount,
+    authoredIndex,
   };
 }

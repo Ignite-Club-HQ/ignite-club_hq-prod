@@ -214,16 +214,35 @@ export default function RewardRedemptionCard() {
     enabled: !!selectedClubId,
   });
 
-  // Fetch user's children
+  // Fetch user's children — both as primary parent AND as a linked guardian
   const { data: children = [] } = useQuery({
     queryKey: ["user-children-for-rewards", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      // Children where this user is the primary parent
+      const ownedPromise = supabase
         .from("children")
         .select("id, name, ignite_points")
-        .eq("parent_id", user!.id)
-        .order("name");
-      return (data || []) as Child[];
+        .eq("parent_id", user!.id);
+
+      // Children where this user is linked as a guardian (e.g. secondary parent)
+      const guardianLinksPromise = supabase
+        .from("child_guardians")
+        .select("child_id, children:child_id (id, name, ignite_points)")
+        .eq("guardian_id", user!.id);
+
+      const [{ data: owned }, { data: guardianLinks }] = await Promise.all([
+        ownedPromise,
+        guardianLinksPromise,
+      ]);
+
+      const map = new Map<string, Child>();
+      (owned || []).forEach((c: any) => map.set(c.id, c as Child));
+      (guardianLinks || []).forEach((row: any) => {
+        const c = row.children;
+        if (c && !map.has(c.id)) map.set(c.id, c as Child);
+      });
+
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
     enabled: !!user,
   });

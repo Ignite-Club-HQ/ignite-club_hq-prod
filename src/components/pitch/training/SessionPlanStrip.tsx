@@ -1,7 +1,7 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, ChevronRight, ListChecks } from "lucide-react";
+import { X, ChevronRight, ListChecks, CalendarPlus } from "lucide-react";
 import {
   useSessionDrills,
   useRemoveFromSession,
@@ -10,18 +10,26 @@ import {
 import { loadDrill } from "./drillStorage";
 import type { Drill } from "./types";
 import { toast } from "sonner";
+import { SaveToEventDialog } from "./SaveToEventDialog";
 
 interface SessionPlanStripProps {
   /** Currently loaded drill id (to highlight) */
   loadedDrillId?: string | null;
   /** Open a drill on the board */
   onOpenDrill: (drill: Drill) => void;
+  /** Team context — enables the "Save to event" action */
+  teamId?: string | null;
 }
 
-function SessionPlanStripImpl({ loadedDrillId, onOpenDrill }: SessionPlanStripProps) {
+function SessionPlanStripImpl({
+  loadedDrillId,
+  onOpenDrill,
+  teamId,
+}: SessionPlanStripProps) {
   const { data: session } = useSessionDrills();
   const removeMut = useRemoveFromSession();
   const clearMut = useClearSession();
+  const [saveOpen, setSaveOpen] = useState(false);
 
   if (!session || session.length === 0) return null;
 
@@ -41,6 +49,8 @@ function SessionPlanStripImpl({ loadedDrillId, onOpenDrill }: SessionPlanStripPr
     });
   };
 
+  const drillIds = session.map((s) => s.drillId);
+
   return (
     <div className="shrink-0 border-b border-border bg-muted/30">
       <div className="flex items-center gap-2 px-3 py-1.5">
@@ -48,12 +58,27 @@ function SessionPlanStripImpl({ loadedDrillId, onOpenDrill }: SessionPlanStripPr
         <span className="text-xs font-medium text-muted-foreground shrink-0">
           Today's session ({session.length})
         </span>
+        {teamId && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setSaveOpen(true)}
+            className="ml-auto h-6 px-2 text-xs text-primary hover:text-primary"
+          >
+            <CalendarPlus className="h-3.5 w-3.5 mr-1" />
+            Save to event
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={handleClear}
-          className="ml-auto h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+          className={cn(
+            "h-6 px-2 text-xs text-muted-foreground hover:text-foreground",
+            !teamId && "ml-auto",
+          )}
         >
           Clear
         </Button>
@@ -99,6 +124,15 @@ function SessionPlanStripImpl({ loadedDrillId, onOpenDrill }: SessionPlanStripPr
         })}
         <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
       </div>
+
+      {teamId && (
+        <SaveToEventDialog
+          open={saveOpen}
+          onOpenChange={setSaveOpen}
+          teamId={teamId}
+          drillIds={drillIds}
+        />
+      )}
     </div>
   );
 }

@@ -32,7 +32,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { RecentDrillsList } from "./RecentDrillsList";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, filterOrphanAnnotations, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
@@ -156,6 +156,7 @@ export default function TrainingBoard({
     prev: prevFrame,
     goTo,
     setSpeed,
+    authoredIndex,
   } = useDrillPlayback({ frames, loop: settings.loopPlayback });
 
   // Apply user's default playback speed once on mount and whenever it changes
@@ -165,7 +166,7 @@ export default function TrainingBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.defaultPlaybackSpeed]);
 
-  const currentFrame = frames[currentIndex] ?? frames[0];
+  const currentFrame = frames[authoredIndex] ?? frames[0];
   const isAnimating = isPlaying;
   const canDragItems = !readOnly && !isAnimating && !runMode;
   const editable = canDragItems && !previewMode;
@@ -533,7 +534,15 @@ export default function TrainingBoard({
         : rawObjects,
     [rawObjects, teamPlayers, settings.substituteRealNames]
   );
-  const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
+  const rawAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
+  const renderedAnnotations = useMemo(
+    () =>
+      settings.substituteRealNames
+        ? filterOrphanAnnotations(rawAnnotations, rawObjects, teamPlayers)
+        : rawAnnotations,
+    [rawAnnotations, rawObjects, teamPlayers, settings.substituteRealNames]
+  );
+
 
   // -- Mode helpers ----------------------------------------------------------
   // NOTE: These hooks must be defined BEFORE any early return to obey the
@@ -597,6 +606,7 @@ export default function TrainingBoard({
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
+          teamId={teamId ?? null}
         />
 
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -735,6 +745,7 @@ export default function TrainingBoard({
         <SessionPlanStrip
           loadedDrillId={savedDrillId}
           onOpenDrill={handleOpenDrill}
+          teamId={teamId ?? null}
         />
       )}
 
@@ -759,7 +770,13 @@ export default function TrainingBoard({
           className={cn(
             "relative rounded-md overflow-hidden select-none",
             cursorClass,
-            isLandscape ? "w-full h-full" : "w-full max-w-[820px] aspect-[2/3] mx-auto",
+            // Run mode: claim the entire available area (the controls bar
+            // sits below, this pitch fills everything between top bar and
+            // controls). Edit mode keeps the 2:3 portrait aspect so the
+            // editor toolbar/frame strip stay legible underneath.
+            isLandscape || mode === "run"
+              ? "w-full h-full"
+              : "w-full max-w-[820px] aspect-[2/3] mx-auto",
             mode === "edit" && "shadow-md",
           )}
           style={{
@@ -793,7 +810,7 @@ export default function TrainingBoard({
 
           {/* Compact step card — ~40% width, 2-line clamp, tap to expand. */}
           <DrillStepOverlay
-            frameNumber={currentIndex + 1}
+            frameNumber={authoredIndex + 1}
             totalFrames={frames.length}
             notes={substitutePlayerNamesInNotes(
               (isAnimating ? view.notes : currentFrame?.notes) ?? "",
@@ -803,6 +820,7 @@ export default function TrainingBoard({
             anchor="top"
             objects={renderedObjects}
             annotations={renderedAnnotations}
+            isAnimating={isAnimating}
           />
 
           <TrainingObjectLayer
@@ -814,6 +832,7 @@ export default function TrainingBoard({
             onAnnotationMove={moveAnnotation}
             containerRef={containerRef}
             readOnly={!canDragItems}
+            isAnimating={isAnimating}
           />
         </div>
       </div>
@@ -822,7 +841,7 @@ export default function TrainingBoard({
       {mode === "run" && !readOnly && (
         <RunModeControls
           isPlaying={isPlaying}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onPrev={prevFrame}
           onNext={nextFrame}
@@ -836,12 +855,16 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* EDIT/PREVIEW MODE — full playback controls, frame strip, toolbar */}
-      {!readOnly && !runMode && (
+      {/* EDIT MODE ONLY — full playback controls (scrub / speed / Present).
+          Hidden in preview + run because the slim top RunModeControls already
+          owns Play/Next there; showing both creates a confusing dual-control
+          panel ("run at top, play at bottom") with a redundant Present button
+          inside an already-running session. */}
+      {!readOnly && !runMode && !previewMode && (
         <PlaybackController
           isPlaying={isPlaying}
           speed={speed}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onToggle={() => {
             if (frames.length < 2) {
@@ -861,7 +884,7 @@ export default function TrainingBoard({
       {!readOnly && !previewMode && !runMode && (
         <FrameStrip
           frames={frames}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           onSelect={(i) => {
             setSelectedId(null);
             goTo(i);
@@ -870,6 +893,14 @@ export default function TrainingBoard({
           onDuplicate={duplicateFrame}
           onDelete={deleteFrame}
           onReorder={reorderFrame}
+          onExitEdit={() => {
+            // Return the board to the read-only preview state coaches see
+            // when a drill first opens — hides the frame strip, toolbar,
+            // and full playback bar in one tap.
+            setSelectedId(null);
+            setActiveTool("select");
+            setPreviewMode(true);
+          }}
           disabled={isAnimating}
         />
       )}

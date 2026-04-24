@@ -28,6 +28,14 @@ interface TrainingObjectLayerProps {
   containerRef: React.RefObject<HTMLDivElement>;
   /** When true (e.g. presentation/playback) all interactions are disabled */
   readOnly?: boolean;
+  /**
+   * When true, drill playback is driving positions via rAF interpolation —
+   * we MUST disable the per-chip CSS transition or every interpolated step
+   * gets re-animated over 120ms, causing the chip to lag far behind the
+   * ball and effectively stand still during a rep. Edit mode keeps the
+   * transition so resolver-induced nudges glide smoothly.
+   */
+  isAnimating?: boolean;
 }
 
 function rectFromContainer(
@@ -492,6 +500,7 @@ function TrainingObjectLayerImpl({
   onAnnotationMove,
   containerRef,
   readOnly,
+  isAnimating = false,
 }: TrainingObjectLayerProps) {
   const handlePointerDown = useCallback(
     (
@@ -753,7 +762,14 @@ function TrainingObjectLayerImpl({
               top: `${pos.y}%`,
               zIndex: z,
               opacity: obj.opacity ?? 1,
-              transition: "left 120ms ease-out, top 120ms ease-out",
+              // During playback, rAF already drives smooth motion frame-by-frame.
+              // Layering a 120ms CSS tween on top makes the browser constantly
+              // retarget mid-animation, which leaves moving chips lagging far
+              // behind the ball — the chip looks frozen at the cone while the
+              // ball flies to goal. Only animate position changes when editing.
+              transition: isAnimating
+                ? "opacity 120ms ease-out"
+                : "left 120ms ease-out, top 120ms ease-out, opacity 120ms ease-out",
             }}
           >
             <ObjectGlyph obj={obj} isNextUp={obj.id === nextUpId} />

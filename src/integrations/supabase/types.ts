@@ -2637,6 +2637,48 @@ export type Database = {
           },
         ]
       }
+      event_session_drills: {
+        Row: {
+          added_at: string
+          added_by: string
+          drill_id: string
+          event_id: string
+          id: string
+          position: number
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          drill_id: string
+          event_id: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          drill_id?: string
+          event_id?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_session_drills_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_session_drills_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_sponsors: {
         Row: {
           created_at: string
@@ -7029,6 +7071,7 @@ export type Database = {
           files_updated_count: number
           google_account_email: string | null
           id: string
+          last_failed_files: Json
           last_sync_error: string | null
           last_sync_status: string | null
           last_synced_at: string | null
@@ -7049,6 +7092,7 @@ export type Database = {
           files_updated_count?: number
           google_account_email?: string | null
           id?: string
+          last_failed_files?: Json
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null
@@ -7069,6 +7113,7 @@ export type Database = {
           files_updated_count?: number
           google_account_email?: string | null
           id?: string
+          last_failed_files?: Json
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null

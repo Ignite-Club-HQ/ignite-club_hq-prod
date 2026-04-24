@@ -5,10 +5,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2 } from "lucide-react";
+import { Plus, ArrowRightLeft, Trash2, X, MessageCircle, Loader2, ShieldCheck, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import ManageRolesDialog from "@/components/ManageRolesDialog";
 
 const ROLE_LABELS: Record<string, string> = {
   app_admin: "App Admin",
@@ -51,6 +52,17 @@ interface MemberDetailSheetProps {
   onMove: () => void;
   onRemove: () => void;
   onRemoveRole: (roleItem: MemberRole) => void;
+  /**
+   * When provided alongside `canManage`, the sheet renders a single
+   * "Manage roles" entry (opens the unified ManageRolesDialog) instead of
+   * the legacy inline X chip removals + "Add Role" button. Falls back to
+   * the legacy UX when these props are not supplied (e.g. chat surfaces).
+   */
+  teamId?: string;
+  teamName?: string;
+  clubId?: string;
+  /** Called after a successful save in the unified dialog. */
+  onRolesUpdated?: () => void;
 }
 
 export default function MemberDetailSheet({
@@ -69,12 +81,23 @@ export default function MemberDetailSheet({
   onMove,
   onRemove,
   onRemoveRole,
+  teamId,
+  teamName,
+  clubId,
+  onRolesUpdated,
 }: MemberDetailSheetProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
   const [canDM, setCanDM] = useState<boolean | null>(null);
-  const canRemoveRoles = canManage && !isSelf && roles.length > 1;
+  const [manageRolesOpen, setManageRolesOpen] = useState(false);
+  // When the parent provides full team context, the new unified dialog handles
+  // both adding and removing roles (with confirmations). Otherwise we fall
+  // back to the legacy inline-X chip removals + "Add Role" callback.
+  const useUnifiedDialog =
+    canManage && !isSelf && !!teamId && !!teamName && !!clubId;
+  const canRemoveRoles =
+    canManage && !isSelf && roles.length > 1 && !useUnifiedDialog;
 
   // Check DM permission whenever the sheet opens for a non-self member
   useEffect(() => {
@@ -234,18 +257,30 @@ export default function MemberDetailSheet({
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                {canManage && (
+                {useUnifiedDialog ? (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
-                    onClick={() => {
-                      onOpenChange(false);
-                      onAddRole();
-                    }}
+                    onClick={() => setManageRolesOpen(true)}
                   >
-                    <Plus className="h-4 w-4 text-blue-500" />
-                    Add Role
+                    <Settings2 className="h-4 w-4 text-primary" />
+                    Manage roles
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
                   </Button>
+                ) : (
+                  canManage && (
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-2 h-11"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onAddRole();
+                      }}
+                    >
+                      <Plus className="h-4 w-4 text-blue-500" />
+                      Add Role
+                    </Button>
+                  )
                 )}
                 {canManage && showMoveAction && canMove && (
                   <Button
@@ -278,6 +313,24 @@ export default function MemberDetailSheet({
           )}
         </div>
       </DrawerContent>
+      {useUnifiedDialog && teamId && teamName && clubId && (
+        <ManageRolesDialog
+          open={manageRolesOpen}
+          onOpenChange={setManageRolesOpen}
+          userId={userId}
+          userName={displayName}
+          avatarUrl={avatarUrl}
+          teamId={teamId}
+          teamName={teamName}
+          clubId={clubId}
+          currentRoles={roles}
+          canManage={canManage}
+          onSaved={() => {
+            onOpenChange(false);
+            onRolesUpdated?.();
+          }}
+        />
+      )}
     </Drawer>
   );
 }

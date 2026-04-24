@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
+import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
@@ -1190,6 +1191,12 @@ export default function TeamDetailPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Post-creation onboarding nudge — shown to admins until both
+          "invite members" and "add first event" are complete (or dismissed). */}
+      {(isAdmin || isClubAdmin) && (
+        <TeamNextStepsCard teamId={id!} onInvite={() => setHeaderInviteOpen(true)} />
       )}
 
       {/* Next Event Card - no label, card speaks for itself */}
@@ -2572,6 +2579,13 @@ export default function TeamDetailPage() {
           canManage={isAdmin || isClubAdmin}
           canMove={isClubAdmin && selectedMember.userId !== user?.id}
           isSelf={selectedMember.userId === user?.id}
+          teamId={id}
+          teamName={team.name}
+          clubId={team.club_id}
+          onRolesUpdated={() => {
+            queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+            setSelectedMember(null);
+          }}
           onAddRole={() => setAddRoleMember({
             userId: selectedMember.userId,
             userName: selectedMember.displayName,
