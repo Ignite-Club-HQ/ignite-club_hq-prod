@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useLocation } from "react-router-dom";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
@@ -20,6 +21,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -120,6 +122,52 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  /**
+   * Toast helper that appends a "View pending invites (N)" action button
+   * after a successful invite is created. Fetches the live pending count
+   * for this team so the badge stays accurate.
+   * The action navigates to the team detail page (where PendingInvitesList
+   * is rendered); if already there it's a no-op and just dismisses the toast.
+   */
+  const toastInviteSuccess = useCallback(
+    async (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => {
+      let pendingCount = 0;
+      try {
+        const { count } = await supabase
+          .from("pending_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", teamId)
+          .eq("status", "pending");
+        pendingCount = count ?? 0;
+      } catch {
+        // ignore — fall back to a count-less link
+      }
+
+      const teamPath = `/teams/${teamId}`;
+      const alreadyOnTeam = location.pathname === teamPath;
+
+      toast({
+        title: opts.title,
+        description: opts.description,
+        variant: opts.variant,
+        action: pendingCount > 0 ? (
+          <ToastAction
+            altText={`View ${pendingCount} pending invite${pendingCount === 1 ? "" : "s"}`}
+            onClick={() => {
+              if (!alreadyOnTeam) navigate(teamPath);
+            }}
+          >
+            View pending ({pendingCount})
+          </ToastAction>
+        ) : undefined,
+      });
+    },
+    [teamId, toast, navigate, location.pathname],
+  );
+
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = externalOpen !== undefined;
   const open = isControlled ? externalOpen : internalOpen;
@@ -791,12 +839,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       
       if (result?.roleWasDuplicate) {
         const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
-        toast({
+        void toastInviteSuccess({
           title: "Already a member",
           description: `${selectedUser?.display_name} is already a ${roleName} on this team. Any new children have been linked.`,
         });
       } else {
-        toast({
+        void toastInviteSuccess({
           title: "Member added",
           description: `${selectedUser?.display_name} has been added to the team`,
         });
@@ -1129,12 +1177,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
           
           if (emailSent) {
-            toast({
+            void toastInviteSuccess({
               title: "Invite sent!",
               description: `Email notification sent to ${email}`,
             });
           } else {
-            toast({
+            void toastInviteSuccess({
               title: "Member added",
               description: "Could not send email, but invite has been created",
               variant: "default",
@@ -1142,7 +1190,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }
         } catch (error) {
           console.error("Failed to send email:", error);
-          toast({
+          void toastInviteSuccess({
             title: "Member added",
             description: "Could not send email, but invite has been created",
             variant: "default",
@@ -1153,7 +1201,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       } else {
         // No email - copy link to clipboard for sharing
         try { await navigator.clipboard.writeText(link); } catch {}
-        toast({
+        void toastInviteSuccess({
           title: "Member added — link copied!",
           description: `${nameInput} has been added. Paste the invite link to share it with them.`,
         });
@@ -1564,9 +1612,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       const sentCount = results.filter(r => r.sent).length;
       const totalCount = results.length;
       
-      toast({
+      void toastInviteSuccess({
         title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
-        description: sentCount > 0 
+        description: sentCount > 0
           ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
