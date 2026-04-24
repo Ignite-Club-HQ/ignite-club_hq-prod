@@ -39,12 +39,22 @@ interface UseDrillPlaybackReturn {
  * - Each transition uses the SOURCE frame's durationMs / speed.
  */
 export function useDrillPlayback({
-  frames,
+  frames: rawFrames,
   loop = false,
 }: UseDrillPlaybackOptions): UseDrillPlaybackReturn {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  const [cycleStep, setCycleStep] = useState(0);
+
+  // Effective frames include a synthetic "rotate to next position" transition
+  // appended after the last frame. This makes every drill end its play-through
+  // by visibly cycling each player to the next player's starting spot.
+  const frames = useMemo(
+    () => withRotationTransition(rawFrames, cycleStep),
+    [rawFrames, cycleStep]
+  );
+
   const [view, setView] = useState<InterpolatedFrame>(() =>
     frames[0] ? staticFrame(frames[0]) : { objects: [], annotations: [] }
   );
