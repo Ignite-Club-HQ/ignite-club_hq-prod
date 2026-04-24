@@ -3321,74 +3321,86 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         {/* Sticky CTA footer */}
         <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
-          {mode === "single" ? (
-            selectedUser ? (
-              <Button
-                className="w-full h-12 text-base font-semibold"
-                onClick={() => {
-                  if (selectedRole === "parent" && singleChildren.length === 0) {
-                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
-                    return;
-                  }
-                  addExistingUserMutation.mutate();
-                }}
-                disabled={addExistingUserMutation.isPending}
-                variant={selectedRole === "parent" && singleChildren.length === 0 ? "outline" : "default"}
-              >
-                {addExistingUserMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : selectedRole === "parent" && singleChildren.length === 0 ? (
-                  <Baby className="h-5 w-5 mr-2" />
-                ) : (
-                  <UserPlus className="h-5 w-5 mr-2" />
-                )}
-                {selectedRole === "parent" && singleChildren.length === 0 
-                  ? "Add child to continue" 
-                  : "Continue"}
-              </Button>
-            ) : (
-              <Button
-                className="w-full h-12 text-base font-semibold"
-                onClick={() => {
-                  if (!nameConfirmed && nameInput.trim()) {
-                    setNameConfirmed(true);
-                    return;
-                  }
-                  if (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) {
-                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
-                    return;
-                  }
-                  if (deliveryMethod === "email" && !customEmail.trim()) {
-                    return;
-                  }
-                  addPendingMemberMutation.mutate();
-                }}
-                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
-                variant={
-                  !nameConfirmed ? "outline" 
-                  : (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) ? "outline" 
-                  : (deliveryMethod === "email" && !customEmail.trim()) ? "outline"
-                  : "default"
+          {mode === "single" ? (() => {
+            // Wizard navigation for single-invite flow
+            const canAdvanceFromStep1 = !!selectedUser || (nameInput.trim().length > 0);
+            const canAdvanceFromStep2 = selectedRole !== "parent"
+              || singleChildren.some(c => c.name.trim().length > 0);
+            const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
+            const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
+
+            const handleNext = () => {
+              if (wizardStep === 1) {
+                // Confirm new-member name on the way out of step 1
+                if (!selectedUser && !nameConfirmed && nameInput.trim()) {
+                  setNameConfirmed(true);
                 }
-              >
-                {addPendingMemberMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : !nameConfirmed ? (
-                  <Check className="h-5 w-5 mr-2" />
-                ) : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? (
-                  <Baby className="h-5 w-5 mr-2" />
-                ) : (
-                  <UserPlus className="h-5 w-5 mr-2" />
+                setWizardStep(2);
+                return;
+              }
+              if (wizardStep === 2) {
+                // Auto-add a child row for parent role if missing
+                if (selectedRole === "parent" && singleChildren.length === 0 && (selectedUser || nameInput.trim())) {
+                  setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                  return;
+                }
+                // Existing user with non-parent role can submit directly from step 2 → step 3 for delivery email
+                setWizardStep(3);
+                return;
+              }
+            };
+
+            const handleSubmit = () => {
+              if (deliveryMethod === "email" && !selectedUser && !customEmail.trim()) return;
+              if (selectedUser) addExistingUserMutation.mutate();
+              else addPendingMemberMutation.mutate();
+            };
+
+            const nextDisabled =
+              (wizardStep === 1 && !canAdvanceFromStep1) ||
+              (wizardStep === 2 && !canAdvanceFromStep2);
+
+            return (
+              <div className="flex gap-2">
+                {wizardStep > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 px-4"
+                    disabled={isPending}
+                    onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
+                  >
+                    Back
+                  </Button>
                 )}
-                {!nameConfirmed
-                  ? "Confirm name to continue"
-                  : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
-                    ? "Add child to continue"
-                    : deliveryMethod === "email" && !customEmail.trim()
+                {isFinalStep ? (
+                  <Button
+                    className="flex-1 h-12 text-base font-semibold"
+                    onClick={handleSubmit}
+                    disabled={isPending || (deliveryMethod === "email" && !selectedUser && !customEmail.trim())}
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : (
+                      <UserPlus className="h-5 w-5 mr-2" />
+                    )}
+                    {deliveryMethod === "email" && !selectedUser && !customEmail.trim()
                       ? "Enter email to continue"
-                      : "Create Invite"}
-              </Button>
-            )
+                      : selectedUser ? "Add to Team" : "Create Invite"}
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1 h-12 text-base font-semibold"
+                    onClick={handleNext}
+                    disabled={nextDisabled}
+                    variant={nextDisabled ? "outline" : "default"}
+                  >
+                    {wizardStep === 1 ? "Next: Role" : "Next: Send"}
+                  </Button>
+                )}
+              </div>
+            );
+          })()
           ) : (
             <Button
               className="w-full h-12 text-base font-semibold"
