@@ -219,3 +219,14 @@ html, body {
   display: none !important;
   content: none !important;
 }
+
+/* Prevent Android WebView's native text-selection toolbar from hijacking
+   the long-press reaction gesture on chat bubbles. Tailwind's `select-none`
+   sets `user-select: none` but Android also needs `-webkit-touch-callout`
+   and the rules to cascade to every descendant. */
+.select-none,
+.select-none * {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
