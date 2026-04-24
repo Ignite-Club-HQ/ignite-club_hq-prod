@@ -88,8 +88,11 @@ serve(async (req) => {
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('scope', scopes);
       authUrl.searchParams.set('access_type', 'offline');
-      // Always show account selector to allow switching accounts
-      authUrl.searchParams.set('prompt', 'select_account');
+      // Always show account selector AND force consent — without `consent`,
+      // Google will not return a refresh_token on subsequent authorizations,
+      // which breaks background sync for folder linking.
+      authUrl.searchParams.set('prompt', 'select_account consent');
+      authUrl.searchParams.set('include_granted_scopes', 'true');
       // Pass user ID in state for verification
       authUrl.searchParams.set('state', user!.id);
       
