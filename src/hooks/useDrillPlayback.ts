@@ -6,6 +6,7 @@ import {
   type InterpolatedFrame,
 } from "@/components/pitch/training/interpolation";
 import { withRotationTransition } from "@/components/pitch/training/playerRotation";
+import { normalizeFramesForPlayback } from "@/components/pitch/training/normalizeFrames";
 
 export type PlaybackSpeed = 0.5 | 1 | 2;
 
@@ -67,11 +68,15 @@ export function useDrillPlayback({
   // In the editor (loop=false) we never want chips to drift away from the
   // authored positions when playback finishes — that looks like chips
   // "disappeared" or "moved on their own".
-  const frames = useMemo(
-    () =>
-      loop ? withRotationTransition(rawFrames, cycleStep) : rawFrames,
-    [rawFrames, cycleStep, loop]
-  );
+  const frames = useMemo(() => {
+    // Step 1: ensure no player chip vanishes mid-drill. Legacy drills sometimes
+    // omit chips from intermediate frames, which made them fade out and pop
+    // back in during playback. Hold each chip in its last known position when
+    // a frame doesn't author it.
+    const normalized = normalizeFramesForPlayback(rawFrames);
+    // Step 2: optionally append the synthetic rotation transition (loop only).
+    return loop ? withRotationTransition(normalized, cycleStep) : normalized;
+  }, [rawFrames, cycleStep, loop]);
 
   const [view, setView] = useState<InterpolatedFrame>(() =>
     frames[0] ? staticFrame(frames[0]) : { objects: [], annotations: [] }
