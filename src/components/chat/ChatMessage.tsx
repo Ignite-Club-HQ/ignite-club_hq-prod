@@ -768,10 +768,14 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Swipe-to-reply wrapper */}
           <div
-            className="min-w-0 max-w-full"
+            className="min-w-0 max-w-full select-none"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
               transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
+              WebkitTapHighlightColor: 'transparent',
             }}
             onTouchStart={(e) => {
               handleLongPressStart(e);
