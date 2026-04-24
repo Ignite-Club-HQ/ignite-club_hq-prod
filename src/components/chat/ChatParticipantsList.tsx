@@ -145,6 +145,8 @@ export function ChatParticipantsList({
     },
   });
 
+  const effectiveTeamId = chatType === "team" ? chatId : teamId;
+
   const { data: resolvedClubId } = useQuery({
     queryKey: ["chat-members-team-club", effectiveTeamId],
     queryFn: async () => {
