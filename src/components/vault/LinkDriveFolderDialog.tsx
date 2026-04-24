@@ -361,8 +361,46 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
               <Switch checked={existing.sync_enabled} onCheckedChange={toggleSync} />
             </div>
 
+            {existing.last_failed_files.length > 0 && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {existing.last_failed_files.length} file{existing.last_failed_files.length === 1 ? '' : 's'} failed last sync
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Retry only these — full sync isn't needed.
+                    </p>
+                    <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                      {existing.last_failed_files.slice(0, 5).map((f) => (
+                        <li key={f.drive_file_id} className="text-xs text-muted-foreground truncate">
+                          • {f.name ?? f.drive_file_id}
+                        </li>
+                      ))}
+                      {existing.last_failed_files.length > 5 && (
+                        <li className="text-xs text-muted-foreground">
+                          + {existing.last_failed_files.length - 5} more
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={retryFailed}
+                  disabled={retrying || syncing}
+                >
+                  {retrying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCw className="h-4 w-4 mr-2" />}
+                  Retry failed files
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
-              <Button onClick={triggerManualSync} disabled={syncing}>
+              <Button onClick={triggerManualSync} disabled={syncing || retrying}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Sync now
               </Button>
