@@ -2036,33 +2036,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               ))}
             </div>
 
-            {/* 1. ROLE SELECTION - shown first so the user sees their options on open */}
-            <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
-              <Label className="text-sm font-medium">Select role</Label>
-              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {roleOptions.map((opt) => (
-                  <button
-                    key={`top-${opt.value}`}
-                    type="button"
-                    onClick={() => setSelectedRole(opt.value)}
-                    className={`p-3 rounded-xl text-center transition-all border ${
-                      selectedRole === opt.value
-                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
-                    }`}
-                  >
-                    <p className="text-sm font-medium">
-                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
-                    </p>
-                    {opt.value === "parent" && (
-                      <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                        adds child player
+            {/* STEP 2: Role selection (parent fields rendered below when applicable) */}
+            {wizardStep === 2 && (
+              <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
+                <Label className="text-sm font-medium">Select role</Label>
+                <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {roleOptions.map((opt) => (
+                    <button
+                      key={`top-${opt.value}`}
+                      type="button"
+                      onClick={() => setSelectedRole(opt.value)}
+                      className={`p-3 rounded-xl text-center transition-all border ${
+                        selectedRole === opt.value
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">
+                        {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
                       </p>
-                    )}
-                  </button>
-                ))}
+                      {opt.value === "parent" && (
+                        <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          adds child player
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* STEP 1: Person — name input, search, existing user / new member chip */}
             {wizardStep === 1 && (
