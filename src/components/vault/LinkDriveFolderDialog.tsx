@@ -250,7 +250,8 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
 
   const linkFolder = async (folder: DriveFolder) => {
     if (!refreshToken) {
-      toast.error("Missing refresh token. Please disconnect Google Drive in your Google account and reconnect.");
+      toast.error("Google didn't return a refresh token. Tap 'Connect Google Drive' again and approve the consent screen.", { duration: 6000 });
+      setStep("connect");
       return;
     }
 
@@ -677,16 +678,67 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : folders.length === 0 ? (
+              ) : folders.length === 0 && folderPath.length > 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Folder className="h-12 w-12 text-muted-foreground" />
                   <p className="text-muted-foreground text-sm">No subfolders here</p>
+                </div>
+              ) : folders.length === 0 ? (
+                <div className="p-4 space-y-2">
+                  <Card className="border-primary/40 bg-primary/5">
+                    <CardContent className="p-3 flex items-center gap-2">
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <HardDrive className="h-5 w-5 text-primary shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">Link entire My Drive</p>
+                          <p className="text-xs text-muted-foreground truncate">All loose files + every subfolder</p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={linking}
+                        onClick={() => linkFolder({ id: 'root', name: 'My Drive', mimeType: 'application/vnd.google-apps.folder' })}
+                        className="shrink-0"
+                      >
+                        {linking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><LinkIcon className="h-3.5 w-3.5 mr-1" />Link</>}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <p className="text-xs text-muted-foreground px-1 text-center pt-2">No subfolders in My Drive — link the root above.</p>
                 </div>
               ) : (
                 <div className="p-4 space-y-2">
                   <p className="text-xs text-muted-foreground px-1">
                     Tap a folder name to open it, or tap <span className="font-semibold text-foreground">Link</span> to sync that folder (including its loose files and subfolders).
                   </p>
+                  {folderPath.length === 0 && (
+                    <Card className="border-primary/40 bg-primary/5">
+                      <CardContent className="p-3 flex items-center gap-2">
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <HardDrive className="h-5 w-5 text-primary shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">Link entire My Drive</p>
+                            <p className="text-xs text-muted-foreground truncate">All loose files + every subfolder</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={linking}
+                          onClick={() => linkFolder({ id: 'root', name: 'My Drive', mimeType: 'application/vnd.google-apps.folder' })}
+                          className="shrink-0"
+                        >
+                          {linking ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <LinkIcon className="h-3.5 w-3.5 mr-1" />
+                              Link
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                   {folders.map((folder) => (
                     <Card key={folder.id} className="hover:bg-accent/50 transition-colors">
                       <CardContent className="p-3 flex items-center gap-2">
