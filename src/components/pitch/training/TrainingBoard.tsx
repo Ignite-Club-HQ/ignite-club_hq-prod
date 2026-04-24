@@ -837,8 +837,12 @@ export default function TrainingBoard({
         />
       )}
 
-      {/* EDIT/PREVIEW MODE — full playback controls, frame strip, toolbar */}
-      {!readOnly && !runMode && (
+      {/* EDIT MODE ONLY — full playback controls (scrub / speed / Present).
+          Hidden in preview + run because the slim top RunModeControls already
+          owns Play/Next there; showing both creates a confusing dual-control
+          panel ("run at top, play at bottom") with a redundant Present button
+          inside an already-running session. */}
+      {!readOnly && !runMode && !previewMode && (
         <PlaybackController
           isPlaying={isPlaying}
           speed={speed}
