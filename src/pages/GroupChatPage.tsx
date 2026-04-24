@@ -9,6 +9,7 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
