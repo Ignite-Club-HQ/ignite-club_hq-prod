@@ -122,6 +122,52 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  /**
+   * Toast helper that appends a "View pending invites (N)" action button
+   * after a successful invite is created. Fetches the live pending count
+   * for this team so the badge stays accurate.
+   * The action navigates to the team detail page (where PendingInvitesList
+   * is rendered); if already there it's a no-op and just dismisses the toast.
+   */
+  const toastInviteSuccess = useCallback(
+    async (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => {
+      let pendingCount = 0;
+      try {
+        const { count } = await supabase
+          .from("pending_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", teamId)
+          .eq("status", "pending");
+        pendingCount = count ?? 0;
+      } catch {
+        // ignore — fall back to a count-less link
+      }
+
+      const teamPath = `/teams/${teamId}`;
+      const alreadyOnTeam = location.pathname === teamPath;
+
+      toast({
+        title: opts.title,
+        description: opts.description,
+        variant: opts.variant,
+        action: pendingCount > 0 ? (
+          <ToastAction
+            altText={`View ${pendingCount} pending invite${pendingCount === 1 ? "" : "s"}`}
+            onClick={() => {
+              if (!alreadyOnTeam) navigate(teamPath);
+            }}
+          >
+            View pending ({pendingCount})
+          </ToastAction>
+        ) : undefined,
+      });
+    },
+    [teamId, toast, navigate, location.pathname],
+  );
+
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = externalOpen !== undefined;
   const open = isControlled ? externalOpen : internalOpen;
