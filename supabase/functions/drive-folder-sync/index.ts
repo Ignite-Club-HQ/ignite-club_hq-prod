@@ -268,15 +268,15 @@ serve(async (req) => {
 
     for (const link of links) {
       try {
-        const { imported, updated } = await syncLink(supabase, link);
+        const { imported, updated, skipped, failed } = await syncLink(supabase, link);
         await supabase.from('vault_drive_links').update({
           last_synced_at: new Date().toISOString(),
-          last_sync_status: 'success',
-          last_sync_error: null,
+          last_sync_status: failed > 0 ? 'partial' : 'success',
+          last_sync_error: failed > 0 ? `${failed} file(s) failed, ${skipped} skipped (too large)` : null,
           files_imported_count: link.files_imported_count + imported,
           files_updated_count: link.files_updated_count + updated,
         }).eq('id', link.id);
-        results.push({ linkId: link.id, imported, updated, status: 'success' });
+        results.push({ linkId: link.id, imported, updated, skipped, failed, status: failed > 0 ? 'partial' : 'success' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`Sync failed for link ${link.id}:`, msg);
