@@ -18,8 +18,15 @@ import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardS
  * `top` value, not a `bottom` value. This makes the panel track the real
  * visible area above the keyboard across viewport models.
  */
-const SHEET_DEFAULT_HEIGHT = 420;
-const SHEET_MIN_HEIGHT = 240;
+/**
+ * Sheet sizing:
+ *  - When the keyboard is closed: sheet is a compact bottom panel.
+ *  - When the keyboard is open (user is searching): sheet stretches all the
+ *    way from just below the status bar down to just above the keyboard so we
+ *    get as many rows of GIFs as possible.
+ */
+const SHEET_DEFAULT_HEIGHT = 460;
+const SHEET_MIN_HEIGHT = 280;
 const TOP_GAP = 56; // leave room for status bar / notch
 const KEYBOARD_GAP = 0;
 const KEYBOARD_OPEN_THRESHOLD = 80;
