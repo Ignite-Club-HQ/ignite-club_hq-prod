@@ -3400,8 +3400,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
               </div>
             );
-          })()
-          ) : (
+          })() : (
             <Button
               className="w-full h-12 text-base font-semibold"
               onClick={() => addBulkMembersMutation.mutate(undefined)}
