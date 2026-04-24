@@ -684,23 +684,36 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
                 </div>
               ) : (
                 <div className="p-4 space-y-2">
-                  <p className="text-xs text-muted-foreground px-1">Tap a folder to drill in, or "Link this folder" to sync it</p>
+                  <p className="text-xs text-muted-foreground px-1">
+                    Tap a folder name to open it, or tap <span className="font-semibold text-foreground">Link</span> to sync that folder (including its loose files and subfolders).
+                  </p>
                   {folders.map((folder) => (
                     <Card key={folder.id} className="hover:bg-accent/50 transition-colors">
-                      <CardContent className="p-3 flex items-center gap-3">
-                        <Folder className="h-5 w-5 text-primary" />
+                      <CardContent className="p-3 flex items-center gap-2">
                         <button
-                          className="flex-1 text-left font-medium truncate"
+                          className="flex-1 min-w-0 flex items-center gap-2 text-left"
                           onClick={() => {
                             setFolderPath([...folderPath, { id: folder.id, name: folder.name }]);
                             loadFolderContents(folder.id);
                           }}
                         >
-                          {folder.name}
+                          <Folder className="h-5 w-5 text-primary shrink-0" />
+                          <span className="font-medium truncate">{folder.name}</span>
                         </button>
-                        <Button size="sm" disabled={linking} onClick={() => linkFolder(folder)}>
-                          {linking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                          Link
+                        <Button
+                          size="sm"
+                          disabled={linking}
+                          onClick={() => linkFolder(folder)}
+                          className="shrink-0"
+                        >
+                          {linking ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <LinkIcon className="h-3.5 w-3.5 mr-1" />
+                              Link
+                            </>
+                          )}
                         </Button>
                       </CardContent>
                     </Card>
