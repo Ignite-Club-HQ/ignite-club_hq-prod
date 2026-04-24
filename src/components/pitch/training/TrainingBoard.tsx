@@ -32,7 +32,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { RecentDrillsList } from "./RecentDrillsList";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, filterOrphanAnnotations, getDroppedPlayerIds, getOrphanEquipmentIds, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, filterOrphanAnnotations, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
@@ -522,17 +522,6 @@ export default function TrainingBoard({
     [availableMembers, settings.substituteRealNames]
   );
 
-
-  // Drill-wide orphan tracking. Computed once per frame list + squad change so
-  // balls/cones whose owner chip was dropped (squad smaller than the drill's
-  // default roster) stay hidden THROUGHOUT animation, not just when the chip
-  // settles on top of them in the final keyframe.
-  const orphanEquipmentIds = useMemo(() => {
-    if (!settings.substituteRealNames) return undefined;
-    const droppedIds = getDroppedPlayerIds(frames, teamPlayers);
-    return getOrphanEquipmentIds(frames, droppedIds);
-  }, [frames, teamPlayers, settings.substituteRealNames]);
-
   // The view we render: live interpolation while playing, raw current frame while editing
   const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
   const renderedObjects = useMemo(
@@ -540,9 +529,9 @@ export default function TrainingBoard({
     // players — so the pitch never shows fake "Player 1/2/3" placeholders.
     () =>
       settings.substituteRealNames
-        ? applyTeamPlayersToObjects(rawObjects, teamPlayers, orphanEquipmentIds)
+        ? applyTeamPlayersToObjects(rawObjects, teamPlayers)
         : rawObjects,
-    [rawObjects, teamPlayers, settings.substituteRealNames, orphanEquipmentIds]
+    [rawObjects, teamPlayers, settings.substituteRealNames]
   );
   const rawAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
   const renderedAnnotations = useMemo(
