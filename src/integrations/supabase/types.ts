@@ -7071,6 +7071,7 @@ export type Database = {
           files_updated_count: number
           google_account_email: string | null
           id: string
+          last_failed_file_ids: string[]
           last_sync_error: string | null
           last_sync_status: string | null
           last_synced_at: string | null
@@ -7091,6 +7092,7 @@ export type Database = {
           files_updated_count?: number
           google_account_email?: string | null
           id?: string
+          last_failed_file_ids?: string[]
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null
@@ -7111,6 +7113,7 @@ export type Database = {
           files_updated_count?: number
           google_account_email?: string | null
           id?: string
+          last_failed_file_ids?: string[]
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null
