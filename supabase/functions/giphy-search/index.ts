@@ -17,8 +17,11 @@ interface GiphyGif {
   images: {
     fixed_width: GiphyImage;
     fixed_width_small: GiphyImage;
+    fixed_height?: GiphyImage;
     original: GiphyImage;
+    downsized?: GiphyImage;
     downsized_medium?: GiphyImage;
+    downsized_large?: GiphyImage;
   };
 }
 
