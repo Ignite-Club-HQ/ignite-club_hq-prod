@@ -1190,7 +1190,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }
         } catch (error) {
           console.error("Failed to send email:", error);
-          toast({
+          void toastInviteSuccess({
             title: "Member added",
             description: "Could not send email, but invite has been created",
             variant: "default",
