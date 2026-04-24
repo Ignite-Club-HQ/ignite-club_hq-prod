@@ -392,11 +392,24 @@ export const ChatMessage = memo(function ChatMessage({
       if (reactionId.startsWith("temp-")) {
         return;
       }
-      const { error } = await supabase
-        .from("message_reactions")
-        .delete()
-        .eq("id", reactionId);
-      if (error) throw error;
+      const doDelete = async () => {
+        const { error } = await supabase
+          .from("message_reactions")
+          .delete()
+          .eq("id", reactionId);
+        if (error) throw error;
+      };
+      try {
+        await ensureFreshSession();
+        await doDelete();
+      } catch (err) {
+        if (isAuthLikeError(err)) {
+          await ensureFreshSession(0);
+          await doDelete();
+        } else {
+          throw err;
+        }
+      }
     },
     onMutate: (reactionId: string) => {
       isReactionMutatingRef.current = true;
