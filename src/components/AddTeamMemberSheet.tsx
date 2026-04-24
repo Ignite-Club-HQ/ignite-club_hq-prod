@@ -2084,6 +2084,44 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               ))}
             </div>
 
+            {/* Step recap chips — show selections from earlier steps so the
+                user has context on steps 2/3 without tapping Back. Tappable
+                to jump straight back to that step for a quick edit. */}
+            {wizardStep > 1 && (selectedUser || nameInput.trim()) && (
+              <div className="flex flex-wrap items-center gap-1.5 px-1">
+                <button
+                  type="button"
+                  onClick={() => setWizardStep(1)}
+                  className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-1 text-xs transition-colors"
+                  aria-label="Edit selected person"
+                >
+                  <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="font-medium truncate">
+                    {selectedUser?.display_name || nameInput.trim()}
+                  </span>
+                  {!selectedUser && (
+                    <span className="text-[10px] uppercase tracking-wide text-primary/80 font-semibold shrink-0">
+                      New
+                    </span>
+                  )}
+                  <Pencil className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                </button>
+                {wizardStep > 2 && selectedRole && (
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(2)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/15 px-2 py-1 text-xs text-primary transition-colors"
+                    aria-label="Edit selected role"
+                  >
+                    <span className="font-medium">
+                      {roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole}
+                    </span>
+                    <Pencil className="h-2.5 w-2.5 shrink-0" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* STEP 2: Role selection (parent fields rendered below when applicable) */}
             {wizardStep === 2 && (
               <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
