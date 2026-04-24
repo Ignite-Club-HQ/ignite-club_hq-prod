@@ -69,7 +69,9 @@ export default function PresentationMode({
     next,
     prev,
     goTo,
-  } = useDrillPlayback({ frames });
+    authoredFrameCount,
+    authoredIndex,
+  } = useDrillPlayback({ frames, loop: true });
 
   // Honour initialIndex once on mount
   useEffect(() => {
