@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface FailedFileRef {
+  drive_file_id: string;
+  vault_folder_id: string;
+  name?: string;
+}
+
 interface DriveLink {
   id: string;
   club_id: string;
@@ -17,6 +23,7 @@ interface DriveLink {
   sync_enabled: boolean;
   files_imported_count: number;
   files_updated_count: number;
+  last_failed_files?: FailedFileRef[] | null;
 }
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
@@ -66,6 +73,13 @@ async function listDriveFolder(accessToken: string, folderId: string) {
   return { folders, files };
 }
 
+async function getDriveFileMetadata(accessToken: string, fileId: string) {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime,trashed`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`Drive metadata fetch failed for ${fileId}: ${await res.text()}`);
+  return await res.json();
+}
+
 async function downloadDriveFile(accessToken: string, fileId: string, mimeType: string) {
   let downloadUrl: string;
   let exportedMimeType: string | null = null;
@@ -95,12 +109,93 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
 
-async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: number; updated: number; skipped: number; failed: number }> {
+type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
+
+async function processFile(
+  supabase: any,
+  accessToken: string,
+  link: DriveLink,
+  file: any,
+  vaultFolderId: string,
+): Promise<FileOutcome> {
+  const declaredSize = file.size ? Number(file.size) : 0;
+  if (declaredSize && declaredSize > MAX_FILE_BYTES) {
+    console.warn(`Skipping "${file.name}" (${(declaredSize / 1024 / 1024).toFixed(1)} MB) — exceeds ${MAX_FILE_BYTES / 1024 / 1024} MB limit`);
+    return 'skipped';
+  }
+
+  const { data: existing } = await supabase
+    .from('vault_files')
+    .select('id, drive_modified_time, file_url')
+    .eq('drive_file_id', file.id)
+    .eq('club_id', link.club_id)
+    .maybeSingle();
+
+  const driveModified = file.modifiedTime ? new Date(file.modifiedTime).toISOString() : null;
+
+  if (existing) {
+    if (existing.drive_modified_time && driveModified && new Date(existing.drive_modified_time) >= new Date(driveModified)) {
+      return 'unchanged';
+    }
+    const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
+    let fileName = file.name;
+    if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+    const blob = new Blob([bytes], { type: contentType });
+    const bucket = 'photos';
+    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+    const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
+    if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+    const { error: updErr } = await supabase
+      .from('vault_files')
+      .update({
+        file_url: urlData.publicUrl,
+        file_size: bytes.byteLength,
+        file_type: contentType,
+        drive_modified_time: driveModified,
+        name: fileName,
+      })
+      .eq('id', existing.id);
+    if (updErr) throw new Error(`DB update failed: ${updErr.message ?? updErr}`);
+    return 'updated';
+  }
+
+  const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
+  let fileName = file.name;
+  if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+  const blob = new Blob([bytes], { type: contentType });
+  const bucket = 'photos';
+  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+  const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
+  if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
+  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+  const { error: insErr } = await supabase.from('vault_files').insert({
+    file_url: urlData.publicUrl,
+    name: fileName,
+    club_id: link.club_id,
+    team_id: link.team_id,
+    folder_id: vaultFolderId,
+    uploaded_by: null,
+    file_size: bytes.byteLength,
+    file_type: contentType,
+    drive_file_id: file.id,
+    drive_modified_time: driveModified,
+  });
+  if (insErr) throw new Error(`DB insert failed: ${insErr.message ?? insErr}`);
+  return 'imported';
+}
+
+interface SyncCounts {
+  imported: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  failedFiles: FailedFileRef[];
+}
+
+async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
   const accessToken = await refreshAccessToken(link.refresh_token);
-  let imported = 0;
-  let updated = 0;
-  let skipped = 0;
-  let failed = 0;
+  const counts: SyncCounts = { imported: 0, updated: 0, skipped: 0, failed: 0, failedFiles: [] };
 
   // BFS: list of [driveFolderId, vaultParentFolderId]
   const queue: { driveId: string; vaultId: string }[] = [
@@ -111,9 +206,7 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
     const { driveId, vaultId } = queue.shift()!;
     const { folders, files } = await listDriveFolder(accessToken, driveId);
 
-    // Mirror subfolders
     for (const sub of folders) {
-      // Find or create vault folder by drive_folder_id under this vault parent
       const { data: existingFolder } = await supabase
         .from('vault_folders')
         .select('id')
@@ -146,88 +239,49 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
       queue.push({ driveId: sub.id, vaultId: subVaultId });
     }
 
-    // Process files
     for (const file of files) {
       try {
-        // Skip files larger than our memory budget — they would OOM the function
-        // and abort the entire sync, leaving later files unprocessed.
-        const declaredSize = file.size ? Number(file.size) : 0;
-        if (declaredSize && declaredSize > MAX_FILE_BYTES) {
-          console.warn(`Skipping "${file.name}" (${(declaredSize / 1024 / 1024).toFixed(1)} MB) — exceeds ${MAX_FILE_BYTES / 1024 / 1024} MB limit`);
-          skipped++;
-          continue;
-        }
-
-        const { data: existing } = await supabase
-          .from('vault_files')
-          .select('id, drive_modified_time, file_url')
-          .eq('drive_file_id', file.id)
-          .eq('club_id', link.club_id)
-          .maybeSingle();
-
-        const driveModified = file.modifiedTime ? new Date(file.modifiedTime).toISOString() : null;
-
-        if (existing) {
-          // Skip if not modified
-          if (existing.drive_modified_time && driveModified && new Date(existing.drive_modified_time) >= new Date(driveModified)) {
-            continue;
-          }
-          // Re-download and replace
-          const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
-          let fileName = file.name;
-          if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
-          const blob = new Blob([bytes], { type: contentType });
-          const bucket = 'photos';
-          const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
-          const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
-          if (upErr) { console.error(`Storage upload failed for "${fileName}":`, upErr); failed++; continue; }
-          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-          const { error: updErr } = await supabase
-            .from('vault_files')
-            .update({
-              file_url: urlData.publicUrl,
-              file_size: bytes.byteLength,
-              file_type: contentType,
-              drive_modified_time: driveModified,
-              name: fileName,
-            })
-            .eq('id', existing.id);
-          if (updErr) { console.error(`DB update failed for "${fileName}":`, updErr); failed++; continue; }
-          updated++;
-        } else {
-          // Brand new file
-          const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
-          let fileName = file.name;
-          if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
-          const blob = new Blob([bytes], { type: contentType });
-          const bucket = 'photos';
-          const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
-          const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
-          if (upErr) { console.error(`Storage upload failed for "${fileName}":`, upErr); failed++; continue; }
-          const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-          const { error: insErr } = await supabase.from('vault_files').insert({
-            file_url: urlData.publicUrl,
-            name: fileName,
-            club_id: link.club_id,
-            team_id: link.team_id,
-            folder_id: vaultId,
-            uploaded_by: null,
-            file_size: bytes.byteLength,
-            file_type: contentType,
-            drive_file_id: file.id,
-            drive_modified_time: driveModified,
-          });
-          if (insErr) { console.error(`DB insert failed for "${fileName}":`, insErr); failed++; continue; }
-          imported++;
-        }
+        const outcome = await processFile(supabase, accessToken, link, file, vaultId);
+        if (outcome === 'imported') counts.imported++;
+        else if (outcome === 'updated') counts.updated++;
+        else if (outcome === 'skipped') counts.skipped++;
       } catch (fileErr) {
-        failed++;
+        counts.failed++;
+        counts.failedFiles.push({ drive_file_id: file.id, vault_folder_id: vaultId, name: file.name });
         console.error(`Failed processing file "${file.name}" (drive_id=${file.id}):`, fileErr);
       }
     }
   }
 
-  return { imported, updated, skipped, failed };
+  return counts;
+}
+
+async function retryFailedFiles(supabase: any, link: DriveLink): Promise<SyncCounts> {
+  const counts: SyncCounts = { imported: 0, updated: 0, skipped: 0, failed: 0, failedFiles: [] };
+  const failedList = Array.isArray(link.last_failed_files) ? link.last_failed_files : [];
+  if (failedList.length === 0) return counts;
+
+  const accessToken = await refreshAccessToken(link.refresh_token);
+
+  for (const ref of failedList) {
+    try {
+      const meta = await getDriveFileMetadata(accessToken, ref.drive_file_id);
+      if (meta.trashed) {
+        // File is gone in Drive — drop it from the failed list silently.
+        continue;
+      }
+      const outcome = await processFile(supabase, accessToken, link, meta, ref.vault_folder_id);
+      if (outcome === 'imported') counts.imported++;
+      else if (outcome === 'updated') counts.updated++;
+      else if (outcome === 'skipped') counts.skipped++;
+    } catch (err) {
+      counts.failed++;
+      counts.failedFiles.push(ref);
+      console.error(`Retry still failed for "${ref.name ?? ref.drive_file_id}":`, err);
+    }
+  }
+
+  return counts;
 }
 
 serve(async (req) => {
@@ -238,10 +292,11 @@ serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch (_e) {}
 
+    const retryOnly: boolean = !!body.retryFailedOnly;
+
     let links: DriveLink[] = [];
 
     if (body.linkId) {
-      // Single link sync (manual trigger)
       const { data, error } = await supabase
         .from('vault_drive_links')
         .select('*')
@@ -254,7 +309,11 @@ serve(async (req) => {
       }
       links = [data as DriveLink];
     } else {
-      // Scheduled: pull all enabled links
+      if (retryOnly) {
+        return new Response(JSON.stringify({ error: 'retryFailedOnly requires linkId' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       const { data, error } = await supabase
         .from('vault_drive_links')
         .select('*')
@@ -263,20 +322,30 @@ serve(async (req) => {
       links = (data || []) as DriveLink[];
     }
 
-    console.log(`Syncing ${links.length} drive link(s)`);
+    console.log(`Syncing ${links.length} drive link(s)${retryOnly ? ' (retry-only)' : ''}`);
     const results: any[] = [];
 
     for (const link of links) {
       try {
-        const { imported, updated, skipped, failed } = await syncLink(supabase, link);
+        const { imported, updated, skipped, failed, failedFiles } = retryOnly
+          ? await retryFailedFiles(supabase, link)
+          : await syncLink(supabase, link);
+
         await supabase.from('vault_drive_links').update({
           last_synced_at: new Date().toISOString(),
           last_sync_status: failed > 0 ? 'partial' : 'success',
-          last_sync_error: failed > 0 ? `${failed} file(s) failed, ${skipped} skipped (too large)` : null,
+          last_sync_error: failed > 0 ? `${failed} file(s) failed${skipped ? `, ${skipped} skipped (too large)` : ''}` : null,
           files_imported_count: link.files_imported_count + imported,
           files_updated_count: link.files_updated_count + updated,
+          last_failed_files: failedFiles,
         }).eq('id', link.id);
-        results.push({ linkId: link.id, imported, updated, skipped, failed, status: failed > 0 ? 'partial' : 'success' });
+
+        results.push({
+          linkId: link.id,
+          imported, updated, skipped, failed,
+          retried: retryOnly,
+          status: failed > 0 ? 'partial' : 'success',
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`Sync failed for link ${link.id}:`, msg);

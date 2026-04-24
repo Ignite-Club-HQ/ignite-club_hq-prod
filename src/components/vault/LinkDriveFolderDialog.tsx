@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { HardDrive, Folder, Loader2, ChevronRight, ArrowLeft, Check, Link as LinkIcon, RefreshCw, Trash2, Power } from "lucide-react";
+import { HardDrive, Folder, Loader2, ChevronRight, ArrowLeft, Check, Link as LinkIcon, RefreshCw, Trash2, Power, AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,12 @@ interface DriveFolder {
   mimeType: string;
 }
 
+interface FailedFileRef {
+  drive_file_id: string;
+  vault_folder_id: string;
+  name?: string;
+}
+
 interface ExistingLink {
   id: string;
   drive_folder_name: string;
@@ -31,7 +37,10 @@ interface ExistingLink {
   last_sync_error: string | null;
   files_imported_count: number;
   files_updated_count: number;
+  last_failed_files: FailedFileRef[];
 }
+
+const LINK_SELECT = 'id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count, last_failed_files';
 
 interface Props {
   open: boolean;
@@ -55,6 +64,7 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const getRedirectUri = useCallback(() => {
     if (Capacitor.isNativePlatform()) return 'https://igniteclubhq.app/vault';
@@ -62,16 +72,23 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
   }, []);
 
   // Check for existing link when opened
+  const normalizeLink = (data: any): ExistingLink | null => {
+    if (!data) return null;
+    const raw = data.last_failed_files;
+    const failed: FailedFileRef[] = Array.isArray(raw) ? raw as FailedFileRef[] : [];
+    return { ...data, last_failed_files: failed } as ExistingLink;
+  };
+
   useEffect(() => {
     if (!open) return;
     setCheckingExisting(true);
     supabase
       .from('vault_drive_links')
-      .select('id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count')
+      .select(LINK_SELECT)
       .eq('vault_folder_id', vaultFolderId)
       .maybeSingle()
       .then(({ data }) => {
-        setExisting(data as ExistingLink | null);
+        setExisting(normalizeLink(data));
         setCheckingExisting(false);
       });
   }, [open, vaultFolderId]);
@@ -220,15 +237,50 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       // Refresh existing
       const { data: refreshed } = await supabase
         .from('vault_drive_links')
-        .select('id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count')
+        .select(LINK_SELECT)
         .eq('id', existing.id)
         .single();
-      setExisting(refreshed as ExistingLink);
+      setExisting(normalizeLink(refreshed));
     } catch (err) {
       console.error(err);
       toast.error("Sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const retryFailed = async () => {
+    if (!existing || existing.last_failed_files.length === 0) return;
+    try {
+      setRetrying(true);
+      const { data, error } = await supabase.functions.invoke('drive-folder-sync', {
+        body: { linkId: existing.id, retryFailedOnly: true },
+      });
+      if (error) throw error;
+      const r = data?.results?.[0];
+      if (r?.status === 'error') {
+        toast.error(`Retry failed: ${r.error}`);
+      } else {
+        const recovered = (r?.imported ?? 0) + (r?.updated ?? 0);
+        const stillFailed = r?.failed ?? 0;
+        if (stillFailed === 0) {
+          toast.success(`Recovered all ${recovered} file(s)`);
+        } else {
+          toast.warning(`Recovered ${recovered}, still failing: ${stillFailed}`);
+        }
+      }
+      onChanged();
+      const { data: refreshed } = await supabase
+        .from('vault_drive_links')
+        .select(LINK_SELECT)
+        .eq('id', existing.id)
+        .single();
+      setExisting(normalizeLink(refreshed));
+    } catch (err) {
+      console.error(err);
+      toast.error("Retry failed");
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -309,8 +361,46 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
               <Switch checked={existing.sync_enabled} onCheckedChange={toggleSync} />
             </div>
 
+            {existing.last_failed_files.length > 0 && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {existing.last_failed_files.length} file{existing.last_failed_files.length === 1 ? '' : 's'} failed last sync
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Retry only these — full sync isn't needed.
+                    </p>
+                    <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                      {existing.last_failed_files.slice(0, 5).map((f) => (
+                        <li key={f.drive_file_id} className="text-xs text-muted-foreground truncate">
+                          • {f.name ?? f.drive_file_id}
+                        </li>
+                      ))}
+                      {existing.last_failed_files.length > 5 && (
+                        <li className="text-xs text-muted-foreground">
+                          + {existing.last_failed_files.length - 5} more
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={retryFailed}
+                  disabled={retrying || syncing}
+                >
+                  {retrying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCw className="h-4 w-4 mr-2" />}
+                  Retry failed files
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
-              <Button onClick={triggerManualSync} disabled={syncing}>
+              <Button onClick={triggerManualSync} disabled={syncing || retrying}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Sync now
               </Button>
