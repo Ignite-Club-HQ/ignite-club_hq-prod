@@ -158,6 +158,10 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
     const keyboardHeight = Math.max(nativeKeyboardHeight, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
+    // While the GIF picker is open we ALWAYS want the sheet to expand up to
+    // just below the status bar so users get a tall multi-row grid. Only when
+    // the keyboard is closed AND the input has never been focused do we fall
+    // back to a compact panel.
     const keyboardSessionActive = isKeyboardOpen || inputFocused || searchActive;
 
     const nativeKeyboardTop = layoutViewportHeight - nativeKeyboardHeight;
@@ -181,16 +185,12 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || closedBottom)
       : closedBottom;
 
+    // Always size the sheet to fill the area between TOP_GAP and the
+    // keyboard (or visible bottom). This guarantees multiple rows of GIFs
+    // are visible even before the user has focused the search input.
     const availableHeight = Math.max(SHEET_MIN_HEIGHT, keyboardTop - TOP_GAP - KEYBOARD_GAP);
-    const compactHeight = Math.min(
-      SHEET_DEFAULT_HEIGHT,
-      Math.max(SHEET_MIN_HEIGHT, closedBottom - TOP_GAP - 16),
-    );
-    const preferredHeight = keyboardSessionActive ? availableHeight : compactHeight;
-    const nextSheetHeight = Math.min(availableHeight, preferredHeight);
-    const nextSheetTop = keyboardSessionActive
-      ? Math.max(TOP_GAP, keyboardTop - nextSheetHeight)
-      : Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
+    const nextSheetHeight = availableHeight;
+    const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
 
     return {
       sheetHeight: nextSheetHeight,
