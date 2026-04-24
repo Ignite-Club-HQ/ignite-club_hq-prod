@@ -156,6 +156,7 @@ export default function TrainingBoard({
     prev: prevFrame,
     goTo,
     setSpeed,
+    authoredIndex,
   } = useDrillPlayback({ frames, loop: settings.loopPlayback });
 
   // Apply user's default playback speed once on mount and whenever it changes
@@ -165,7 +166,7 @@ export default function TrainingBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.defaultPlaybackSpeed]);
 
-  const currentFrame = frames[currentIndex] ?? frames[0];
+  const currentFrame = frames[authoredIndex] ?? frames[0];
   const isAnimating = isPlaying;
   const canDragItems = !readOnly && !isAnimating && !runMode;
   const editable = canDragItems && !previewMode;
@@ -807,7 +808,7 @@ export default function TrainingBoard({
 
           {/* Compact step card — ~40% width, 2-line clamp, tap to expand. */}
           <DrillStepOverlay
-            frameNumber={currentIndex + 1}
+            frameNumber={authoredIndex + 1}
             totalFrames={frames.length}
             notes={substitutePlayerNamesInNotes(
               (isAnimating ? view.notes : currentFrame?.notes) ?? "",
@@ -838,7 +839,7 @@ export default function TrainingBoard({
       {mode === "run" && !readOnly && (
         <RunModeControls
           isPlaying={isPlaying}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onPrev={prevFrame}
           onNext={nextFrame}
@@ -861,7 +862,7 @@ export default function TrainingBoard({
         <PlaybackController
           isPlaying={isPlaying}
           speed={speed}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onToggle={() => {
             if (frames.length < 2) {
@@ -881,7 +882,7 @@ export default function TrainingBoard({
       {!readOnly && !previewMode && !runMode && (
         <FrameStrip
           frames={frames}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           onSelect={(i) => {
             setSelectedId(null);
             goTo(i);
