@@ -687,6 +687,34 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
                   <p className="text-xs text-muted-foreground px-1">
                     Tap a folder name to open it, or tap <span className="font-semibold text-foreground">Link</span> to sync that folder (including its loose files and subfolders).
                   </p>
+                  {folderPath.length === 0 && (
+                    <Card className="border-primary/40 bg-primary/5">
+                      <CardContent className="p-3 flex items-center gap-2">
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <HardDrive className="h-5 w-5 text-primary shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">Link entire My Drive</p>
+                            <p className="text-xs text-muted-foreground truncate">All loose files + every subfolder</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={linking}
+                          onClick={() => linkFolder({ id: 'root', name: 'My Drive', mimeType: 'application/vnd.google-apps.folder' })}
+                          className="shrink-0"
+                        >
+                          {linking ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <LinkIcon className="h-3.5 w-3.5 mr-1" />
+                              Link
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                   {folders.map((folder) => (
                     <Card key={folder.id} className="hover:bg-accent/50 transition-colors">
                       <CardContent className="p-3 flex items-center gap-2">
