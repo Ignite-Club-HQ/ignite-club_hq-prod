@@ -22,6 +22,12 @@ interface DrillStepOverlayProps {
   annotations?: Annotation[];
   /** Disable smart auto-placement (e.g. when caller wants a fixed anchor). */
   autoPlace?: boolean;
+  /**
+   * True while the drill is animating. We freeze auto-placement during
+   * animation so the card doesn't hop between corners every interpolation
+   * tick (which felt like a "shake" to coaches).
+   */
+  isAnimating?: boolean;
 }
 
 type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -157,9 +163,16 @@ function DrillStepOverlayImpl({
   objects,
   annotations,
   autoPlace = true,
+  isAnimating: _isAnimating = false,
 }: DrillStepOverlayProps) {
   const [expanded, setExpanded] = useState(false);
   const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null);
+  // Lock auto-placement to whatever corner was chosen for this frame so that
+  // mid-frame interpolation (during animation) can't bounce the card between
+  // corners — that bouncing was perceived as a shake. We only re-evaluate
+  // when the actual frame number changes.
+  const lockedPlacementRef = useRef<Corner | null>(null);
+  const lastFrameRef = useRef<number>(frameNumber);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{
     pointerId: number;
@@ -173,8 +186,16 @@ function DrillStepOverlayImpl({
   const hasNotes = !!notes?.trim();
 
   const placement: Corner = useMemo(() => {
+    // Reuse the previously chosen corner for the duration of a single frame
+    // (objects move every animation tick, but the card should stay put).
+    if (lastFrameRef.current === frameNumber && lockedPlacementRef.current) {
+      return lockedPlacementRef.current;
+    }
     if (!autoPlace || !objects || objects.length === 0) {
-      return anchor === "bottom" ? "bottom-left" : "top-left";
+      const fallback: Corner = anchor === "bottom" ? "bottom-left" : "top-left";
+      lockedPlacementRef.current = fallback;
+      lastFrameRef.current = frameNumber;
+      return fallback;
     }
     const corners: Corner[] = anchor === "bottom"
       ? ["bottom-left", "bottom-right", "top-left", "top-right"]
@@ -189,14 +210,20 @@ function DrillStepOverlayImpl({
         best = c;
       }
     }
+    lockedPlacementRef.current = best;
+    lastFrameRef.current = frameNumber;
     return best;
-  }, [autoPlace, objects, annotations, anchor]);
+    // We deliberately omit `objects`/`annotations` from deps — placement is
+    // evaluated once per frame to prevent shaking during animation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlace, anchor, frameNumber]);
 
-  // Reset manual drag offset when auto-placement target changes (e.g. new step,
-  // new auto-chosen corner). Keeps the card relevant without trapping the user.
+  // Reset manual drag offset only when the user moves to a different frame —
+  // not on every auto-placement re-eval (that was causing the offset to
+  // collapse mid-animation, which read as a sudden jump / shake).
   useEffect(() => {
     setDragOffset(null);
-  }, [placement, frameNumber]);
+  }, [frameNumber]);
 
   const positionClass = (() => {
     switch (placement) {
