@@ -3,12 +3,11 @@
 //
 // "Rotation order" follows the same canonical squad order used by
 // teamPlayerSubstitution: attackers (sky-blue / unset) first, defenders (red),
-// then everything else (servers / GKs / coaches). Within each bucket, the
-// authored player ordering is preserved.
+// then everything else (servers / GKs / coaches). Within each bucket the
+// authored ordering is preserved.
 //
-// The rotation only affects player x/y positions; labels, ids and other props
-// stay attached to the same chip so the on-pitch chip remains "the same player"
-// throughout playback.
+// The rotation only affects player x/y positions; chip ids, labels and colors
+// stay constant so on-pitch identity is preserved across iterations.
 
 import type { DrillFrame, DrillObject } from "./types";
 
@@ -18,7 +17,7 @@ function bucket(o: DrillObject): 0 | 1 | 2 {
   return 2;
 }
 
-/** Stable canonical ordering of player objects across all frames of a drill. */
+/** Stable canonical ordering of player chip ids across all frames. */
 function canonicalPlayerOrder(frames: DrillFrame[]): string[] {
   const first = frames[0];
   if (!first) return [];
@@ -29,60 +28,83 @@ function canonicalPlayerOrder(frames: DrillFrame[]): string[] {
 }
 
 /**
- * Returns the player chips' (x, y) coordinates from the first frame of the
- * drill, indexed by chip id. These define each "rotation slot".
+ * Remap player roles across every frame by `cycleStep` positions in canonical
+ * order. The chip with id `order[i]` adopts the trajectory the chip
+ * `order[(i + cycleStep) % n]` had in the original drill, while keeping its
+ * own identity (id/label/color). cycleStep === 0 returns frames unchanged.
  */
-function frameZeroSlots(
-  frames: DrillFrame[]
-): Map<string, { x: number; y: number }> {
-  const map = new Map<string, { x: number; y: number }>();
-  const first = frames[0];
-  if (!first) return map;
-  for (const o of first.objects) {
-    if (o.type === "player") map.set(o.id, { x: o.x, y: o.y });
-  }
-  return map;
+function rotatePlayerRoles(
+  frames: DrillFrame[],
+  cycleStep: number
+): DrillFrame[] {
+  const order = canonicalPlayerOrder(frames);
+  const n = order.length;
+  if (n < 2 || cycleStep % n === 0) return frames;
+
+  return frames.map((frame) => {
+    const playersById = new Map<string, DrillObject>();
+    for (const obj of frame.objects) {
+      if (obj.type === "player") playersById.set(obj.id, obj);
+    }
+
+    const remapped: DrillObject[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = order[i];
+      const sourceId = order[(i + cycleStep) % n];
+      const source = playersById.get(sourceId);
+      const own = playersById.get(id);
+      if (!own) continue;
+      if (!source) {
+        remapped.push(own);
+        continue;
+      }
+      remapped.push({
+        ...own,
+        x: source.x,
+        y: source.y,
+        rotation: source.rotation,
+        size: source.size,
+      });
+    }
+
+    const nonPlayers = frame.objects.filter((o) => o.type !== "player");
+    return { ...frame, objects: [...remapped, ...nonPlayers] };
+  });
 }
 
 /**
- * Build a synthetic "rotation transition" frame to append to the sequence.
- * It is a copy of `lastFrame` but with player chips moved to the NEXT player's
- * frame-0 position so playback animates the swap. Non-player objects mirror
- * frame 0 so the next iteration starts cleanly.
+ * Build a synthetic "rotation transition" frame that animates each chip from
+ * its position at the end of cycle `cycleStep` to where it will sit at the
+ * start of cycle `cycleStep + 1`. Non-player props mirror the next cycle's
+ * frame 0 so the iteration boundary is seamless.
  */
-export function buildRotationFrame(
-  frames: DrillFrame[],
+function buildRotationFrame(
+  rotatedFrames: DrillFrame[],
+  nextCycleFrame0: DrillFrame,
   cycleStep: number
 ): DrillFrame | null {
-  if (frames.length < 2) return null;
-  const order = canonicalPlayerOrder(frames);
-  if (order.length < 2) return null;
+  if (rotatedFrames.length < 1) return null;
+  const lastFrame = rotatedFrames[rotatedFrames.length - 1];
 
-  const slots = frameZeroSlots(frames);
-  const lastFrame = frames[frames.length - 1];
-  const firstFrame = frames[0];
-
-  // Map each player id -> the slot of the player that comes `cycleStep + 1`
-  // positions ahead in the canonical order. Players land in the next slot.
-  const targetSlot = new Map<string, { x: number; y: number }>();
-  const n = order.length;
-  for (let i = 0; i < n; i++) {
-    const fromId = order[i];
-    const toId = order[(i + cycleStep + 1) % n];
-    const slot = slots.get(toId);
-    if (slot) targetSlot.set(fromId, slot);
+  const nextPlayerSlots = new Map<string, { x: number; y: number }>();
+  for (const obj of nextCycleFrame0.objects) {
+    if (obj.type === "player") {
+      nextPlayerSlots.set(obj.id, { x: obj.x, y: obj.y });
+    }
   }
+  if (nextPlayerSlots.size === 0) return null;
 
   const rotatedPlayers: DrillObject[] = lastFrame.objects
     .filter((o) => o.type === "player")
     .map((o) => {
-      const dest = targetSlot.get(o.id);
+      const dest = nextPlayerSlots.get(o.id);
       if (!dest) return o;
       return { ...o, x: dest.x, y: dest.y };
     });
 
-  // Non-player props mirror frame 0 so the next iteration's frame 0 lines up.
-  const nonPlayerProps = firstFrame.objects.filter((o) => o.type !== "player");
+  const nonPlayerProps = nextCycleFrame0.objects.filter(
+    (o) => o.type !== "player"
+  );
 
   return {
     id: `__rotation_transition_${cycleStep}`,
@@ -95,15 +117,25 @@ export function buildRotationFrame(
 }
 
 /**
- * Return the input frames with a rotation transition appended at the end.
- * Used by the playback hook when looping is enabled and the drill has at least
- * 2 players, so each loop iteration ends with a visible rotation step.
+ * Return the drill frames for cycle `cycleStep`, with a rotation transition
+ * appended at the end that moves players into their cycle `cycleStep + 1`
+ * starting positions. If the drill has fewer than 2 players or 2 frames,
+ * the input is returned unchanged.
  */
 export function withRotationTransition(
-  frames: DrillFrame[],
+  rawFrames: DrillFrame[],
   cycleStep: number
 ): DrillFrame[] {
-  const rotation = buildRotationFrame(frames, cycleStep);
-  if (!rotation) return frames;
-  return [...frames, rotation];
+  if (rawFrames.length < 2) return rawFrames;
+  const order = canonicalPlayerOrder(rawFrames);
+  if (order.length < 2) return rawFrames;
+
+  const rotated = rotatePlayerRoles(rawFrames, cycleStep);
+  const nextRotated = rotatePlayerRoles(rawFrames, cycleStep + 1);
+  const nextFrame0 = nextRotated[0];
+  if (!nextFrame0) return rotated;
+
+  const transition = buildRotationFrame(rotated, nextFrame0, cycleStep);
+  if (!transition) return rotated;
+  return [...rotated, transition];
 }
