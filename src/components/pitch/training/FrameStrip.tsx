@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Film,
+  X,
 } from "lucide-react";
 import type { DrillFrame } from "./types";
 import { FrameThumbnail } from "./FrameThumbnail";
@@ -21,6 +22,9 @@ interface FrameStripProps {
   onDuplicate: (index: number) => void;
   onDelete: (index: number) => void;
   onReorder: (from: number, to: number) => void;
+  /** Close the entire edit panel (frame strip + toolbar + playback bar)
+   *  and return to the drill's read-only preview view. */
+  onExitEdit?: () => void;
   disabled?: boolean;
 }
 
