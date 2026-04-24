@@ -87,8 +87,9 @@ function getRenderablePlayerOrder<T extends DrillObject>(
   playerObjs: T[],
   rosterSize: number
 ): T[] {
+  const canonical = sortPlayerObjectsForSubstitution(playerObjs);
   if (rosterSize >= playerObjs.length) {
-    return sortPlayerObjectsForSubstitution(playerObjs);
+    return canonical;
   }
 
   const buckets: [T[], T[], T[]] = [[], [], []];
@@ -96,7 +97,14 @@ function getRenderablePlayerOrder<T extends DrillObject>(
     buckets[getPlayerBucket(obj)].push(obj);
   }
 
-  return buckets.flatMap((bucket) => [...bucket].sort(compareByVisualPriority));
+  const visibleIds = new Set(
+    buckets
+      .flatMap((bucket) => [...bucket].sort(compareByVisualPriority))
+      .slice(0, rosterSize)
+      .map((obj) => obj.id)
+  );
+
+  return canonical.filter((obj) => visibleIds.has(obj.id));
 }
 
 /**
