@@ -24,6 +24,7 @@ const PERSISTENT_TYPES = new Set([
   "cone",
   "mini-goal",
   "full-goal",
+  "goal-full",
   "goal",
   "marker",
   "flag",
