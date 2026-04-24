@@ -862,7 +862,7 @@ export default function TrainingBoard({
         <PlaybackController
           isPlaying={isPlaying}
           speed={speed}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onToggle={() => {
             if (frames.length < 2) {
