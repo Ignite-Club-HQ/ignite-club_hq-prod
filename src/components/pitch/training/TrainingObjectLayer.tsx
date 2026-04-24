@@ -762,7 +762,14 @@ function TrainingObjectLayerImpl({
               top: `${pos.y}%`,
               zIndex: z,
               opacity: obj.opacity ?? 1,
-              transition: "left 120ms ease-out, top 120ms ease-out",
+              // During playback, rAF already drives smooth motion frame-by-frame.
+              // Layering a 120ms CSS tween on top makes the browser constantly
+              // retarget mid-animation, which leaves moving chips lagging far
+              // behind the ball — the chip looks frozen at the cone while the
+              // ball flies to goal. Only animate position changes when editing.
+              transition: isAnimating
+                ? "opacity 120ms ease-out"
+                : "left 120ms ease-out, top 120ms ease-out, opacity 120ms ease-out",
             }}
           >
             <ObjectGlyph obj={obj} isNextUp={obj.id === nextUpId} />
