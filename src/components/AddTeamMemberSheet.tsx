@@ -1612,9 +1612,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       const sentCount = results.filter(r => r.sent).length;
       const totalCount = results.length;
       
-      toast({
+      void toastInviteSuccess({
         title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
-        description: sentCount > 0 
+        description: sentCount > 0
           ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
