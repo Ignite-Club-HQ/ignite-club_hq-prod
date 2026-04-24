@@ -93,10 +93,14 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
   return { bytes: new Uint8Array(buf), contentType: exportedMimeType ?? mimeType, extraExt };
 }
 
-async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: number; updated: number }> {
+const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
+
+async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: number; updated: number; skipped: number; failed: number }> {
   const accessToken = await refreshAccessToken(link.refresh_token);
   let imported = 0;
   let updated = 0;
+  let skipped = 0;
+  let failed = 0;
 
   // BFS: list of [driveFolderId, vaultParentFolderId]
   const queue: { driveId: string; vaultId: string }[] = [
