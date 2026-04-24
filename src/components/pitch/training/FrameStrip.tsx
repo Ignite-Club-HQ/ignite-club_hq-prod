@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Film,
+  X,
 } from "lucide-react";
 import type { DrillFrame } from "./types";
 import { FrameThumbnail } from "./FrameThumbnail";
@@ -21,6 +22,9 @@ interface FrameStripProps {
   onDuplicate: (index: number) => void;
   onDelete: (index: number) => void;
   onReorder: (from: number, to: number) => void;
+  /** Close the entire edit panel (frame strip + toolbar + playback bar)
+   *  and return to the drill's read-only preview view. */
+  onExitEdit?: () => void;
   disabled?: boolean;
 }
 
@@ -32,6 +36,7 @@ function FrameStripImpl({
   onDuplicate,
   onDelete,
   onReorder,
+  onExitEdit,
   disabled,
 }: FrameStripProps) {
   // Collapsed state lets coaches hide the frame strip once frames are
@@ -46,29 +51,44 @@ function FrameStripImpl({
         disabled && "opacity-60 pointer-events-none"
       )}
     >
-      {/* Header — always visible, click to collapse/expand. */}
-      <button
-        type="button"
-        onClick={() => setCollapsed((v) => !v)}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "Show frame strip" : "Hide frame strip"}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <Film className="h-3.5 w-3.5" />
-          <span>
-            Frames{" "}
-            <span className="tabular-nums text-foreground/80">
-              {currentIndex + 1} / {frames.length}
+      {/* Header — always visible. Click body to collapse/expand the
+          thumbnails; the trailing X closes the entire edit panel. */}
+      <div className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Show frame strip" : "Hide frame strip"}
+          className="flex-1 flex items-center justify-between gap-2 hover:text-foreground transition-colors"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Film className="h-3.5 w-3.5" />
+            <span>
+              Frames{" "}
+              <span className="tabular-nums text-foreground/80">
+                {currentIndex + 1} / {frames.length}
+              </span>
             </span>
           </span>
-        </span>
-        {collapsed ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
+          {collapsed ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </button>
+        {onExitEdit && (
+          <button
+            type="button"
+            onClick={onExitEdit}
+            aria-label="Close edit panel"
+            title="Close edit panel"
+            className="ml-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span className="text-[11px]">Close</span>
+          </button>
         )}
-      </button>
+      </div>
 
       {!collapsed && (
         <div className="px-2 pb-2">

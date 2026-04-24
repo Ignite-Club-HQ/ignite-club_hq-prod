@@ -875,6 +875,14 @@ export default function TrainingBoard({
           onDuplicate={duplicateFrame}
           onDelete={deleteFrame}
           onReorder={reorderFrame}
+          onExitEdit={() => {
+            // Return the board to the read-only preview state coaches see
+            // when a drill first opens — hides the frame strip, toolbar,
+            // and full playback bar in one tap.
+            setSelectedId(null);
+            setActiveTool("select");
+            setPreviewMode(true);
+          }}
           disabled={isAnimating}
         />
       )}
