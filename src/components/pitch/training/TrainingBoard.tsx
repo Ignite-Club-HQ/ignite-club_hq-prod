@@ -759,7 +759,13 @@ export default function TrainingBoard({
           className={cn(
             "relative rounded-md overflow-hidden select-none",
             cursorClass,
-            isLandscape ? "w-full h-full" : "w-full max-w-[820px] aspect-[2/3] mx-auto",
+            // Run mode: claim the entire available area (the controls bar
+            // sits below, this pitch fills everything between top bar and
+            // controls). Edit mode keeps the 2:3 portrait aspect so the
+            // editor toolbar/frame strip stay legible underneath.
+            isLandscape || mode === "run"
+              ? "w-full h-full"
+              : "w-full max-w-[820px] aspect-[2/3] mx-auto",
             mode === "edit" && "shadow-md",
           )}
           style={{

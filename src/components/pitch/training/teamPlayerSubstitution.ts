@@ -85,11 +85,37 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
   // Drop any player chip that didn't get a real squad name. This keeps the
   // pitch limited to actual attendees instead of padding with "Player 4",
   // "Player 5" etc. that confuse coaches and parents.
+  // Track the on-pitch positions of dropped players so we can also drop any
+  // ball/cone that was visually attached to them — otherwise the pitch shows
+  // a "ghost" ball rolling on its own with no owner chip nearby.
+  const droppedPositions: Array<{ x: number; y: number }> = [];
+  for (const obj of playerObjs) {
+    if (substitutions.has(obj.id)) continue;
+    const px = (obj as { x?: number }).x;
+    const py = (obj as { y?: number }).y;
+    if (typeof px === "number" && typeof py === "number") {
+      droppedPositions.push({ x: px, y: py });
+    }
+  }
+  const isOrphanEquipment = (obj: DrillObject): boolean => {
+    if (obj.type !== "ball") return false;
+    const ox = (obj as { x?: number }).x;
+    const oy = (obj as { y?: number }).y;
+    if (typeof ox !== "number" || typeof oy !== "number") return false;
+    // Treat a ball within ~3 pitch-% of a dropped player chip as orphaned.
+    return droppedPositions.some(
+      (p) => Math.hypot(p.x - ox, p.y - oy) < 3
+    );
+  };
+
   return objects.flatMap((obj) => {
-    if (obj.type !== "player") return [obj];
-    const replacement = substitutions.get(obj.id);
-    if (!replacement) return [];
-    return [{ ...obj, label: replacement }];
+    if (obj.type === "player") {
+      const replacement = substitutions.get(obj.id);
+      if (!replacement) return [];
+      return [{ ...obj, label: replacement }];
+    }
+    if (isOrphanEquipment(obj)) return [];
+    return [obj];
   });
 }
 

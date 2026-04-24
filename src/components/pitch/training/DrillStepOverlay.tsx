@@ -22,6 +22,12 @@ interface DrillStepOverlayProps {
   annotations?: Annotation[];
   /** Disable smart auto-placement (e.g. when caller wants a fixed anchor). */
   autoPlace?: boolean;
+  /**
+   * True while the drill is animating. We freeze auto-placement during
+   * animation so the card doesn't hop between corners every interpolation
+   * tick (which felt like a "shake" to coaches).
+   */
+  isAnimating?: boolean;
 }
 
 type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
