@@ -71,6 +71,7 @@ export function ChatParticipantsList({
 }: ChatParticipantsListProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
 
@@ -82,6 +83,7 @@ export function ChatParticipantsList({
   } | null>(null);
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
   const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
 
