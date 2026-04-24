@@ -194,42 +194,80 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
     }
   };
 
+  // Load top-level vault folders for the destination chooser (root-link mode).
+  // Filters by team scope so users only see folders they can write into.
+  const loadRootFolders = useCallback(async () => {
+    let q = supabase
+      .from('vault_folders')
+      .select('id, name')
+      .eq('club_id', clubId)
+      .is('parent_id', null)
+      .is('deleted_at', null)
+      .order('name');
+    if (teamId) {
+      q = q.eq('team_id', teamId);
+    } else {
+      q = q.is('team_id', null);
+    }
+    const { data } = await q;
+    setRootFolders((data ?? []) as RootFolderOption[]);
+  }, [clubId, teamId]);
+
+  /**
+   * Performs the actual `vault_drive_links` insert + initial sync against a
+   * known vault folder id. Shared by the two entry paths:
+   *   1. `vaultFolderId` prop is set → link directly into that folder.
+   *   2. `vaultFolderId` is null → user picks/creates a folder in the
+   *      destination step, then we call this with the resolved id.
+   */
+  const performLink = async (driveFolder: DriveFolder, targetVaultFolderId: string) => {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error("Not authenticated");
+
+    // Mark vault folder with drive id (best-effort; non-fatal if it conflicts).
+    await supabase.from('vault_folders').update({ drive_folder_id: driveFolder.id }).eq('id', targetVaultFolderId);
+
+    const { data: newLink, error: insertErr } = await supabase
+      .from('vault_drive_links')
+      .insert({
+        club_id: clubId,
+        team_id: teamId,
+        vault_folder_id: targetVaultFolderId,
+        drive_folder_id: driveFolder.id,
+        drive_folder_name: driveFolder.name,
+        refresh_token: refreshToken,
+        google_account_email: googleEmail,
+        created_by: userId,
+      })
+      .select('*')
+      .single();
+    if (insertErr) throw insertErr;
+
+    toast.success(`Linked "${driveFolder.name}" — running initial sync...`);
+    await supabase.functions.invoke('drive-folder-sync', { body: { linkId: newLink.id } });
+    toast.success("Initial sync complete");
+  };
+
   const linkFolder = async (folder: DriveFolder) => {
     if (!refreshToken) {
       toast.error("Missing refresh token. Please disconnect Google Drive in your Google account and reconnect.");
       return;
     }
+
+    // Root-link mode: defer the actual link until the user chooses a vault destination.
+    if (!vaultFolderId) {
+      setPendingDriveFolder(folder);
+      setNewFolderName(folder.name);
+      setDestinationMode("new");
+      setSelectedExistingId(null);
+      setStep("destination");
+      void loadRootFolders();
+      return;
+    }
+
     try {
       setLinking(true);
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Not authenticated");
-
-      // Mark vault folder with drive id
-      await supabase.from('vault_folders').update({ drive_folder_id: folder.id }).eq('id', vaultFolderId);
-
-      const { data: newLink, error: insertErr } = await supabase
-        .from('vault_drive_links')
-        .insert({
-          club_id: clubId,
-          team_id: teamId,
-          vault_folder_id: vaultFolderId,
-          drive_folder_id: folder.id,
-          drive_folder_name: folder.name,
-          refresh_token: refreshToken,
-          google_account_email: googleEmail,
-          created_by: userId,
-        })
-        .select('*')
-        .single();
-
-      if (insertErr) throw insertErr;
-
-      toast.success(`Linked "${folder.name}" — running initial sync...`);
-
-      // Trigger first sync
-      await supabase.functions.invoke('drive-folder-sync', { body: { linkId: newLink.id } });
-
-      toast.success("Initial sync complete");
+      await performLink(folder, vaultFolderId);
       onChanged();
       onOpenChange(false);
     } catch (err) {
