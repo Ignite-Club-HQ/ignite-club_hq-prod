@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DrillFrame } from "@/components/pitch/training/types";
 import {
   interpolateFrames,
   staticFrame,
   type InterpolatedFrame,
 } from "@/components/pitch/training/interpolation";
+import { withRotationTransition } from "@/components/pitch/training/playerRotation";
 
 export type PlaybackSpeed = 0.5 | 1 | 2;
 
