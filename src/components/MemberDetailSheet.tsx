@@ -313,6 +313,24 @@ export default function MemberDetailSheet({
           )}
         </div>
       </DrawerContent>
+      {useUnifiedDialog && teamId && teamName && clubId && (
+        <ManageRolesDialog
+          open={manageRolesOpen}
+          onOpenChange={setManageRolesOpen}
+          userId={userId}
+          userName={displayName}
+          avatarUrl={avatarUrl}
+          teamId={teamId}
+          teamName={teamName}
+          clubId={clubId}
+          currentRoles={roles}
+          canManage={canManage}
+          onSaved={() => {
+            onOpenChange(false);
+            onRolesUpdated?.();
+          }}
+        />
+      )}
     </Drawer>
   );
 }
