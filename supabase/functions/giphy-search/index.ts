@@ -63,16 +63,27 @@ serve(async (req) => {
     }
 
     const data = (await response.json()) as GiphyResponse;
-    const gifs = (data.data || []).map((g) => ({
-      id: g.id,
-      title: g.title,
-      preview: g.images.fixed_width.url,
-      previewWidth: Number(g.images.fixed_width.width),
-      previewHeight: Number(g.images.fixed_width.height),
-      url: g.images.downsized_medium?.url || g.images.original.url,
-      width: Number((g.images.downsized_medium ?? g.images.original).width),
-      height: Number((g.images.downsized_medium ?? g.images.original).height),
-    }));
+    const gifs = (data.data || []).map((g) => {
+      // Prefer the smallest still-animated rendition for fast in-chat playback.
+      // Giphy size guidance: fixed_width ~200px wide animated GIF (typically <1MB),
+      // downsized is capped at 2MB. Avoid `original` (often 5-15MB) and
+      // `downsized_medium` (capped at 8MB) which take ages to load on mobile.
+      const sendable =
+        g.images.fixed_width ??
+        g.images.downsized ??
+        g.images.downsized_medium ??
+        g.images.original;
+      return {
+        id: g.id,
+        title: g.title,
+        preview: g.images.fixed_width.url,
+        previewWidth: Number(g.images.fixed_width.width),
+        previewHeight: Number(g.images.fixed_width.height),
+        url: sendable.url,
+        width: Number(sendable.width),
+        height: Number(sendable.height),
+      };
+    });
 
     return new Response(JSON.stringify({ gifs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
