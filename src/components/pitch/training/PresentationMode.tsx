@@ -208,6 +208,7 @@ export default function PresentationMode({
             annotations={view.annotations}
             containerRef={containerRef}
             readOnly
+            isAnimating={isPlaying}
           />
           {showNotes && renderedNotes && (
             <div className="absolute left-1/2 bottom-3 -translate-x-1/2 max-w-[90%] px-3 py-2 rounded-md bg-black/70 text-white text-sm font-medium pointer-events-none shadow-lg">
