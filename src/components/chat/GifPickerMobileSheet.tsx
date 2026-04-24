@@ -19,13 +19,11 @@ import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardS
  * visible area above the keyboard across viewport models.
  */
 /**
- * Sheet sizing:
- *  - When the keyboard is closed: sheet is a compact bottom panel.
- *  - When the keyboard is open (user is searching): sheet stretches all the
- *    way from just below the status bar down to just above the keyboard so we
- *    get as many rows of GIFs as possible.
+ * Sheet sizing — always span from TOP_GAP down to the keyboard top (or the
+ * visible viewport bottom when the keyboard is closed). This guarantees we
+ * give as many rows of GIFs as the screen allows, instead of capping the
+ * sheet at a fixed default height.
  */
-const SHEET_DEFAULT_HEIGHT = 460;
 const SHEET_MIN_HEIGHT = 280;
 const TOP_GAP = 56; // leave room for status bar / notch
 const KEYBOARD_GAP = 0;
