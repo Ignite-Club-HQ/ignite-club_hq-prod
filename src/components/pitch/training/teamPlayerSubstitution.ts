@@ -1,4 +1,4 @@
-import type { DrillObject } from "./types";
+import type { Annotation, ArrowGeometry, DrillObject, TextGeometry } from "./types";
 
 export interface TeamPlayerLite {
   id: string;
@@ -98,11 +98,13 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     }
   }
   const isOrphanEquipment = (obj: DrillObject): boolean => {
-    if (obj.type !== "ball") return false;
+    // Drop balls AND cones that sit on top of a dropped player chip — those
+    // were placed to mark that player's start spot. Without the chip, they
+    // become confusing "ghost" markers.
+    if (obj.type !== "ball" && obj.type !== "cone") return false;
     const ox = (obj as { x?: number }).x;
     const oy = (obj as { y?: number }).y;
     if (typeof ox !== "number" || typeof oy !== "number") return false;
-    // Treat a ball within ~3 pitch-% of a dropped player chip as orphaned.
     return droppedPositions.some(
       (p) => Math.hypot(p.x - ox, p.y - oy) < 3
     );
@@ -116,6 +118,72 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     }
     if (isOrphanEquipment(obj)) return [];
     return [obj];
+  });
+}
+
+/**
+ * Compute on-pitch positions of player chips that WILL be dropped by
+ * `applyTeamPlayersToObjects` for the current squad. Used by callers to also
+ * strip annotations (arrows, labels) anchored on those ghost spots.
+ */
+function getDroppedPlayerPositions(
+  objects: DrillObject[],
+  players: TeamPlayerLite[]
+): Array<{ x: number; y: number }> {
+  if (!players.length) return [];
+  const playerObjs = objects.filter((o) => o.type === "player");
+  if (playerObjs.length === 0) return [];
+
+  const sortedPlayerObjs = [...playerObjs].sort((a, b) => {
+    const score = (o: DrillObject) => {
+      if (!o.color || o.color === "#0ea5e9") return 0;
+      if (o.color === "#ef4444") return 1;
+      return 2;
+    };
+    return score(a) - score(b);
+  });
+
+  const dropped: Array<{ x: number; y: number }> = [];
+  sortedPlayerObjs.forEach((obj, idx) => {
+    if (players[idx]) return;
+    const px = (obj as { x?: number }).x;
+    const py = (obj as { y?: number }).y;
+    if (typeof px === "number" && typeof py === "number") {
+      dropped.push({ x: px, y: py });
+    }
+  });
+  return dropped;
+}
+
+/**
+ * Filter out arrows that start or end at a dropped player chip, and text
+ * labels anchored on top of one. Keeps the pitch consistent with whichever
+ * chips actually rendered after squad substitution — no more "S2 plays the
+ * pass" arrow when S2 was dropped because the squad was too small.
+ */
+export function filterOrphanAnnotations(
+  annotations: Annotation[],
+  objects: DrillObject[],
+  players: TeamPlayerLite[]
+): Annotation[] {
+  if (!players.length) return annotations;
+  const dropped = getDroppedPlayerPositions(objects, players);
+  if (dropped.length === 0) return annotations;
+
+  const NEAR = 4; // pitch-% radius for "anchored on" a dropped chip
+  const nearDropped = (x: number, y: number) =>
+    dropped.some((p) => Math.hypot(p.x - x, p.y - y) < NEAR);
+
+  return annotations.filter((a) => {
+    if (a.type === "arrow-solid" || a.type === "arrow-dashed") {
+      const g = a.geometry as ArrowGeometry;
+      return !nearDropped(g.from.x, g.from.y) && !nearDropped(g.to.x, g.to.y);
+    }
+    if (a.type === "text") {
+      const g = a.geometry as TextGeometry;
+      return !nearDropped(g.x, g.y);
+    }
+    return true;
   });
 }
 
