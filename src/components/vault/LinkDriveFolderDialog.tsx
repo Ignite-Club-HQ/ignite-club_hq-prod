@@ -77,7 +77,7 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
     setCheckingExisting(true);
     supabase
       .from('vault_drive_links')
-      .select('id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count')
+      .select(LINK_SELECT)
       .eq('vault_folder_id', vaultFolderId)
       .maybeSingle()
       .then(({ data }) => {
