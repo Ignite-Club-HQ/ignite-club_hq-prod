@@ -809,6 +809,7 @@ export default function TrainingBoard({
             anchor="top"
             objects={renderedObjects}
             annotations={renderedAnnotations}
+            isAnimating={isAnimating}
           />
 
           <TrainingObjectLayer
