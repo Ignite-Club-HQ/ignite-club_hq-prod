@@ -554,6 +554,94 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
               Connect Google Drive
             </Button>
           </div>
+        ) : step === "destination" && pendingDriveFolder ? (
+          <div className="p-4 space-y-4">
+            <div className="rounded-lg border p-3 bg-muted/30">
+              <p className="text-xs text-muted-foreground">Linking Drive folder</p>
+              <p className="font-medium truncate">{pendingDriveFolder.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Includes loose files at the top level + everything in subfolders.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Where should it sync to?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDestinationMode("new")}
+                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                    destinationMode === "new" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                  }`}
+                >
+                  <p className="font-medium">Create new folder</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Recommended</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDestinationMode("existing"); void loadRootFolders(); }}
+                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                    destinationMode === "existing" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                  }`}
+                >
+                  <p className="font-medium">Use existing folder</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Pick one below</p>
+                </button>
+              </div>
+            </div>
+
+            {destinationMode === "new" ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New folder name</label>
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="e.g. Riverside FC Drive"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Pick a folder</label>
+                <ScrollArea className="max-h-64 rounded-md border">
+                  {rootFolders.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground text-center">
+                      No top-level folders yet — create a new one instead.
+                    </p>
+                  ) : (
+                    <div className="p-1 space-y-1">
+                      {rootFolders.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setSelectedExistingId(f.id)}
+                          className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-left transition-colors ${
+                            selectedExistingId === f.id ? "bg-primary/10" : "hover:bg-accent/50"
+                          }`}
+                        >
+                          <Folder className="h-4 w-4 text-primary shrink-0" />
+                          <span className="truncate">{f.name}</span>
+                          {selectedExistingId === f.id && <Check className="h-4 w-4 ml-auto text-primary shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" disabled={linking} onClick={() => setStep("browse")}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              <Button className="flex-1" disabled={linking} onClick={confirmDestination}>
+                {linking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                Link & sync
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col h-full min-h-0">
             <div className="flex items-center gap-2 px-4 py-2 border-b overflow-x-auto">
