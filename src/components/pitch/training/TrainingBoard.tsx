@@ -814,6 +814,7 @@ export default function TrainingBoard({
             onAnnotationMove={moveAnnotation}
             containerRef={containerRef}
             readOnly={!canDragItems}
+            isAnimating={isAnimating}
           />
         </div>
       </div>
