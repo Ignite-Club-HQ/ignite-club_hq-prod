@@ -2509,252 +2509,173 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
 
-            {/* Email / delivery for new members (name entered, not existing user) */}
-            {!selectedUser && nameConfirmed && nameInput.trim() && (
+            {/* STEP 2 (new member, parent role): child fields + second guardian */}
+            {wizardStep === 2 && !selectedUser && nameConfirmed && nameInput.trim() && selectedRole === "parent" && (
               <>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">How to deliver invite?</Label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setDeliveryMethod("email"); }}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                        deliveryMethod === "email"
-                          ? "bg-primary/10 border-primary text-primary"
-                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <Mail className="h-4 w-4" />
-                      Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                        deliveryMethod === "share"
-                          ? "bg-primary/10 border-primary text-primary"
-                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <Share2 className="h-4 w-4" />
-                      Share Link
-                    </button>
-                  </div>
-                  {deliveryMethod === "email" && (
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="email"
-                        placeholder="e.g., john@example.com"
-                        value={customEmail}
-                        onChange={(e) => setCustomEmail(e.target.value)}
-                        className="pl-10"
-                        autoFocus
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Custom message toggle */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-1.5 text-sm">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      Custom Message
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => {
-                        setShowMessageEditor(!showMessageEditor);
-                        if (!showMessageEditor && !customMessage) {
-                          setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                        }
-                      }}
-                    >
-                      {showMessageEditor ? "Hide" : "Add message"}
-                    </Button>
-                  </div>
-                  {showMessageEditor && (
-                    <Textarea
-                      placeholder="Write a personal welcome message..."
-                      value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={3}
-                      className="text-sm resize-none"
-                    />
-                  )}
-                </div>
-
                 {/* Child fields for parent role (new member) */}
-                {selectedRole === "parent" && nameConfirmed && nameInput.trim() && (
-                  <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
-                    <div className="flex items-center gap-2">
-                      <Baby className="h-4 w-4 text-primary" />
-                      <Label className="text-primary font-medium">Child Player(s)</Label>
-                    </div>
-                    
-                    {singleChildren.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Loading...</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {singleChildren.map((child, idx) => {
-                          const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
-                          return (
-                            <div key={child.id} className="space-y-1">
-                              <div className="space-y-2">
-                                <div className="flex gap-2 items-start">
-                                  <div className="flex-1 space-y-1 relative">
-                                    <Input
-                                      placeholder="Child's name"
-                                      value={child.name}
-                                      autoFocus={idx === 0 && !child.name}
-                                      onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
+                <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <Baby className="h-4 w-4 text-primary" />
+                    <Label className="text-primary font-medium">Child Player(s)</Label>
+                  </div>
+
+                  {singleChildren.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {singleChildren.map((child, idx) => {
+                        const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
+                        return (
+                          <div key={child.id} className="space-y-1">
+                            <div className="space-y-2">
+                              <div className="flex gap-2 items-start">
+                                <div className="flex-1 space-y-1 relative">
+                                  <Input
+                                    placeholder="Child's name"
+                                    value={child.name}
+                                    autoFocus={idx === 0 && !child.name}
+                                    onChange={(e) => setSingleChildren(singleChildren.map(c =>
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
+                                    ))}
+                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                  />
+                                  {matches.length > 0 && !child.existingChildId && (
+                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                                      {matches.map(m => (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? ((m as any).isPending
+                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
+                                          ))}
+                                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
+                                        >
+                                          <span className="font-medium">{m.name}</span>
+                                          <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
+                                        </button>
                                       ))}
-                                      className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
-                                    />
-                                    {matches.length > 0 && !child.existingChildId && (
-                                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                                        {matches.map(m => (
-                                          <button
-                                            key={m.id}
-                                            type="button"
-                                            onClick={() => setSingleChildren(singleChildren.map(c => 
-                                              c.id === child.id ? ((m as any).isPending
-                                                ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
-                                                : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
-                                            ))}
-                                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
-                                          >
-                                            <span className="font-medium">{m.name}</span>
-                                            <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 text-destructive hover:text-destructive"
-                                    onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground italic">Optional</p>
-                                <div className="flex gap-2 pl-0">
-                                  <div className="flex-1">
-                                    <Input
-                                      placeholder="Jersey #"
-                                      value={child.jerseyNumber}
-                                      onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                        setSingleChildren(singleChildren.map(c => 
-                                          c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                        ));
-                                      }}
-                                      className="h-10 text-sm"
-                                      maxLength={2}
-                                      inputMode="numeric"
-                                    />
-                                  </div>
-                                  <div className="flex-1">
-                                    <select
-                                      value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                      onChange={(e) => {
-                                        setSingleChildren(singleChildren.map(c => 
-                                          c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
-                                        ));
-                                      }}
-                                      disabled={!!child.existingChildId}
-                                      className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-                                    >
-                                      <option value="">Birth year</option>
-                                      {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
-                                        <option key={year} value={year.toString()}>{year}</option>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-destructive hover:text-destructive"
+                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground italic">Optional</p>
+                              <div className="flex gap-2 pl-0">
+                                <div className="flex-1">
+                                  <Input
+                                    placeholder="Jersey #"
+                                    value={child.jerseyNumber}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                      setSingleChildren(singleChildren.map(c =>
+                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                      ));
+                                    }}
+                                    className="h-10 text-sm"
+                                    maxLength={2}
+                                    inputMode="numeric"
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <select
+                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                    onChange={(e) => {
+                                      setSingleChildren(singleChildren.map(c =>
+                                        c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
+                                      ));
+                                    }}
+                                    disabled={!!child.existingChildId}
+                                    className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                  >
+                                    <option value="">Birth year</option>
+                                    {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                      <option key={year} value={year.toString()}>{year}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                            {child.existingChildId && (
+                              <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                              </p>
+                            )}
+                            {child.pendingInviteId && !child.existingChildId && (
+                              <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Pending invite (parent: {child.pendingParentName})
+                              </p>
+                            )}
+                            {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
+                              <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    <strong>{matches[0].name}</strong>{' '}
+                                    {(matches[0] as any).isPending
+                                      ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
+                                      : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
+                                    }
+                                  </p>
+                                  <div className="flex gap-2 mt-1.5">
+                                    {(matches[0] as any).isPending ? (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
+                                        ))}
+                                      >
+                                        Yes, same child
+                                      </Button>
+                                    ) : (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                        ))}
+                                      >
+                                        Link to existing
+                                      </Button>
+                                    )}
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                      onClick={() => setSingleChildren(singleChildren.map(c =>
+                                        c.id === child.id ? { ...c, confirmedNew: true } : c
                                       ))}
-                                    </select>
+                                    >
+                                      Different child
+                                    </Button>
                                   </div>
                                 </div>
                               </div>
-                              {child.existingChildId && (
-                                <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Linked to existing child ({child.existingChildParentName || 'existing parent'})
-                                </p>
-                              )}
-                              {child.pendingInviteId && !child.existingChildId && (
-                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Pending invite (parent: {child.pendingParentName})
-                                </p>
-                              )}
-                              {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
-                                <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                  <div className="flex-1">
-                                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      <strong>{matches[0].name}</strong>{' '}
-                                      {(matches[0] as any).isPending 
-                                        ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
-                                        : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
-                                      }
-                                    </p>
-                                    <div className="flex gap-2 mt-1.5">
-                                      {(matches[0] as any).isPending ? (
-                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                          onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
-                                          ))}
-                                        >
-                                          Yes, same child
-                                        </Button>
-                                      ) : (
-                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                          onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                          ))}
-                                        >
-                                          Link to existing
-                                        </Button>
-                                      )}
-                                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, confirmedNew: true } : c
-                                        ))}
-                                      >
-                                        Different child
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors mt-1"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Add another child
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                            )}
+                          </div>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors mt-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add another child
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Second parent/guardian fields (new member) */}
-                {selectedRole === "parent" && singleChildren.length > 0 && (
+                {singleChildren.length > 0 && (
                   <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 of 3 — Optional</p>
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Optional</p>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
                       <Label className="text-blue-600 font-medium">Second Parent / Guardian</Label>
@@ -2837,6 +2758,87 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     )}
                   </div>
                 )}
+              </>
+            )}
+
+            {/* STEP 3: Delivery method + custom message (new members only) */}
+            {wizardStep === 3 && !selectedUser && nameConfirmed && nameInput.trim() && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">How to deliver invite?</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("email"); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "email"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "share"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share Link
+                    </button>
+                  </div>
+                  {deliveryMethod === "email" && (
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="e.g., john@example.com"
+                        value={customEmail}
+                        onChange={(e) => setCustomEmail(e.target.value)}
+                        className="pl-10"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom message toggle */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 text-sm">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Custom Message
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowMessageEditor(!showMessageEditor);
+                        if (!showMessageEditor && !customMessage) {
+                          setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
+                        }
+                      }}
+                    >
+                      {showMessageEditor ? "Hide" : "Add message"}
+                    </Button>
+                  </div>
+                  {showMessageEditor && (
+                    <Textarea
+                      placeholder="Write a personal welcome message..."
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      rows={3}
+                      className="text-sm resize-none"
+                    />
+                  )}
+                </div>
               </>
             )}
           </TabsContent>
