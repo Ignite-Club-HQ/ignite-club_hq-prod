@@ -3602,11 +3602,11 @@ export default function VaultPage() {
               targetClubId={currentView.clubId}
             />
 
-            {currentView.folderId && (
+            {'clubId' in currentView && (
               <LinkDriveFolderDialog
                 open={linkDriveFolderOpen}
                 onOpenChange={setLinkDriveFolderOpen}
-                vaultFolderId={currentView.folderId}
+                vaultFolderId={currentView.folderId ?? null}
                 clubId={currentView.clubId}
                 teamId={currentView.type === "team" ? currentView.teamId : null}
                 onChanged={() => {
