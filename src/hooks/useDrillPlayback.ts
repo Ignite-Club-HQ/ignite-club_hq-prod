@@ -185,6 +185,7 @@ export function useDrillPlayback({
   const reset = useCallback(() => {
     setIsPlaying(false);
     setCurrentIndex(0);
+    setCycleStep(0);
   }, []);
 
   return {
