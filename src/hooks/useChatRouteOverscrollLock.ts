@@ -47,6 +47,11 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       const deltaY = currentY - touchStartYRef.current;
       if (deltaY === 0) return;
 
+      // If the touch is happening inside an overlay (e.g. the GIF picker
+      // portaled to <body>), let the overlay's own scroll container handle
+      // it — don't apply chat-route overscroll prevention here.
+      if (target.closest(OVERLAY_SCROLL_SELECTOR)) return;
+
       const scrollContainer = target.closest(CHAT_SCROLL_SELECTOR) as HTMLElement | null;
 
       // Prevent Android pull-to-refresh when dragging down from non-scrollable chat chrome (header/composer).
