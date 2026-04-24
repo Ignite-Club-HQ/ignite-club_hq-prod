@@ -162,6 +162,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
+  // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
@@ -1624,6 +1626,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteShareLink(null);
     setInviteSent(false);
     setMode("single");
+    setWizardStep(1);
+    setNameConfirmed(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
