@@ -31,6 +31,18 @@ interface UseDrillPlaybackReturn {
   setSpeed: (s: PlaybackSpeed) => void;
   /** Reset to first frame and pause */
   reset: () => void;
+  /**
+   * Number of AUTHORED frames the caller passed in. UI counters/jump-buttons
+   * should use this — it intentionally excludes the synthetic rotation
+   * transition frame appended internally when looping is enabled.
+   */
+  authoredFrameCount: number;
+  /**
+   * Currently visible authored-frame index, clamped so the synthetic rotation
+   * transition surfaces as "still on the last authored frame" for UI
+   * highlighting purposes.
+   */
+  authoredIndex: number;
 }
 
 /**
