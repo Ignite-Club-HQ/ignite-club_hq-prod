@@ -149,6 +149,15 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
     // Process files
     for (const file of files) {
       try {
+        // Skip files larger than our memory budget — they would OOM the function
+        // and abort the entire sync, leaving later files unprocessed.
+        const declaredSize = file.size ? Number(file.size) : 0;
+        if (declaredSize && declaredSize > MAX_FILE_BYTES) {
+          console.warn(`Skipping "${file.name}" (${(declaredSize / 1024 / 1024).toFixed(1)} MB) — exceeds ${MAX_FILE_BYTES / 1024 / 1024} MB limit`);
+          skipped++;
+          continue;
+        }
+
         const { data: existing } = await supabase
           .from('vault_files')
           .select('id, drive_modified_time, file_url')
@@ -171,9 +180,9 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
           const bucket = 'photos';
           const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
           const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
-          if (upErr) { console.error('Upload failed', upErr); continue; }
+          if (upErr) { console.error(`Storage upload failed for "${fileName}":`, upErr); failed++; continue; }
           const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-          await supabase
+          const { error: updErr } = await supabase
             .from('vault_files')
             .update({
               file_url: urlData.publicUrl,
@@ -183,6 +192,7 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
               name: fileName,
             })
             .eq('id', existing.id);
+          if (updErr) { console.error(`DB update failed for "${fileName}":`, updErr); failed++; continue; }
           updated++;
         } else {
           // Brand new file
@@ -193,9 +203,9 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
           const bucket = 'photos';
           const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
           const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
-          if (upErr) { console.error('Upload failed', upErr); continue; }
+          if (upErr) { console.error(`Storage upload failed for "${fileName}":`, upErr); failed++; continue; }
           const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-          await supabase.from('vault_files').insert({
+          const { error: insErr } = await supabase.from('vault_files').insert({
             file_url: urlData.publicUrl,
             name: fileName,
             club_id: link.club_id,
@@ -207,15 +217,17 @@ async function syncLink(supabase: any, link: DriveLink): Promise<{ imported: num
             drive_file_id: file.id,
             drive_modified_time: driveModified,
           });
+          if (insErr) { console.error(`DB insert failed for "${fileName}":`, insErr); failed++; continue; }
           imported++;
         }
       } catch (fileErr) {
-        console.error(`Failed processing file ${file.name}:`, fileErr);
+        failed++;
+        console.error(`Failed processing file "${file.name}" (drive_id=${file.id}):`, fileErr);
       }
     }
   }
 
-  return { imported, updated };
+  return { imported, updated, skipped, failed };
 }
 
 serve(async (req) => {
