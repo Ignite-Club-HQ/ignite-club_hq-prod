@@ -2231,8 +2231,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             {/* Role selection moved to top of form */}
 
-            {/* Email field for existing user with non-parent role (coach/admin/player) */}
-            {selectedUser && selectedRole !== "parent" && (
+            {/* STEP 3 (existing user): optional email for non-parent roles */}
+            {wizardStep === 3 && selectedUser && selectedRole !== "parent" && (
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
