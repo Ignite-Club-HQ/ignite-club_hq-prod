@@ -122,7 +122,28 @@ export function ChatParticipantsList({
     },
   });
 
-  const effectiveTeamId = chatType === "team" ? chatId : teamId;
+  const leaveGroupMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", chatId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("You left the group");
+      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
+      queryClient.invalidateQueries({ queryKey: ["personal-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-inbox"] });
+      setLeaveConfirmOpen(false);
+      navigate("/messages");
+    },
+    onError: (err: any) => {
+      toast.error("Failed to leave group: " + (err?.message || "Unknown error"));
+    },
+  });
 
   const { data: resolvedClubId } = useQuery({
     queryKey: ["chat-members-team-club", effectiveTeamId],
