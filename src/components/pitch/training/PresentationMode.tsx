@@ -245,7 +245,7 @@ export default function PresentationMode({
             aria-label="Jump to frame"
           >
             {frames.map((_, i) => {
-              const active = i === currentIndex;
+              const active = i === authoredIndex;
               return (
                 <button
                   key={i}
