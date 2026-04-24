@@ -1,22 +1,37 @@
-// Normalize a drill's frames so that every player chip that appears anywhere
-// in the drill is present in EVERY frame. When a chip is missing from a frame,
-// we fill it in by carrying forward its most recent known state (or, if it
-// hasn't appeared yet, by reaching forward to its first authored position).
+// Normalize a drill's frames so that every persistent chip that appears
+// anywhere in the drill is present in EVERY frame. When a chip is missing
+// from a frame, we fill it in by carrying forward its most recent known
+// state (or, if it hasn't appeared yet, by reaching forward to its first
+// authored position).
 //
-// This fixes the "vanishing player chip" bug seen in legacy drills where
-// authors (or seed scripts) only placed certain chips into a subset of
-// frames. Without this, those chips fade out during playback and pop back in
-// later, which looks like they "disappeared".
+// This fixes the "vanishing chip" bug seen in legacy drills where authors
+// (or seed scripts) only placed chips into a subset of frames. Without
+// this, those chips fade out during playback and pop back in later, which
+// looks like they "disappeared".
 //
-// We deliberately ONLY fill players (and goalkeepers, which are also players
-// semantically) — props like balls, cones, and arrows are intentionally
-// frame-scoped and should still appear/disappear as authored.
+// Persistent chip types: players, balls, cones, mini-goals, full-goals,
+// goalkeepers — anything physically on the pitch.
+// Non-persistent: annotations like arrows are frame-scoped by design and
+// remain authored per-frame (they're carried via `annotations`, not
+// `objects`, so this filter is just a belt-and-braces guard).
 
 import type { DrillFrame, DrillObject } from "./types";
 
-/** Returns true if the object is a player-type chip that should persist. */
+const PERSISTENT_TYPES = new Set([
+  "player",
+  "goalkeeper",
+  "ball",
+  "cone",
+  "mini-goal",
+  "full-goal",
+  "goal",
+  "marker",
+  "flag",
+]);
+
+/** Returns true if the object is a chip that should persist across frames. */
 function isPersistentPlayer(o: DrillObject): boolean {
-  return o.type === "player";
+  return PERSISTENT_TYPES.has(o.type as string);
 }
 
 export function normalizeFramesForPlayback(frames: DrillFrame[]): DrillFrame[] {
