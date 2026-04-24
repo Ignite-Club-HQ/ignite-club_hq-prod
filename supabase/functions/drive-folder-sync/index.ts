@@ -44,17 +44,25 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
 }
 
 async function listDriveFolder(accessToken: string, folderId: string) {
-  const url = new URL('https://www.googleapis.com/drive/v3/files');
-  url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
-  url.searchParams.set('fields', 'files(id,name,mimeType,size,modifiedTime)');
-  url.searchParams.set('pageSize', '1000');
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) throw new Error(`Drive list failed: ${await res.text()}`);
-  const data = await res.json();
-  const folders = (data.files || []).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-  const files = (data.files || []).filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+  const allFiles: any[] = [];
+  let pageToken: string | undefined;
+  do {
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
+    url.searchParams.set('fields', 'nextPageToken, files(id,name,mimeType,size,modifiedTime)');
+    url.searchParams.set('pageSize', '1000');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) throw new Error(`Drive list failed for folder ${folderId}: ${await res.text()}`);
+    const data = await res.json();
+    if (Array.isArray(data.files)) allFiles.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  const folders = allFiles.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+  const files = allFiles.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
   return { folders, files };
 }
 
