@@ -156,6 +156,7 @@ export default function TrainingBoard({
     prev: prevFrame,
     goTo,
     setSpeed,
+    authoredIndex,
   } = useDrillPlayback({ frames, loop: settings.loopPlayback });
 
   // Apply user's default playback speed once on mount and whenever it changes
@@ -165,7 +166,7 @@ export default function TrainingBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.defaultPlaybackSpeed]);
 
-  const currentFrame = frames[currentIndex] ?? frames[0];
+  const currentFrame = frames[authoredIndex] ?? frames[0];
   const isAnimating = isPlaying;
   const canDragItems = !readOnly && !isAnimating && !runMode;
   const editable = canDragItems && !previewMode;
