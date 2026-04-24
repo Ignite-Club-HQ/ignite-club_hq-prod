@@ -522,6 +522,17 @@ export default function TrainingBoard({
     [availableMembers, settings.substituteRealNames]
   );
 
+
+  // Drill-wide orphan tracking. Computed once per frame list + squad change so
+  // balls/cones whose owner chip was dropped (squad smaller than the drill's
+  // default roster) stay hidden THROUGHOUT animation, not just when the chip
+  // settles on top of them in the final keyframe.
+  const orphanEquipmentIds = useMemo(() => {
+    if (!settings.substituteRealNames) return undefined;
+    const droppedIds = getDroppedPlayerIds(frames, teamPlayers);
+    return getOrphanEquipmentIds(frames, droppedIds);
+  }, [frames, teamPlayers, settings.substituteRealNames]);
+
   // The view we render: live interpolation while playing, raw current frame while editing
   const rawObjects = isAnimating ? view.objects : currentFrame?.objects ?? [];
   const renderedObjects = useMemo(
@@ -529,9 +540,9 @@ export default function TrainingBoard({
     // players — so the pitch never shows fake "Player 1/2/3" placeholders.
     () =>
       settings.substituteRealNames
-        ? applyTeamPlayersToObjects(rawObjects, teamPlayers)
+        ? applyTeamPlayersToObjects(rawObjects, teamPlayers, orphanEquipmentIds)
         : rawObjects,
-    [rawObjects, teamPlayers, settings.substituteRealNames]
+    [rawObjects, teamPlayers, settings.substituteRealNames, orphanEquipmentIds]
   );
   const rawAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
   const renderedAnnotations = useMemo(
@@ -541,6 +552,7 @@ export default function TrainingBoard({
         : rawAnnotations,
     [rawAnnotations, rawObjects, teamPlayers, settings.substituteRealNames]
   );
+
 
   // -- Mode helpers ----------------------------------------------------------
   // NOTE: These hooks must be defined BEFORE any early return to obey the
