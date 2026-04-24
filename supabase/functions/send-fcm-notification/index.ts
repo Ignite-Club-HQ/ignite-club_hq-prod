@@ -241,8 +241,73 @@ serve(async (req) => {
     const expiredTokens: string[] = [];
     const results: Array<{ token: string; status: string }> = [];
 
+    // Build the data payload (FCM v1 requires all values to be strings)
+    const dataPayload: Record<string, string> = (() => {
+      const raw: Record<string, unknown> = {
+        ...(url ? { url } : {}),
+        title: title || 'Ignite Club HQ',
+        body: body || 'You have a new notification',
+        notificationId: notificationId?.toString() || '',
+        tag: tag || `notification-${notificationId || Date.now()}`,
+        notificationType: String(notificationType || data?.notificationType || ''),
+        type: String(data?.type || notificationType || ''),
+        ...(data || {}),
+      };
+      const stringified: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (v === null || v === undefined) continue;
+        stringified[k] = typeof v === 'string' ? v : JSON.stringify(v);
+      }
+      return stringified;
+    })();
+
     for (const tokenRecord of tokens) {
       try {
+        // IMPORTANT: We build the FCM message PER-PLATFORM to avoid duplicate
+        // notifications on Android.
+        //
+        // Previously we sent a top-level `notification` block + `android.notification`
+        // config. On Android, the Firebase SDK auto-displays the top-level
+        // `notification` block when the app is backgrounded/killed, AND the
+        // Capacitor PushNotifications plugin also renders the same message —
+        // resulting in TWO banners for a single push.
+        //
+        // Fix:
+        //  - Android: data-only payload. Capacitor's plugin handles display via
+        //    the 'default' channel. priority:high ensures heads-up delivery.
+        //  - iOS: include top-level `notification` (required so APNs renders the
+        //    alert when the app isn't in foreground) + the data block for
+        //    navigation metadata.
+        const isIos = tokenRecord.platform === 'ios';
+
+        const message: Record<string, unknown> = {
+          token: tokenRecord.token,
+          data: dataPayload,
+        };
+
+        if (isIos) {
+          message.notification = {
+            title: title || 'Ignite Club HQ',
+            body: body || 'You have a new notification',
+          };
+          message.apns = {
+            payload: {
+              aps: {
+                'mutable-content': 1,
+                sound: 'default',
+                badge: 1,
+              },
+            },
+          };
+        } else {
+          // Android: data-only. Do NOT include `notification` or
+          // `android.notification` — those cause the Firebase SDK / system tray
+          // to render a second banner alongside the Capacitor-rendered one.
+          message.android = {
+            priority: 'high',
+          };
+        }
+
         // Send via FCM HTTP v1 API
         const response = await fetch(
           `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -252,49 +317,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${accessToken}`,
             },
-            body: JSON.stringify({
-              message: {
-                token: tokenRecord.token,
-                notification: {
-                  title: title || 'Ignite Club HQ',
-                  body: body || 'You have a new notification',
-                },
-                data: (() => {
-                  const raw: Record<string, unknown> = {
-                    ...(url ? { url } : {}),
-                    notificationId: notificationId?.toString() || '',
-                    tag: tag || `notification-${notificationId || Date.now()}`,
-                    notificationType: String(notificationType || data?.notificationType || ''),
-                    type: String(data?.type || notificationType || ''),
-                    ...(data || {}),
-                  };
-                  // FCM v1 API requires ALL data values to be strings
-                  const stringified: Record<string, string> = {};
-                  for (const [k, v] of Object.entries(raw)) {
-                    if (v === null || v === undefined) continue;
-                    stringified[k] = typeof v === 'string' ? v : JSON.stringify(v);
-                  }
-                  return stringified;
-                })(),
-                android: {
-                  priority: 'high',
-                  notification: {
-                    channel_id: 'default',
-                    icon: 'ic_notification',
-                    sound: 'default',
-                  },
-                },
-                apns: {
-                  payload: {
-                    aps: {
-                      'mutable-content': 1,
-                      sound: 'default',
-                      badge: 1,
-                    },
-                  },
-                },
-              },
-            }),
+            body: JSON.stringify({ message }),
           }
         );
 
