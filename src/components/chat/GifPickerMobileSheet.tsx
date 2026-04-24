@@ -28,6 +28,8 @@ const SHEET_MIN_HEIGHT = 280;
 const TOP_GAP = 56; // leave room for status bar / notch
 const KEYBOARD_GAP = 0;
 const KEYBOARD_OPEN_THRESHOLD = 80;
+const isNativeAndroid =
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
 
 interface GifPickerMobileSheetProps {
   open: boolean;
@@ -154,7 +156,13 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     const nativeKeyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight);
     const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
-    const keyboardHeight = Math.max(nativeKeyboardHeight, visualKeyboardHeight);
+    // Native Android uses Keyboard.resize='none', so visualViewport can report
+    // a smaller bottom than the actual IME inset while typing in the search
+    // field. Trust the Capacitor keyboard plugin there; otherwise the sheet can
+    // collapse to its minimum height and show only a single row of GIFs.
+    const keyboardHeight = isNativeAndroid
+      ? nativeKeyboardHeight
+      : Math.max(nativeKeyboardHeight, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
     // While the GIF picker is open we ALWAYS want the sheet to expand up to
     // just below the status bar so users get a tall multi-row grid. Only when
@@ -164,7 +172,9 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
 
     const nativeKeyboardTop = layoutViewportHeight - nativeKeyboardHeight;
     const visualKeyboardTop = visualViewportBottom;
-    const measuredKeyboardTop = Math.min(nativeKeyboardTop, visualKeyboardTop);
+    const measuredKeyboardTop = isNativeAndroid
+      ? layoutViewportHeight - keyboardHeight
+      : Math.min(nativeKeyboardTop, visualKeyboardTop);
     const hasMeasuredKeyboardTop = measuredKeyboardTop < layoutViewportHeight - KEYBOARD_GAP;
 
     if (hasMeasuredKeyboardTop) {
@@ -176,8 +186,10 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     // When the keyboard is closed, prefer the visible viewport bottom (which
     // already excludes browser chrome on mobile Safari) and subtract the
     // home-indicator inset so the sheet never overlaps the iOS bottom bar.
-    const visibleBottom = Math.min(layoutViewportHeight, visualViewportBottom || layoutViewportHeight);
-    const closedBottom = Math.max(0, visibleBottom - safeAreaBottom);
+    const visibleBottom = isNativeAndroid
+      ? layoutViewportHeight
+      : Math.min(layoutViewportHeight, visualViewportBottom || layoutViewportHeight);
+    const closedBottom = Math.max(0, visibleBottom - (isNativeAndroid ? 0 : safeAreaBottom));
 
     const keyboardTop = keyboardSessionActive
       ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || closedBottom)
