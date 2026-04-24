@@ -533,12 +533,29 @@ export default function HomePage() {
   const { data: userChildren = [] } = useQuery({
     queryKey: ["user-children-home", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const ownedPromise = supabase
         .from("children")
         .select("id, name, ignite_points")
-        .eq("parent_id", user!.id)
-        .order("name");
-      return data || [];
+        .eq("parent_id", user!.id);
+
+      const guardianLinksPromise = supabase
+        .from("child_guardians")
+        .select("child_id, children:child_id!inner(id, name, ignite_points)")
+        .eq("guardian_id", user!.id);
+
+      const [{ data: owned }, { data: guardianLinks }] = await Promise.all([
+        ownedPromise,
+        guardianLinksPromise,
+      ]);
+
+      const merged = new Map<string, any>();
+      (owned || []).forEach((child: any) => merged.set(child.id, child));
+      (guardianLinks || []).forEach((row: any) => {
+        const child = row.children;
+        if (child) merged.set(child.id, child);
+      });
+
+      return Array.from(merged.values()).sort((a: any, b: any) => a.name.localeCompare(b.name));
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
