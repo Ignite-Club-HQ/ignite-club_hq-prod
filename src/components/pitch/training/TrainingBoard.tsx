@@ -32,7 +32,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { RecentDrillsList } from "./RecentDrillsList";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, filterOrphanAnnotations, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
@@ -533,7 +533,14 @@ export default function TrainingBoard({
         : rawObjects,
     [rawObjects, teamPlayers, settings.substituteRealNames]
   );
-  const renderedAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
+  const rawAnnotations = isAnimating ? view.annotations : currentFrame?.annotations ?? [];
+  const renderedAnnotations = useMemo(
+    () =>
+      settings.substituteRealNames
+        ? filterOrphanAnnotations(rawAnnotations, rawObjects, teamPlayers)
+        : rawAnnotations,
+    [rawAnnotations, rawObjects, teamPlayers, settings.substituteRealNames]
+  );
 
   // -- Mode helpers ----------------------------------------------------------
   // NOTE: These hooks must be defined BEFORE any early return to obey the
