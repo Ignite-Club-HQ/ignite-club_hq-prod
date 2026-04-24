@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Loader2, ChevronRight, UserPlus, X } from "lucide-react";
+import { Loader2, ChevronRight, UserPlus, X, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +71,7 @@ export function ChatParticipantsList({
 }: ChatParticipantsListProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
 
@@ -81,6 +83,7 @@ export function ChatParticipantsList({
   } | null>(null);
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
   const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
 
@@ -116,6 +119,29 @@ export function ChatParticipantsList({
     },
     onError: (err: any) => {
       toast.error("Failed to remove member: " + (err?.message || "Unknown error"));
+    },
+  });
+
+  const leaveGroupMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", chatId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("You left the group");
+      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
+      queryClient.invalidateQueries({ queryKey: ["personal-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-inbox"] });
+      setLeaveConfirmOpen(false);
+      navigate("/messages");
+    },
+    onError: (err: any) => {
+      toast.error("Failed to leave group: " + (err?.message || "Unknown error"));
     },
   });
 
@@ -536,6 +562,19 @@ export function ChatParticipantsList({
         );
       })()}
 
+      {isPersonalGroupChat && !!user && memberIds.includes(user.id) && (
+        <div className="mt-3 px-1">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setLeaveConfirmOpen(true)}
+          >
+            <LogOut className="h-4 w-4" />
+            Leave group
+          </Button>
+        </div>
+      )}
+
       {selectedMember && effectiveTeamId && (
         <MemberDetailSheet
           open={!!selectedMember}
@@ -611,6 +650,29 @@ export function ChatParticipantsList({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave group?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will no longer receive messages from this group. The group creator can add you back later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => leaveGroupMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
