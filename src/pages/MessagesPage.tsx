@@ -1074,10 +1074,16 @@ export default function MessagesPage() {
   const filteredChatGroups = useMemo(() => {
     let groups = regularChatGroups;
     if (effectiveClubFilter) {
-      groups = groups.filter((group: any) => 
-        group.club_id === effectiveClubFilter || 
-        (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
-      );
+      groups = groups.filter((group: any) => {
+        // Personal/custom groups have no club or team scope — always show them
+        // regardless of the club filter so they don't disappear unexpectedly.
+        const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+        if (isPersonalGroup) return true;
+        return (
+          group.club_id === effectiveClubFilter ||
+          (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
+        );
+      });
     }
     if (!query) return groups;
     return groups.filter((group: any) => {
