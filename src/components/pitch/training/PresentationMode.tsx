@@ -109,9 +109,9 @@ export default function PresentationMode({
     return () => window.removeEventListener("keydown", onKey);
   }, [next, prev, toggle, onClose, showShortcuts]);
 
-  const total = frames.length;
-  // Progress shown as fraction of frames "completed" (currentIndex / lastIndex)
-  const progressPct = total > 1 ? (currentIndex / (total - 1)) * 100 : 100;
+  const total = authoredFrameCount;
+  // Progress shown as fraction of frames "completed" (authoredIndex / lastIndex)
+  const progressPct = total > 1 ? (authoredIndex / (total - 1)) * 100 : 100;
 
   const hasTeamPlayers = (teamPlayers?.length ?? 0) > 0;
   const renderedObjects = useMemo(() => {
