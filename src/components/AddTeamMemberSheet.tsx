@@ -2071,7 +2071,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             {!selectedUser && !nameConfirmed ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Name</Label>
-{/* ORIGINAL_INNER_PLACEHOLDER_DO_NOT_USE */}
+
                 <div className="relative flex gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -2232,8 +2232,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </Button>
               </div>
             )}
+              </>
+            )}
 
-            {/* Role selection moved to top of form */}
 
             {/* STEP 3 (existing user): optional email for non-parent roles */}
             {wizardStep === 3 && selectedUser && selectedRole !== "parent" && (
