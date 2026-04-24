@@ -163,7 +163,7 @@ function DrillStepOverlayImpl({
   objects,
   annotations,
   autoPlace = true,
-  isAnimating = false,
+  isAnimating: _isAnimating = false,
 }: DrillStepOverlayProps) {
   const [expanded, setExpanded] = useState(false);
   const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null);
