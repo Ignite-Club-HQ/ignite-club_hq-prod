@@ -139,7 +139,7 @@ export default function PresentationMode({
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/70 text-white">
         <div className="text-xs font-medium tabular-nums">
-          Frame {currentIndex + 1} / {total}
+          Frame {authoredIndex + 1} / {total}
         </div>
         <div className="flex items-center gap-1.5">
           {hasTeamPlayers && (
