@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 
 const CHAT_SCROLL_SELECTOR = '[data-chat-scroll-lock="true"]';
 const INPUT_SELECTOR = "input, textarea, [contenteditable='true']";
+// Overlays portaled to document.body that own their own scroll container and
+// must NOT be governed by the chat route's overscroll prevention. Without this
+// the global touchmove listener treats the overlay's content as "chat chrome"
+// and blocks upward scroll (deltaY > 0) inside it.
+const OVERLAY_SCROLL_SELECTOR =
+  '[data-gif-picker], [data-radix-popper-content-wrapper], [role="dialog"], [data-state="open"][data-side]';
 
 export function useChatRouteOverscrollLock(enabled: boolean) {
   const touchStartYRef = useRef(0);
