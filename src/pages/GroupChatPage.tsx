@@ -1224,6 +1224,15 @@ export default function GroupChatPage() {
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
 
+      // Ensure the auth token is fresh — a stale/expired JWT causes RLS to
+      // reject the insert/update with "Failed to update reaction".
+      try {
+        await ensureFreshSession();
+      } catch (e) {
+        console.error('[Reaction] Session not ready:', e);
+        throw new Error('Not authenticated');
+      }
+
       const normalizedReactionType = normalizeGroupReactionType(reactionType);
 
       console.log('[Reaction] Starting mutation for message:', messageId, 'type:', normalizedReactionType);
