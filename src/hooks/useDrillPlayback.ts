@@ -50,9 +50,15 @@ export function useDrillPlayback({
   // Effective frames include a synthetic "rotate to next position" transition
   // appended after the last frame. This makes every drill end its play-through
   // by visibly cycling each player to the next player's starting spot.
+  //
+  // IMPORTANT: only append the rotation transition when looping is enabled.
+  // In the editor (loop=false) we never want chips to drift away from the
+  // authored positions when playback finishes — that looks like chips
+  // "disappeared" or "moved on their own".
   const frames = useMemo(
-    () => withRotationTransition(rawFrames, cycleStep),
-    [rawFrames, cycleStep]
+    () =>
+      loop ? withRotationTransition(rawFrames, cycleStep) : rawFrames,
+    [rawFrames, cycleStep, loop]
   );
 
   const [view, setView] = useState<InterpolatedFrame>(() =>
@@ -71,10 +77,18 @@ export function useDrillPlayback({
     else setView({ objects: [], annotations: [] });
   }, [frames, currentIndex, isPlaying]);
 
-  // Reset rotation cycle when the underlying drill changes.
+  // Reset the rotation cycle whenever the underlying drill's IDENTITY changes
+  // (different drill loaded, frames added/removed). We deliberately compare by
+  // length + first frame id rather than by array reference so that callers
+  // re-creating the same logical frame array each render don't keep stomping
+  // the cycle counter back to 0 mid-playback.
+  const drillSignature = useMemo(() => {
+    if (rawFrames.length === 0) return "empty";
+    return `${rawFrames.length}:${rawFrames[0]?.id ?? ""}:${rawFrames[rawFrames.length - 1]?.id ?? ""}`;
+  }, [rawFrames]);
   useEffect(() => {
     setCycleStep(0);
-  }, [rawFrames]);
+  }, [drillSignature]);
 
   // Clamp index if frames shrink
   useEffect(() => {
