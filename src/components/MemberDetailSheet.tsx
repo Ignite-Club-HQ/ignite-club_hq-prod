@@ -81,12 +81,23 @@ export default function MemberDetailSheet({
   onMove,
   onRemove,
   onRemoveRole,
+  teamId,
+  teamName,
+  clubId,
+  onRolesUpdated,
 }: MemberDetailSheetProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
   const [canDM, setCanDM] = useState<boolean | null>(null);
-  const canRemoveRoles = canManage && !isSelf && roles.length > 1;
+  const [manageRolesOpen, setManageRolesOpen] = useState(false);
+  // When the parent provides full team context, the new unified dialog handles
+  // both adding and removing roles (with confirmations). Otherwise we fall
+  // back to the legacy inline-X chip removals + "Add Role" callback.
+  const useUnifiedDialog =
+    canManage && !isSelf && !!teamId && !!teamName && !!clubId;
+  const canRemoveRoles =
+    canManage && !isSelf && roles.length > 1 && !useUnifiedDialog;
 
   // Check DM permission whenever the sheet opens for a non-self member
   useEffect(() => {
