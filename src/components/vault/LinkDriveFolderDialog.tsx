@@ -207,7 +207,14 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       if (r?.status === 'error') {
         toast.error(`Sync failed: ${r.error}`);
       } else {
-        toast.success(`Synced — ${r?.imported ?? 0} new, ${r?.updated ?? 0} updated`);
+        const parts = [`${r?.imported ?? 0} new`, `${r?.updated ?? 0} updated`];
+        if (r?.skipped) parts.push(`${r.skipped} skipped (>40MB)`);
+        if (r?.failed) parts.push(`${r.failed} failed`);
+        if (r?.status === 'partial') {
+          toast.warning(`Synced with issues — ${parts.join(', ')}`);
+        } else {
+          toast.success(`Synced — ${parts.join(', ')}`);
+        }
       }
       onChanged();
       // Refresh existing
