@@ -1201,7 +1201,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       } else {
         // No email - copy link to clipboard for sharing
         try { await navigator.clipboard.writeText(link); } catch {}
-        toast({
+        void toastInviteSuccess({
           title: "Member added — link copied!",
           description: `${nameInput} has been added. Paste the invite link to share it with them.`,
         });
