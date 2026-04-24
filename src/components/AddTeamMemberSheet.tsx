@@ -2368,7 +2368,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <Input
                                     placeholder="Child's name"
                                     value={child.name}
-                                    autoFocus={idx === 0 && !child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c =>
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
@@ -2620,7 +2619,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <Input
                                     placeholder="Child's name"
                                     value={child.name}
-                                    autoFocus={idx === 0 && !child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c =>
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
