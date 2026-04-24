@@ -970,7 +970,7 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Regular team invites are now allowed (shareable links from MemberInviteSheet)
+  // Regular team invites are now allowed (shareable links from AddTeamMemberSheet)
 
   if (inviteError || !invite) {
     return (
