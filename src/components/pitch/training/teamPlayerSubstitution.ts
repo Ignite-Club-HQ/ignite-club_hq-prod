@@ -47,105 +47,56 @@ export function shortPlayerLabel(name: string): string {
 function sortPlayerObjectsForSubstitution<T extends DrillObject>(playerObjs: T[]): T[] {
   return [...playerObjs].sort((a, b) => {
     const score = (o: DrillObject) => {
-      if (!o.color || o.color === "#0ea5e9") return 0; // attackers first
-      if (o.color === "#ef4444") return 1;             // defenders second
-      return 2;                                         // coach/server etc last
+      if (!o.color || o.color === "#0ea5e9") return 0;
+      if (o.color === "#ef4444") return 1;
+      return 2;
     };
     return score(a) - score(b);
   });
 }
 
-/**
- * Compute the IDs of player chips that will be DROPPED (no real squad member
- * available) across the entire drill. Stable across all frames — once a chip
- * has no squad slot it stays unrendered for the whole drill.
- */
-export function getDroppedPlayerIds(
-  frames: Array<{ objects: DrillObject[] }>,
-  players: TeamPlayerLite[]
-): Set<string> {
-  const dropped = new Set<string>();
-  if (!frames.length) return dropped;
-  if (!players.length) {
-    // No squad → every player chip is dropped.
-    for (const f of frames) {
-      for (const o of f.objects) if (o.type === "player") dropped.add(o.id);
-    }
-    return dropped;
-  }
+function getPlayerBucket(o: DrillObject): 0 | 1 | 2 {
+  if (!o.color || o.color === "#0ea5e9") return 0;
+  if (o.color === "#ef4444") return 1;
+  return 2;
+}
 
-  // Player IDs are stable across frames; collect a unique ordered list using
-  // the first frame they appear in so the sort-then-slice mapping matches the
-  // per-frame `applyTeamPlayersToObjects` result.
-  const seen = new Map<string, DrillObject>();
-  for (const f of frames) {
-    for (const o of f.objects) {
-      if (o.type === "player" && !seen.has(o.id)) seen.set(o.id, o);
-    }
-  }
-  const sorted = sortPlayerObjectsForSubstitution(Array.from(seen.values()));
-  sorted.forEach((obj, idx) => {
-    if (!players[idx]) dropped.add(obj.id);
-  });
-  return dropped;
+function compareByVisualPriority(a: DrillObject, b: DrillObject): number {
+  const ay = typeof a.y === "number" ? a.y : 1000;
+  const by = typeof b.y === "number" ? b.y : 1000;
+  if (ay !== by) return ay - by;
+
+  const ax = typeof a.x === "number" ? a.x : 1000;
+  const bx = typeof b.x === "number" ? b.x : 1000;
+  if (ax !== bx) return ax - bx;
+
+  return String(a.id).localeCompare(String(b.id));
 }
 
 /**
- * Compute IDs of equipment objects (balls, cones) that are anchored on a
- * dropped player chip in ANY frame of the drill. Once orphaned, an item is
- * orphaned for the whole drill so it never reappears mid-animation while its
- * owner chip is missing.
+ * When the real squad is smaller than the authored drill roster, coaches expect
+ * the visible chips to stay in the active / front-of-line spots for each frame
+ * rather than being tied forever to placeholder IDs like S1, S2, S3.
+ *
+ * So:
+ * - full roster available  → preserve authored placeholder ordering
+ * - partial roster only    → fill each role bucket by visual priority
+ *                           (front/active spots first, queues behind)
  */
-export function getOrphanEquipmentIds(
-  frames: Array<{ objects: DrillObject[] }>,
-  droppedPlayerIds: Set<string>
-): Set<string> {
-  const orphans = new Set<string>();
-  if (droppedPlayerIds.size === 0) return orphans;
-  const NEAR = 3; // pitch-% radius
-
-  // For each piece of equipment, classify across ALL frames:
-  //   - "owned" if some KEPT player chip is on top of it in any frame
-  //   - "ghost" if some DROPPED player chip is on top of it in any frame
-  // A ball/cone is only orphaned when it has at least one ghost association
-  // AND no kept chip ever picks it up. This avoids hiding shared equipment
-  // (e.g. the single ball that S1, S2, S3 all take turns on) just because
-  // some of those servers were dropped from the squad.
-  const owned = new Set<string>();
-  const ghost = new Set<string>();
-
-  for (const f of frames) {
-    const droppedPositions: Array<{ x: number; y: number }> = [];
-    const keptPositions: Array<{ x: number; y: number }> = [];
-    for (const o of f.objects) {
-      if (o.type !== "player") continue;
-      const px = (o as { x?: number }).x;
-      const py = (o as { y?: number }).y;
-      if (typeof px !== "number" || typeof py !== "number") continue;
-      if (droppedPlayerIds.has(o.id)) {
-        droppedPositions.push({ x: px, y: py });
-      } else {
-        keptPositions.push({ x: px, y: py });
-      }
-    }
-    for (const o of f.objects) {
-      if (o.type !== "ball" && o.type !== "cone") continue;
-      const ox = (o as { x?: number }).x;
-      const oy = (o as { y?: number }).y;
-      if (typeof ox !== "number" || typeof oy !== "number") continue;
-      if (keptPositions.some((p) => Math.hypot(p.x - ox, p.y - oy) < NEAR)) {
-        owned.add(o.id);
-      }
-      if (droppedPositions.some((p) => Math.hypot(p.x - ox, p.y - oy) < NEAR)) {
-        ghost.add(o.id);
-      }
-    }
+function getRenderablePlayerOrder<T extends DrillObject>(
+  playerObjs: T[],
+  rosterSize: number
+): T[] {
+  if (rosterSize >= playerObjs.length) {
+    return sortPlayerObjectsForSubstitution(playerObjs);
   }
 
-  for (const id of ghost) {
-    if (!owned.has(id)) orphans.add(id);
+  const buckets: [T[], T[], T[]] = [[], [], []];
+  for (const obj of playerObjs) {
+    buckets[getPlayerBucket(obj)].push(obj);
   }
-  return orphans;
+
+  return buckets.flatMap((bucket) => [...bucket].sort(compareByVisualPriority));
 }
 
 /**

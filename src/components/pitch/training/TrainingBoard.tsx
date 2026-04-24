@@ -32,7 +32,7 @@ import { DrillLibrarySheet } from "./DrillLibrarySheet";
 import { SessionPlanStrip } from "./SessionPlanStrip";
 import { RecentDrillsList } from "./RecentDrillsList";
 import { useAddToSession, useSessionDrills } from "@/hooks/useDrillLibrary";
-import { applyTeamPlayersToObjects, filterOrphanAnnotations, getDroppedPlayerIds, getOrphanEquipmentIds, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
+import { applyTeamPlayersToObjects, filterOrphanAnnotations, membersToTeamPlayers, substitutePlayerNamesInNotes } from "./teamPlayerSubstitution";
 import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
