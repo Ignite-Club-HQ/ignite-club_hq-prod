@@ -839,7 +839,7 @@ export default function TrainingBoard({
       {mode === "run" && !readOnly && (
         <RunModeControls
           isPlaying={isPlaying}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           frameCount={frames.length}
           onPrev={prevFrame}
           onNext={nextFrame}
