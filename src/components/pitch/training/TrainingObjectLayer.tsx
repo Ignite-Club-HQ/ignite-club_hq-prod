@@ -500,6 +500,7 @@ function TrainingObjectLayerImpl({
   onAnnotationMove,
   containerRef,
   readOnly,
+  isAnimating = false,
 }: TrainingObjectLayerProps) {
   const handlePointerDown = useCallback(
     (
