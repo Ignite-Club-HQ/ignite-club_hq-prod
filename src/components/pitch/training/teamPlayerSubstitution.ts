@@ -103,27 +103,47 @@ export function getOrphanEquipmentIds(
   const orphans = new Set<string>();
   if (droppedPlayerIds.size === 0) return orphans;
   const NEAR = 3; // pitch-% radius
+
+  // For each piece of equipment, classify across ALL frames:
+  //   - "owned" if some KEPT player chip is on top of it in any frame
+  //   - "ghost" if some DROPPED player chip is on top of it in any frame
+  // A ball/cone is only orphaned when it has at least one ghost association
+  // AND no kept chip ever picks it up. This avoids hiding shared equipment
+  // (e.g. the single ball that S1, S2, S3 all take turns on) just because
+  // some of those servers were dropped from the squad.
+  const owned = new Set<string>();
+  const ghost = new Set<string>();
+
   for (const f of frames) {
     const droppedPositions: Array<{ x: number; y: number }> = [];
+    const keptPositions: Array<{ x: number; y: number }> = [];
     for (const o of f.objects) {
-      if (o.type !== "player" || !droppedPlayerIds.has(o.id)) continue;
+      if (o.type !== "player") continue;
       const px = (o as { x?: number }).x;
       const py = (o as { y?: number }).y;
-      if (typeof px === "number" && typeof py === "number") {
+      if (typeof px !== "number" || typeof py !== "number") continue;
+      if (droppedPlayerIds.has(o.id)) {
         droppedPositions.push({ x: px, y: py });
+      } else {
+        keptPositions.push({ x: px, y: py });
       }
     }
-    if (droppedPositions.length === 0) continue;
     for (const o of f.objects) {
       if (o.type !== "ball" && o.type !== "cone") continue;
-      if (orphans.has(o.id)) continue;
       const ox = (o as { x?: number }).x;
       const oy = (o as { y?: number }).y;
       if (typeof ox !== "number" || typeof oy !== "number") continue;
+      if (keptPositions.some((p) => Math.hypot(p.x - ox, p.y - oy) < NEAR)) {
+        owned.add(o.id);
+      }
       if (droppedPositions.some((p) => Math.hypot(p.x - ox, p.y - oy) < NEAR)) {
-        orphans.add(o.id);
+        ghost.add(o.id);
       }
     }
+  }
+
+  for (const id of ghost) {
+    if (!owned.has(id)) orphans.add(id);
   }
   return orphans;
 }
