@@ -2064,10 +2064,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             </div>
 
+            {/* STEP 1: Person — name input, search, existing user / new member chip */}
+            {wizardStep === 1 && (
+              <>
             {/* 2. NAME INPUT */}
             {!selectedUser && !nameConfirmed ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Name</Label>
+{/* ORIGINAL_INNER_PLACEHOLDER_DO_NOT_USE */}
                 <div className="relative flex gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
