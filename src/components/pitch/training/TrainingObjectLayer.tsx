@@ -169,6 +169,78 @@ export function resolvePlayerOverlaps(
   return positions;
 }
 
+// (directPlayerPositions removed — the resolver is now always active so the
+// raw-coord fast path is no longer needed. Stationary chips still receive
+// gentle nudging to clear visual collisions while moving performers follow
+// their authored / interpolated path unchanged.)
+
+/**
+ * Approximate footprint of an object in pitch-% coordinates. Used so floating
+ * text labels can be nudged out of the way of players, balls, cones, and goals.
+ */
+function objectFootprint(o: RenderableObject): { hx: number; hy: number } {
+  switch (o.type) {
+    case "full-goal":
+      return { hx: 14, hy: 4 };
+    case "mini-goal":
+      return { hx: 10, hy: 3 };
+    case "player":
+      return { hx: 6, hy: 6 };
+    case "ball":
+    case "cone":
+      return { hx: 3, hy: 3 };
+    default:
+      return { hx: 4, hy: 4 };
+  }
+}
+
+/**
+ * Move a free-floating text label off any player / ball / goal so it never
+ * obscures live action. Only nudges along the Y axis to keep horizontal
+ * alignment with the underlying drill cue (e.g. "Next up: 3" near the queue).
+ */
+function nudgeTextAwayFromObjects(
+  ax: number,
+  ay: number,
+  objects: RenderableObject[],
+  positions: Map<string, { x: number; y: number }>,
+): { x: number; y: number } {
+  // Half-extent of the rendered text pill (≈ pixels → pitch %). Conservative
+  // so multi-word labels still clear even if they wrap.
+  const TEXT_HX = 14;
+  const TEXT_HY = 3.5;
+  const PAD = 1.5;
+  let y = ay;
+  // A few relaxation passes — enough for typical clusters.
+  for (let iter = 0; iter < 6; iter++) {
+    let pushed = false;
+    for (const o of objects) {
+      if (o.type !== "player" && o.type !== "ball" && o.type !== "cone" && o.type !== "mini-goal" && o.type !== "full-goal") continue;
+      const pos = positions.get(o.id) ?? { x: o.x, y: o.y };
+      const { hx, hy } = objectFootprint(o);
+      const dx = Math.abs(ax - pos.x);
+      if (dx > hx + TEXT_HX + PAD) continue;
+      const dy = y - pos.y;
+      const minDy = hy + TEXT_HY + PAD;
+      if (Math.abs(dy) >= minDy) continue;
+      // Push along the shorter vertical exit so the label stays near the cue.
+      const upRoom = y;
+      const downRoom = 100 - y;
+      const goUp = upRoom > downRoom ? false : true;
+      if (goUp) {
+        y = pos.y + minDy;
+      } else {
+        y = pos.y - minDy;
+      }
+      // Clamp to pitch.
+      y = Math.max(2, Math.min(98, y));
+      pushed = true;
+    }
+    if (!pushed) break;
+  }
+  return { x: ax, y };
+}
+
 /**
  * Push balls away from any player chips so the ball never sits underneath
  * (or visually overlaps) a player. Uses the resolved player positions so
@@ -481,7 +553,16 @@ function TrainingObjectLayerImpl({
     return () => ro.disconnect();
   }, [containerRef]);
 
-  // Pre-compute non-overlapping display positions for player chips.
+  // (Previously bypassed the resolver during playback to keep authored coords;
+  // we now run it always so dense queues don't render as a single stacked pile.
+  // The resolver leaves any chip that's already non-colliding alone, so moving
+  // performers continue to follow their interpolated path frame-by-frame.)
+
+  // Always resolve overlaps — even during playback. Without it, tightly-spaced
+  // queue chips (e.g. waiting line at y=75 spaced 4% apart) render stacked
+  // because each chip is ~11% of pitch width. The resolver only nudges
+  // siblings that are *visually* colliding, so a moving performer alone in
+  // open space keeps its authored position; only the bunched queue spreads.
   const displayPositions = useMemo(
     () => resolvePlayerOverlaps(objects, containerSize),
     [objects, containerSize],
@@ -543,12 +624,12 @@ function TrainingObjectLayerImpl({
               <polygon points="0 0, 6 3, 0 6" fill="#a78bfa" />
             </marker>
           </defs>
-          {arrows.map((ann) => {
+          {arrows.map((ann, index) => {
             const g = ann.geometry as ArrowGeometry;
             const isDashed = ann.type === "arrow-dashed";
             return (
               <line
-                key={ann.id}
+                key={`${ann.id}-${index}`}
                 x1={`${g.from.x}%`}
                 y1={`${g.from.y}%`}
                 x2={`${g.to.x}%`}
@@ -567,12 +648,12 @@ function TrainingObjectLayerImpl({
       {/* Zones */}
       {annotations
         .filter((a) => a.type === "zone")
-        .map((ann) => {
+        .map((ann, index) => {
           const g = ann.geometry as ZoneGeometry;
           const isSel = selectedId === ann.id;
           return (
             <div
-              key={ann.id}
+              key={`${ann.id}-${index}`}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", g.x, g.y)}
               className={cn(
                 "absolute touch-none",
@@ -597,7 +678,7 @@ function TrainingObjectLayerImpl({
           the pitch. */}
       {annotations
         .filter((a) => a.type !== "zone" && a.id !== "wait-label")
-        .map((ann) => {
+        .map((ann, index) => {
           let ax = 0;
           let ay = 0;
           if (ann.type === "arrow-solid" || ann.type === "arrow-dashed") {
@@ -613,10 +694,18 @@ function TrainingObjectLayerImpl({
             ax = g.x;
             ay = g.y;
           }
+          // Free-floating text labels (e.g. "Next up: 3", "Goal!", coaching
+          // cues) get nudged out of any player / ball / goal so they never
+          // obscure live action while playback advances.
+          if (ann.type === "text") {
+            const safe = nudgeTextAwayFromObjects(ax, ay, objects, displayPositions);
+            ax = safe.x;
+            ay = safe.y;
+          }
           const isSel = selectedId === ann.id;
           return (
             <div
-              key={ann.id}
+              key={`${ann.id}-${index}`}
               onPointerDown={(e) => handlePointerDown(e, ann.id, "annotation", ax, ay)}
               className={cn(
                 "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
@@ -643,7 +732,7 @@ function TrainingObjectLayerImpl({
           Player chips are nudged apart so they never visually overlap, while
           their underlying drill coordinates stay untouched (drag/edit logic
           still uses the authored x/y). */}
-      {objects.map((obj) => {
+      {objects.map((obj, index) => {
         const isSel = selectedId === obj.id;
         const z = obj.type === "ball" ? 38 : 45;
         const pos =
@@ -652,7 +741,7 @@ function TrainingObjectLayerImpl({
             : displayPositions.get(obj.id) ?? { x: obj.x, y: obj.y };
         return (
           <div
-            key={obj.id}
+            key={`${obj.id}-${index}`}
             onPointerDown={(e) => handlePointerDown(e, obj.id, "object", obj.x, obj.y)}
             className={cn(
               "absolute -translate-x-1/2 -translate-y-1/2 touch-none",

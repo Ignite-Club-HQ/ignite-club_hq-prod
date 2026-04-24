@@ -76,11 +76,20 @@ export function applyTeamPlayersToObjects<T extends DrillObject>(
     if (player) substitutions.set(obj.id, shortPlayerLabel(player.name));
   });
 
-  if (substitutions.size === 0) return objects;
+  if (substitutions.size === 0) {
+    // No real players matched — strip every player chip so the pitch never
+    // shows fake numeric placeholders. Equipment (cones, balls, goals) stays.
+    return objects.filter((o) => o.type !== "player");
+  }
 
-  return objects.map((obj) => {
+  // Drop any player chip that didn't get a real squad name. This keeps the
+  // pitch limited to actual attendees instead of padding with "Player 4",
+  // "Player 5" etc. that confuse coaches and parents.
+  return objects.flatMap((obj) => {
+    if (obj.type !== "player") return [obj];
     const replacement = substitutions.get(obj.id);
-    return replacement ? { ...obj, label: replacement } : obj;
+    if (!replacement) return [];
+    return [{ ...obj, label: replacement }];
   });
 }
 
@@ -146,9 +155,19 @@ export function substitutePlayerNamesInNotes<T extends DrillObject>(
 
   if (tokenToName.size === 0) return notes;
 
-  // Whole-token match: letters+digits surrounded by non-alphanumerics.
-  return notes.replace(/\b([A-Za-z]{1,3}\d{1,2})\b/g, (match) => {
+  // First pass: spaced "Player N" / "player N" → real name. Drills authored as
+  // a generic loop ("Player 2 pushes forward...") read much better when those
+  // numbers become the actual squad member's name.
+  let out = notes.replace(/\b[Pp]layer\s+(\d{1,2})\b/g, (_m, n) => {
+    return tokenToName.get(String(n).toUpperCase()) ?? `Player ${n}`;
+  });
+
+  // Second pass: compact tokens (A1, D2, GK1, S1, or bare "1") still in the
+  // string get swapped for real names too.
+  out = out.replace(/\b([A-Za-z]{1,3}\d{1,2}|\d{1,2})\b/g, (match) => {
     const replacement = tokenToName.get(match.toUpperCase());
     return replacement ?? match;
   });
+
+  return out;
 }

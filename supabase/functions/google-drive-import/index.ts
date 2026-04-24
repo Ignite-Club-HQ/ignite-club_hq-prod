@@ -160,35 +160,53 @@ serve(async (req) => {
     if (action === 'list-files') {
       const body = await req.json();
       const { accessToken, folderId } = body;
-      
+
       const parentId = folderId || 'root';
       const query = `'${parentId}' in parents and trashed = false`;
-      
-      const driveUrl = new URL('https://www.googleapis.com/drive/v3/files');
-      driveUrl.searchParams.set('q', query);
-      driveUrl.searchParams.set('fields', 'files(id,name,mimeType,size,createdTime,modifiedTime,parents)');
-      driveUrl.searchParams.set('pageSize', '100');
-      driveUrl.searchParams.set('orderBy', 'folder,name');
-      
-      const driveResponse = await fetch(driveUrl.toString(), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      
-      if (!driveResponse.ok) {
-        const errorText = await driveResponse.text();
-        console.error("Failed to list Drive files:", errorText);
-        return new Response(
-          JSON.stringify({ error: "Failed to list Drive files", details: errorText }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+
+      // Page through Drive results so folders with more than 1000 entries
+      // surface every file (otherwise "Select all" would silently miss any
+      // file beyond the first page).
+      const allItems: any[] = [];
+      let pageToken: string | undefined = undefined;
+      let safetyPages = 0;
+
+      do {
+        const driveUrl = new URL('https://www.googleapis.com/drive/v3/files');
+        driveUrl.searchParams.set('q', query);
+        driveUrl.searchParams.set(
+          'fields',
+          'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,parents)'
         );
-      }
-      
-      const data = await driveResponse.json();
-      
+        driveUrl.searchParams.set('pageSize', '1000');
+        driveUrl.searchParams.set('orderBy', 'folder,name');
+        if (pageToken) driveUrl.searchParams.set('pageToken', pageToken);
+
+        const driveResponse = await fetch(driveUrl.toString(), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!driveResponse.ok) {
+          const errorText = await driveResponse.text();
+          console.error('Failed to list Drive files:', errorText);
+          return new Response(
+            JSON.stringify({ error: 'Failed to list Drive files', details: errorText }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await driveResponse.json();
+        if (Array.isArray(data.files)) allItems.push(...data.files);
+        pageToken = data.nextPageToken;
+        safetyPages++;
+      } while (pageToken && safetyPages < 50); // hard cap ~50,000 entries / folder
+
       // Separate folders and files
-      const folders = data.files.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-      const files = data.files.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
-      
+      const folders = allItems.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+      const files = allItems.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+
+      console.log(`list-files: parent=${parentId} pages=${safetyPages} folders=${folders.length} files=${files.length}`);
+
       return new Response(
         JSON.stringify({ folders, files }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
