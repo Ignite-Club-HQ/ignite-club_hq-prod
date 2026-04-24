@@ -106,12 +106,13 @@ export function useDrillPlayback({
       const to = frames[toIdx];
 
       if (!to) {
-        // End of sequence
+        // End of sequence (after the rotation transition has played).
         if (loop) {
-          segmentIndexRef.current = 0;
-          segmentStartRef.current = now;
+          // Advance the cycle so the next iteration starts each player at the
+          // next slot they just rotated into. The frames memo will rebuild and
+          // the effect will re-run from index 0.
+          setCycleStep((c) => c + 1);
           setCurrentIndex(0);
-          rafRef.current = requestAnimationFrame(tick);
           return;
         }
         if (from) setView(staticFrame(from));
