@@ -822,13 +822,14 @@ export default function MessagesPage() {
       return cachedData.dmConversations.map(conv => ({
         ...conv,
         created_at: (conv as any).created_at || conv.updated_at,
+        created_by: (conv as any).created_by || null,
         last_message: cachedData.latestDMMessages?.[conv.id] ? {
           text: cachedData.latestDMMessages[conv.id].text,
           image_url: cachedData.latestDMMessages[conv.id].image_url || null,
           created_at: cachedData.latestDMMessages[conv.id].created_at,
           author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
         } : null,
-      }));
+      })) as any;
     },
   });
 
