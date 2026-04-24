@@ -882,7 +882,7 @@ export default function TrainingBoard({
       {!readOnly && !previewMode && !runMode && (
         <FrameStrip
           frames={frames}
-          currentIndex={currentIndex}
+          currentIndex={authoredIndex}
           onSelect={(i) => {
             setSelectedId(null);
             goTo(i);
