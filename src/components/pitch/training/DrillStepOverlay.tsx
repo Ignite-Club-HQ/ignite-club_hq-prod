@@ -238,15 +238,29 @@ function DrillStepOverlayImpl({
       s.moved = true;
       const el = containerRef.current;
       if (!el) return;
+      // The element's CURRENT screen rect already reflects s.startDx/startDy
+      // (the offset that was applied before this drag began). To express the
+      // allowed travel as an *absolute* offset from the anchored corner we
+      // need: nextOffset = startOffset + delta, clamped so the card stays
+      // somewhere on the pitch. Allow ~75% of the card to slide past each
+      // edge so coaches can park it almost anywhere on screen — only a thin
+      // grip strip needs to stay reachable.
       const elRect = el.getBoundingClientRect();
-      const maxDx = s.parentRect.right - elRect.right - s.startDx + (e.clientX - s.startX) + (s.parentRect.width - elRect.width);
-      const minDxAbs = -(elRect.left - s.parentRect.left);
-      const minDyAbs = -(elRect.top - s.parentRect.top);
-      const maxDxAbs = s.parentRect.right - elRect.right;
-      const maxDyAbs = s.parentRect.bottom - elRect.bottom;
-      void maxDx;
-      const nextDx = Math.min(Math.max(s.startDx + dx, s.startDx + minDxAbs), s.startDx + maxDxAbs);
-      const nextDy = Math.min(Math.max(s.startDy + dy, s.startDy + minDyAbs), s.startDy + maxDyAbs);
+      const overflowX = elRect.width * 0.75;
+      const overflowY = elRect.height * 0.75;
+      const minScreenLeft = s.parentRect.left - overflowX;
+      const maxScreenLeft = s.parentRect.right - elRect.width + overflowX;
+      const minScreenTop = s.parentRect.top - overflowY;
+      const maxScreenTop = s.parentRect.bottom - elRect.height + overflowY;
+      // Current anchored screen position (with the existing offset removed).
+      const anchoredLeft = elRect.left - s.startDx;
+      const anchoredTop = elRect.top - s.startDy;
+      const minDx = minScreenLeft - anchoredLeft;
+      const maxDx = maxScreenLeft - anchoredLeft;
+      const minDy = minScreenTop - anchoredTop;
+      const maxDy = maxScreenTop - anchoredTop;
+      const nextDx = Math.min(Math.max(s.startDx + dx, minDx), maxDx);
+      const nextDy = Math.min(Math.max(s.startDy + dy, minDy), maxDy);
       setDragOffset({ dx: nextDx, dy: nextDy });
     };
 
