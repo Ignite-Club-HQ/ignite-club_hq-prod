@@ -1129,12 +1129,20 @@ export default function MessagesPage() {
   const showBroadcast = !query || "announcements".includes(query);
 
   // Filtered DM conversations
+  // Hide empty DMs (no messages exchanged) from the list — these are stub
+  // conversation rows that get created when someone opens a DM thread without
+  // sending anything. They'd otherwise float to the top via `updated_at`.
   const filteredDMs = useMemo(() => {
     if (!dmConversations) return [];
     return dmConversations.filter((conv: any) => {
       if (hiddenConversationIds?.has(conv.id)) return false;
-      if (!query) return true;
-      return conv.other_user?.display_name?.toLowerCase().includes(query);
+      // Always allow the conversation to surface when the user is searching
+      // for that specific person (so they can resume it).
+      if (query) {
+        return conv.other_user?.display_name?.toLowerCase().includes(query);
+      }
+      // Otherwise require at least one real message to show in Recents.
+      return !!conv.last_message;
     });
   }, [dmConversations, hiddenConversationIds, query]);
 
