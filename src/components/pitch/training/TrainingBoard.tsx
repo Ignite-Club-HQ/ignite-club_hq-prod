@@ -808,7 +808,7 @@ export default function TrainingBoard({
 
           {/* Compact step card — ~40% width, 2-line clamp, tap to expand. */}
           <DrillStepOverlay
-            frameNumber={currentIndex + 1}
+            frameNumber={authoredIndex + 1}
             totalFrames={frames.length}
             notes={substitutePlayerNamesInNotes(
               (isAnimating ? view.notes : currentFrame?.notes) ?? "",
