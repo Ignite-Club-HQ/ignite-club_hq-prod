@@ -72,6 +72,13 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
   }, []);
 
   // Check for existing link when opened
+  const normalizeLink = (data: any): ExistingLink | null => {
+    if (!data) return null;
+    const raw = data.last_failed_files;
+    const failed: FailedFileRef[] = Array.isArray(raw) ? raw as FailedFileRef[] : [];
+    return { ...data, last_failed_files: failed } as ExistingLink;
+  };
+
   useEffect(() => {
     if (!open) return;
     setCheckingExisting(true);
@@ -81,7 +88,7 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       .eq('vault_folder_id', vaultFolderId)
       .maybeSingle()
       .then(({ data }) => {
-        setExisting(data as ExistingLink | null);
+        setExisting(normalizeLink(data));
         setCheckingExisting(false);
       });
   }, [open, vaultFolderId]);
@@ -230,15 +237,50 @@ export function LinkDriveFolderDialog({ open, onOpenChange, vaultFolderId, clubI
       // Refresh existing
       const { data: refreshed } = await supabase
         .from('vault_drive_links')
-        .select('id, drive_folder_name, google_account_email, sync_enabled, last_synced_at, last_sync_status, last_sync_error, files_imported_count, files_updated_count')
+        .select(LINK_SELECT)
         .eq('id', existing.id)
         .single();
-      setExisting(refreshed as ExistingLink);
+      setExisting(normalizeLink(refreshed));
     } catch (err) {
       console.error(err);
       toast.error("Sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const retryFailed = async () => {
+    if (!existing || existing.last_failed_files.length === 0) return;
+    try {
+      setRetrying(true);
+      const { data, error } = await supabase.functions.invoke('drive-folder-sync', {
+        body: { linkId: existing.id, retryFailedOnly: true },
+      });
+      if (error) throw error;
+      const r = data?.results?.[0];
+      if (r?.status === 'error') {
+        toast.error(`Retry failed: ${r.error}`);
+      } else {
+        const recovered = (r?.imported ?? 0) + (r?.updated ?? 0);
+        const stillFailed = r?.failed ?? 0;
+        if (stillFailed === 0) {
+          toast.success(`Recovered all ${recovered} file(s)`);
+        } else {
+          toast.warning(`Recovered ${recovered}, still failing: ${stillFailed}`);
+        }
+      }
+      onChanged();
+      const { data: refreshed } = await supabase
+        .from('vault_drive_links')
+        .select(LINK_SELECT)
+        .eq('id', existing.id)
+        .single();
+      setExisting(normalizeLink(refreshed));
+    } catch (err) {
+      console.error(err);
+      toast.error("Retry failed");
+    } finally {
+      setRetrying(false);
     }
   };
 
