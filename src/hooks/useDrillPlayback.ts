@@ -6,6 +6,7 @@ import {
   type InterpolatedFrame,
 } from "@/components/pitch/training/interpolation";
 import { withRotationTransition } from "@/components/pitch/training/playerRotation";
+import { normalizeFramesForPlayback } from "@/components/pitch/training/normalizeFrames";
 
 export type PlaybackSpeed = 0.5 | 1 | 2;
 
