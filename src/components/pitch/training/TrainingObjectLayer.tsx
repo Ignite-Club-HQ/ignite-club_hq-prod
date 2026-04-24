@@ -28,6 +28,14 @@ interface TrainingObjectLayerProps {
   containerRef: React.RefObject<HTMLDivElement>;
   /** When true (e.g. presentation/playback) all interactions are disabled */
   readOnly?: boolean;
+  /**
+   * When true, drill playback is driving positions via rAF interpolation —
+   * we MUST disable the per-chip CSS transition or every interpolated step
+   * gets re-animated over 120ms, causing the chip to lag far behind the
+   * ball and effectively stand still during a rep. Edit mode keeps the
+   * transition so resolver-induced nudges glide smoothly.
+   */
+  isAnimating?: boolean;
 }
 
 function rectFromContainer(
