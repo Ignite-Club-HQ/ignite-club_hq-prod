@@ -797,6 +797,8 @@ export default function MessagesPage() {
         participant_1: conv.participant_1,
         participant_2: conv.participant_2,
         updated_at: conv.updated_at,
+        created_at: (conv as any).created_at,
+        created_by: (conv as any).created_by ?? null,
         other_user: conv.other_user,
       }));
       const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};

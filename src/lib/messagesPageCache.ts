@@ -35,6 +35,8 @@ interface CachedDMConversation {
   participant_1: string;
   participant_2: string;
   updated_at: string;
+  created_at?: string;
+  created_by?: string | null;
   other_user: {
     id: string;
     display_name: string | null;
