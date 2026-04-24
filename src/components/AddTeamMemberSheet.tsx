@@ -2003,6 +2003,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
+            {/* Wizard stepper header */}
+            <div className="flex items-center justify-between gap-2 px-1 pb-1">
+              {[
+                { n: 1 as const, label: "Person" },
+                { n: 2 as const, label: "Role" },
+                { n: 3 as const, label: "Send" },
+              ].map((s, idx, arr) => (
+                <div key={s.n} className="flex items-center gap-2 flex-1">
+                  <div
+                    className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold border transition-colors ${
+                      wizardStep === s.n
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : wizardStep > s.n
+                          ? "bg-primary/15 text-primary border-primary/40"
+                          : "bg-muted text-muted-foreground border-border"
+                    }`}
+                  >
+                    {wizardStep > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      wizardStep === s.n ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                  {idx < arr.length - 1 && (
+                    <div className={`h-px flex-1 ${wizardStep > s.n ? "bg-primary/40" : "bg-border"}`} />
+                  )}
+                </div>
+              ))}
+            </div>
+
             {/* 1. ROLE SELECTION - shown first so the user sees their options on open */}
             <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
               <Label className="text-sm font-medium">Select role</Label>
