@@ -9,6 +9,7 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
@@ -1222,6 +1223,15 @@ export default function GroupChatPage() {
     retry: 1,
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
+
+      // Ensure the auth token is fresh — a stale/expired JWT causes RLS to
+      // reject the insert/update with "Failed to update reaction".
+      try {
+        await ensureFreshSession();
+      } catch (e) {
+        console.error('[Reaction] Session not ready:', e);
+        throw new Error('Not authenticated');
+      }
 
       const normalizedReactionType = normalizeGroupReactionType(reactionType);
 

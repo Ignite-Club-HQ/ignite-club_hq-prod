@@ -1,0 +1,51 @@
+import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * Ensures the Supabase session is valid before performing an authenticated
+ * mutation. If the access token has expired (or expires within `bufferSeconds`),
+ * it refreshes the session.
+ *
+ * Returns the resolved user id, or throws if no session can be established.
+ *
+ * This protects against the race condition where a stale/expired token causes
+ * RLS to evaluate `auth.uid()` as NULL, which then makes inserts/updates fail
+ * with "new row violates row-level security" or 401/403 errors.
+ */
+export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    throw new Error("Not authenticated");
+  }
+
+  const expiresAt = session.expires_at ?? 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  if (expiresAt - nowSec <= bufferSeconds) {
+    const { data: refreshed, error } = await supabase.auth.refreshSession();
+    if (error || !refreshed.session) {
+      throw error ?? new Error("Session refresh failed");
+    }
+    return refreshed.session.user.id;
+  }
+
+  return session.user.id;
+}
+
+/**
+ * Returns true if a Supabase error looks like an auth/RLS failure that may be
+ * resolved by refreshing the session.
+ */
+export function isAuthLikeError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; status?: number; message?: string };
+  if (e.status === 401 || e.status === 403) return true;
+  if (e.code === "PGRST301" || e.code === "42501") return true;
+  const msg = (e.message || "").toLowerCase();
+  return (
+    msg.includes("jwt") ||
+    msg.includes("session") ||
+    msg.includes("row-level security") ||
+    msg.includes("not authenticated")
+  );
+}

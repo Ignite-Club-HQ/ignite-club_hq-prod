@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
@@ -217,73 +218,91 @@ export const ChatMessage = memo(function ChatMessage({
     }) => {
       const messageIdField = getMessageIdField();
 
-      if (!currentUserId) {
-        throw new Error("Not authenticated");
-      }
+      // Ensure the session is fresh before mutating so RLS sees auth.uid().
+      // Refresh-and-retry once if we hit an auth-like failure mid-flight.
+      const performMutation = async (userId: string) => {
+        if (existingReaction) {
+          if (existingReaction.reaction_type === reactionType) {
+            const { error } = await supabase
+              .from("message_reactions")
+              .delete()
+              .eq("id", existingReaction.id);
 
-      if (existingReaction) {
-        if (existingReaction.reaction_type === reactionType) {
-          const { error } = await supabase
-            .from("message_reactions")
-            .delete()
-            .eq("id", existingReaction.id);
+            if (error) throw error;
 
-          if (error) throw error;
-
-          return { action: "delete" as const, reactionId: existingReaction.id };
-        }
-
-        const { data: updatedReaction, error } = await supabase
-          .from("message_reactions")
-          .update({ reaction_type: reactionType })
-          .eq("id", existingReaction.id)
-          .select("id, user_id, reaction_type")
-          .single();
-
-        if (error) throw error;
-
-        return { action: "update" as const, reaction: updatedReaction };
-      }
-
-      const { data: insertedReaction, error } = await supabase
-        .from("message_reactions")
-        .insert({
-          [messageIdField]: id,
-          user_id: currentUserId,
-          reaction_type: reactionType,
-        })
-        .select("id, user_id, reaction_type")
-        .single();
-
-      if (error) {
-        if ((error as { code?: string }).code === "23505") {
-          const { data: conflictingReaction, error: conflictFetchError } = await supabase
-            .from("message_reactions")
-            .select("id")
-            .eq(messageIdField, id)
-            .eq("user_id", currentUserId)
-            .maybeSingle();
-
-          if (conflictFetchError || !conflictingReaction) {
-            throw conflictFetchError || error;
+            return { action: "delete" as const, reactionId: existingReaction.id };
           }
 
-          const { data: updatedReaction, error: updateError } = await supabase
+          const { data: updatedReaction, error } = await supabase
             .from("message_reactions")
             .update({ reaction_type: reactionType })
-            .eq("id", conflictingReaction.id)
+            .eq("id", existingReaction.id)
             .select("id, user_id, reaction_type")
             .single();
 
-          if (updateError) throw updateError;
+          if (error) throw error;
 
           return { action: "update" as const, reaction: updatedReaction };
         }
 
-        throw error;
+        const { data: insertedReaction, error } = await supabase
+          .from("message_reactions")
+          .insert({
+            [messageIdField]: id,
+            user_id: userId,
+            reaction_type: reactionType,
+          })
+          .select("id, user_id, reaction_type")
+          .single();
+
+        if (error) {
+          if ((error as { code?: string }).code === "23505") {
+            const { data: conflictingReaction, error: conflictFetchError } = await supabase
+              .from("message_reactions")
+              .select("id")
+              .eq(messageIdField, id)
+              .eq("user_id", userId)
+              .maybeSingle();
+
+            if (conflictFetchError || !conflictingReaction) {
+              throw conflictFetchError || error;
+            }
+
+            const { data: updatedReaction, error: updateError } = await supabase
+              .from("message_reactions")
+              .update({ reaction_type: reactionType })
+              .eq("id", conflictingReaction.id)
+              .select("id, user_id, reaction_type")
+              .single();
+
+            if (updateError) throw updateError;
+
+            return { action: "update" as const, reaction: updatedReaction };
+          }
+
+          throw error;
+        }
+
+        return { action: "insert" as const, reaction: insertedReaction };
+      };
+
+      let userId: string;
+      try {
+        userId = await ensureFreshSession();
+      } catch {
+        throw new Error("Not authenticated");
       }
 
-      return { action: "insert" as const, reaction: insertedReaction };
+      try {
+        return await performMutation(userId);
+      } catch (err) {
+        if (isAuthLikeError(err)) {
+          // Token may have just expired — refresh once and retry.
+          const refreshedId = await ensureFreshSession(0);
+          return await performMutation(refreshedId);
+        }
+        throw err;
+      }
     },
     onMutate: ({ reactionType, existingReaction }) => {
       isReactionMutatingRef.current = true;
@@ -373,11 +392,24 @@ export const ChatMessage = memo(function ChatMessage({
       if (reactionId.startsWith("temp-")) {
         return;
       }
-      const { error } = await supabase
-        .from("message_reactions")
-        .delete()
-        .eq("id", reactionId);
-      if (error) throw error;
+      const doDelete = async () => {
+        const { error } = await supabase
+          .from("message_reactions")
+          .delete()
+          .eq("id", reactionId);
+        if (error) throw error;
+      };
+      try {
+        await ensureFreshSession();
+        await doDelete();
+      } catch (err) {
+        if (isAuthLikeError(err)) {
+          await ensureFreshSession(0);
+          await doDelete();
+        } else {
+          throw err;
+        }
+      }
     },
     onMutate: (reactionId: string) => {
       isReactionMutatingRef.current = true;
@@ -736,10 +768,14 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Swipe-to-reply wrapper */}
           <div
-            className="min-w-0 max-w-full"
+            className="min-w-0 max-w-full select-none"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
               transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
+              WebkitTapHighlightColor: 'transparent',
             }}
             onTouchStart={(e) => {
               handleLongPressStart(e);
