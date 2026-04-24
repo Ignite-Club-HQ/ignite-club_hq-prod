@@ -323,7 +323,10 @@ function DrillStepOverlayImpl({
       )}
       style={
         dragOffset
-          ? { transform: `translate3d(${dragOffset.dx}px, ${dragOffset.dy}px, 0)` }
+          ? {
+              transform: `translate3d(${dragOffset.dx}px, ${dragOffset.dy}px, 0)`,
+              willChange: "transform",
+            }
           : undefined
       }
     >
@@ -331,9 +334,13 @@ function DrillStepOverlayImpl({
         type="button"
         onPointerDown={handlePointerDown}
         className={cn(
-          "w-full text-left rounded-lg backdrop-blur-md border border-white/15 shadow-lg",
-          "bg-black/65 text-white px-3 py-2 transition-colors touch-none select-none",
-          hasNotes ? "hover:bg-black/75 active:bg-black/80 cursor-grab active:cursor-grabbing" : "cursor-grab active:cursor-grabbing"
+          // NOTE: deliberately NO backdrop-blur — that re-samples the pitch
+          // every animation frame, causing visible jitter while dragging.
+          // A slightly more opaque solid bg + text-shadow keeps legibility.
+          "w-full text-left rounded-lg border border-white/15 shadow-lg",
+          "bg-black/80 text-white px-3 py-2 transition-colors touch-none select-none",
+          "[text-shadow:0_1px_2px_rgba(0,0,0,0.6)]",
+          hasNotes ? "hover:bg-black/85 active:bg-black/90 cursor-grab active:cursor-grabbing" : "cursor-grab active:cursor-grabbing"
         )}
         aria-expanded={expanded}
         aria-label="Drill step instructions — drag to move"
