@@ -2579,6 +2579,13 @@ export default function TeamDetailPage() {
           canManage={isAdmin || isClubAdmin}
           canMove={isClubAdmin && selectedMember.userId !== user?.id}
           isSelf={selectedMember.userId === user?.id}
+          teamId={id}
+          teamName={team.name}
+          clubId={team.club_id}
+          onRolesUpdated={() => {
+            queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+            setSelectedMember(null);
+          }}
           onAddRole={() => setAddRoleMember({
             userId: selectedMember.userId,
             userName: selectedMember.displayName,
