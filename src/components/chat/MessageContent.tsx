@@ -163,7 +163,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds, vaultFileIds, vaultFolderIds, vaultRoots } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds, vaultFileIds, vaultFolderIds, vaultRoots, galleryIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
@@ -172,6 +172,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     const boards = [...new Set(parts.filter(p => p.type === "board-link").map(p => p.content))];
     const vaultFiles = [...new Set(parts.filter(p => p.type === "vault-file").map(p => p.content))];
     const vaultFolders = [...new Set(parts.filter(p => p.type === "vault-folder").map(p => p.content))];
+    const galleries = [...new Set(parts.filter(p => p.type === "gallery-link").map(p => p.content))];
     const rootSeen = new Set<string>();
     const roots: { scope: "team" | "club"; id: string }[] = [];
     for (const p of parts) {
@@ -202,6 +203,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       vaultFileIds: vaultFiles.slice(0, 5),
       vaultFolderIds: vaultFolders.slice(0, 5),
       vaultRoots: roots.slice(0, 3),
+      galleryIds: galleries.slice(0, 2),
     };
   }, [parts]);
 
