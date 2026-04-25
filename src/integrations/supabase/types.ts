@@ -3447,6 +3447,35 @@ export type Database = {
           },
         ]
       }
+      hidden_chat_groups: {
+        Row: {
+          group_id: string
+          hidden_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          hidden_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          hidden_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hidden_chat_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hidden_dm_conversations: {
         Row: {
           conversation_id: string
