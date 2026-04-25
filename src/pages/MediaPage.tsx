@@ -530,7 +530,7 @@ export default function MediaPage() {
     }
     
     return filtered;
-  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds]);
+  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
