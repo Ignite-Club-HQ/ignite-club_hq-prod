@@ -4180,8 +4180,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Landscape layout: pitch full screen on left, controls stacked on right
   if (isLandscape) {
     return createPortal(
-      <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
-        {/* Landscape header bar */}
+      <div
+        className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden pt-safe pl-safe pr-safe"
+        style={{ height: '100dvh', zIndex: 99999 }}
+      >
+        {/* Landscape header bar — pt-safe on the wrapper keeps content below the
+            system status bar (Android edge-to-edge / display cutouts) even if
+            StatusBar.hide() hasn't taken effect yet or isn't supported. */}
         <div className="shrink-0 h-12 bg-background border-b border-border flex items-center px-3 gap-2 z-[60]">
           {/* Left: Back + Team name */}
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onClose}>
