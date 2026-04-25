@@ -262,15 +262,31 @@ export function GoogleDriveImportDialog({
     try {
       // Collect all files to import (including from selected folders)
       const filesToImport: { file: DriveFile; folderPath: string }[] = [];
-      
+      const listingFailures: { path: string; reason: string }[] = [];
+
       // Add directly selected files
       for (const { file, folderPath: relativePath } of selectedFiles.values()) {
         filesToImport.push({ file, folderPath: relativePath });
       }
 
-      // Recursively collect files from selected folders
+      // Recursively collect files from selected folders. Show progress so the
+      // user sees that we're still discovering files in deep folder trees.
+      setImportProgress({ current: 0, total: 0, currentFile: "Scanning Drive folders..." });
       for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
-        await collectFolderFiles(folder.id, relativePath, filesToImport);
+        await collectFolderFiles(folder.id, relativePath, filesToImport, listingFailures, (count) => {
+          setImportProgress({ current: 0, total: 0, currentFile: `Scanning Drive folders... (${count} files found)` });
+        });
+      }
+
+      console.log(`[Drive import] Collected ${filesToImport.length} files across ${selectedFolders.size} selected folders. Listing failures: ${listingFailures.length}`);
+
+      if (listingFailures.length > 0) {
+        const preview = listingFailures.slice(0, 3).map((f) => `• ${f.path}: ${f.reason}`).join('\n');
+        const more = listingFailures.length > 3 ? `\n…and ${listingFailures.length - 3} more` : '';
+        toast.error(`Couldn't read ${listingFailures.length} subfolder${listingFailures.length === 1 ? '' : 's'} from Drive`, {
+          description: `${preview}${more}`,
+          duration: 10000,
+        });
       }
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
@@ -484,40 +500,61 @@ export function GoogleDriveImportDialog({
   };
 
   const collectFolderFiles = async (
-    folderId: string, 
-    pathPrefix: string, 
-    collected: { file: DriveFile; folderPath: string }[]
+    folderId: string,
+    pathPrefix: string,
+    collected: { file: DriveFile; folderPath: string }[],
+    listingFailures: { path: string; reason: string }[],
+    onProgress?: (filesFoundSoFar: number) => void,
   ) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
-        body: { 
-          accessToken,
-          folderId,
-        },
-      });
-
-      if (error || data?.error) {
-        const reason = data?.error || error?.message || 'unknown error';
-        console.error(`collectFolderFiles: failed to list folder ${folderId} (${pathPrefix}): ${reason}`);
-        toast.error(`Couldn't list "${pathPrefix || 'folder'}"`, { description: reason });
-        return;
+    // Retry list-files up to 3 times with backoff before giving up. Silent
+    // listing failures were the root cause of subfolder files going missing.
+    let lastErr: string | null = null;
+    let data: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data: respData, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
+          body: { accessToken, folderId },
+        });
+        if (error || respData?.error) {
+          lastErr = respData?.error || error?.message || 'unknown error';
+        } else {
+          data = respData;
+          lastErr = null;
+          break;
+        }
+      } catch (e: any) {
+        lastErr = e?.message || 'network error';
       }
+      // Small backoff before retry (250ms, 750ms)
+      await new Promise((r) => setTimeout(r, 250 + attempt * 500));
+    }
 
-      const folderFiles = (data?.files ?? []) as DriveFile[];
-      const subfolders = (data?.folders ?? []) as DriveFile[];
-      console.log(`collectFolderFiles: ${pathPrefix || '(root)'} -> ${folderFiles.length} files, ${subfolders.length} subfolders`);
+    if (!data) {
+      const reason = lastErr || 'unknown error';
+      console.error(`collectFolderFiles: FAILED to list folder ${folderId} (${pathPrefix}): ${reason}`);
+      listingFailures.push({ path: pathPrefix || 'folder', reason });
+      return;
+    }
 
-      // Add files from this folder
-      for (const file of folderFiles) {
-        collected.push({ file, folderPath: pathPrefix });
-      }
+    const folderFiles = (data?.files ?? []) as DriveFile[];
+    const subfolders = (data?.folders ?? []) as DriveFile[];
+    console.log(`collectFolderFiles: ${pathPrefix || '(root)'} -> ${folderFiles.length} files, ${subfolders.length} subfolders`);
 
-      // Recursively process subfolders
-      for (const subfolder of subfolders) {
-        await collectFolderFiles(subfolder.id, `${pathPrefix}/${subfolder.name}`, collected);
-      }
-    } catch (err) {
-      console.error("Error collecting folder files:", err);
+    // Add files from this folder
+    for (const file of folderFiles) {
+      collected.push({ file, folderPath: pathPrefix });
+    }
+    onProgress?.(collected.length);
+
+    // Recursively process subfolders
+    for (const subfolder of subfolders) {
+      await collectFolderFiles(
+        subfolder.id,
+        `${pathPrefix}/${subfolder.name}`,
+        collected,
+        listingFailures,
+        onProgress,
+      );
     }
   };
 
@@ -821,19 +858,23 @@ export function GoogleDriveImportDialog({
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
             </div>
             <div className="text-center space-y-2 w-full px-4">
-              <p className="font-medium">Importing files...</p>
+              <p className="font-medium">
+                {importProgress.total === 0 ? "Scanning Drive..." : "Importing files..."}
+              </p>
               <p className="text-sm text-muted-foreground truncate">
                 {importProgress.currentFile || "Preparing..."}
               </p>
-              <div className="mt-4">
-                <Progress 
-                  value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} 
-                  className="h-2"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {importProgress.current} of {importProgress.total} files
-                </p>
-              </div>
+              {importProgress.total > 0 && (
+                <div className="mt-4">
+                  <Progress
+                    value={(importProgress.current / importProgress.total) * 100}
+                    className="h-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {importProgress.current} of {importProgress.total} files
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
