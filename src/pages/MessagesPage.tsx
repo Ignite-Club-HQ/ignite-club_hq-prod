@@ -1264,7 +1264,11 @@ export default function MessagesPage() {
     // Clubs
     filteredClubs.forEach((club: any) => {
       const lastMsg = displayLatestClubMessages?.[club.id];
-      const hasProAccess = isLoadingClubProStatus ? true : (clubProStatus?.[club.id] === true);
+      // Treat as Pro until we have a definitive answer. This prevents a flash of
+      // "Pro only" lock state after returning from phone lock / visibility refetch
+      // when clubProStatus is briefly unavailable.
+      const proStatusKnown = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
+      const hasProAccess = proStatusKnown ? (clubProStatus?.[club.id] === true) : true;
       items.push({
         type: 'club',
         id: club.id,
@@ -1276,7 +1280,7 @@ export default function MessagesPage() {
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.clubs[club.id] || 0,
         isMuted: mutedChats?.clubs.has(club.id) || false,
-        isLocked: !isLoadingClubProStatus && !hasProAccess,
+        isLocked: proStatusKnown && !hasProAccess,
       });
     });
 
