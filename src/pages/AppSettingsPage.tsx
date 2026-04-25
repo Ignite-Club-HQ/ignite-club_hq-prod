@@ -65,6 +65,29 @@ export default function AppSettingsPage() {
     },
   });
 
+  const runPhotoPromptMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("post-game-photo-prompts", {
+        body: {},
+      });
+      if (error) throw error;
+      return data as { ok?: boolean; scanned?: number; posted?: number; skipped?: number; errors?: number };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Photo prompt run complete",
+        description: `Scanned ${data?.scanned ?? 0} · Posted ${data?.posted ?? 0} · Skipped ${data?.skipped ?? 0} · Errors ${data?.errors ?? 0}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to run photo prompt",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const getSetting = (key: string): boolean => {
     const setting = settings?.find(s => s.key === key);
     return setting?.value === true || setting?.value === "true";
