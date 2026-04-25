@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.wipe-club-vault]
 verify_jwt = false
+
+[functions.post-game-photo-prompts]
+verify_jwt = false
