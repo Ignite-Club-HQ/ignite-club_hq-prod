@@ -7715,6 +7715,14 @@ export type Database = {
         Returns: string
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
+      ensure_club_role_folders: {
+        Args: { _club_id: string }
+        Returns: undefined
+      }
+      ensure_team_role_folders: {
+        Args: { _team_id: string }
+        Returns: undefined
+      }
       extract_mentioned_user_ids: {
         Args: { message_text: string }
         Returns: string[]
@@ -8328,6 +8336,15 @@ export type Database = {
         Args: {
           _club_id: string
           _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      user_matches_folder_role: {
+        Args: {
+          _club_id: string
+          _restricted_roles: Database["public"]["Enums"]["app_role"][]
+          _team_id: string
           _user_id: string
         }
         Returns: boolean
