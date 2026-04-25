@@ -505,6 +505,11 @@ export default function MediaPage() {
     if (selectedTeamId !== "all") {
       filtered = filtered.filter(photo => photo.team_id === selectedTeamId);
     }
+
+    // Filter by event (auto-applied from URL ?event= param)
+    if (urlEventId) {
+      filtered = filtered.filter(photo => photo.event_id === urlEventId);
+    }
     
     // Filter by date range
     if (dateRange.from || dateRange.to) {
