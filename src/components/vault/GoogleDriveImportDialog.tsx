@@ -262,15 +262,31 @@ export function GoogleDriveImportDialog({
     try {
       // Collect all files to import (including from selected folders)
       const filesToImport: { file: DriveFile; folderPath: string }[] = [];
-      
+      const listingFailures: { path: string; reason: string }[] = [];
+
       // Add directly selected files
       for (const { file, folderPath: relativePath } of selectedFiles.values()) {
         filesToImport.push({ file, folderPath: relativePath });
       }
 
-      // Recursively collect files from selected folders
+      // Recursively collect files from selected folders. Show progress so the
+      // user sees that we're still discovering files in deep folder trees.
+      setImportProgress({ current: 0, total: 0, currentFile: "Scanning Drive folders..." });
       for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
-        await collectFolderFiles(folder.id, relativePath, filesToImport);
+        await collectFolderFiles(folder.id, relativePath, filesToImport, listingFailures, (count) => {
+          setImportProgress({ current: 0, total: 0, currentFile: `Scanning Drive folders... (${count} files found)` });
+        });
+      }
+
+      console.log(`[Drive import] Collected ${filesToImport.length} files across ${selectedFolders.size} selected folders. Listing failures: ${listingFailures.length}`);
+
+      if (listingFailures.length > 0) {
+        const preview = listingFailures.slice(0, 3).map((f) => `• ${f.path}: ${f.reason}`).join('\n');
+        const more = listingFailures.length > 3 ? `\n…and ${listingFailures.length - 3} more` : '';
+        toast.error(`Couldn't read ${listingFailures.length} subfolder${listingFailures.length === 1 ? '' : 's'} from Drive`, {
+          description: `${preview}${more}`,
+          duration: 10000,
+        });
       }
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
