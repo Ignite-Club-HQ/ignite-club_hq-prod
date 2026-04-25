@@ -718,7 +718,7 @@ export function UploadPhotoSheet({
             _photo_ids: uploadedPhotoIds,
             _hero_photo_id: heroPhotoId,
             _hero_image_url: heroUrl,
-            _event_id: null,
+            _event_id: eventId || null,
           },
         );
         if (rpcError) {
