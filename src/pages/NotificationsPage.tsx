@@ -701,10 +701,13 @@ export default function NotificationsPage() {
         }
         break;
       case "formation_change":
-        // Navigate to the team's pitch board - relatedId is team_id
-        if (relatedId) {
-          navigate(`/teams/${relatedId}`);
-        }
+        // Open the pitch board (same flow as pending_sub).
+        // The HomePage listener uses the persisted timer state to know which board to open.
+        localStorage.setItem('pitch-board-open-source', 'formation_change');
+        navigate("/");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('open-pitch-board', { detail: { notificationType: 'formation_change' } }));
+        }, 300);
         break;
       case "points_awarded":
       case "early_rsvp_points":
