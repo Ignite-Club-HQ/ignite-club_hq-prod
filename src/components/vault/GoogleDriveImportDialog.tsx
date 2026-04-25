@@ -407,8 +407,14 @@ export function GoogleDriveImportDialog({
             const folder = folders.find((f) => f.id === folderId);
             if (!folder) continue;
             // The folder cache key for a top-level selected folder is just its
-            // name (see collectFolderFiles + ensureFolderPath).
-            const vaultFolderId = folderCache[folder.name] ?? targetFolderId;
+            // name (see collectFolderFiles + ensureFolderPath). If the folder
+            // contained no importable files the cache entry won't exist yet —
+            // create the vault folder now so the sync link points at the right
+            // destination.
+            let vaultFolderId = folderCache[folder.name];
+            if (!vaultFolderId) {
+              vaultFolderId = (await ensureFolderPath(folder.name, folderCache)) ?? targetFolderId ?? undefined as any;
+            }
             if (!vaultFolderId) continue;
             try {
               // Tag the vault folder with its Drive id (best-effort).
