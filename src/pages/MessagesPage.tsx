@@ -1678,7 +1678,7 @@ export default function MessagesPage() {
 
     // Group/League card
     if (item.type === 'group' || item.type === 'league') {
-      return (
+      const groupCard = (
         <Card
           key={item.key}
           className="hover:border-primary/50 transition-colors cursor-pointer"
@@ -1728,6 +1728,19 @@ export default function MessagesPage() {
             </div>
           </CardContent>
         </Card>
+      );
+
+      if (!item.canHide) return groupCard;
+      return (
+        <ContextMenu key={item.key}>
+          <ContextMenuTrigger asChild>{groupCard}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => hideGroupMutation.mutate(item.id)}>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Hide group
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       );
     }
 
