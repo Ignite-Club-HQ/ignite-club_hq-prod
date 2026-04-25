@@ -1,0 +1,132 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { ImageIcon, ChevronRight } from "lucide-react";
+import { memo, useCallback, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface GalleryLinkCardProps {
+  cardId: string;
+}
+
+export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: GalleryLinkCardProps) {
+  const navigate = useNavigate();
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const { data: card, isLoading } = useQuery({
+    queryKey: ["gallery-chat-card", cardId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("gallery_chat_cards")
+        .select("id, team_id, hero_image_url, photo_count, event_id, is_prompt, created_at, teams(name)")
+        .eq("id", cardId)
+        .maybeSingle();
+
+      let opponentLabel: string | null = null;
+      if (data?.event_id) {
+        const { data: ev } = await supabase
+          .from("events")
+          .select("opponent, type")
+          .eq("id", data.event_id)
+          .maybeSingle();
+        if (ev?.opponent) opponentLabel = ev.opponent as string;
+      }
+
+      return data ? { ...data, opponentLabel } : null;
+    },
+    enabled: !!cardId,
+    staleTime: 30 * 1000,
+  });
+
+  const { signedUrl } = useSignedPhotoUrl(card?.hero_image_url ?? null);
+  const heroSrc = signedUrl || card?.hero_image_url || null;
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!card) return;
+      if (card.is_prompt) {
+        // Prompt cards open the upload flow, scoped to this team (and event if any).
+        navigate(`/media?team=${card.team_id}&upload=1${card.event_id ? `&event=${card.event_id}` : ""}`);
+        return;
+      }
+      navigate(`/media?team=${card.team_id}&card=${card.id}`);
+    },
+    [card, navigate],
+  );
+
+  if (isLoading) {
+    return <Skeleton className="h-[120px] w-full max-w-[300px] rounded-2xl" />;
+  }
+
+  if (!card) {
+    return (
+      <div className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground max-w-[300px]">
+        Gallery update unavailable
+      </div>
+    );
+  }
+
+  const teamName = (card as { teams?: { name?: string } | null }).teams?.name || "Team";
+  const isPrompt = card.is_prompt;
+  const count = card.photo_count;
+  const headline = isPrompt
+    ? "Got photos from today?"
+    : card.opponentLabel
+      ? `📸 ${count} photo${count === 1 ? "" : "s"} from vs ${card.opponentLabel}`
+      : `📸 ${count} new ${teamName} photo${count === 1 ? "" : "s"}`;
+  const subline = isPrompt
+    ? `Add them to the ${teamName} gallery`
+    : `${teamName} · Just now`;
+
+  const ctaLabel = isPrompt ? "Open uploader" : "View Gallery";
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="group block w-full max-w-[300px] overflow-hidden rounded-2xl border border-primary/20 bg-card text-left shadow-sm transition-all active:scale-[0.985] active:bg-primary/[0.04] touch-manipulation"
+    >
+      {/* Hero - only for non-prompt cards with image */}
+      {!isPrompt && heroSrc && !imgError && (
+        <div className="relative w-full aspect-video bg-muted overflow-hidden">
+          {!imgLoaded && <Skeleton className="absolute inset-0" />}
+          <img
+            src={heroSrc}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+            className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+          />
+          {count > 1 && (
+            <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              <ImageIcon className="h-2.5 w-2.5" />
+              {count}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        {/* Icon for prompt or fallback */}
+        {(isPrompt || !heroSrc || imgError) && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15">
+            <ImageIcon className="h-4 w-4 text-primary" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">{headline}</p>
+          <p className="truncate text-[11px] text-muted-foreground leading-tight mt-0.5">{subline}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-primary">
+          {ctaLabel}
+          <ChevronRight className="h-3.5 w-3.5" />
+        </div>
+      </div>
+    </button>
+  );
+});
