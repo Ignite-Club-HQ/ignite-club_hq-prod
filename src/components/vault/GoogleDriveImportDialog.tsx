@@ -300,6 +300,13 @@ export function GoogleDriveImportDialog({
         return;
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Your session expired. Please sign in again.");
+        setImporting(false);
+        return;
+      }
+
       // Process each file
       let successCount = 0;
       const failures: { name: string; reason: string }[] = [];
@@ -333,111 +340,36 @@ export function GoogleDriveImportDialog({
             continue;
           }
 
-          // Download file from Drive — use raw fetch so we can read the JSON
-          // error body on non-2xx responses (supabase.functions.invoke swallows
-          // it and returns a generic "non-2xx status code" message).
-          const { data: { session } } = await supabase.auth.getSession();
-          const fnResponse = await fetch(
-            `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=download-file`,
+          const importResponse = await fetch(
+            `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${session?.access_token ?? ''}`,
+                Authorization: `Bearer ${session.access_token}`,
                 apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
               },
               body: JSON.stringify({
                 accessToken,
-                fileId: file.id,
-                mimeType: file.mimeType,
-                fileName: file.name,
+                file,
+                folderId: uploadFolderId,
+                clubId: targetClubId,
+                teamId: targetTeamId,
               }),
             }
           );
 
-          let downloadData: any = null;
-          let downloadErrText: string | null = null;
+          let importData: any = null;
           try {
-            downloadData = await fnResponse.json();
+            importData = await importResponse.json();
           } catch {
-            downloadErrText = `HTTP ${fnResponse.status}`;
+            importData = { error: `HTTP ${importResponse.status}` };
           }
 
-          if (!fnResponse.ok || downloadData?.error) {
-            const reason = downloadData?.error || downloadErrText || `HTTP ${fnResponse.status}`;
-            console.error(`Failed to download ${file.name}:`, reason);
+          if (!importResponse.ok || importData?.error) {
+            const reason = importData?.error || `HTTP ${importResponse.status}`;
+            console.error(`Failed to import ${file.name}:`, reason);
             failures.push({ name: file.name, reason });
-            continue;
-          }
-
-          // Convert base64 to blob
-          const binaryString = atob(downloadData.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let j = 0; j < binaryString.length; j++) {
-            bytes[j] = binaryString.charCodeAt(j);
-          }
-
-          // Determine file extension and name
-          let fileName = file.name;
-          let contentType = file.mimeType;
-
-          if (downloadData.exportedMimeType) {
-            contentType = downloadData.exportedMimeType;
-            // Add appropriate extension for exported Google docs
-            if (downloadData.exportedMimeType === 'application/pdf' && !fileName.endsWith('.pdf')) {
-              fileName += '.pdf';
-            } else if (downloadData.exportedMimeType.includes('spreadsheet') && !fileName.endsWith('.xlsx')) {
-              fileName += '.xlsx';
-            }
-          }
-
-          const blob = new Blob([bytes], { type: contentType });
-
-          // Upload to Supabase storage using the same vault-only storage path
-          // as standard Vault uploads so Drive imports never create Media posts.
-          const timestamp = Date.now();
-          const randomSuffix = Math.random().toString(36).substring(7);
-          const safeExt = fileName.split('.').pop() || 'bin';
-          let storagePath: string;
-          if (targetTeamId) {
-            storagePath = `clubs/${targetClubId}/teams/${targetTeamId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
-          } else {
-            storagePath = `clubs/${targetClubId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
-          }
-
-          const { error: uploadError } = await supabase.storage
-            .from('photos')
-            .upload(storagePath, blob, { contentType });
-
-          if (uploadError) {
-            console.error(`Failed to upload ${file.name}:`, uploadError);
-            failures.push({ name: file.name, reason: uploadError.message });
-            continue;
-          }
-
-          // Store the storage URL; the vault resolves signed URLs on demand.
-          const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-          const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
-
-          // Always insert into vault_files so the file appears in the Vault.
-          // Images are still classified as photos by the vault UI via file_type,
-          // but they live in vault_files rather than the public media gallery.
-          const { error: insertError } = await supabase.from('vault_files').insert({
-            file_url: fileUrl,
-            name: fileName,
-            club_id: targetClubId,
-            team_id: targetTeamId,
-            folder_id: uploadFolderId,
-            uploaded_by: userId,
-            file_size: downloadData.size ?? blob.size,
-            file_type: contentType,
-            drive_file_id: file.id,
-            drive_modified_time: file.modifiedTime ?? null,
-          });
-
-          if (insertError) {
-            console.error(`Failed to record ${file.name} in vault:`, insertError);
-            failures.push({ name: file.name, reason: insertError.message });
             continue;
           }
 
