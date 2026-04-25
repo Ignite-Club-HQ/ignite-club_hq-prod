@@ -123,24 +123,27 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         // Event token: [event:uuid] - match[13] is the event ID
         result.push({ type: "event-link", content: match[13] || "" });
       } else if (match[14]) {
-        // Markdown link match: [text](url) - match[15] is text, match[16] is URL
+        // Gallery token: [gallery:uuid] - match[15] is the gallery_chat_cards ID
+        result.push({ type: "gallery-link", content: match[15] || "" });
+      } else if (match[16]) {
+        // Markdown link match: [text](url) - match[17] is text, match[18] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[16] || "", 
-          linkText: match[15] || "" 
+          content: match[18] || "", 
+          linkText: match[17] || "" 
         });
-      } else if (match[17]) {
-        // Event URL match: /events/uuid - match[18] is the event ID
-        result.push({ type: "event-link", content: match[18] || "" });
       } else if (match[19]) {
+        // Event URL match: /events/uuid - match[20] is the event ID
+        result.push({ type: "event-link", content: match[20] || "" });
+      } else if (match[21]) {
         // Plain URL match
-        result.push({ type: "link", content: match[19] });
-      } else if (match[20]) {
-        // Mention match - match[21] is display name, match[22] is userId
+        result.push({ type: "link", content: match[21] });
+      } else if (match[22]) {
+        // Mention match - match[23] is display name, match[24] is userId
         result.push({ 
           type: "mention", 
-          content: match[21] || "", 
-          userId: match[22] || "" 
+          content: match[23] || "", 
+          userId: match[24] || "" 
         });
       }
       
