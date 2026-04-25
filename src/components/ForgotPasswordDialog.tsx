@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Mail, Loader2, CheckCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Mail, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,17 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Capacitor } from "@capacitor/core";
 import { z } from "zod";
-
-// Always use the public web domain for password reset redirects.
-// On native, window.location.origin returns capacitor://localhost which
-// Supabase rejects, and even on web previews the domain may not match
-// the user's original device. Universal Links + deep link handler route
-// the resulting /reset-password URL back into the native app when installed.
-const RESET_PASSWORD_REDIRECT = "https://igniteclubhq.app/reset-password";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
@@ -30,18 +28,30 @@ interface ForgotPasswordDialogProps {
   defaultEmail?: string;
 }
 
+type Step = "email" | "code";
+
 export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: ForgotPasswordDialogProps) {
   const [email, setEmail] = useState(defaultEmail);
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState<Step>("email");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const cooldownRef = useRef<number | null>(null);
 
-  const handleResetEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    if (sent) setSent(false);
-  };
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    cooldownRef.current = window.setTimeout(() => {
+      setResendCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => {
+      if (cooldownRef.current) window.clearTimeout(cooldownRef.current);
+    };
+  }, [resendCooldown]);
 
-  const handleSubmit = async () => {
+  const sendCode = async (isResend = false) => {
     const validation = emailSchema.safeParse(email);
     if (!validation.success) {
       toast({
@@ -51,34 +61,69 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
       return;
     }
 
-    setLoading(true);
+    setSending(true);
 
-    // Use the public web domain so the link works regardless of which
-    // device/browser opens the email. Native apps will intercept via
-    // Universal Links / deep-link handler.
-    const redirectTo = Capacitor.isNativePlatform()
-      ? RESET_PASSWORD_REDIRECT
-      : `${window.location.origin}/reset-password`;
+    // No redirectTo — we want the email's OTP code, not a magic link click.
+    // The recovery email template in Supabase must include {{ .Token }}.
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
+    setSending(false);
 
-    setLoading(false);
-
-    // Always show the same success state to avoid leaking which emails
-    // are registered (email enumeration protection).
     if (error) {
       console.error("[ForgotPassword] resetPasswordForEmail error:", error);
     }
-    setSent(true);
+
+    // Always advance to the code step regardless of error to avoid email
+    // enumeration. If the email isn't registered, the code simply won't verify.
+    setStep("code");
+    setResendCooldown(45);
+
+    if (isResend) {
+      toast({
+        title: "Code resent",
+        description: "Check your email for a new 6-digit code.",
+      });
+    }
+  };
+
+  const verifyCode = async (token: string) => {
+    setVerifying(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "recovery",
+    });
+    setVerifying(false);
+
+    if (error) {
+      toast({
+        title: "Invalid or expired code",
+        description: "Double-check the code or request a new one.",
+      });
+      setCode("");
+      return;
+    }
+
+    // verifyOtp puts the user in a recovery session — ResetPasswordPage
+    // detects the session and shows the new-password form.
+    handleClose();
+    navigate("/reset-password");
+  };
+
+  const handleCodeChange = (value: string) => {
+    setCode(value);
+    if (value.length === 6 && !verifying) {
+      void verifyCode(value);
+    }
   };
 
   const handleClose = () => {
     onOpenChange(false);
     // Reset state after dialog closes
     setTimeout(() => {
-      setSent(false);
+      setStep("email");
+      setCode("");
+      setResendCooldown(0);
       if (!defaultEmail) setEmail("");
     }, 300);
   };
@@ -89,40 +134,13 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
         <DialogHeader>
           <DialogTitle>Reset Password</DialogTitle>
           <DialogDescription>
-            {sent 
-              ? "Check your email for a password reset link."
-              : "Enter your email address and we'll send you a link to reset your password."
-            }
+            {step === "email"
+              ? "Enter your email and we'll send you a 6-digit code to reset your password."
+              : `Enter the 6-digit code we sent to ${email}.`}
           </DialogDescription>
         </DialogHeader>
-        
-        {sent ? (
-          <div className="flex flex-col items-center py-6 space-y-4">
-            <div className="p-3 rounded-full bg-primary/10">
-              <CheckCircle className="h-8 w-8 text-primary" />
-            </div>
-            <div className="text-center space-y-2">
-              <p className="font-medium">Email sent!</p>
-              <p className="text-sm text-muted-foreground">
-                We've sent a password reset link to <span className="font-medium text-foreground">{email}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Don't see it? Check your spam folder.
-              </p>
-              <p className="text-xs text-muted-foreground pt-2 border-t border-border/50 mt-3">
-                <span className="font-medium text-foreground">Important:</span> open the email on the
-                same device you requested it from. The link expires in 1 hour.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Already signed in? You can change your password from{" "}
-                <span className="font-medium text-foreground">Settings → Change Password</span>.
-              </p>
-            </div>
-            <Button onClick={handleClose} className="w-full">
-              Done
-            </Button>
-          </div>
-        ) : (
+
+        {step === "email" ? (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="reset-email">Email</Label>
@@ -134,8 +152,8 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                   placeholder="you@example.com"
                   className="pl-10"
                   value={email}
-                  onChange={handleResetEmail}
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendCode()}
                 />
               </div>
             </div>
@@ -143,10 +161,81 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               <Button variant="outline" onClick={handleClose} className="flex-1">
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Reset Link"}
+              <Button onClick={() => sendCode()} disabled={sending} className="flex-1">
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border/50">
+              Already signed in? You can change your password from{" "}
+              <span className="font-medium text-foreground">Settings → Change Password</span>.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-4 space-y-5">
+            <div className="p-3 rounded-full bg-primary/10">
+              <CheckCircle className="h-8 w-8 text-primary" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="font-medium">Check your email</p>
+              <p className="text-sm text-muted-foreground">
+                We sent a 6-digit code. It expires in 1 hour.
+              </p>
+            </div>
+
+            <InputOTP
+              maxLength={6}
+              value={code}
+              onChange={handleCodeChange}
+              disabled={verifying}
+              autoFocus
+            >
+              <InputOTPGroup>
+                <InputOTPSlot index={0} />
+                <InputOTPSlot index={1} />
+                <InputOTPSlot index={2} />
+                <InputOTPSlot index={3} />
+                <InputOTPSlot index={4} />
+                <InputOTPSlot index={5} />
+              </InputOTPGroup>
+            </InputOTP>
+
+            {verifying && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Verifying…
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-2 w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => sendCode(true)}
+                disabled={sending || resendCooldown > 0}
+              >
+                {resendCooldown > 0
+                  ? `Resend code in ${resendCooldown}s`
+                  : sending
+                    ? "Sending…"
+                    : "Resend code"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStep("email");
+                  setCode("");
+                }}
+                className="text-muted-foreground"
+              >
+                <ArrowLeft className="h-3 w-3 mr-1" />
+                Use a different email
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Don't see the email? Check your spam folder.
+            </p>
           </div>
         )}
       </DialogContent>
