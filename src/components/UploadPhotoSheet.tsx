@@ -83,6 +83,7 @@ export function UploadPhotoSheet({
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [caption, setCaption] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
