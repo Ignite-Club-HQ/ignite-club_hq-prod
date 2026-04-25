@@ -121,6 +121,14 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
     exportedMimeType = 'application/pdf';
     extraExt = '.pdf';
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
+  } else if (mimeType === 'application/vnd.google-apps.form') {
+    // Google Forms cannot be exported via the Drive API. Skip cleanly.
+    throw new Error('SKIP_UNSUPPORTED: Google Forms cannot be exported');
+  } else if (mimeType.startsWith('application/vnd.google-apps.')) {
+    // Other Google native types (drawings, sites, scripts, etc.) — try PDF export.
+    exportedMimeType = 'application/pdf';
+    extraExt = '.pdf';
+    downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
   } else {
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
   }
@@ -132,6 +140,17 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 }
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
+
+// Supabase Storage rejects keys containing characters outside a safe set
+// (e.g. '|', '#', '?', control chars). Sanitize the filename portion of the
+// path so uploads succeed for files like "Profit | Loss Statement.xlsx".
+function sanitizeStorageName(name: string): string {
+  return name
+    .replace(/[\\/]/g, '-')
+    .replace(/[^A-Za-z0-9._\-\s()[\]]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
 
