@@ -8302,6 +8302,10 @@ export type Database = {
           was_new: boolean
         }[]
       }
+      post_team_gallery_prompt: {
+        Args: { _event_id: string; _system_user_id: string; _team_id: string }
+        Returns: string
+      }
       profile_team_history: {
         Args: { _profile_id: string }
         Returns: {
