@@ -1,0 +1,102 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// System user used as message author for prompt cards.
+const IGNITE_SUPPORT_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Hourly cron: scan team game/mini_league events that ended between
+ * 2 and 3 hours ago and post a "Got photos from today?" prompt to the
+ * team chat — but only if no photos for the event exist and no prompt
+ * has been posted yet (the RPC enforces both checks).
+ */
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  try {
+    const now = new Date();
+    const lowerBound = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(); // 3h ago
+    const upperBound = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2h ago
+
+    // Find recently-ended games for teams.
+    // We use COALESCE(end_time, start_time) to estimate end if end_time is null,
+    // adding a 90-min buffer for games without an explicit end_time.
+    const { data: events, error: eventsError } = await supabase
+      .from("events")
+      .select("id, team_id, end_time, start_time, type, opponent, is_cancelled")
+      .in("type", ["game", "mini_league"])
+      .eq("is_cancelled", false)
+      .not("team_id", "is", null)
+      .gte("start_time", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+      .lte("start_time", upperBound);
+
+    if (eventsError) {
+      console.error("[post-game-prompts] events query failed", eventsError);
+      return new Response(JSON.stringify({ error: eventsError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let posted = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const ev of events ?? []) {
+      // Compute effective end timestamp.
+      const endTs = ev.end_time
+        ? new Date(ev.end_time as string)
+        : new Date(new Date(ev.start_time as string).getTime() + 90 * 60 * 1000);
+
+      const endIso = endTs.toISOString();
+      if (endIso < lowerBound || endIso > upperBound) {
+        skipped++;
+        continue;
+      }
+
+      const { data, error } = await supabase.rpc("post_team_gallery_prompt", {
+        _team_id: ev.team_id,
+        _event_id: ev.id,
+        _system_user_id: IGNITE_SUPPORT_USER_ID,
+      });
+
+      if (error) {
+        console.error("[post-game-prompts] RPC failed for event", ev.id, error);
+        errors++;
+        continue;
+      }
+      if (data) {
+        posted++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        scanned: events?.length ?? 0,
+        posted,
+        skipped,
+        errors,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    console.error("[post-game-prompts] uncaught", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
