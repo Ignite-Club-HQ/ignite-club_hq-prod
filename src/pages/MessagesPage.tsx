@@ -1611,7 +1611,7 @@ export default function MessagesPage() {
       const isOwn = conv?.last_message?.author_id === user?.id;
       const isSupport = isIgniteSupportUser(conv?.other_user?.id);
       
-      return (
+      const dmCard = (
         <Link key={item.key} to={item.link}>
           <Card className="hover:border-primary/50 transition-colors">
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
@@ -1660,6 +1660,19 @@ export default function MessagesPage() {
             </CardContent>
           </Card>
         </Link>
+      );
+
+      if (!item.canHide) return dmCard;
+      return (
+        <ContextMenu key={item.key}>
+          <ContextMenuTrigger asChild>{dmCard}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => hideDMMutation.mutate(item.id)}>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Hide conversation
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       );
     }
 
