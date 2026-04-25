@@ -1,5 +1,10 @@
-// One-shot admin utility: wipe a club's entire vault (storage objects + vault_files rows).
+// One-shot admin utility: wipe a club's vault (vault_files rows + their storage objects ONLY).
 // Authenticated via ADMIN_DELETE_SECRET header.
+//
+// IMPORTANT: This function MUST NOT delete arbitrary objects under clubs/{clubId}/.
+// The `photos` storage bucket is shared with the media gallery (photos table) and other
+// features that use the same prefix. Deleting by prefix previously wiped gallery images.
+// Instead, we only delete storage paths that are explicitly referenced by vault_files.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -24,39 +29,33 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const prefix = `clubs/${clubId}`;
+    // Pull all vault_files for this club so we know exactly which storage paths to remove.
+    const { data: vaultRows, error: fetchErr } = await supabase
+      .from("vault_files")
+      .select("id, storage_path, storage_bucket")
+      .eq("club_id", clubId);
+    if (fetchErr) throw fetchErr;
 
-    // Recursively list all objects under the club prefix
-    const allPaths: string[] = [];
-    async function walk(folder: string) {
-      let offset = 0;
-      const limit = 1000;
-      while (true) {
-        const { data, error } = await supabase.storage.from(bucket).list(folder, { limit, offset });
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        for (const item of data) {
-          // Storage list returns both files and "folders" (placeholders). Folders have id === null.
-          const fullPath = folder ? `${folder}/${item.name}` : item.name;
-          if (item.id === null) {
-            await walk(fullPath);
-          } else {
-            allPaths.push(fullPath);
-          }
-        }
-        if (data.length < limit) break;
-        offset += limit;
-      }
+    // Group paths by bucket (default to provided bucket if column not set)
+    const pathsByBucket: Record<string, string[]> = {};
+    for (const row of vaultRows ?? []) {
+      const b = (row as any).storage_bucket || bucket;
+      const p = (row as any).storage_path as string | null;
+      if (!p) continue;
+      if (!pathsByBucket[b]) pathsByBucket[b] = [];
+      pathsByBucket[b].push(p);
     }
-    await walk(prefix);
 
-    // Delete in batches of 1000
     let removed = 0;
-    for (let i = 0; i < allPaths.length; i += 1000) {
-      const batch = allPaths.slice(i, i + 1000);
-      const { error } = await supabase.storage.from(bucket).remove(batch);
-      if (error) throw error;
-      removed += batch.length;
+    for (const [b, paths] of Object.entries(pathsByBucket)) {
+      // de-dupe
+      const unique = Array.from(new Set(paths));
+      for (let i = 0; i < unique.length; i += 1000) {
+        const batch = unique.slice(i, i + 1000);
+        const { error } = await supabase.storage.from(b).remove(batch);
+        if (error) throw error;
+        removed += batch.length;
+      }
     }
 
     // Delete vault_files rows for this club
