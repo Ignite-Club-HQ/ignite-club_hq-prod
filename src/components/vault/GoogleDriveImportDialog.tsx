@@ -22,6 +22,7 @@ interface DriveFile {
   mimeType: string;
   size?: string;
   createdTime?: string;
+  modifiedTime?: string;
 }
 
 interface SelectedDriveFile {
@@ -378,7 +379,7 @@ export function GoogleDriveImportDialog({
             file_size: downloadData.size ?? blob.size,
             file_type: contentType,
             drive_file_id: file.id,
-            drive_modified_time: file.createdTime ?? null,
+            drive_modified_time: file.modifiedTime ?? null,
           });
 
           if (insertError) {
@@ -682,8 +683,8 @@ export function GoogleDriveImportDialog({
                     setFiles([]);
                     setCurrentFolderId(null);
                     setFolderPath([]);
-                    setSelectedFiles(new Set());
-                    setSelectedFolders(new Set());
+                    setSelectedFiles(new Map());
+                    setSelectedFolders(new Map());
                   }}
                   className="text-muted-foreground"
                 >
@@ -728,7 +729,7 @@ export function GoogleDriveImportDialog({
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFolders.has(folder.id)}
-                          onCheckedChange={() => toggleFolderSelection(folder.id)}
+                          onCheckedChange={() => toggleFolderSelection(folder)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div
@@ -750,12 +751,12 @@ export function GoogleDriveImportDialog({
                       className={`cursor-pointer transition-colors ${
                         selectedFiles.has(file.id) ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
                       }`}
-                      onClick={() => toggleFileSelection(file.id)}
+                      onClick={() => toggleFileSelection(file)}
                     >
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFiles.has(file.id)}
-                          onCheckedChange={() => toggleFileSelection(file.id)}
+                          onCheckedChange={() => toggleFileSelection(file)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         {getFileIcon(file.mimeType)}
