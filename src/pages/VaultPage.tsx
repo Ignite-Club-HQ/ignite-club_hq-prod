@@ -3496,25 +3496,6 @@ export default function VaultPage() {
                             Import from Drive
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
-                          <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync with Drive folder
-                          </DropdownMenuItem>
-                        )}
-                        {isClubAdmin && (
-                          <DropdownMenuItem
-                            onClick={handleResolveDriveTitles}
-                            disabled={resolvingDriveTitles}
-                          >
-                            {resolvingDriveTitles ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Sheet className="h-4 w-4 mr-2" />
-                            )}
-                            Fetch real Google titles
-                          </DropdownMenuItem>
-                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -3563,13 +3544,32 @@ export default function VaultPage() {
                             )}
                           </DropdownMenuItem>
                         )}
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                          <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sync with Drive folder
+                          </DropdownMenuItem>
+                        )}
+                        {isClubAdmin && (
+                          <DropdownMenuItem
+                            onClick={handleResolveDriveTitles}
+                            disabled={resolvingDriveTitles}
+                          >
+                            {resolvingDriveTitles ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Sheet className="h-4 w-4 mr-2" />
+                            )}
+                            Fetch real Google titles
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
                 </>
               )}
             </TooltipProvider>
-            
+
             {/* Dialogs - always rendered */}
             <CreateFolderDialog
               open={newFolderDialogOpen}
