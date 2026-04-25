@@ -118,6 +118,56 @@ export default function ResetPasswordPage() {
     };
   }, []);
 
+  const sendRecoveryCode = async () => {
+    const validation = emailSchema.safeParse(otpEmail);
+    if (!validation.success) {
+      toast({
+        title: "Invalid email",
+        description: validation.error.errors[0].message,
+      });
+      return;
+    }
+    setSendingOtp(true);
+    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail);
+    setSendingOtp(false);
+    if (sendError) {
+      console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
+    }
+    toast({
+      title: "Code sent",
+      description: "Check your email for a 6-digit code.",
+    });
+  };
+
+  const verifyRecoveryCode = async (token: string) => {
+    setVerifyingOtp(true);
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: otpEmail,
+      token,
+      type: "recovery",
+    });
+    setVerifyingOtp(false);
+    if (verifyError) {
+      toast({
+        title: "Invalid or expired code",
+        description: "Double-check the code or request a new one.",
+      });
+      setOtpCode("");
+      return;
+    }
+    // Now in a recovery session — clear the error to show password form
+    setError(null);
+    setShowOtpRecovery(false);
+    setOtpCode("");
+  };
+
+  const handleOtpChange = (value: string) => {
+    setOtpCode(value);
+    if (value.length === 6 && !verifyingOtp) {
+      void verifyRecoveryCode(value);
+    }
+  };
+
   const handleResetPassword = async () => {
     const validation = passwordSchema.safeParse({ password, confirmPassword });
     if (!validation.success) {
