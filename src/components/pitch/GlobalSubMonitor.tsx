@@ -305,6 +305,23 @@ export default function GlobalSubMonitor() {
       return;
     }
 
+    // If the pitch board has NOT been linked to an event, do not sync to
+    // active_games. This prevents the server cron from sending half-time,
+    // pending-sub, or full-time push/email notifications to coaches and team
+    // admins for casual / unlinked sessions (e.g. when a coach is just moving
+    // players around or experimenting with formations).
+    if (!pitchState.linkedEventId) {
+      if (activeGameIdRef.current) {
+        await supabase
+          .from('active_games')
+          .update({ is_active: false })
+          .eq('id', activeGameIdRef.current);
+        activeGameIdRef.current = null;
+      }
+      setSyncStatus({ status: "idle", lastSyncTime: null });
+      return;
+    }
+
     // If already at halftime boundary, pre-set last_sub_check_time so the cron
     // doesn't re-send half-time notifications when a new active_games row is created
     const isAtHalftime = timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && !timerState.isRunning;
