@@ -4992,10 +4992,8 @@ function ContentSection({
                 key={file.id} 
                 className="group cursor-pointer"
                 onClick={() => {
-                  if (isExternalLink) {
-                    // Open external link directly
-                    import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
-                  }
+                  // Open external links and uploaded files alike
+                  import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                 }}
               >
                 <CardContent className="p-3 flex items-center gap-3">
