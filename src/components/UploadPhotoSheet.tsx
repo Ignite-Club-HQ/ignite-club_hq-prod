@@ -67,30 +67,6 @@ interface SelectedPhoto {
 }
 
 
-  // Seed selection from props when sheet opens (e.g. from "Add photos" CTA in
-  // a post-game team chat prompt). Resolves club from team if club not provided.
-  useEffect(() => {
-    if (!open) return;
-    if (defaultClubId) setSelectedClubId((prev) => prev || defaultClubId);
-    if (defaultTeamId) setSelectedTeamId((prev) => prev || defaultTeamId);
-    if (defaultEventId) setSelectedEventId((prev) => prev || defaultEventId);
-
-    if (defaultTeamId && !defaultClubId) {
-      let cancelled = false;
-      (async () => {
-        const { data } = await supabase
-          .from("teams")
-          .select("club_id")
-          .eq("id", defaultTeamId)
-          .maybeSingle();
-        if (!cancelled && data?.club_id) {
-          setSelectedClubId((prev) => prev || (data.club_id as string));
-        }
-      })();
-      return () => { cancelled = true; };
-    }
-  }, [open, defaultClubId, defaultTeamId, defaultEventId]);
-
 
 export function UploadPhotoSheet({
   open,
