@@ -1381,7 +1381,7 @@ export default function MessagesPage() {
     return items;
   }, [
     showBroadcast, displayLatestBroadcast, unreadCounts,
-    filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, clubProStatus, mutedChats,
+    filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
     filteredDMs, user?.id, showIgniteSupport, systemMessage,
