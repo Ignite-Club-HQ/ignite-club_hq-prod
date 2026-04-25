@@ -1337,6 +1337,7 @@ export default function MessagesPage() {
         } : undefined,
         unreadCount: unreadCounts?.dms[conv.id] || 0,
         isMuted: false,
+        canHide: !isSupport,
         dmData: conv,
       });
     });
