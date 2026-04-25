@@ -101,9 +101,10 @@ serve(async (req) => {
       );
     }
 
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
     // Verify user is a club admin (only club admins can import from Google Drive)
     if (user) {
-      const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
       const { data: userRoles } = await serviceClient
         .from('user_roles')
         .select('role')
