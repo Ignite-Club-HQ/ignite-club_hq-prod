@@ -56,8 +56,15 @@ async function listDriveFolder(accessToken: string, folderId: string) {
   do {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
-    url.searchParams.set('fields', 'nextPageToken, files(id,name,mimeType,size,modifiedTime)');
+    url.searchParams.set(
+      'fields',
+      'nextPageToken, files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+    );
     url.searchParams.set('pageSize', '1000');
+    // Required so 'root' resolves to the user's My Drive root and so we can
+    // see files in shared drives the user has access to.
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -68,10 +75,27 @@ async function listDriveFolder(accessToken: string, folderId: string) {
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  const folders = allFiles.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-  const files = allFiles.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+  // Resolve shortcuts to their target so we treat them like the real file/folder.
+  const resolved = allFiles.map((f: any) => {
+    if (
+      f.mimeType === 'application/vnd.google-apps.shortcut' &&
+      f.shortcutDetails?.targetId &&
+      f.shortcutDetails?.targetMimeType
+    ) {
+      return {
+        ...f,
+        id: f.shortcutDetails.targetId,
+        mimeType: f.shortcutDetails.targetMimeType,
+      };
+    }
+    return f;
+  });
+
+  const folders = resolved.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+  const files = resolved.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
   return { folders, files };
 }
+
 
 async function getDriveFileMetadata(accessToken: string, fileId: string) {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime,trashed`;
