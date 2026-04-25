@@ -129,9 +129,10 @@ export default function MediaPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  // Apply team/club filter from URL search params (e.g. from My Teams gallery link)
+  // Apply team/club/event filter from URL search params (e.g. from My Teams gallery link or post-game prompt)
   const urlTeamId = searchParams.get("team");
   const urlClubId = searchParams.get("club");
+  const urlEventId = searchParams.get("event");
 
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
