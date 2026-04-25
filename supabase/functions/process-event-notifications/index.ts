@@ -129,7 +129,7 @@ async function resolveRecipients(
       .select('user_id')
       .eq('team_id', teamId)
       .neq('user_id', excludeUserId);
-    return [...new Set((members || []).map((m: any) => m.user_id))];
+    return [...new Set((members || []).map((m: any) => m.user_id as string))] as string[];
   }
 
   // Club-wide: paginated

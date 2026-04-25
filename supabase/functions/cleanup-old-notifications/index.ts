@@ -18,7 +18,7 @@ const corsHeaders = {
  */
 
 async function batchDeleteByDate(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   table: string,
   cutoffDate: string,
   label: string,
