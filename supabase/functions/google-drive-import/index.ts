@@ -179,10 +179,12 @@ serve(async (req) => {
         driveUrl.searchParams.set('q', query);
         driveUrl.searchParams.set(
           'fields',
-          'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,parents)'
+          'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,parents,shortcutDetails)'
         );
         driveUrl.searchParams.set('pageSize', '1000');
         driveUrl.searchParams.set('orderBy', 'folder,name');
+        driveUrl.searchParams.set('supportsAllDrives', 'true');
+        driveUrl.searchParams.set('includeItemsFromAllDrives', 'true');
         if (pageToken) driveUrl.searchParams.set('pageToken', pageToken);
 
         const driveResponse = await fetch(driveUrl.toString(), {
@@ -204,9 +206,20 @@ serve(async (req) => {
         safetyPages++;
       } while (pageToken && safetyPages < 50); // hard cap ~50,000 entries / folder
 
+      const resolvedItems = allItems.map((f: any) => {
+        if (
+          f.mimeType === 'application/vnd.google-apps.shortcut' &&
+          f.shortcutDetails?.targetId &&
+          f.shortcutDetails?.targetMimeType
+        ) {
+          return { ...f, id: f.shortcutDetails.targetId, mimeType: f.shortcutDetails.targetMimeType };
+        }
+        return f;
+      });
+
       // Separate folders and files
-      const folders = allItems.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-      const files = allItems.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+      const folders = resolvedItems.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+      const files = resolvedItems.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
 
       console.log(`list-files: parent=${parentId} pages=${safetyPages} folders=${folders.length} files=${files.length}`);
 

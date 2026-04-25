@@ -22,6 +22,17 @@ interface DriveFile {
   mimeType: string;
   size?: string;
   createdTime?: string;
+  modifiedTime?: string;
+}
+
+interface SelectedDriveFile {
+  file: DriveFile;
+  folderPath: string;
+}
+
+interface SelectedDriveFolder {
+  folder: DriveFile;
+  folderPath: string;
 }
 
 interface GoogleDriveImportDialogProps {
@@ -49,8 +60,8 @@ export function GoogleDriveImportDialog({
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, SelectedDriveFile>>(new Map());
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, SelectedDriveFolder>>(new Map());
   const [keepInSync, setKeepInSync] = useState(true);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -95,8 +106,8 @@ export function GoogleDriveImportDialog({
       setFiles([]);
       setCurrentFolderId(null);
       setFolderPath([]);
-      setSelectedFiles(new Set());
-      setSelectedFolders(new Set());
+      setSelectedFiles(new Map());
+      setSelectedFolders(new Map());
       setKeepInSync(true);
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
@@ -191,34 +202,46 @@ export function GoogleDriveImportDialog({
     await loadFolderContents(folderId);
   };
 
-  const toggleFileSelection = (fileId: string) => {
-    const newSet = new Set(selectedFiles);
-    if (newSet.has(fileId)) {
-      newSet.delete(fileId);
+  const getCurrentDrivePath = useCallback(() => folderPath.map((folder) => folder.name).join('/'), [folderPath]);
+
+  const toggleFileSelection = (file: DriveFile) => {
+    const newMap = new Map(selectedFiles);
+    if (newMap.has(file.id)) {
+      newMap.delete(file.id);
     } else {
-      newSet.add(fileId);
+      newMap.set(file.id, { file, folderPath: getCurrentDrivePath() });
     }
-    setSelectedFiles(newSet);
+    setSelectedFiles(newMap);
   };
 
-  const toggleFolderSelection = (folderId: string) => {
-    const newSet = new Set(selectedFolders);
-    if (newSet.has(folderId)) {
-      newSet.delete(folderId);
+  const toggleFolderSelection = (folder: DriveFile) => {
+    const newMap = new Map(selectedFolders);
+    if (newMap.has(folder.id)) {
+      newMap.delete(folder.id);
     } else {
-      newSet.add(folderId);
+      const currentPath = getCurrentDrivePath();
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      newMap.set(folder.id, { folder, folderPath: folderImportPath });
     }
-    setSelectedFolders(newSet);
+    setSelectedFolders(newMap);
   };
 
   const selectAll = () => {
-    setSelectedFiles(new Set(files.map(f => f.id)));
-    setSelectedFolders(new Set(folders.map(f => f.id)));
+    const currentPath = getCurrentDrivePath();
+    const nextFiles = new Map(selectedFiles);
+    const nextFolders = new Map(selectedFolders);
+    files.forEach((file) => nextFiles.set(file.id, { file, folderPath: currentPath }));
+    folders.forEach((folder) => {
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      nextFolders.set(folder.id, { folder, folderPath: folderImportPath });
+    });
+    setSelectedFiles(nextFiles);
+    setSelectedFolders(nextFolders);
   };
 
   const deselectAll = () => {
-    setSelectedFiles(new Set());
-    setSelectedFolders(new Set());
+    setSelectedFiles(new Map());
+    setSelectedFolders(new Map());
   };
 
   const getFileIcon = (mimeType: string) => {
@@ -241,19 +264,13 @@ export function GoogleDriveImportDialog({
       const filesToImport: { file: DriveFile; folderPath: string }[] = [];
       
       // Add directly selected files
-      for (const fileId of selectedFiles) {
-        const file = files.find(f => f.id === fileId);
-        if (file) {
-          filesToImport.push({ file, folderPath: '' });
-        }
+      for (const { file, folderPath: relativePath } of selectedFiles.values()) {
+        filesToImport.push({ file, folderPath: relativePath });
       }
 
       // Recursively collect files from selected folders
-      for (const folderId of selectedFolders) {
-        const folder = folders.find(f => f.id === folderId);
-        if (folder) {
-          await collectFolderFiles(folderId, folder.name, filesToImport);
-        }
+      for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
+        await collectFolderFiles(folder.id, relativePath, filesToImport);
       }
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
@@ -361,6 +378,8 @@ export function GoogleDriveImportDialog({
             uploaded_by: userId,
             file_size: downloadData.size ?? blob.size,
             file_type: contentType,
+            drive_file_id: file.id,
+            drive_modified_time: file.modifiedTime ?? null,
           });
 
           if (insertError) {
@@ -403,17 +422,15 @@ export function GoogleDriveImportDialog({
           );
         } else {
           let linkedCount = 0;
-          for (const folderId of selectedFolders) {
-            const folder = folders.find((f) => f.id === folderId);
-            if (!folder) continue;
+          for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
             // The folder cache key for a top-level selected folder is just its
             // name (see collectFolderFiles + ensureFolderPath). If the folder
             // contained no importable files the cache entry won't exist yet —
             // create the vault folder now so the sync link points at the right
             // destination.
-            let vaultFolderId = folderCache[folder.name];
+            let vaultFolderId = folderCache[relativePath];
             if (!vaultFolderId) {
-              vaultFolderId = (await ensureFolderPath(folder.name, folderCache)) ?? targetFolderId ?? undefined as any;
+              vaultFolderId = (await ensureFolderPath(relativePath, folderCache)) ?? targetFolderId ?? undefined as any;
             }
             if (!vaultFolderId) continue;
             try {
@@ -666,8 +683,8 @@ export function GoogleDriveImportDialog({
                     setFiles([]);
                     setCurrentFolderId(null);
                     setFolderPath([]);
-                    setSelectedFiles(new Set());
-                    setSelectedFolders(new Set());
+                    setSelectedFiles(new Map());
+                    setSelectedFolders(new Map());
                   }}
                   className="text-muted-foreground"
                 >
@@ -712,7 +729,7 @@ export function GoogleDriveImportDialog({
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFolders.has(folder.id)}
-                          onCheckedChange={() => toggleFolderSelection(folder.id)}
+                          onCheckedChange={() => toggleFolderSelection(folder)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div
@@ -734,12 +751,12 @@ export function GoogleDriveImportDialog({
                       className={`cursor-pointer transition-colors ${
                         selectedFiles.has(file.id) ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
                       }`}
-                      onClick={() => toggleFileSelection(file.id)}
+                      onClick={() => toggleFileSelection(file)}
                     >
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFiles.has(file.id)}
-                          onCheckedChange={() => toggleFileSelection(file.id)}
+                          onCheckedChange={() => toggleFileSelection(file)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         {getFileIcon(file.mimeType)}
