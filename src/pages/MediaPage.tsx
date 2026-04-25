@@ -129,9 +129,10 @@ export default function MediaPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  // Apply team/club filter from URL search params (e.g. from My Teams gallery link)
+  // Apply team/club/event filter from URL search params (e.g. from My Teams gallery link or post-game prompt)
   const urlTeamId = searchParams.get("team");
   const urlClubId = searchParams.get("club");
+  const urlEventId = searchParams.get("event");
 
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
@@ -383,7 +384,7 @@ export default function MediaPage() {
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -504,6 +505,11 @@ export default function MediaPage() {
     if (selectedTeamId !== "all") {
       filtered = filtered.filter(photo => photo.team_id === selectedTeamId);
     }
+
+    // Filter by event (auto-applied from URL ?event= param)
+    if (urlEventId) {
+      filtered = filtered.filter(photo => photo.event_id === urlEventId);
+    }
     
     // Filter by date range
     if (dateRange.from || dateRange.to) {
@@ -524,7 +530,7 @@ export default function MediaPage() {
     }
     
     return filtered;
-  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds]);
+  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
