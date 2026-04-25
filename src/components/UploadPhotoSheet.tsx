@@ -408,7 +408,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
 
     // 1. Insert into photos table (for media gallery)
-    const { error: insertError } = await supabase.from("photos").insert({
+    const { data: insertedPhoto, error: insertError } = await supabase.from("photos").insert({
       image_url: storageUrl,
       uploader_id: user!.id,
       club_id: clubId || null,
@@ -417,9 +417,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
-    });
+    }).select("id").single();
 
-    if (insertError) {
+    if (insertError || !insertedPhoto) {
       // Cleanup: remove the uploaded file from storage if database insert fails
       console.error("Database insert failed, cleaning up storage:", insertError);
       try {
@@ -427,13 +427,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       } catch (cleanupError) {
         console.error("Failed to cleanup orphaned storage file:", cleanupError);
       }
-      throw insertError;
+      throw insertError || new Error("Insert failed");
     }
 
     // Note: Media gallery uploads are intentionally NOT mirrored into vault_files.
     // Media and Vault are independent — uploads to one must not appear in the other.
 
-    return storageUrl;
+    return { url: storageUrl, photoId: insertedPhoto.id };
   };
 
   const handleClose = () => {
