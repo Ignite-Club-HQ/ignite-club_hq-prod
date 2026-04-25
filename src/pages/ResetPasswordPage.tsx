@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle } from "lucide-react";
+import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+
+const emailSchema = z.string().email("Please enter a valid email address");
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
