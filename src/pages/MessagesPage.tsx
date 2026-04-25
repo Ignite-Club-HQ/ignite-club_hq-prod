@@ -1191,7 +1191,13 @@ export default function MessagesPage() {
   const filteredDMs = useMemo(() => {
     if (!dmConversations) return [];
     return dmConversations.filter((conv: any) => {
-      if (hiddenConversationIds?.has(conv.id)) return false;
+      // Hidden DMs reappear when a new message arrives after hidden_at.
+      const hiddenAt = hiddenDMMap?.get(conv.id);
+      if (hiddenAt) {
+        const lastMsgAt = conv.last_message?.created_at;
+        const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
+        if (stillHidden && !query) return false;
+      }
       // Always allow the conversation to surface when the user is searching
       // for that specific person (so they can resume it).
       if (query) {
@@ -1200,7 +1206,7 @@ export default function MessagesPage() {
       // Otherwise require at least one real message to show in Recents.
       return !!conv.last_message;
     });
-  }, [dmConversations, hiddenConversationIds, query]);
+  }, [dmConversations, hiddenDMMap, query]);
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
