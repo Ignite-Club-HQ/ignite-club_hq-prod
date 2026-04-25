@@ -168,5 +168,9 @@ export function usePhotoViewRealtime(photoIds: string[]) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [idsKey, queryClient, photoIds]);
+    // Intentionally omit `photoIds` from deps — its array reference changes every
+    // render even when contents are stable. `idsKey` is the stable hash of the
+    // sorted ids and is the only signal that should trigger a resubscribe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, queryClient]);
 }
