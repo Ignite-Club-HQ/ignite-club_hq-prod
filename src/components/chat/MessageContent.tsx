@@ -272,6 +272,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           </div>
         )}
 
+        {/* Gallery link cards (team gallery upload notifications) */}
+        {galleryIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {galleryIds.map((gid) => (
+              <GalleryLinkCard key={gid} cardId={gid} />
+            ))}
+          </div>
+        )}
+
 
         {/* Vault file/folder/root cards */}
         {(vaultFileIds.length > 0 || vaultFolderIds.length > 0 || vaultRoots.length > 0) && (
