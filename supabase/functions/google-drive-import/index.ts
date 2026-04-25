@@ -6,6 +6,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const GOOGLE_EXPORT_TYPES: Record<string, string> = {
+  'application/vnd.google-apps.document': 'application/pdf',
+  'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.google-apps.presentation': 'application/pdf',
+  'application/vnd.google-apps.drawing': 'application/pdf',
+};
+
+const getDownloadConfig = (fileId: string, mimeType: string, fileName?: string) => {
+  const exportMimeType = GOOGLE_EXPORT_TYPES[mimeType] ?? null;
+  if (exportMimeType) {
+    return {
+      downloadUrl: `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`,
+      exportMimeType,
+    };
+  }
+
+  if (
+    typeof mimeType === 'string' &&
+    mimeType.startsWith('application/vnd.google-apps.') &&
+    !mimeType.startsWith('application/vnd.google-apps.drive-sdk')
+  ) {
+    const friendly = mimeType.replace('application/vnd.google-apps.', '');
+    return {
+      error: `Google ${friendly} files can't be imported. Please convert it to a Doc, Sheet, Slide, PDF, or other downloadable file first.`,
+      code: 'unsupported_google_apps_type',
+      mimeType,
+      fileName,
+    };
+  }
+
+  return {
+    downloadUrl: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
+    exportMimeType: null,
+  };
+};
+
+const applyExportExtension = (fileName: string, exportedMimeType: string | null) => {
+  if (exportedMimeType === 'application/pdf' && !fileName.toLowerCase().endsWith('.pdf')) return `${fileName}.pdf`;
+  if (exportedMimeType?.includes('spreadsheet') && !fileName.toLowerCase().endsWith('.xlsx')) return `${fileName}.xlsx`;
+  return fileName;
+};
+
+const getSafeExtension = (fileName: string, contentType: string) => {
+  const fromName = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : '';
+  if (fromName && /^[a-z0-9]{1,8}$/.test(fromName)) return fromName;
+  if (contentType === 'application/pdf') return 'pdf';
+  if (contentType.includes('spreadsheet')) return 'xlsx';
+  if (contentType.startsWith('image/')) return contentType.split('/')[1] || 'img';
+  return 'bin';
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -50,9 +101,10 @@ serve(async (req) => {
       );
     }
 
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
     // Verify user is a club admin (only club admins can import from Google Drive)
     if (user) {
-      const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
       const { data: userRoles } = await serviceClient
         .from('user_roles')
         .select('role')
@@ -233,52 +285,17 @@ serve(async (req) => {
     if (action === 'download-file') {
       const body = await req.json();
       const { accessToken, fileId, mimeType, fileName } = body;
-      
-      let downloadUrl: string;
-      let exportMimeType: string | null = null;
-      
-      // Handle Google Docs/Sheets/Slides - need to export.
-      // For any other Google Workspace ("Docs Editors") file (forms, drawings,
-      // jams, sites, scripts, shortcuts, etc.) Google's API forbids alt=media,
-      // so fall back to exporting as PDF when possible, or reject with a clear
-      // error when the type cannot be exported.
-      if (mimeType === 'application/vnd.google-apps.document') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-        exportMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.presentation') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.drawing') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (
-        typeof mimeType === 'string' &&
-        mimeType.startsWith('application/vnd.google-apps.') &&
-        // Third-party Drive SDK files (e.g. PDFs uploaded via Lumin, Smallpdf,
-        // DocHub etc.) carry a `drive-sdk.*` mimeType but are actually regular
-        // binary files that DO support alt=media. Treat them like normal files.
-        !mimeType.startsWith('application/vnd.google-apps.drive-sdk')
-      ) {
-        // Unsupported Google Workspace type (form, jam, site, script, shortcut, folder, etc.)
-        const friendly = mimeType.replace('application/vnd.google-apps.', '');
+
+      const config = getDownloadConfig(fileId, mimeType, fileName);
+      if ('error' in config) {
         console.error(`Unsupported Google Workspace file type: ${mimeType} (file: ${fileName})`);
         return new Response(
-          JSON.stringify({
-            error: `Google ${friendly} files can't be imported. Please convert it to a Doc, Sheet, Slide, PDF, or other downloadable file first.`,
-            code: 'unsupported_google_apps_type',
-            mimeType,
-          }),
+          JSON.stringify({ error: config.error, code: config.code, mimeType: config.mimeType }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-      } else {
-        // Regular file (or third-party drive-sdk file) - direct download
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
       }
-      
-      const fileResponse = await fetch(downloadUrl, {
+
+      const fileResponse = await fetch(config.downloadUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       
@@ -306,9 +323,102 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           data: base64Data, 
-          exportedMimeType: exportMimeType,
+          exportedMimeType: config.exportMimeType,
           size: fileData.byteLength,
         }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Action: Import one Drive file completely server-side. This avoids
+    // returning large base64 payloads to mobile browsers, which was causing
+    // network-level "Failed to send a request to the Edge Function" errors
+    // during large folder imports.
+    if (action === 'import-file') {
+      const body = await req.json();
+      const {
+        accessToken,
+        file,
+        folderId,
+        clubId,
+        teamId,
+      } = body;
+
+      if (!accessToken || !file?.id || !file?.name || !file?.mimeType || !clubId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required import details' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const config = getDownloadConfig(file.id, file.mimeType, file.name);
+      if ('error' in config) {
+        return new Response(
+          JSON.stringify({ error: config.error, code: config.code, mimeType: config.mimeType }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileResponse = await fetch(config.downloadUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!fileResponse.ok) {
+        const errorText = await fileResponse.text();
+        console.error('Failed to download file for import:', errorText);
+        return new Response(
+          JSON.stringify({ error: 'Failed to download file', details: errorText }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileData = await fileResponse.arrayBuffer();
+      const finalFileName = applyExportExtension(file.name, config.exportMimeType);
+      const contentType = config.exportMimeType ?? file.mimeType;
+      const safeExt = getSafeExtension(finalFileName, contentType);
+      const timestamp = Date.now();
+      const randomSuffix = crypto.randomUUID().slice(0, 8);
+      const storagePath = teamId
+        ? `clubs/${clubId}/teams/${teamId}/${user!.id}/${timestamp}-${randomSuffix}.${safeExt}`
+        : `clubs/${clubId}/${user!.id}/${timestamp}-${randomSuffix}.${safeExt}`;
+
+      const { error: uploadError } = await serviceClient.storage
+        .from('photos')
+        .upload(storagePath, fileData, { contentType, upsert: false });
+
+      if (uploadError) {
+        console.error('Failed to upload imported Drive file:', uploadError);
+        return new Response(
+          JSON.stringify({ error: uploadError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+      const { error: insertError } = await serviceClient.from('vault_files').insert({
+        file_url: fileUrl,
+        name: finalFileName,
+        club_id: clubId,
+        team_id: teamId ?? null,
+        folder_id: folderId ?? null,
+        uploaded_by: user!.id,
+        file_size: fileData.byteLength,
+        file_type: contentType,
+        drive_file_id: file.id,
+        drive_modified_time: file.modifiedTime ?? null,
+      });
+
+      if (insertError) {
+        console.error('Failed to record imported Drive file:', insertError);
+        await serviceClient.storage.from('photos').remove([storagePath]);
+        return new Response(
+          JSON.stringify({ error: insertError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, fileName: finalFileName, size: fileData.byteLength }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
