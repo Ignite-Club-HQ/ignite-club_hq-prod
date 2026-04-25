@@ -183,9 +183,10 @@ async function processFile(
     const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
     let fileName = file.name;
     if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+    const safeFileName = sanitizeStorageName(fileName);
     const blob = new Blob([bytes], { type: contentType });
     const bucket = 'photos';
-    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
     const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -206,9 +207,10 @@ async function processFile(
   const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
   let fileName = file.name;
   if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+  const safeFileName = sanitizeStorageName(fileName);
   const blob = new Blob([bytes], { type: contentType });
   const bucket = 'photos';
-  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
   if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
   const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
