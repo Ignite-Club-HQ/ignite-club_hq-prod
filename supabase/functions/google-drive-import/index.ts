@@ -254,7 +254,14 @@ serve(async (req) => {
       } else if (mimeType === 'application/vnd.google-apps.drawing') {
         exportMimeType = 'application/pdf';
         downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (typeof mimeType === 'string' && mimeType.startsWith('application/vnd.google-apps.')) {
+      } else if (
+        typeof mimeType === 'string' &&
+        mimeType.startsWith('application/vnd.google-apps.') &&
+        // Third-party Drive SDK files (e.g. PDFs uploaded via Lumin, Smallpdf,
+        // DocHub etc.) carry a `drive-sdk.*` mimeType but are actually regular
+        // binary files that DO support alt=media. Treat them like normal files.
+        !mimeType.startsWith('application/vnd.google-apps.drive-sdk')
+      ) {
         // Unsupported Google Workspace type (form, jam, site, script, shortcut, folder, etc.)
         const friendly = mimeType.replace('application/vnd.google-apps.', '');
         console.error(`Unsupported Google Workspace file type: ${mimeType} (file: ${fileName})`);
@@ -267,8 +274,8 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Regular file - direct download
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        // Regular file (or third-party drive-sdk file) - direct download
+        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
       }
       
       const fileResponse = await fetch(downloadUrl, {
