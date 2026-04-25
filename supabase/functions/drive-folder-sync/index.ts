@@ -56,8 +56,15 @@ async function listDriveFolder(accessToken: string, folderId: string) {
   do {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
-    url.searchParams.set('fields', 'nextPageToken, files(id,name,mimeType,size,modifiedTime)');
+    url.searchParams.set(
+      'fields',
+      'nextPageToken, files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+    );
     url.searchParams.set('pageSize', '1000');
+    // Required so 'root' resolves to the user's My Drive root and so we can
+    // see files in shared drives the user has access to.
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -68,10 +75,27 @@ async function listDriveFolder(accessToken: string, folderId: string) {
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  const folders = allFiles.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-  const files = allFiles.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+  // Resolve shortcuts to their target so we treat them like the real file/folder.
+  const resolved = allFiles.map((f: any) => {
+    if (
+      f.mimeType === 'application/vnd.google-apps.shortcut' &&
+      f.shortcutDetails?.targetId &&
+      f.shortcutDetails?.targetMimeType
+    ) {
+      return {
+        ...f,
+        id: f.shortcutDetails.targetId,
+        mimeType: f.shortcutDetails.targetMimeType,
+      };
+    }
+    return f;
+  });
+
+  const folders = resolved.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+  const files = resolved.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
   return { folders, files };
 }
+
 
 async function getDriveFileMetadata(accessToken: string, fileId: string) {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime,trashed`;
@@ -97,6 +121,14 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
     exportedMimeType = 'application/pdf';
     extraExt = '.pdf';
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
+  } else if (mimeType === 'application/vnd.google-apps.form') {
+    // Google Forms cannot be exported via the Drive API. Skip cleanly.
+    throw new Error('SKIP_UNSUPPORTED: Google Forms cannot be exported');
+  } else if (mimeType.startsWith('application/vnd.google-apps.')) {
+    // Other Google native types (drawings, sites, scripts, etc.) — try PDF export.
+    exportedMimeType = 'application/pdf';
+    extraExt = '.pdf';
+    downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
   } else {
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
   }
@@ -108,6 +140,28 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 }
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
+
+function sanitizeExtension(name: string): string {
+  const rawExt = name.includes('.') ? name.split('.').pop() ?? 'bin' : 'bin';
+  const cleanExt = rawExt
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toLowerCase();
+
+  return cleanExt || 'bin';
+}
+
+function buildStoragePath(link: DriveLink, fileName: string): string {
+  const ext = sanitizeExtension(fileName);
+  const objectName = `${crypto.randomUUID()}.${ext}`;
+
+  if (link.team_id) {
+    return `clubs/${link.club_id}/teams/${link.team_id}/drive-sync/${objectName}`;
+  }
+
+  return `clubs/${link.club_id}/drive-sync/${objectName}`;
+}
 
 type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
 
@@ -142,7 +196,7 @@ async function processFile(
     if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
     const blob = new Blob([bytes], { type: contentType });
     const bucket = 'photos';
-    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+    const storagePath = buildStoragePath(link, fileName);
     const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -165,7 +219,7 @@ async function processFile(
   if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
   const blob = new Blob([bytes], { type: contentType });
   const bucket = 'photos';
-  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+  const storagePath = buildStoragePath(link, fileName);
   const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
   if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
   const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -197,21 +251,39 @@ async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
   const accessToken = await refreshAccessToken(link.refresh_token);
   const counts: SyncCounts = { imported: 0, updated: 0, skipped: 0, failed: 0, failedFiles: [] };
 
-  // BFS: list of [driveFolderId, vaultParentFolderId]
+  // PHASE 1 — Walk the entire Drive tree FIRST (folder listing only, no
+  // downloads). This is fast and ensures the full folder structure is created
+  // in the vault even if the function later runs out of time during file
+  // downloads. We also collect every (file, vaultFolderId) pair so we can
+  // process them with predictable ordering in phase 2.
+  const allFiles: { file: any; vaultId: string }[] = [];
   const queue: { driveId: string; vaultId: string }[] = [
     { driveId: link.drive_folder_id, vaultId: link.vault_folder_id },
   ];
 
   while (queue.length > 0) {
     const { driveId, vaultId } = queue.shift()!;
-    const { folders, files } = await listDriveFolder(accessToken, driveId);
+    let folders: any[] = [];
+    let files: any[] = [];
+    try {
+      ({ folders, files } = await listDriveFolder(accessToken, driveId));
+    } catch (listErr) {
+      console.error(`Failed listing drive folder ${driveId}:`, listErr);
+      continue;
+    }
 
     for (const sub of folders) {
+      // Scope the lookup to children of the CURRENT vault parent. Without this
+      // scope, a second link to the same Drive (or any link sharing Drive IDs
+      // with an earlier link) would silently re-use folders that live under a
+      // different vault root, leaving the new link's tree empty of subfolders.
       const { data: existingFolder } = await supabase
         .from('vault_folders')
         .select('id')
         .eq('club_id', link.club_id)
+        .eq('parent_id', vaultId)
         .eq('drive_folder_id', sub.id)
+        .is('deleted_at', null)
         .maybeSingle();
 
       let subVaultId: string;
@@ -240,14 +312,39 @@ async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
     }
 
     for (const file of files) {
+      allFiles.push({ file, vaultId });
+    }
+  }
+
+  console.log(`Drive tree walked: ${allFiles.length} file(s) discovered across all folders`);
+
+  // PHASE 2 — Process files. Interleave by folder so that even if we time out
+  // we still get a representative sample of files in every folder rather than
+  // filling root-level files first and starving the deep tree. We sort so
+  // files in different folders are visited round-robin style.
+  const filesByFolder = new Map<string, any[]>();
+  for (const entry of allFiles) {
+    if (!filesByFolder.has(entry.vaultId)) filesByFolder.set(entry.vaultId, []);
+    filesByFolder.get(entry.vaultId)!.push(entry.file);
+  }
+
+  const folderQueues = Array.from(filesByFolder.entries()).map(([vaultId, files]) => ({ vaultId, files, cursor: 0 }));
+
+  let stillWorking = true;
+  while (stillWorking) {
+    stillWorking = false;
+    for (const fq of folderQueues) {
+      if (fq.cursor >= fq.files.length) continue;
+      stillWorking = true;
+      const file = fq.files[fq.cursor++];
       try {
-        const outcome = await processFile(supabase, accessToken, link, file, vaultId);
+        const outcome = await processFile(supabase, accessToken, link, file, fq.vaultId);
         if (outcome === 'imported') counts.imported++;
         else if (outcome === 'updated') counts.updated++;
         else if (outcome === 'skipped') counts.skipped++;
       } catch (fileErr) {
         counts.failed++;
-        counts.failedFiles.push({ drive_file_id: file.id, vault_folder_id: vaultId, name: file.name });
+        counts.failedFiles.push({ drive_file_id: file.id, vault_folder_id: fq.vaultId, name: file.name });
         console.error(`Failed processing file "${file.name}" (drive_id=${file.id}):`, fileErr);
       }
     }

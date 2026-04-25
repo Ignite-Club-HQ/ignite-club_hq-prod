@@ -43,12 +43,15 @@ export function GoogleDriveImportDialog({
 }: GoogleDriveImportDialogProps) {
   const [step, setStep] = useState<"connect" | "browse" | "importing">("connect");
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [folders, setFolders] = useState<DriveFile[]>([]);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [keepInSync, setKeepInSync] = useState(true);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentFile: "" });
@@ -66,9 +69,15 @@ export function GoogleDriveImportDialog({
   useEffect(() => {
     if (open) {
       const storedToken = sessionStorage.getItem('googleDriveAccessToken');
+      const storedRefresh = sessionStorage.getItem('googleDriveRefreshToken');
+      const storedEmail = sessionStorage.getItem('googleDriveGoogleEmail');
       if (storedToken) {
         sessionStorage.removeItem('googleDriveAccessToken');
+        sessionStorage.removeItem('googleDriveRefreshToken');
+        sessionStorage.removeItem('googleDriveGoogleEmail');
         setAccessToken(storedToken);
+        setRefreshToken(storedRefresh);
+        setGoogleEmail(storedEmail);
         setStep("browse");
         loadFolderContents(null, storedToken);
       }
@@ -80,12 +89,15 @@ export function GoogleDriveImportDialog({
     if (!open) {
       setStep("connect");
       setAccessToken(null);
+      setRefreshToken(null);
+      setGoogleEmail(null);
       setFolders([]);
       setFiles([]);
       setCurrentFolderId(null);
       setFolderPath([]);
       setSelectedFiles(new Set());
       setSelectedFolders(new Set());
+      setKeepInSync(true);
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
     }
@@ -97,6 +109,8 @@ export function GoogleDriveImportDialog({
       
       // Clear any stale tokens before starting new auth
       sessionStorage.removeItem('googleDriveAccessToken');
+      sessionStorage.removeItem('googleDriveRefreshToken');
+      sessionStorage.removeItem('googleDriveGoogleEmail');
       sessionStorage.removeItem('googleDriveImportPending');
       
       const { data, error } = await supabase.functions.invoke('google-drive-import?action=get-auth-url', {
@@ -376,6 +390,71 @@ export function GoogleDriveImportDialog({
       } else if (successCount === 0) {
         toast.error("No files were imported");
       }
+
+      // If "Keep in sync" is enabled, register a vault_drive_link for each
+      // selected top-level Drive folder so the background sync job picks
+      // up future additions/updates without the user needing a separate
+      // "Link folder" step.
+      if (keepInSync && selectedFolders.size > 0) {
+        if (!refreshToken) {
+          toast.warning(
+            "Couldn't enable auto-sync — Google didn't return a refresh token. Tap 'Switch Account' and re-approve to enable sync.",
+            { duration: 7000 }
+          );
+        } else {
+          let linkedCount = 0;
+          for (const folderId of selectedFolders) {
+            const folder = folders.find((f) => f.id === folderId);
+            if (!folder) continue;
+            // The folder cache key for a top-level selected folder is just its
+            // name (see collectFolderFiles + ensureFolderPath). If the folder
+            // contained no importable files the cache entry won't exist yet —
+            // create the vault folder now so the sync link points at the right
+            // destination.
+            let vaultFolderId = folderCache[folder.name];
+            if (!vaultFolderId) {
+              vaultFolderId = (await ensureFolderPath(folder.name, folderCache)) ?? targetFolderId ?? undefined as any;
+            }
+            if (!vaultFolderId) continue;
+            try {
+              // Tag the vault folder with its Drive id (best-effort).
+              await supabase
+                .from('vault_folders')
+                .update({ drive_folder_id: folder.id })
+                .eq('id', vaultFolderId);
+
+              const { error: linkErr } = await supabase
+                .from('vault_drive_links')
+                .insert({
+                  club_id: targetClubId,
+                  team_id: targetTeamId,
+                  vault_folder_id: vaultFolderId,
+                  drive_folder_id: folder.id,
+                  drive_folder_name: folder.name,
+                  refresh_token: refreshToken,
+                  google_account_email: googleEmail,
+                  created_by: userId,
+                });
+              if (linkErr) {
+                // Duplicate = already linked; treat as success silently.
+                if (!String(linkErr.message || '').toLowerCase().includes('duplicate')) {
+                  console.error(`Failed to link ${folder.name} for sync:`, linkErr);
+                }
+              } else {
+                linkedCount++;
+              }
+            } catch (e) {
+              console.error(`Sync link error for ${folder.name}:`, e);
+            }
+          }
+          if (linkedCount > 0) {
+            toast.success(
+              `Auto-sync enabled for ${linkedCount} folder${linkedCount === 1 ? '' : 's'} — new files in Drive will appear here automatically.`
+            );
+          }
+        }
+      }
+
       onImportComplete();
       onOpenChange(false);
 
@@ -580,6 +659,8 @@ export function GoogleDriveImportDialog({
                   size="sm" 
                   onClick={() => {
                     setAccessToken(null);
+                    setRefreshToken(null);
+                    setGoogleEmail(null);
                     setStep("connect");
                     setFolders([]);
                     setFiles([]);
@@ -676,18 +757,42 @@ export function GoogleDriveImportDialog({
             </ScrollArea>
 
             {/* Footer with import button */}
-            <div className="border-t p-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={startImport} disabled={selectedCount === 0}>
-                  <Check className="h-4 w-4 mr-2" />
-                  Import {selectedCount > 0 ? `(${selectedCount})` : ''}
-                </Button>
+            <div className="border-t p-4 space-y-3">
+              {selectedFolders.size > 0 && (
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={keepInSync}
+                    onCheckedChange={(v) => setKeepInSync(v === true)}
+                    disabled={!refreshToken}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium">Keep in sync</span>
+                    <span className="text-muted-foreground">
+                      {' '}— automatically import new and updated files added to{' '}
+                      {selectedFolders.size === 1 ? 'this folder' : 'these folders'} in Drive.
+                    </span>
+                    {!refreshToken && (
+                      <span className="block text-xs text-amber-600 mt-1">
+                        Tap "Switch Account" and re-approve to enable auto-sync.
+                      </span>
+                    )}
+                  </span>
+                </label>
+              )}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={startImport} disabled={selectedCount === 0}>
+                    <Check className="h-4 w-4 mr-2" />
+                    Import {selectedCount > 0 ? `(${selectedCount})` : ''}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
