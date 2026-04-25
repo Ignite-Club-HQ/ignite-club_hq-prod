@@ -1,0 +1,1 @@
+UPDATE photos SET deleted_at = now() WHERE id IN ('0becf5a3-8b63-40ed-9f8b-015230d63ce8','0e90f7df-f371-41df-8275-b66a9a2675b8','5cbe7b99-5f83-45aa-9f89-7277481bbdd2','6459c543-4bc7-4519-818e-25e13e32a179','4abf09e1-65e1-47ac-ae72-72c79af82eb4','0486a1dd-c689-4a00-b425-44e415bbcc7e','2cf45488-8e8e-4488-8653-db05b9fd952a');

@@ -1442,7 +1442,7 @@ export default function GroupChatPage() {
       const baseText = message.trim();
       const finalText = pendingPollId
         ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-        : (baseText || (imageUrl ? "📷 Image" : ""));
+        : baseText;
       sendMessageMutation.mutate({
         text: finalText,
         image_url: imageUrl,

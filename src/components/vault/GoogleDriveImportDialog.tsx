@@ -22,6 +22,17 @@ interface DriveFile {
   mimeType: string;
   size?: string;
   createdTime?: string;
+  modifiedTime?: string;
+}
+
+interface SelectedDriveFile {
+  file: DriveFile;
+  folderPath: string;
+}
+
+interface SelectedDriveFolder {
+  folder: DriveFile;
+  folderPath: string;
 }
 
 interface GoogleDriveImportDialogProps {
@@ -49,8 +60,8 @@ export function GoogleDriveImportDialog({
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, SelectedDriveFile>>(new Map());
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, SelectedDriveFolder>>(new Map());
   const [keepInSync, setKeepInSync] = useState(true);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -95,8 +106,8 @@ export function GoogleDriveImportDialog({
       setFiles([]);
       setCurrentFolderId(null);
       setFolderPath([]);
-      setSelectedFiles(new Set());
-      setSelectedFolders(new Set());
+      setSelectedFiles(new Map());
+      setSelectedFolders(new Map());
       setKeepInSync(true);
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
@@ -191,34 +202,46 @@ export function GoogleDriveImportDialog({
     await loadFolderContents(folderId);
   };
 
-  const toggleFileSelection = (fileId: string) => {
-    const newSet = new Set(selectedFiles);
-    if (newSet.has(fileId)) {
-      newSet.delete(fileId);
+  const getCurrentDrivePath = useCallback(() => folderPath.map((folder) => folder.name).join('/'), [folderPath]);
+
+  const toggleFileSelection = (file: DriveFile) => {
+    const newMap = new Map(selectedFiles);
+    if (newMap.has(file.id)) {
+      newMap.delete(file.id);
     } else {
-      newSet.add(fileId);
+      newMap.set(file.id, { file, folderPath: getCurrentDrivePath() });
     }
-    setSelectedFiles(newSet);
+    setSelectedFiles(newMap);
   };
 
-  const toggleFolderSelection = (folderId: string) => {
-    const newSet = new Set(selectedFolders);
-    if (newSet.has(folderId)) {
-      newSet.delete(folderId);
+  const toggleFolderSelection = (folder: DriveFile) => {
+    const newMap = new Map(selectedFolders);
+    if (newMap.has(folder.id)) {
+      newMap.delete(folder.id);
     } else {
-      newSet.add(folderId);
+      const currentPath = getCurrentDrivePath();
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      newMap.set(folder.id, { folder, folderPath: folderImportPath });
     }
-    setSelectedFolders(newSet);
+    setSelectedFolders(newMap);
   };
 
   const selectAll = () => {
-    setSelectedFiles(new Set(files.map(f => f.id)));
-    setSelectedFolders(new Set(folders.map(f => f.id)));
+    const currentPath = getCurrentDrivePath();
+    const nextFiles = new Map(selectedFiles);
+    const nextFolders = new Map(selectedFolders);
+    files.forEach((file) => nextFiles.set(file.id, { file, folderPath: currentPath }));
+    folders.forEach((folder) => {
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      nextFolders.set(folder.id, { folder, folderPath: folderImportPath });
+    });
+    setSelectedFiles(nextFiles);
+    setSelectedFolders(nextFolders);
   };
 
   const deselectAll = () => {
-    setSelectedFiles(new Set());
-    setSelectedFolders(new Set());
+    setSelectedFiles(new Map());
+    setSelectedFolders(new Map());
   };
 
   const getFileIcon = (mimeType: string) => {
@@ -239,21 +262,31 @@ export function GoogleDriveImportDialog({
     try {
       // Collect all files to import (including from selected folders)
       const filesToImport: { file: DriveFile; folderPath: string }[] = [];
-      
+      const listingFailures: { path: string; reason: string }[] = [];
+
       // Add directly selected files
-      for (const fileId of selectedFiles) {
-        const file = files.find(f => f.id === fileId);
-        if (file) {
-          filesToImport.push({ file, folderPath: '' });
-        }
+      for (const { file, folderPath: relativePath } of selectedFiles.values()) {
+        filesToImport.push({ file, folderPath: relativePath });
       }
 
-      // Recursively collect files from selected folders
-      for (const folderId of selectedFolders) {
-        const folder = folders.find(f => f.id === folderId);
-        if (folder) {
-          await collectFolderFiles(folderId, folder.name, filesToImport);
-        }
+      // Recursively collect files from selected folders. Show progress so the
+      // user sees that we're still discovering files in deep folder trees.
+      setImportProgress({ current: 0, total: 0, currentFile: "Scanning Drive folders..." });
+      for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
+        await collectFolderFiles(folder.id, relativePath, filesToImport, listingFailures, (count) => {
+          setImportProgress({ current: 0, total: 0, currentFile: `Scanning Drive folders... (${count} files found)` });
+        });
+      }
+
+      console.log(`[Drive import] Collected ${filesToImport.length} files across ${selectedFolders.size} selected folders. Listing failures: ${listingFailures.length}`);
+
+      if (listingFailures.length > 0) {
+        const preview = listingFailures.slice(0, 3).map((f) => `• ${f.path}: ${f.reason}`).join('\n');
+        const more = listingFailures.length > 3 ? `\n…and ${listingFailures.length - 3} more` : '';
+        toast.error(`Couldn't read ${listingFailures.length} subfolder${listingFailures.length === 1 ? '' : 's'} from Drive`, {
+          description: `${preview}${more}`,
+          duration: 10000,
+        });
       }
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
@@ -267,14 +300,25 @@ export function GoogleDriveImportDialog({
         return;
       }
 
-      // Process each file
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Your session expired. Please sign in again.");
+        setImporting(false);
+        return;
+      }
+
+      // Prepare files first, then send them to the Edge Function in small
+      // batches. This avoids hundreds of mobile client→function requests for
+      // large club vault imports while keeping each server call short enough
+      // for Edge Function limits.
       let successCount = 0;
       const failures: { name: string; reason: string }[] = [];
       const folderCache: Record<string, string> = {}; // path -> folder_id mapping
+      const preparedFiles: { file: DriveFile; folderId: string | null }[] = [];
 
       for (let i = 0; i < filesToImport.length; i++) {
         const { file, folderPath: relativePath } = filesToImport[i];
-        setImportProgress({ current: i + 1, total: filesToImport.length, currentFile: file.name });
+        setImportProgress({ current: i + 1, total: filesToImport.length, currentFile: `Preparing ${file.name}` });
 
         try {
           // Ensure folder structure exists
@@ -283,97 +327,122 @@ export function GoogleDriveImportDialog({
             uploadFolderId = await ensureFolderPath(relativePath, folderCache);
           }
 
-          // Download file from Drive
-          const { data: downloadData, error: downloadError } = await supabase.functions.invoke('google-drive-import?action=download-file', {
-            body: {
-              accessToken,
-              fileId: file.id,
-              mimeType: file.mimeType,
-              fileName: file.name,
-            },
-          });
-
-          if (downloadError || downloadData?.error) {
-            const reason = downloadData?.error || downloadError?.message || "Download failed";
-            console.error(`Failed to download ${file.name}:`, reason);
-            failures.push({ name: file.name, reason });
+          // Pre-filter Google Workspace types we know we can't import so we
+          // don't waste a round-trip and so the user sees a clear reason.
+          const unsupportedGoogleType =
+            file.mimeType?.startsWith('application/vnd.google-apps.') &&
+            !file.mimeType.startsWith('application/vnd.google-apps.drive-sdk') &&
+            ![
+              'application/vnd.google-apps.document',
+              'application/vnd.google-apps.spreadsheet',
+              'application/vnd.google-apps.presentation',
+              'application/vnd.google-apps.drawing',
+            ].includes(file.mimeType);
+          if (unsupportedGoogleType) {
+            const friendly = file.mimeType.replace('application/vnd.google-apps.', '');
+            failures.push({ name: file.name, reason: `Google ${friendly} files can't be imported` });
             continue;
           }
 
-          // Convert base64 to blob
-          const binaryString = atob(downloadData.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let j = 0; j < binaryString.length; j++) {
-            bytes[j] = binaryString.charCodeAt(j);
+          preparedFiles.push({ file, folderId: uploadFolderId });
+        } catch (fileError: any) {
+          const reason = fileError?.message || "Unknown error";
+          console.error(`Error preparing ${file.name}:`, fileError);
+          failures.push({ name: file.name, reason });
+        }
+      }
+
+      const importDriveBatch = async (batch: typeof preparedFiles) => {
+        const importResponse = await fetch(
+          `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
+            },
+            body: JSON.stringify({
+              accessToken,
+              files: batch,
+              clubId: targetClubId,
+              teamId: targetTeamId,
+            }),
           }
+        );
 
-          // Determine file extension and name
-          let fileName = file.name;
-          let contentType = file.mimeType;
+        let importData: any = null;
+        try {
+          importData = await importResponse.json();
+        } catch {
+          importData = { error: `HTTP ${importResponse.status}` };
+        }
 
-          if (downloadData.exportedMimeType) {
-            contentType = downloadData.exportedMimeType;
-            // Add appropriate extension for exported Google docs
-            if (downloadData.exportedMimeType === 'application/pdf' && !fileName.endsWith('.pdf')) {
-              fileName += '.pdf';
-            } else if (downloadData.exportedMimeType.includes('spreadsheet') && !fileName.endsWith('.xlsx')) {
-              fileName += '.xlsx';
+        if (!importResponse.ok || importData?.error) {
+          throw new Error(importData?.error || `HTTP ${importResponse.status}`);
+        }
+
+        return Array.isArray(importData?.results) ? importData.results : [];
+      };
+
+      const batchSize = 3;
+      for (let i = 0; i < preparedFiles.length; i += batchSize) {
+        const batch = preparedFiles.slice(i, i + batchSize);
+        setImportProgress({
+          current: Math.min(i + batch.length, preparedFiles.length),
+          total: preparedFiles.length,
+          currentFile: `Importing ${batch[0]?.file.name ?? 'files'}`,
+        });
+
+        try {
+          let results = await importDriveBatch(batch);
+          results.forEach((result: any, index: number) => {
+            if (result?.success) {
+              successCount++;
+            } else {
+              failures.push({
+                name: result?.fileName || batch[index]?.file.name || 'Unknown file',
+                reason: result?.error || 'Import failed',
+              });
+            }
+          });
+        } catch (batchError: any) {
+          await new Promise((resolve) => setTimeout(resolve, 750));
+          try {
+            const retryResults = await importDriveBatch(batch);
+            retryResults.forEach((result: any, index: number) => {
+              if (result?.success) {
+                successCount++;
+              } else {
+                failures.push({
+                  name: result?.fileName || batch[index]?.file.name || 'Unknown file',
+                  reason: result?.error || 'Import failed',
+                });
+              }
+            });
+            continue;
+          } catch (retryError: any) {
+            if (batch.length > 1) {
+              for (const item of batch) {
+                try {
+                  const singleResults = await importDriveBatch([item]);
+                  const singleResult = singleResults[0];
+                  if (singleResult?.success) {
+                    successCount++;
+                  } else {
+                    failures.push({ name: singleResult?.fileName || item.file.name, reason: singleResult?.error || 'Import failed' });
+                  }
+                } catch (singleError: any) {
+                  failures.push({ name: item.file.name, reason: singleError?.message || 'Import failed' });
+                }
+              }
+              continue;
             }
           }
 
-          const blob = new Blob([bytes], { type: contentType });
-
-          // Upload to Supabase storage using the same vault-only storage path
-          // as standard Vault uploads so Drive imports never create Media posts.
-          const timestamp = Date.now();
-          const randomSuffix = Math.random().toString(36).substring(7);
-          const safeExt = fileName.split('.').pop() || 'bin';
-          let storagePath: string;
-          if (targetTeamId) {
-            storagePath = `clubs/${targetClubId}/teams/${targetTeamId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
-          } else {
-            storagePath = `clubs/${targetClubId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
-          }
-
-          const { error: uploadError } = await supabase.storage
-            .from('photos')
-            .upload(storagePath, blob, { contentType });
-
-          if (uploadError) {
-            console.error(`Failed to upload ${file.name}:`, uploadError);
-            failures.push({ name: file.name, reason: uploadError.message });
-            continue;
-          }
-
-          // Store the storage URL; the vault resolves signed URLs on demand.
-          const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-          const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
-
-          // Always insert into vault_files so the file appears in the Vault.
-          // Images are still classified as photos by the vault UI via file_type,
-          // but they live in vault_files rather than the public media gallery.
-          const { error: insertError } = await supabase.from('vault_files').insert({
-            file_url: fileUrl,
-            name: fileName,
-            club_id: targetClubId,
-            team_id: targetTeamId,
-            folder_id: uploadFolderId,
-            uploaded_by: userId,
-            file_size: downloadData.size ?? blob.size,
-            file_type: contentType,
-          });
-
-          if (insertError) {
-            console.error(`Failed to record ${file.name} in vault:`, insertError);
-            failures.push({ name: file.name, reason: insertError.message });
-            continue;
-          }
-
-          successCount++;
-        } catch (fileError: any) {
-          const reason = fileError?.message || "Unknown error";
-          console.error(`Error processing ${file.name}:`, fileError);
-          failures.push({ name: file.name, reason });
+          const reason = batchError?.message || "Unknown error";
+          console.error(`Error importing Drive batch:`, batchError);
+          batch.forEach(({ file }) => failures.push({ name: file.name, reason }));
         }
       }
 
@@ -403,17 +472,15 @@ export function GoogleDriveImportDialog({
           );
         } else {
           let linkedCount = 0;
-          for (const folderId of selectedFolders) {
-            const folder = folders.find((f) => f.id === folderId);
-            if (!folder) continue;
+          for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
             // The folder cache key for a top-level selected folder is just its
             // name (see collectFolderFiles + ensureFolderPath). If the folder
             // contained no importable files the cache entry won't exist yet —
             // create the vault folder now so the sync link points at the right
             // destination.
-            let vaultFolderId = folderCache[folder.name];
+            let vaultFolderId = folderCache[relativePath];
             if (!vaultFolderId) {
-              vaultFolderId = (await ensureFolderPath(folder.name, folderCache)) ?? targetFolderId ?? undefined as any;
+              vaultFolderId = (await ensureFolderPath(relativePath, folderCache)) ?? targetFolderId ?? undefined as any;
             }
             if (!vaultFolderId) continue;
             try {
@@ -467,40 +534,61 @@ export function GoogleDriveImportDialog({
   };
 
   const collectFolderFiles = async (
-    folderId: string, 
-    pathPrefix: string, 
-    collected: { file: DriveFile; folderPath: string }[]
+    folderId: string,
+    pathPrefix: string,
+    collected: { file: DriveFile; folderPath: string }[],
+    listingFailures: { path: string; reason: string }[],
+    onProgress?: (filesFoundSoFar: number) => void,
   ) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
-        body: { 
-          accessToken,
-          folderId,
-        },
-      });
-
-      if (error || data?.error) {
-        const reason = data?.error || error?.message || 'unknown error';
-        console.error(`collectFolderFiles: failed to list folder ${folderId} (${pathPrefix}): ${reason}`);
-        toast.error(`Couldn't list "${pathPrefix || 'folder'}"`, { description: reason });
-        return;
+    // Retry list-files up to 3 times with backoff before giving up. Silent
+    // listing failures were the root cause of subfolder files going missing.
+    let lastErr: string | null = null;
+    let data: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data: respData, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
+          body: { accessToken, folderId },
+        });
+        if (error || respData?.error) {
+          lastErr = respData?.error || error?.message || 'unknown error';
+        } else {
+          data = respData;
+          lastErr = null;
+          break;
+        }
+      } catch (e: any) {
+        lastErr = e?.message || 'network error';
       }
+      // Small backoff before retry (250ms, 750ms)
+      await new Promise((r) => setTimeout(r, 250 + attempt * 500));
+    }
 
-      const folderFiles = (data?.files ?? []) as DriveFile[];
-      const subfolders = (data?.folders ?? []) as DriveFile[];
-      console.log(`collectFolderFiles: ${pathPrefix || '(root)'} -> ${folderFiles.length} files, ${subfolders.length} subfolders`);
+    if (!data) {
+      const reason = lastErr || 'unknown error';
+      console.error(`collectFolderFiles: FAILED to list folder ${folderId} (${pathPrefix}): ${reason}`);
+      listingFailures.push({ path: pathPrefix || 'folder', reason });
+      return;
+    }
 
-      // Add files from this folder
-      for (const file of folderFiles) {
-        collected.push({ file, folderPath: pathPrefix });
-      }
+    const folderFiles = (data?.files ?? []) as DriveFile[];
+    const subfolders = (data?.folders ?? []) as DriveFile[];
+    console.log(`collectFolderFiles: ${pathPrefix || '(root)'} -> ${folderFiles.length} files, ${subfolders.length} subfolders`);
 
-      // Recursively process subfolders
-      for (const subfolder of subfolders) {
-        await collectFolderFiles(subfolder.id, `${pathPrefix}/${subfolder.name}`, collected);
-      }
-    } catch (err) {
-      console.error("Error collecting folder files:", err);
+    // Add files from this folder
+    for (const file of folderFiles) {
+      collected.push({ file, folderPath: pathPrefix });
+    }
+    onProgress?.(collected.length);
+
+    // Recursively process subfolders
+    for (const subfolder of subfolders) {
+      await collectFolderFiles(
+        subfolder.id,
+        `${pathPrefix}/${subfolder.name}`,
+        collected,
+        listingFailures,
+        onProgress,
+      );
     }
   };
 
@@ -666,8 +754,8 @@ export function GoogleDriveImportDialog({
                     setFiles([]);
                     setCurrentFolderId(null);
                     setFolderPath([]);
-                    setSelectedFiles(new Set());
-                    setSelectedFolders(new Set());
+                    setSelectedFiles(new Map());
+                    setSelectedFolders(new Map());
                   }}
                   className="text-muted-foreground"
                 >
@@ -712,7 +800,7 @@ export function GoogleDriveImportDialog({
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFolders.has(folder.id)}
-                          onCheckedChange={() => toggleFolderSelection(folder.id)}
+                          onCheckedChange={() => toggleFolderSelection(folder)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div
@@ -734,12 +822,12 @@ export function GoogleDriveImportDialog({
                       className={`cursor-pointer transition-colors ${
                         selectedFiles.has(file.id) ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
                       }`}
-                      onClick={() => toggleFileSelection(file.id)}
+                      onClick={() => toggleFileSelection(file)}
                     >
                       <CardContent className="p-3 flex items-center gap-3">
                         <Checkbox
                           checked={selectedFiles.has(file.id)}
-                          onCheckedChange={() => toggleFileSelection(file.id)}
+                          onCheckedChange={() => toggleFileSelection(file)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         {getFileIcon(file.mimeType)}
@@ -804,19 +892,23 @@ export function GoogleDriveImportDialog({
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
             </div>
             <div className="text-center space-y-2 w-full px-4">
-              <p className="font-medium">Importing files...</p>
+              <p className="font-medium">
+                {importProgress.total === 0 ? "Scanning Drive..." : "Importing files..."}
+              </p>
               <p className="text-sm text-muted-foreground truncate">
                 {importProgress.currentFile || "Preparing..."}
               </p>
-              <div className="mt-4">
-                <Progress 
-                  value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} 
-                  className="h-2"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {importProgress.current} of {importProgress.total} files
-                </p>
-              </div>
+              {importProgress.total > 0 && (
+                <div className="mt-4">
+                  <Progress
+                    value={(importProgress.current / importProgress.total) * 100}
+                    className="h-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {importProgress.current} of {importProgress.total} files
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

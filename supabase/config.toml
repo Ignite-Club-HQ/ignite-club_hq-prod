@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.giphy-search]
 verify_jwt = false
+
+[functions.wipe-club-vault]
+verify_jwt = false
