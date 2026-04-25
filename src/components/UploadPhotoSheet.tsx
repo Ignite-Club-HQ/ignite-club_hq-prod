@@ -483,6 +483,7 @@ export function UploadPhotoSheet({
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setSelectedEventId("");
     setCaption("");
     setSelectedPhotos([]);
     setUploading(false);
