@@ -68,7 +68,14 @@ interface SelectedPhoto {
 
 
 
-export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }: UploadPhotoSheetProps) {
+export function UploadPhotoSheet({
+  open,
+  onOpenChange,
+  onUploadingCountChange,
+  defaultClubId,
+  defaultTeamId,
+  defaultEventId,
+}: UploadPhotoSheetProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { activeClubFilter } = useClubTheme();
