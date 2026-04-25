@@ -458,8 +458,33 @@ export default function MediaPage() {
   const { getProfile, isLoading: loadingProfiles } = useProfiles(allUploaderIds);
 
   // Apply filters to photos
+  const cardId = searchParams.get("card");
+
+  // Fetch the gallery card's photo_ids when ?card= is present so we can scope
+  // the gallery to just that upload batch.
+  const { data: cardPhotoIds } = useQuery({
+    queryKey: ["gallery-chat-card-photo-ids", cardId],
+    queryFn: async () => {
+      if (!cardId) return null;
+      const { data } = await supabase
+        .from("gallery_chat_cards")
+        .select("photo_ids")
+        .eq("id", cardId)
+        .maybeSingle();
+      return (data?.photo_ids as string[] | null) ?? [];
+    },
+    enabled: !!cardId,
+    staleTime: 60 * 1000,
+  });
+
   const photos = useMemo(() => {
     let filtered = allPhotos;
+
+    // Filter by gallery card batch (overrides other filters when active)
+    if (cardId && cardPhotoIds) {
+      const idSet = new Set(cardPhotoIds);
+      return filtered.filter(photo => idSet.has(photo.id));
+    }
     
     // Filter by club
     if (selectedClubId !== "all") {
@@ -490,7 +515,7 @@ export default function MediaPage() {
     }
     
     return filtered;
-  }, [allPhotos, selectedClubId, selectedTeamId, dateRange]);
+  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds]);
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
