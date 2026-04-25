@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const teamIds = [...new Set(roles.map((r: any) => r.team_id).filter(Boolean))] as string[];
 
     // ── Parallel fetch: clubs, teams, club_subscriptions, chat_groups, personal groups, DM convos ──
-    const promises: Record<string, Promise<any>> = {};
+    const promises: Record<string, PromiseLike<any>> = {};
 
     if (clubIds.length > 0) {
       promises.clubs = supabase
