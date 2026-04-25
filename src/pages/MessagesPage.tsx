@@ -1303,6 +1303,7 @@ export default function MessagesPage() {
     // Chat groups
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
       items.push({
         type: 'group',
         id: group.id,
@@ -1313,6 +1314,7 @@ export default function MessagesPage() {
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
+        canHide: isPersonalGroup,
       });
     });
 
