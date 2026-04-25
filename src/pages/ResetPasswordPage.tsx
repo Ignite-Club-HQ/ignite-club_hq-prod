@@ -213,14 +213,99 @@ export default function ResetPasswordPage() {
             </div>
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           </div>
-          
+
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="pt-6 text-center space-y-4">
-              <p className="text-muted-foreground">{error}</p>
-              <Button onClick={() => navigate("/auth")} className="w-full">
-                Back to Sign In
-              </Button>
-            </CardContent>
+            {!showOtpRecovery ? (
+              <CardContent className="pt-6 text-center space-y-4">
+                <p className="text-muted-foreground">{error}</p>
+                <p className="text-xs text-muted-foreground">
+                  Email link scanners sometimes consume reset links before you click them.
+                  Use a 6-digit code instead — it can't be triggered by scanners.
+                </p>
+                <Button
+                  onClick={() => setShowOtpRecovery(true)}
+                  className="w-full"
+                >
+                  Use a 6-digit code instead
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/auth")}
+                  className="w-full"
+                >
+                  Back to Sign In
+                </Button>
+              </CardContent>
+            ) : (
+              <>
+                <CardHeader>
+                  <CardTitle>Reset with a code</CardTitle>
+                  <CardDescription>
+                    We'll email you a 6-digit code. Enter it below to reset your password.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="otp-email"
+                        type="email"
+                        placeholder="you@example.com"
+                        className="pl-10"
+                        value={otpEmail}
+                        onChange={(e) => setOtpEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={sendRecoveryCode}
+                    disabled={sendingOtp}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    {sendingOtp ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send code"}
+                  </Button>
+
+                  <div className="flex flex-col items-center gap-3 pt-2">
+                    <Label className="text-sm">Enter the 6-digit code</Label>
+                    <InputOTP
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={handleOtpChange}
+                      disabled={verifyingOtp}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                    {verifyingOtp && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verifying…
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setShowOtpRecovery(false);
+                      setOtpCode("");
+                    }}
+                    className="w-full"
+                  >
+                    Back
+                  </Button>
+                </CardContent>
+              </>
+            )}
           </Card>
         </div>
       </div>
