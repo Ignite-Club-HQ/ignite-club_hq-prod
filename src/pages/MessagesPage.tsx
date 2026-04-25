@@ -835,17 +835,70 @@ export default function MessagesPage() {
     },
   });
 
-  // Fetch hidden DM conversations
-  const { data: hiddenConversationIds } = useQuery({
+  // Fetch hidden DM conversations (with hidden_at so they can resurface on new messages)
+  const { data: hiddenDMMap } = useQuery({
     queryKey: ["hidden-dm-conversations", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("hidden_dm_conversations")
-        .select("conversation_id")
+        .select("conversation_id, hidden_at")
         .eq("user_id", user!.id);
-      return new Set(data?.map(h => h.conversation_id) || []);
+      const map = new Map<string, string>();
+      (data || []).forEach((h: any) => map.set(h.conversation_id, h.hidden_at));
+      return map;
     },
     enabled: !!user,
+  });
+
+  // Fetch hidden custom group chats (with hidden_at)
+  const { data: hiddenGroupMap } = useQuery({
+    queryKey: ["hidden-chat-groups", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hidden_chat_groups" as any)
+        .select("group_id, hidden_at")
+        .eq("user_id", user!.id);
+      const map = new Map<string, string>();
+      (data || []).forEach((h: any) => map.set(h.group_id, h.hidden_at));
+      return map;
+    },
+    enabled: !!user,
+  });
+
+  // Mutation: hide a DM conversation
+  const hideDMMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("hidden_dm_conversations")
+        .upsert(
+          { user_id: user!.id, conversation_id: conversationId, hidden_at: new Date().toISOString() },
+          { onConflict: "user_id,conversation_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations", user?.id] });
+      toast({ title: "Conversation hidden", description: "It will reappear when you receive a new message." });
+    },
+    onError: (e: any) => toast({ title: "Could not hide", description: e?.message || "Try again", variant: "destructive" }),
+  });
+
+  // Mutation: hide a custom group chat
+  const hideGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await supabase
+        .from("hidden_chat_groups" as any)
+        .upsert(
+          { user_id: user!.id, group_id: groupId, hidden_at: new Date().toISOString() },
+          { onConflict: "user_id,group_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hidden-chat-groups", user?.id] });
+      toast({ title: "Group hidden", description: "It will reappear when someone sends a new message." });
+    },
+    onError: (e: any) => toast({ title: "Could not hide", description: e?.message || "Try again", variant: "destructive" }),
   });
 
   // Fetch system messages (welcome message from Ignite Support)
