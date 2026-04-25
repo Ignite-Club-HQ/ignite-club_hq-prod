@@ -57,6 +57,86 @@ const getSafeExtension = (fileName: string, contentType: string) => {
   return 'bin';
 };
 
+const importDriveFile = async ({
+  serviceClient,
+  supabaseUrl,
+  accessToken,
+  file,
+  folderId,
+  clubId,
+  teamId,
+  userId,
+}: {
+  serviceClient: any;
+  supabaseUrl: string;
+  accessToken: string;
+  file: any;
+  folderId?: string | null;
+  clubId: string;
+  teamId?: string | null;
+  userId: string;
+}) => {
+  if (!file?.id || !file?.name || !file?.mimeType) {
+    return { success: false, fileId: file?.id, fileName: file?.name ?? 'Unknown file', error: 'Missing file details' };
+  }
+
+  const config = getDownloadConfig(file.id, file.mimeType, file.name);
+  if ('error' in config) {
+    return { success: false, fileId: file.id, fileName: file.name, error: config.error, code: config.code };
+  }
+
+  const fileResponse = await fetch(config.downloadUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!fileResponse.ok) {
+    const errorText = await fileResponse.text();
+    console.error(`Failed to download Drive file ${file.name}:`, errorText);
+    return { success: false, fileId: file.id, fileName: file.name, error: 'Failed to download file', details: errorText };
+  }
+
+  const fileData = await fileResponse.arrayBuffer();
+  const finalFileName = applyExportExtension(file.name, config.exportMimeType);
+  const contentType = config.exportMimeType ?? file.mimeType;
+  const safeExt = getSafeExtension(finalFileName, contentType);
+  const timestamp = Date.now();
+  const randomSuffix = crypto.randomUUID().slice(0, 8);
+  const storagePath = teamId
+    ? `clubs/${clubId}/teams/${teamId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`
+    : `clubs/${clubId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
+
+  const { error: uploadError } = await serviceClient.storage
+    .from('photos')
+    .upload(storagePath, fileData, { contentType, upsert: false });
+
+  if (uploadError) {
+    console.error(`Failed to upload imported Drive file ${file.name}:`, uploadError);
+    return { success: false, fileId: file.id, fileName: file.name, error: uploadError.message };
+  }
+
+  const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+  const { error: insertError } = await serviceClient.from('vault_files').insert({
+    file_url: fileUrl,
+    name: finalFileName,
+    club_id: clubId,
+    team_id: teamId ?? null,
+    folder_id: folderId ?? null,
+    uploaded_by: userId,
+    file_size: fileData.byteLength,
+    file_type: contentType,
+    drive_file_id: file.id,
+    drive_modified_time: file.modifiedTime ?? null,
+  });
+
+  if (insertError) {
+    console.error(`Failed to record imported Drive file ${file.name}:`, insertError);
+    await serviceClient.storage.from('photos').remove([storagePath]);
+    return { success: false, fileId: file.id, fileName: file.name, error: insertError.message };
+  }
+
+  return { success: true, fileId: file.id, fileName: finalFileName, size: fileData.byteLength };
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
