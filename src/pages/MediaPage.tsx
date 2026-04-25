@@ -1052,6 +1052,22 @@ export default function MediaPage() {
             <p className="text-sm text-muted-foreground mt-1">Upload your first photo to get started</p>
           </CardContent>
         </Card>
+      ) : photos.length === 0 && urlEventId ? (
+        <Card className="border-dashed border-primary/40 bg-primary/5 max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <div className="mx-auto h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Image className="h-7 w-7 text-primary" />
+            </div>
+            <p className="font-semibold text-foreground">Be the first to add photos</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              No photos from this event yet — share what you captured today.
+            </p>
+            <Button onClick={() => setUploadDialogOpen(true)} className="mt-4 gap-2" size="sm">
+              <Plus className="h-4 w-4" />
+              Add photos
+            </Button>
+          </CardContent>
+        </Card>
       ) : photos.length === 0 && hasActiveFilters ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
