@@ -233,12 +233,26 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
 
       <div
         className="fixed left-0 right-0 z-[100001] flex flex-col overflow-hidden rounded-t-2xl border-x border-t bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
-        style={{
-          top: sheetTop,
-          height: sheetHeight,
-          paddingBottom: keyboardOpen ? 0 : "env(safe-area-inset-bottom, 0px)",
-          transition: "top 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
-        }}
+        style={
+          isNativeAndroid
+            ? {
+                // On Android (Keyboard.resize='none'), pin the sheet bottom
+                // directly to the top of the keyboard so the GIF grid extends
+                // all the way down with no gap above the IME.
+                top: TOP_GAP,
+                bottom: Math.max(0, androidKeyboardHeight),
+                paddingBottom: 0,
+                transition:
+                  "bottom 180ms cubic-bezier(0.32, 0.72, 0, 1)",
+              }
+            : {
+                top: sheetTop,
+                height: sheetHeight,
+                paddingBottom: keyboardOpen ? 0 : "env(safe-area-inset-bottom, 0px)",
+                transition:
+                  "top 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
+              }
+        }
       >
         {/* Header */}
         <div className="relative flex items-center justify-between px-2 pt-1 pb-0.5 shrink-0">
