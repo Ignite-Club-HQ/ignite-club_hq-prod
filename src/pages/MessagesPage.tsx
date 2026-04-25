@@ -46,6 +46,13 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { EyeOff } from "lucide-react";
 
 
 // Skeleton component for message items while loading
@@ -157,6 +164,7 @@ interface UnifiedConversation {
   isMuted: boolean;
   isLocked?: boolean;
   canManage?: boolean;
+  canHide?: boolean;
   dmData?: any;
 }
 
@@ -835,17 +843,70 @@ export default function MessagesPage() {
     },
   });
 
-  // Fetch hidden DM conversations
-  const { data: hiddenConversationIds } = useQuery({
+  // Fetch hidden DM conversations (with hidden_at so they can resurface on new messages)
+  const { data: hiddenDMMap } = useQuery({
     queryKey: ["hidden-dm-conversations", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("hidden_dm_conversations")
-        .select("conversation_id")
+        .select("conversation_id, hidden_at")
         .eq("user_id", user!.id);
-      return new Set(data?.map(h => h.conversation_id) || []);
+      const map = new Map<string, string>();
+      (data || []).forEach((h: any) => map.set(h.conversation_id, h.hidden_at));
+      return map;
     },
     enabled: !!user,
+  });
+
+  // Fetch hidden custom group chats (with hidden_at)
+  const { data: hiddenGroupMap } = useQuery({
+    queryKey: ["hidden-chat-groups", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hidden_chat_groups" as any)
+        .select("group_id, hidden_at")
+        .eq("user_id", user!.id);
+      const map = new Map<string, string>();
+      (data || []).forEach((h: any) => map.set(h.group_id, h.hidden_at));
+      return map;
+    },
+    enabled: !!user,
+  });
+
+  // Mutation: hide a DM conversation
+  const hideDMMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("hidden_dm_conversations")
+        .upsert(
+          { user_id: user!.id, conversation_id: conversationId, hidden_at: new Date().toISOString() },
+          { onConflict: "user_id,conversation_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations", user?.id] });
+      toast({ title: "Conversation hidden", description: "It will reappear when you receive a new message." });
+    },
+    onError: (e: any) => toast({ title: "Could not hide", description: e?.message || "Try again", variant: "destructive" }),
+  });
+
+  // Mutation: hide a custom group chat
+  const hideGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await supabase
+        .from("hidden_chat_groups" as any)
+        .upsert(
+          { user_id: user!.id, group_id: groupId, hidden_at: new Date().toISOString() },
+          { onConflict: "user_id,group_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hidden-chat-groups", user?.id] });
+      toast({ title: "Group hidden", description: "It will reappear when someone sends a new message." });
+    },
+    onError: (e: any) => toast({ title: "Could not hide", description: e?.message || "Try again", variant: "destructive" }),
   });
 
   // Fetch system messages (welcome message from Ignite Support)
@@ -1088,6 +1149,18 @@ export default function MessagesPage() {
         );
       });
     }
+    // Apply hidden filter for custom (personal) groups — they reappear when
+    // a new message arrives after the time the user hid them.
+    groups = groups.filter((group: any) => {
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      if (!isPersonalGroup) return true;
+      const hiddenAt = hiddenGroupMap?.get(group.id);
+      if (!hiddenAt) return true;
+      const lastMsgAt = displayLatestGroupMessages?.[group.id]?.created_at;
+      const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
+      if (stillHidden && !query) return false;
+      return true;
+    });
     if (!query) return groups;
     return groups.filter((group: any) => {
       const groupName = group.name?.toLowerCase() || "";
@@ -1095,7 +1168,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
@@ -1138,7 +1211,13 @@ export default function MessagesPage() {
   const filteredDMs = useMemo(() => {
     if (!dmConversations) return [];
     return dmConversations.filter((conv: any) => {
-      if (hiddenConversationIds?.has(conv.id)) return false;
+      // Hidden DMs reappear when a new message arrives after hidden_at.
+      const hiddenAt = hiddenDMMap?.get(conv.id);
+      if (hiddenAt) {
+        const lastMsgAt = conv.last_message?.created_at;
+        const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
+        if (stillHidden && !query) return false;
+      }
       // Always allow the conversation to surface when the user is searching
       // for that specific person (so they can resume it).
       if (query) {
@@ -1147,7 +1226,7 @@ export default function MessagesPage() {
       // Otherwise require at least one real message to show in Recents.
       return !!conv.last_message;
     });
-  }, [dmConversations, hiddenConversationIds, query]);
+  }, [dmConversations, hiddenDMMap, query]);
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
@@ -1231,6 +1310,7 @@ export default function MessagesPage() {
     // Chat groups
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
       items.push({
         type: 'group',
         id: group.id,
@@ -1241,6 +1321,7 @@ export default function MessagesPage() {
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
+        canHide: isPersonalGroup,
       });
     });
 
@@ -1263,6 +1344,7 @@ export default function MessagesPage() {
         } : undefined,
         unreadCount: unreadCounts?.dms[conv.id] || 0,
         isMuted: false,
+        canHide: !isSupport,
         dmData: conv,
       });
     });
@@ -1529,7 +1611,7 @@ export default function MessagesPage() {
       const isOwn = conv?.last_message?.author_id === user?.id;
       const isSupport = isIgniteSupportUser(conv?.other_user?.id);
       
-      return (
+      const dmCard = (
         <Link key={item.key} to={item.link}>
           <Card className="hover:border-primary/50 transition-colors">
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
@@ -1579,11 +1661,24 @@ export default function MessagesPage() {
           </Card>
         </Link>
       );
+
+      if (!item.canHide) return dmCard;
+      return (
+        <ContextMenu key={item.key}>
+          <ContextMenuTrigger asChild>{dmCard}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => hideDMMutation.mutate(item.id)}>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Hide conversation
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      );
     }
 
     // Group/League card
     if (item.type === 'group' || item.type === 'league') {
-      return (
+      const groupCard = (
         <Card
           key={item.key}
           className="hover:border-primary/50 transition-colors cursor-pointer"
@@ -1633,6 +1728,19 @@ export default function MessagesPage() {
             </div>
           </CardContent>
         </Card>
+      );
+
+      if (!item.canHide) return groupCard;
+      return (
+        <ContextMenu key={item.key}>
+          <ContextMenuTrigger asChild>{groupCard}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => hideGroupMutation.mutate(item.id)}>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Hide group
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       );
     }
 
