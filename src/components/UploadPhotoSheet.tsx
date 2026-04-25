@@ -668,7 +668,7 @@ export function UploadPhotoSheet({
       );
       
       try {
-        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, photoCaption);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption);
         uploadedUrls.push(url);
         uploadedPhotoIds.push(photoId);
         successCount++;
