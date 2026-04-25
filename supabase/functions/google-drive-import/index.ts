@@ -330,6 +330,99 @@ serve(async (req) => {
       );
     }
 
+    // Action: Import one Drive file completely server-side. This avoids
+    // returning large base64 payloads to mobile browsers, which was causing
+    // network-level "Failed to send a request to the Edge Function" errors
+    // during large folder imports.
+    if (action === 'import-file') {
+      const body = await req.json();
+      const {
+        accessToken,
+        file,
+        folderId,
+        clubId,
+        teamId,
+      } = body;
+
+      if (!accessToken || !file?.id || !file?.name || !file?.mimeType || !clubId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required import details' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const config = getDownloadConfig(file.id, file.mimeType, file.name);
+      if ('error' in config) {
+        return new Response(
+          JSON.stringify({ error: config.error, code: config.code, mimeType: config.mimeType }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileResponse = await fetch(config.downloadUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!fileResponse.ok) {
+        const errorText = await fileResponse.text();
+        console.error('Failed to download file for import:', errorText);
+        return new Response(
+          JSON.stringify({ error: 'Failed to download file', details: errorText }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileData = await fileResponse.arrayBuffer();
+      const finalFileName = applyExportExtension(file.name, config.exportMimeType);
+      const contentType = config.exportMimeType ?? file.mimeType;
+      const safeExt = getSafeExtension(finalFileName, contentType);
+      const timestamp = Date.now();
+      const randomSuffix = crypto.randomUUID().slice(0, 8);
+      const storagePath = teamId
+        ? `clubs/${clubId}/teams/${teamId}/${user!.id}/${timestamp}-${randomSuffix}.${safeExt}`
+        : `clubs/${clubId}/${user!.id}/${timestamp}-${randomSuffix}.${safeExt}`;
+
+      const { error: uploadError } = await serviceClient.storage
+        .from('photos')
+        .upload(storagePath, fileData, { contentType, upsert: false });
+
+      if (uploadError) {
+        console.error('Failed to upload imported Drive file:', uploadError);
+        return new Response(
+          JSON.stringify({ error: uploadError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+      const { error: insertError } = await serviceClient.from('vault_files').insert({
+        file_url: fileUrl,
+        name: finalFileName,
+        club_id: clubId,
+        team_id: teamId ?? null,
+        folder_id: folderId ?? null,
+        uploaded_by: user!.id,
+        file_size: fileData.byteLength,
+        file_type: contentType,
+        drive_file_id: file.id,
+        drive_modified_time: file.modifiedTime ?? null,
+      });
+
+      if (insertError) {
+        console.error('Failed to record imported Drive file:', insertError);
+        await serviceClient.storage.from('photos').remove([storagePath]);
+        return new Response(
+          JSON.stringify({ error: insertError.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, fileName: finalFileName, size: fileData.byteLength }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Action: Get folder path (for recreating structure)
     if (action === 'get-folder-path') {
       const body = await req.json();
