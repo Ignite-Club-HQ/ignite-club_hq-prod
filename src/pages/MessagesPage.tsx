@@ -157,6 +157,7 @@ interface UnifiedConversation {
   isMuted: boolean;
   isLocked?: boolean;
   canManage?: boolean;
+  canHide?: boolean;
   dmData?: any;
 }
 
