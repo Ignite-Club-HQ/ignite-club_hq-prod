@@ -86,6 +86,15 @@ export default function MediaPage() {
   const { activeClubFilter } = useClubTheme();
   
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+
+  // Auto-open the upload sheet when ?upload=1 is in the URL (e.g. tapped from
+  // a post-game gallery prompt card in team chat).
+  useEffect(() => {
+    if (searchParams.get("upload") === "1") {
+      setUploadDialogOpen(true);
+    }
+  }, [searchParams]);
+
   const [uploadingCount, setUploadingCount] = useState(0);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
