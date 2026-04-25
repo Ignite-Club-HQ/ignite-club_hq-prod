@@ -96,13 +96,42 @@ export function useRecordPhotoView(userId: string | undefined) {
    * Returns a ref callback that records a view once the element has been
    * visible in the viewport (>=25% for ~300ms). Lenient thresholds catch
    * quick scrollers who would otherwise go uncounted.
+   *
+   * Ref callbacks are cached per photoId so React does not detach/reattach
+   * (and re-create the IntersectionObserver) on every render.
    */
+  const observerCleanups = useRef<Map<string, () => void>>(new Map());
+  const refCallbacks = useRef<Map<string, (el: HTMLElement | null) => void>>(new Map());
+
+  // Cleanup all observers on unmount
+  useEffect(() => {
+    return () => {
+      observerCleanups.current.forEach((cleanup) => cleanup());
+      observerCleanups.current.clear();
+      refCallbacks.current.clear();
+    };
+  }, []);
+
   const observeView = useCallback((photoId: string) => {
-    return (el: HTMLElement | null) => {
-      if (!el || !userId || !photoId) return;
+    if (!userId || !photoId) {
+      // Return a stable no-op so React doesn't churn refs
+      return noopRef;
+    }
+
+    const existing = refCallbacks.current.get(photoId);
+    if (existing) return existing;
+
+    const cb = (el: HTMLElement | null) => {
+      // Tear down any previous observer for this photoId
+      const prevCleanup = observerCleanups.current.get(photoId);
+      if (prevCleanup) {
+        prevCleanup();
+        observerCleanups.current.delete(photoId);
+      }
+
+      if (!el) return;
 
       let timer: ReturnType<typeof setTimeout> | null = null;
-
       const observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
@@ -111,6 +140,7 @@ export function useRecordPhotoView(userId: string | undefined) {
               timer = setTimeout(() => {
                 recordView(photoId);
                 observer.disconnect();
+                observerCleanups.current.delete(photoId);
               }, 300);
             } else if (timer) {
               clearTimeout(timer);
@@ -122,7 +152,14 @@ export function useRecordPhotoView(userId: string | undefined) {
       );
 
       observer.observe(el);
+      observerCleanups.current.set(photoId, () => {
+        if (timer) clearTimeout(timer);
+        observer.disconnect();
+      });
     };
+
+    refCallbacks.current.set(photoId, cb);
+    return cb;
   }, [userId, recordView]);
 
   return { recordView, observeView };
