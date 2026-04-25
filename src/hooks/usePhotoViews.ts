@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Stable no-op ref callback used when no userId/photoId is available.
+const noopRef = (_el: HTMLElement | null) => {};
+
 /**
  * Build a stable cache key from a list of photo IDs.
  *
