@@ -858,19 +858,23 @@ export function GoogleDriveImportDialog({
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
             </div>
             <div className="text-center space-y-2 w-full px-4">
-              <p className="font-medium">Importing files...</p>
+              <p className="font-medium">
+                {importProgress.total === 0 ? "Scanning Drive..." : "Importing files..."}
+              </p>
               <p className="text-sm text-muted-foreground truncate">
                 {importProgress.currentFile || "Preparing..."}
               </p>
-              <div className="mt-4">
-                <Progress 
-                  value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} 
-                  className="h-2"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {importProgress.current} of {importProgress.total} files
-                </p>
-              </div>
+              {importProgress.total > 0 && (
+                <div className="mt-4">
+                  <Progress
+                    value={(importProgress.current / importProgress.total) * 100}
+                    className="h-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {importProgress.current} of {importProgress.total} files
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
