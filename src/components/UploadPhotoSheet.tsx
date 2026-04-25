@@ -27,6 +27,14 @@ interface UploadPhotoSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploadingCountChange?: (count: number) => void;
+  /**
+   * Optional preselects (used by the post-game "Add photos" CTA in team chat).
+   * When provided, the sheet seeds the club/team/event so the user can drop straight
+   * into the picker — no manual scoping required.
+   */
+  defaultClubId?: string | null;
+  defaultTeamId?: string | null;
+  defaultEventId?: string | null;
 }
 
 interface Club {
