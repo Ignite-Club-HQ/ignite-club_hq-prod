@@ -755,18 +755,42 @@ export function GoogleDriveImportDialog({
             </ScrollArea>
 
             {/* Footer with import button */}
-            <div className="border-t p-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={startImport} disabled={selectedCount === 0}>
-                  <Check className="h-4 w-4 mr-2" />
-                  Import {selectedCount > 0 ? `(${selectedCount})` : ''}
-                </Button>
+            <div className="border-t p-4 space-y-3">
+              {selectedFolders.size > 0 && (
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={keepInSync}
+                    onCheckedChange={(v) => setKeepInSync(v === true)}
+                    disabled={!refreshToken}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium">Keep in sync</span>
+                    <span className="text-muted-foreground">
+                      {' '}— automatically import new and updated files added to{' '}
+                      {selectedFolders.size === 1 ? 'this folder' : 'these folders'} in Drive.
+                    </span>
+                    {!refreshToken && (
+                      <span className="block text-xs text-amber-600 mt-1">
+                        Tap "Switch Account" and re-approve to enable auto-sync.
+                      </span>
+                    )}
+                  </span>
+                </label>
+              )}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={startImport} disabled={selectedCount === 0}>
+                    <Check className="h-4 w-4 mr-2" />
+                    Import {selectedCount > 0 ? `(${selectedCount})` : ''}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
