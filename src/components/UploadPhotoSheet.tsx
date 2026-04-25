@@ -454,6 +454,7 @@ export function UploadPhotoSheet({
       club_id: clubId || null,
       team_id: teamId || null,
       mini_league_id: miniLeagueId || null,
+      event_id: eventId || null,
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
