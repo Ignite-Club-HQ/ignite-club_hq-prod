@@ -390,6 +390,65 @@ export function GoogleDriveImportDialog({
       } else if (successCount === 0) {
         toast.error("No files were imported");
       }
+
+      // If "Keep in sync" is enabled, register a vault_drive_link for each
+      // selected top-level Drive folder so the background sync job picks
+      // up future additions/updates without the user needing a separate
+      // "Link folder" step.
+      if (keepInSync && selectedFolders.size > 0) {
+        if (!refreshToken) {
+          toast.warning(
+            "Couldn't enable auto-sync — Google didn't return a refresh token. Tap 'Switch Account' and re-approve to enable sync.",
+            { duration: 7000 }
+          );
+        } else {
+          let linkedCount = 0;
+          for (const folderId of selectedFolders) {
+            const folder = folders.find((f) => f.id === folderId);
+            if (!folder) continue;
+            // The folder cache key for a top-level selected folder is just its
+            // name (see collectFolderFiles + ensureFolderPath).
+            const vaultFolderId = folderCache[folder.name] ?? targetFolderId;
+            if (!vaultFolderId) continue;
+            try {
+              // Tag the vault folder with its Drive id (best-effort).
+              await supabase
+                .from('vault_folders')
+                .update({ drive_folder_id: folder.id })
+                .eq('id', vaultFolderId);
+
+              const { error: linkErr } = await supabase
+                .from('vault_drive_links')
+                .insert({
+                  club_id: targetClubId,
+                  team_id: targetTeamId,
+                  vault_folder_id: vaultFolderId,
+                  drive_folder_id: folder.id,
+                  drive_folder_name: folder.name,
+                  refresh_token: refreshToken,
+                  google_account_email: googleEmail,
+                  created_by: userId,
+                });
+              if (linkErr) {
+                // Duplicate = already linked; treat as success silently.
+                if (!String(linkErr.message || '').toLowerCase().includes('duplicate')) {
+                  console.error(`Failed to link ${folder.name} for sync:`, linkErr);
+                }
+              } else {
+                linkedCount++;
+              }
+            } catch (e) {
+              console.error(`Sync link error for ${folder.name}:`, e);
+            }
+          }
+          if (linkedCount > 0) {
+            toast.success(
+              `Auto-sync enabled for ${linkedCount} folder${linkedCount === 1 ? '' : 's'} — new files in Drive will appear here automatically.`
+            );
+          }
+        }
+      }
+
       onImportComplete();
       onOpenChange(false);
 
