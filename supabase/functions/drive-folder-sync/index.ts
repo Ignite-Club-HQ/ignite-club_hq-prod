@@ -242,14 +242,26 @@ async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
   const accessToken = await refreshAccessToken(link.refresh_token);
   const counts: SyncCounts = { imported: 0, updated: 0, skipped: 0, failed: 0, failedFiles: [] };
 
-  // BFS: list of [driveFolderId, vaultParentFolderId]
+  // PHASE 1 — Walk the entire Drive tree FIRST (folder listing only, no
+  // downloads). This is fast and ensures the full folder structure is created
+  // in the vault even if the function later runs out of time during file
+  // downloads. We also collect every (file, vaultFolderId) pair so we can
+  // process them with predictable ordering in phase 2.
+  const allFiles: { file: any; vaultId: string }[] = [];
   const queue: { driveId: string; vaultId: string }[] = [
     { driveId: link.drive_folder_id, vaultId: link.vault_folder_id },
   ];
 
   while (queue.length > 0) {
     const { driveId, vaultId } = queue.shift()!;
-    const { folders, files } = await listDriveFolder(accessToken, driveId);
+    let folders: any[] = [];
+    let files: any[] = [];
+    try {
+      ({ folders, files } = await listDriveFolder(accessToken, driveId));
+    } catch (listErr) {
+      console.error(`Failed listing drive folder ${driveId}:`, listErr);
+      continue;
+    }
 
     for (const sub of folders) {
       // Scope the lookup to children of the CURRENT vault parent. Without this
@@ -291,14 +303,39 @@ async function syncLink(supabase: any, link: DriveLink): Promise<SyncCounts> {
     }
 
     for (const file of files) {
+      allFiles.push({ file, vaultId });
+    }
+  }
+
+  console.log(`Drive tree walked: ${allFiles.length} file(s) discovered across all folders`);
+
+  // PHASE 2 — Process files. Interleave by folder so that even if we time out
+  // we still get a representative sample of files in every folder rather than
+  // filling root-level files first and starving the deep tree. We sort so
+  // files in different folders are visited round-robin style.
+  const filesByFolder = new Map<string, any[]>();
+  for (const entry of allFiles) {
+    if (!filesByFolder.has(entry.vaultId)) filesByFolder.set(entry.vaultId, []);
+    filesByFolder.get(entry.vaultId)!.push(entry.file);
+  }
+
+  const folderQueues = Array.from(filesByFolder.entries()).map(([vaultId, files]) => ({ vaultId, files, cursor: 0 }));
+
+  let stillWorking = true;
+  while (stillWorking) {
+    stillWorking = false;
+    for (const fq of folderQueues) {
+      if (fq.cursor >= fq.files.length) continue;
+      stillWorking = true;
+      const file = fq.files[fq.cursor++];
       try {
-        const outcome = await processFile(supabase, accessToken, link, file, vaultId);
+        const outcome = await processFile(supabase, accessToken, link, file, fq.vaultId);
         if (outcome === 'imported') counts.imported++;
         else if (outcome === 'updated') counts.updated++;
         else if (outcome === 'skipped') counts.skipped++;
       } catch (fileErr) {
         counts.failed++;
-        counts.failedFiles.push({ drive_file_id: file.id, vault_folder_id: vaultId, name: file.name });
+        counts.failedFiles.push({ drive_file_id: file.id, vault_folder_id: fq.vaultId, name: file.name });
         console.error(`Failed processing file "${file.name}" (drive_id=${file.id}):`, fileErr);
       }
     }
