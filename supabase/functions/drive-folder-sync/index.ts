@@ -141,15 +141,20 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
 
-// Supabase Storage rejects keys containing characters outside a safe set
-// (e.g. '|', '#', '?', control chars). Sanitize the filename portion of the
-// path so uploads succeed for files like "Profit | Loss Statement.xlsx".
+// Supabase Storage rejects keys containing characters outside a safe set.
+// Keep names conservative here because Drive files commonly include spaces,
+// brackets, punctuation, and unicode that can make uploads fail.
 function sanitizeStorageName(name: string): string {
-  return name
+  const sanitized = name
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '')
     .replace(/[\\/]/g, '-')
-    .replace(/[^A-Za-z0-9._\-\s()[\]]/g, '_')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .replace(/[-_]{2,}/g, (match) => match[0])
+    .replace(/^[-_.]+|[-_.]+$/g, '');
+
+  return sanitized || 'file';
 }
 
 type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
