@@ -676,6 +676,16 @@ export const ChatMessage = memo(function ChatMessage({
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
 
+  // Gallery upload cards: rendered centered as a card (not a pill).
+  const galleryCardMatch = isSystemMessage ? text.match(/^\s*\[gallery:([0-9a-f-]{36})\]\s*$/i) : null;
+  if (galleryCardMatch) {
+    return (
+      <div className="flex justify-center my-2 px-3">
+        <MessageContent text={text} previewsOnly />
+      </div>
+    );
+  }
+
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (isSystemMessage || isMembershipSystemText(text)) {
