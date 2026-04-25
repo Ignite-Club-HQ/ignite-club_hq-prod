@@ -6,6 +6,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const GOOGLE_EXPORT_TYPES: Record<string, string> = {
+  'application/vnd.google-apps.document': 'application/pdf',
+  'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.google-apps.presentation': 'application/pdf',
+  'application/vnd.google-apps.drawing': 'application/pdf',
+};
+
+const getDownloadConfig = (fileId: string, mimeType: string, fileName?: string) => {
+  const exportMimeType = GOOGLE_EXPORT_TYPES[mimeType] ?? null;
+  if (exportMimeType) {
+    return {
+      downloadUrl: `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`,
+      exportMimeType,
+    };
+  }
+
+  if (
+    typeof mimeType === 'string' &&
+    mimeType.startsWith('application/vnd.google-apps.') &&
+    !mimeType.startsWith('application/vnd.google-apps.drive-sdk')
+  ) {
+    const friendly = mimeType.replace('application/vnd.google-apps.', '');
+    return {
+      error: `Google ${friendly} files can't be imported. Please convert it to a Doc, Sheet, Slide, PDF, or other downloadable file first.`,
+      code: 'unsupported_google_apps_type',
+      mimeType,
+      fileName,
+    };
+  }
+
+  return {
+    downloadUrl: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
+    exportMimeType: null,
+  };
+};
+
+const applyExportExtension = (fileName: string, exportedMimeType: string | null) => {
+  if (exportedMimeType === 'application/pdf' && !fileName.toLowerCase().endsWith('.pdf')) return `${fileName}.pdf`;
+  if (exportedMimeType?.includes('spreadsheet') && !fileName.toLowerCase().endsWith('.xlsx')) return `${fileName}.xlsx`;
+  return fileName;
+};
+
+const getSafeExtension = (fileName: string, contentType: string) => {
+  const fromName = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : '';
+  if (fromName && /^[a-z0-9]{1,8}$/.test(fromName)) return fromName;
+  if (contentType === 'application/pdf') return 'pdf';
+  if (contentType.includes('spreadsheet')) return 'xlsx';
+  if (contentType.startsWith('image/')) return contentType.split('/')[1] || 'img';
+  return 'bin';
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
