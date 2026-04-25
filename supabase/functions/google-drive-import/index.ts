@@ -284,52 +284,17 @@ serve(async (req) => {
     if (action === 'download-file') {
       const body = await req.json();
       const { accessToken, fileId, mimeType, fileName } = body;
-      
-      let downloadUrl: string;
-      let exportMimeType: string | null = null;
-      
-      // Handle Google Docs/Sheets/Slides - need to export.
-      // For any other Google Workspace ("Docs Editors") file (forms, drawings,
-      // jams, sites, scripts, shortcuts, etc.) Google's API forbids alt=media,
-      // so fall back to exporting as PDF when possible, or reject with a clear
-      // error when the type cannot be exported.
-      if (mimeType === 'application/vnd.google-apps.document') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-        exportMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.presentation') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (mimeType === 'application/vnd.google-apps.drawing') {
-        exportMimeType = 'application/pdf';
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`;
-      } else if (
-        typeof mimeType === 'string' &&
-        mimeType.startsWith('application/vnd.google-apps.') &&
-        // Third-party Drive SDK files (e.g. PDFs uploaded via Lumin, Smallpdf,
-        // DocHub etc.) carry a `drive-sdk.*` mimeType but are actually regular
-        // binary files that DO support alt=media. Treat them like normal files.
-        !mimeType.startsWith('application/vnd.google-apps.drive-sdk')
-      ) {
-        // Unsupported Google Workspace type (form, jam, site, script, shortcut, folder, etc.)
-        const friendly = mimeType.replace('application/vnd.google-apps.', '');
+
+      const config = getDownloadConfig(fileId, mimeType, fileName);
+      if ('error' in config) {
         console.error(`Unsupported Google Workspace file type: ${mimeType} (file: ${fileName})`);
         return new Response(
-          JSON.stringify({
-            error: `Google ${friendly} files can't be imported. Please convert it to a Doc, Sheet, Slide, PDF, or other downloadable file first.`,
-            code: 'unsupported_google_apps_type',
-            mimeType,
-          }),
+          JSON.stringify({ error: config.error, code: config.code, mimeType: config.mimeType }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-      } else {
-        // Regular file (or third-party drive-sdk file) - direct download
-        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
       }
-      
-      const fileResponse = await fetch(downloadUrl, {
+
+      const fileResponse = await fetch(config.downloadUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       
@@ -357,7 +322,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           data: base64Data, 
-          exportedMimeType: exportMimeType,
+          exportedMimeType: config.exportMimeType,
           size: fileData.byteLength,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
