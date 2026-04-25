@@ -1141,6 +1141,18 @@ export default function MessagesPage() {
         );
       });
     }
+    // Apply hidden filter for custom (personal) groups — they reappear when
+    // a new message arrives after the time the user hid them.
+    groups = groups.filter((group: any) => {
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      if (!isPersonalGroup) return true;
+      const hiddenAt = hiddenGroupMap?.get(group.id);
+      if (!hiddenAt) return true;
+      const lastMsgAt = displayLatestGroupMessages?.[group.id]?.created_at;
+      const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
+      if (stillHidden && !query) return false;
+      return true;
+    });
     if (!query) return groups;
     return groups.filter((group: any) => {
       const groupName = group.name?.toLowerCase() || "";
@@ -1148,7 +1160,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
