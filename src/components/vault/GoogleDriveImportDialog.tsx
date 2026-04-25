@@ -69,9 +69,15 @@ export function GoogleDriveImportDialog({
   useEffect(() => {
     if (open) {
       const storedToken = sessionStorage.getItem('googleDriveAccessToken');
+      const storedRefresh = sessionStorage.getItem('googleDriveRefreshToken');
+      const storedEmail = sessionStorage.getItem('googleDriveGoogleEmail');
       if (storedToken) {
         sessionStorage.removeItem('googleDriveAccessToken');
+        sessionStorage.removeItem('googleDriveRefreshToken');
+        sessionStorage.removeItem('googleDriveGoogleEmail');
         setAccessToken(storedToken);
+        setRefreshToken(storedRefresh);
+        setGoogleEmail(storedEmail);
         setStep("browse");
         loadFolderContents(null, storedToken);
       }
@@ -83,12 +89,15 @@ export function GoogleDriveImportDialog({
     if (!open) {
       setStep("connect");
       setAccessToken(null);
+      setRefreshToken(null);
+      setGoogleEmail(null);
       setFolders([]);
       setFiles([]);
       setCurrentFolderId(null);
       setFolderPath([]);
       setSelectedFiles(new Set());
       setSelectedFolders(new Set());
+      setKeepInSync(true);
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
     }
