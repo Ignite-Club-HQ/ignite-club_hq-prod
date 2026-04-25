@@ -83,7 +83,7 @@ async function createSignedUrlDirect(url: string): Promise<string | null> {
 }
 
 
-async function resolveSignedUrl(url: string): Promise<string> {
+export async function resolveSignedUrl(url: string): Promise<string> {
   const privatePath = extractPrivateStoragePath(url);
   if (!privatePath) {
     return url;
