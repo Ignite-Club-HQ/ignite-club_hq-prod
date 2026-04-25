@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2 } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -61,6 +61,29 @@ export default function AppSettingsPage() {
         title: "Failed to update setting", 
         description: error.message,
         variant: "destructive" 
+      });
+    },
+  });
+
+  const runPhotoPromptMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("post-game-photo-prompts", {
+        body: {},
+      });
+      if (error) throw error;
+      return data as { ok?: boolean; scanned?: number; posted?: number; skipped?: number; errors?: number };
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Photo prompt run complete",
+        description: `Scanned ${data?.scanned ?? 0} · Posted ${data?.posted ?? 0} · Skipped ${data?.skipped ?? 0} · Errors ${data?.errors ?? 0}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to run photo prompt",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -152,6 +175,32 @@ export default function AppSettingsPage() {
                 Updating...
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5 text-primary" />
+              Post-game photo prompts
+            </CardTitle>
+            <CardDescription>
+              Manually run the hourly cron that posts "Got photos?" cards to team chats for games that ended 2–3 hours ago. Useful for testing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => runPhotoPromptMutation.mutate()}
+              disabled={runPhotoPromptMutation.isPending}
+              className="gap-2"
+            >
+              {runPhotoPromptMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Run photo prompt now
+            </Button>
           </CardContent>
         </Card>
 
