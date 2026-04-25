@@ -352,7 +352,40 @@ export function GoogleDriveImportDialog({
         }
       }
 
-      const batchSize = 8;
+      const importDriveBatch = async (batch: typeof preparedFiles) => {
+        const importResponse = await fetch(
+          `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
+            },
+            body: JSON.stringify({
+              accessToken,
+              files: batch,
+              clubId: targetClubId,
+              teamId: targetTeamId,
+            }),
+          }
+        );
+
+        let importData: any = null;
+        try {
+          importData = await importResponse.json();
+        } catch {
+          importData = { error: `HTTP ${importResponse.status}` };
+        }
+
+        if (!importResponse.ok || importData?.error) {
+          throw new Error(importData?.error || `HTTP ${importResponse.status}`);
+        }
+
+        return Array.isArray(importData?.results) ? importData.results : [];
+      };
+
+      const batchSize = 3;
       for (let i = 0; i < preparedFiles.length; i += batchSize) {
         const batch = preparedFiles.slice(i, i + batchSize);
         setImportProgress({
@@ -362,39 +395,7 @@ export function GoogleDriveImportDialog({
         });
 
         try {
-          const importResponse = await fetch(
-            `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
-              },
-              body: JSON.stringify({
-                accessToken,
-                files: batch,
-                clubId: targetClubId,
-                teamId: targetTeamId,
-              }),
-            }
-          );
-
-          let importData: any = null;
-          try {
-            importData = await importResponse.json();
-          } catch {
-            importData = { error: `HTTP ${importResponse.status}` };
-          }
-
-          if (!importResponse.ok || importData?.error) {
-            const reason = importData?.error || `HTTP ${importResponse.status}`;
-            console.error(`Failed to import Drive batch:`, reason);
-            batch.forEach(({ file }) => failures.push({ name: file.name, reason }));
-            continue;
-          }
-
-          const results = Array.isArray(importData?.results) ? importData.results : [];
+          let results = await importDriveBatch(batch);
           results.forEach((result: any, index: number) => {
             if (result?.success) {
               successCount++;
@@ -406,6 +407,39 @@ export function GoogleDriveImportDialog({
             }
           });
         } catch (batchError: any) {
+          await new Promise((resolve) => setTimeout(resolve, 750));
+          try {
+            const retryResults = await importDriveBatch(batch);
+            retryResults.forEach((result: any, index: number) => {
+              if (result?.success) {
+                successCount++;
+              } else {
+                failures.push({
+                  name: result?.fileName || batch[index]?.file.name || 'Unknown file',
+                  reason: result?.error || 'Import failed',
+                });
+              }
+            });
+            continue;
+          } catch (retryError: any) {
+            if (batch.length > 1) {
+              for (const item of batch) {
+                try {
+                  const singleResults = await importDriveBatch([item]);
+                  const singleResult = singleResults[0];
+                  if (singleResult?.success) {
+                    successCount++;
+                  } else {
+                    failures.push({ name: singleResult?.fileName || item.file.name, reason: singleResult?.error || 'Import failed' });
+                  }
+                } catch (singleError: any) {
+                  failures.push({ name: item.file.name, reason: singleError?.message || 'Import failed' });
+                }
+              }
+              continue;
+            }
+          }
+
           const reason = batchError?.message || "Unknown error";
           console.error(`Error importing Drive batch:`, batchError);
           batch.forEach(({ file }) => failures.push({ name: file.name, reason }));
