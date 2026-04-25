@@ -4992,10 +4992,8 @@ function ContentSection({
                 key={file.id} 
                 className="group cursor-pointer"
                 onClick={() => {
-                  if (isExternalLink) {
-                    // Open external link directly
-                    import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
-                  }
+                  // Open external links and uploaded files alike
+                  import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                 }}
               >
                 <CardContent className="p-3 flex items-center gap-3">
@@ -5118,9 +5116,11 @@ function ContentSection({
                       <Item
                         icon={Download}
                         label="Download"
-                        onClick={() => {
+                        onClick={async () => {
+                          const { resolveSignedUrl } = await import("@/hooks/useSignedPhotoUrl");
+                          const href = await resolveSignedUrl(file.file_url);
                           const a = document.createElement('a');
-                          a.href = file.file_url;
+                          a.href = href;
                           a.download = file.name || '';
                           a.rel = 'noopener';
                           a.target = '_blank';
