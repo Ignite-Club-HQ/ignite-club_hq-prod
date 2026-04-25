@@ -263,19 +263,13 @@ export function GoogleDriveImportDialog({
       const filesToImport: { file: DriveFile; folderPath: string }[] = [];
       
       // Add directly selected files
-      for (const fileId of selectedFiles) {
-        const file = files.find(f => f.id === fileId);
-        if (file) {
-          filesToImport.push({ file, folderPath: '' });
-        }
+      for (const { file, folderPath: relativePath } of selectedFiles.values()) {
+        filesToImport.push({ file, folderPath: relativePath });
       }
 
       // Recursively collect files from selected folders
-      for (const folderId of selectedFolders) {
-        const folder = folders.find(f => f.id === folderId);
-        if (folder) {
-          await collectFolderFiles(folderId, folder.name, filesToImport);
-        }
+      for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
+        await collectFolderFiles(folder.id, relativePath, filesToImport);
       }
 
       setImportProgress({ current: 0, total: filesToImport.length, currentFile: "" });
@@ -383,6 +377,8 @@ export function GoogleDriveImportDialog({
             uploaded_by: userId,
             file_size: downloadData.size ?? blob.size,
             file_type: contentType,
+            drive_file_id: file.id,
+            drive_modified_time: file.createdTime ?? null,
           });
 
           if (insertError) {
@@ -425,17 +421,15 @@ export function GoogleDriveImportDialog({
           );
         } else {
           let linkedCount = 0;
-          for (const folderId of selectedFolders) {
-            const folder = folders.find((f) => f.id === folderId);
-            if (!folder) continue;
+          for (const { folder, folderPath: relativePath } of selectedFolders.values()) {
             // The folder cache key for a top-level selected folder is just its
             // name (see collectFolderFiles + ensureFolderPath). If the folder
             // contained no importable files the cache entry won't exist yet —
             // create the vault folder now so the sync link points at the right
             // destination.
-            let vaultFolderId = folderCache[folder.name];
+            let vaultFolderId = folderCache[relativePath];
             if (!vaultFolderId) {
-              vaultFolderId = (await ensureFolderPath(folder.name, folderCache)) ?? targetFolderId ?? undefined as any;
+              vaultFolderId = (await ensureFolderPath(relativePath, folderCache)) ?? targetFolderId ?? undefined as any;
             }
             if (!vaultFolderId) continue;
             try {
