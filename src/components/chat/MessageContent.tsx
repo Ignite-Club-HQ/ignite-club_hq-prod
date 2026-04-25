@@ -531,6 +531,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
+      {/* Gallery link cards (team gallery upload notifications) */}
+      {showPreviews && galleryIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {galleryIds.map((gid) => (
+            <GalleryLinkCard key={gid} cardId={gid} />
+          ))}
+        </div>
+      )}
+
       {/* Poll cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
       {showPreviews && pollIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
