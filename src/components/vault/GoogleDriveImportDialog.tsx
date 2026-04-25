@@ -316,18 +316,55 @@ export function GoogleDriveImportDialog({
             uploadFolderId = await ensureFolderPath(relativePath, folderCache);
           }
 
-          // Download file from Drive
-          const { data: downloadData, error: downloadError } = await supabase.functions.invoke('google-drive-import?action=download-file', {
-            body: {
-              accessToken,
-              fileId: file.id,
-              mimeType: file.mimeType,
-              fileName: file.name,
-            },
-          });
+          // Pre-filter Google Workspace types we know we can't import so we
+          // don't waste a round-trip and so the user sees a clear reason.
+          const unsupportedGoogleType =
+            file.mimeType?.startsWith('application/vnd.google-apps.') &&
+            !file.mimeType.startsWith('application/vnd.google-apps.drive-sdk') &&
+            ![
+              'application/vnd.google-apps.document',
+              'application/vnd.google-apps.spreadsheet',
+              'application/vnd.google-apps.presentation',
+              'application/vnd.google-apps.drawing',
+            ].includes(file.mimeType);
+          if (unsupportedGoogleType) {
+            const friendly = file.mimeType.replace('application/vnd.google-apps.', '');
+            failures.push({ name: file.name, reason: `Google ${friendly} files can't be imported` });
+            continue;
+          }
 
-          if (downloadError || downloadData?.error) {
-            const reason = downloadData?.error || downloadError?.message || "Download failed";
+          // Download file from Drive — use raw fetch so we can read the JSON
+          // error body on non-2xx responses (supabase.functions.invoke swallows
+          // it and returns a generic "non-2xx status code" message).
+          const { data: { session } } = await supabase.auth.getSession();
+          const fnResponse = await fetch(
+            `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=download-file`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session?.access_token ?? ''}`,
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
+              },
+              body: JSON.stringify({
+                accessToken,
+                fileId: file.id,
+                mimeType: file.mimeType,
+                fileName: file.name,
+              }),
+            }
+          );
+
+          let downloadData: any = null;
+          let downloadErrText: string | null = null;
+          try {
+            downloadData = await fnResponse.json();
+          } catch {
+            downloadErrText = `HTTP ${fnResponse.status}`;
+          }
+
+          if (!fnResponse.ok || downloadData?.error) {
+            const reason = downloadData?.error || downloadErrText || `HTTP ${fnResponse.status}`;
             console.error(`Failed to download ${file.name}:`, reason);
             failures.push({ name: file.name, reason });
             continue;
