@@ -105,17 +105,17 @@ Deno.serve(async (req) => {
         let recipientIds = [...new Set((rsvps ?? []).map((r) => r.user_id as string))];
 
         if (recipientIds.length === 0) {
-          // Fall back to active team roster — go through team_memberships → club_players → user_id.
+          // Fall back to active team roster — team_memberships → club_players.profile_id.
           const { data: memberships } = await supabase
             .from("team_memberships")
-            .select("club_player_id, club_players!inner(user_id)")
+            .select("club_player_id, club_players!inner(profile_id)")
             .eq("team_id", prompt.team_id)
             .eq("status", "active");
 
           recipientIds = [
             ...new Set(
               (memberships ?? [])
-                .map((m: any) => m.club_players?.user_id)
+                .map((m: any) => m.club_players?.profile_id)
                 .filter((id: string | null) => !!id),
             ),
           ];
