@@ -27,6 +27,14 @@ interface UploadPhotoSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploadingCountChange?: (count: number) => void;
+  /**
+   * Optional preselects (used by the post-game "Add photos" CTA in team chat).
+   * When provided, the sheet seeds the club/team/event so the user can drop straight
+   * into the picker — no manual scoping required.
+   */
+  defaultClubId?: string | null;
+  defaultTeamId?: string | null;
+  defaultEventId?: string | null;
 }
 
 interface Club {
@@ -60,7 +68,14 @@ interface SelectedPhoto {
 
 
 
-export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }: UploadPhotoSheetProps) {
+export function UploadPhotoSheet({
+  open,
+  onOpenChange,
+  onUploadingCountChange,
+  defaultClubId,
+  defaultTeamId,
+  defaultEventId,
+}: UploadPhotoSheetProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { activeClubFilter } = useClubTheme();
@@ -68,6 +83,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [caption, setCaption] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
@@ -367,6 +383,30 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [canPostClubWide, selectedClubId, userTeams, selectedTeamId]);
 
+  // Seed selection from props when sheet opens (e.g. from "Add photos" CTA in
+  // a post-game team chat prompt). Resolves club from team if club not provided.
+  useEffect(() => {
+    if (!open) return;
+    if (defaultClubId) setSelectedClubId((prev) => prev || defaultClubId);
+    if (defaultTeamId) setSelectedTeamId((prev) => prev || defaultTeamId);
+    if (defaultEventId) setSelectedEventId((prev) => prev || defaultEventId);
+
+    if (defaultTeamId && !defaultClubId) {
+      let cancelled = false;
+      (async () => {
+        const { data } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", defaultTeamId)
+          .maybeSingle();
+        if (!cancelled && data?.club_id) {
+          setSelectedClubId((prev) => prev || (data.club_id as string));
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+  }, [open, defaultClubId, defaultTeamId, defaultEventId]);
+
   useEffect(() => {
     if (!open) {
       restoreNativeLayout();
@@ -379,7 +419,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, photoCaption: string): Promise<{ url: string; photoId: string }> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string): Promise<{ url: string; photoId: string }> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
@@ -414,6 +454,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       club_id: clubId || null,
       team_id: teamId || null,
       mini_league_id: miniLeagueId || null,
+      event_id: eventId || null,
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
@@ -442,6 +483,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setSelectedEventId("");
     setCaption("");
     setSelectedPhotos([]);
     setUploading(false);
@@ -595,6 +637,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const clubId = selectedClubId;
     const teamId = selectedTeamId;
     const miniLeagueId = selectedMiniLeagueId;
+    const eventId = selectedEventId;
     const photoCaption = caption.trim();
     
     // Notify parent about uploading count for skeleton display BEFORE closing
@@ -626,7 +669,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       );
       
       try {
-        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, photoCaption);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption);
         uploadedUrls.push(url);
         uploadedPhotoIds.push(photoId);
         successCount++;
@@ -676,7 +719,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
             _photo_ids: uploadedPhotoIds,
             _hero_photo_id: heroPhotoId,
             _hero_image_url: heroUrl,
-            _event_id: null,
+            _event_id: eventId || null,
           },
         );
         if (rpcError) {
@@ -739,6 +782,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setSelectedEventId("");
     setCaption("");
     setSelectedPhotos([]);
     setUploading(false);

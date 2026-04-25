@@ -972,6 +972,8 @@ export default function MediaPage() {
                 open={uploadDialogOpen} 
                 onOpenChange={setUploadDialogOpen}
                 onUploadingCountChange={setUploadingCount}
+                defaultTeamId={searchParams.get("team")}
+                defaultEventId={searchParams.get("event")}
               />
             </>
           )}
