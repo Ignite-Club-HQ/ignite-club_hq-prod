@@ -496,6 +496,7 @@ serve(async (req) => {
         results.push(await importDriveFile({
           serviceClient,
           supabaseUrl,
+          serviceKey: supabaseServiceKey,
           accessToken,
           file: item.file ?? item,
           folderId: item.folderId ?? folderId ?? null,
