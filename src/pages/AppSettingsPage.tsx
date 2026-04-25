@@ -178,6 +178,32 @@ export default function AppSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5 text-primary" />
+              Post-game photo prompts
+            </CardTitle>
+            <CardDescription>
+              Manually run the hourly cron that posts "Got photos?" cards to team chats for games that ended 2–3 hours ago. Useful for testing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => runPhotoPromptMutation.mutate()}
+              disabled={runPhotoPromptMutation.isPending}
+              className="gap-2"
+            >
+              {runPhotoPromptMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Run photo prompt now
+            </Button>
+          </CardContent>
+        </Card>
+
         <div className="text-center text-sm text-muted-foreground pt-4">
           <p>Current status: {isClubCreationLocked ? "Only app admins can create clubs" : "Anyone can create clubs"}</p>
         </div>
