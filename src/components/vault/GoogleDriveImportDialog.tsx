@@ -659,6 +659,8 @@ export function GoogleDriveImportDialog({
                   size="sm" 
                   onClick={() => {
                     setAccessToken(null);
+                    setRefreshToken(null);
+                    setGoogleEmail(null);
                     setStep("connect");
                     setFolders([]);
                     setFiles([]);
