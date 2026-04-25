@@ -24,6 +24,16 @@ interface DriveFile {
   createdTime?: string;
 }
 
+interface SelectedDriveFile {
+  file: DriveFile;
+  folderPath: string;
+}
+
+interface SelectedDriveFolder {
+  folder: DriveFile;
+  folderPath: string;
+}
+
 interface GoogleDriveImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,8 +59,8 @@ export function GoogleDriveImportDialog({
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, SelectedDriveFile>>(new Map());
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, SelectedDriveFolder>>(new Map());
   const [keepInSync, setKeepInSync] = useState(true);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -95,8 +105,8 @@ export function GoogleDriveImportDialog({
       setFiles([]);
       setCurrentFolderId(null);
       setFolderPath([]);
-      setSelectedFiles(new Set());
-      setSelectedFolders(new Set());
+      setSelectedFiles(new Map());
+      setSelectedFolders(new Map());
       setKeepInSync(true);
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
@@ -191,34 +201,46 @@ export function GoogleDriveImportDialog({
     await loadFolderContents(folderId);
   };
 
-  const toggleFileSelection = (fileId: string) => {
-    const newSet = new Set(selectedFiles);
-    if (newSet.has(fileId)) {
-      newSet.delete(fileId);
+  const getCurrentDrivePath = useCallback(() => folderPath.map((folder) => folder.name).join('/'), [folderPath]);
+
+  const toggleFileSelection = (file: DriveFile) => {
+    const newMap = new Map(selectedFiles);
+    if (newMap.has(file.id)) {
+      newMap.delete(file.id);
     } else {
-      newSet.add(fileId);
+      newMap.set(file.id, { file, folderPath: getCurrentDrivePath() });
     }
-    setSelectedFiles(newSet);
+    setSelectedFiles(newMap);
   };
 
-  const toggleFolderSelection = (folderId: string) => {
-    const newSet = new Set(selectedFolders);
-    if (newSet.has(folderId)) {
-      newSet.delete(folderId);
+  const toggleFolderSelection = (folder: DriveFile) => {
+    const newMap = new Map(selectedFolders);
+    if (newMap.has(folder.id)) {
+      newMap.delete(folder.id);
     } else {
-      newSet.add(folderId);
+      const currentPath = getCurrentDrivePath();
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      newMap.set(folder.id, { folder, folderPath: folderImportPath });
     }
-    setSelectedFolders(newSet);
+    setSelectedFolders(newMap);
   };
 
   const selectAll = () => {
-    setSelectedFiles(new Set(files.map(f => f.id)));
-    setSelectedFolders(new Set(folders.map(f => f.id)));
+    const currentPath = getCurrentDrivePath();
+    const nextFiles = new Map(selectedFiles);
+    const nextFolders = new Map(selectedFolders);
+    files.forEach((file) => nextFiles.set(file.id, { file, folderPath: currentPath }));
+    folders.forEach((folder) => {
+      const folderImportPath = [currentPath, folder.name].filter(Boolean).join('/');
+      nextFolders.set(folder.id, { folder, folderPath: folderImportPath });
+    });
+    setSelectedFiles(nextFiles);
+    setSelectedFolders(nextFolders);
   };
 
   const deselectAll = () => {
-    setSelectedFiles(new Set());
-    setSelectedFolders(new Set());
+    setSelectedFiles(new Map());
+    setSelectedFolders(new Map());
   };
 
   const getFileIcon = (mimeType: string) => {
