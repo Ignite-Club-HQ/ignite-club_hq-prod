@@ -307,14 +307,18 @@ export function GoogleDriveImportDialog({
         return;
       }
 
-      // Process each file
+      // Prepare files first, then send them to the Edge Function in small
+      // batches. This avoids hundreds of mobile client→function requests for
+      // large club vault imports while keeping each server call short enough
+      // for Edge Function limits.
       let successCount = 0;
       const failures: { name: string; reason: string }[] = [];
       const folderCache: Record<string, string> = {}; // path -> folder_id mapping
+      const preparedFiles: { file: DriveFile; folderId: string | null }[] = [];
 
       for (let i = 0; i < filesToImport.length; i++) {
         const { file, folderPath: relativePath } = filesToImport[i];
-        setImportProgress({ current: i + 1, total: filesToImport.length, currentFile: file.name });
+        setImportProgress({ current: i + 1, total: filesToImport.length, currentFile: `Preparing ${file.name}` });
 
         try {
           // Ensure folder structure exists
@@ -340,6 +344,24 @@ export function GoogleDriveImportDialog({
             continue;
           }
 
+          preparedFiles.push({ file, folderId: uploadFolderId });
+        } catch (fileError: any) {
+          const reason = fileError?.message || "Unknown error";
+          console.error(`Error preparing ${file.name}:`, fileError);
+          failures.push({ name: file.name, reason });
+        }
+      }
+
+      const batchSize = 8;
+      for (let i = 0; i < preparedFiles.length; i += batchSize) {
+        const batch = preparedFiles.slice(i, i + batchSize);
+        setImportProgress({
+          current: Math.min(i + batch.length, preparedFiles.length),
+          total: preparedFiles.length,
+          currentFile: `Importing ${batch[0]?.file.name ?? 'files'}`,
+        });
+
+        try {
           const importResponse = await fetch(
             `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
             {
@@ -351,8 +373,7 @@ export function GoogleDriveImportDialog({
               },
               body: JSON.stringify({
                 accessToken,
-                file,
-                folderId: uploadFolderId,
+                files: batch,
                 clubId: targetClubId,
                 teamId: targetTeamId,
               }),
@@ -368,16 +389,26 @@ export function GoogleDriveImportDialog({
 
           if (!importResponse.ok || importData?.error) {
             const reason = importData?.error || `HTTP ${importResponse.status}`;
-            console.error(`Failed to import ${file.name}:`, reason);
-            failures.push({ name: file.name, reason });
+            console.error(`Failed to import Drive batch:`, reason);
+            batch.forEach(({ file }) => failures.push({ name: file.name, reason }));
             continue;
           }
 
-          successCount++;
-        } catch (fileError: any) {
-          const reason = fileError?.message || "Unknown error";
-          console.error(`Error processing ${file.name}:`, fileError);
-          failures.push({ name: file.name, reason });
+          const results = Array.isArray(importData?.results) ? importData.results : [];
+          results.forEach((result: any, index: number) => {
+            if (result?.success) {
+              successCount++;
+            } else {
+              failures.push({
+                name: result?.fileName || batch[index]?.file.name || 'Unknown file',
+                reason: result?.error || 'Import failed',
+              });
+            }
+          });
+        } catch (batchError: any) {
+          const reason = batchError?.message || "Unknown error";
+          console.error(`Error importing Drive batch:`, batchError);
+          batch.forEach(({ file }) => failures.push({ name: file.name, reason }));
         }
       }
 
