@@ -139,9 +139,8 @@ const importDriveFile = async ({
     return { success: false, fileId: file.id, fileName: file.name, error: 'Failed to download file', details: errorText };
   }
 
-  const fileData = await fileResponse.arrayBuffer();
   const finalFileName = applyExportExtension(file.name, config.exportMimeType);
-  const contentType = config.exportMimeType ?? file.mimeType;
+  const contentType = config.exportMimeType ?? fileResponse.headers.get('content-type') ?? file.mimeType;
   const safeExt = getSafeExtension(finalFileName, contentType);
   const timestamp = Date.now();
   const randomSuffix = crypto.randomUUID().slice(0, 8);
@@ -149,16 +148,31 @@ const importDriveFile = async ({
     ? `clubs/${clubId}/teams/${teamId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`
     : `clubs/${clubId}/${userId}/${timestamp}-${randomSuffix}.${safeExt}`;
 
-  const { error: uploadError } = await serviceClient.storage
-    .from('photos')
-    .upload(storagePath, fileData, { contentType, upsert: false });
+  if (!fileResponse.body) {
+    return { success: false, fileId: file.id, fileName: file.name, error: 'Drive returned an empty file stream' };
+  }
 
-  if (uploadError) {
+  try {
+    await uploadStreamToStorage({
+      supabaseUrl,
+      serviceKey,
+      bucket: 'photos',
+      storagePath,
+      body: fileResponse.body,
+      contentType,
+    });
+  } catch (uploadError) {
     console.error(`Failed to upload imported Drive file ${file.name}:`, uploadError);
-    return { success: false, fileId: file.id, fileName: file.name, error: uploadError.message };
+    return {
+      success: false,
+      fileId: file.id,
+      fileName: file.name,
+      error: uploadError instanceof Error ? uploadError.message : 'Storage upload failed',
+    };
   }
 
   const fileUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+  const fileSize = getOptionalNumber(file.size) ?? getOptionalNumber(fileResponse.headers.get('content-length'));
   const { error: insertError } = await serviceClient.from('vault_files').insert({
     file_url: fileUrl,
     name: finalFileName,
@@ -166,7 +180,7 @@ const importDriveFile = async ({
     team_id: teamId ?? null,
     folder_id: folderId ?? null,
     uploaded_by: userId,
-    file_size: fileData.byteLength,
+    file_size: fileSize,
     file_type: contentType,
     drive_file_id: file.id,
     drive_modified_time: file.modifiedTime ?? null,
@@ -178,7 +192,7 @@ const importDriveFile = async ({
     return { success: false, fileId: file.id, fileName: file.name, error: insertError.message };
   }
 
-  return { success: true, fileId: file.id, fileName: finalFileName, size: fileData.byteLength };
+  return { success: true, fileId: file.id, fileName: finalFileName, size: fileSize };
 };
 
 serve(async (req) => {
