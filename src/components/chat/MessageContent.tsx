@@ -7,6 +7,7 @@ import { EventLinkCard } from "./EventLinkCard";
 import { BoardLinkCard } from "./BoardLinkCard";
 import { PollCard } from "./PollCard";
 import { VaultFileCard } from "./VaultFileCard";
+import { GalleryLinkCard } from "./GalleryLinkCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
