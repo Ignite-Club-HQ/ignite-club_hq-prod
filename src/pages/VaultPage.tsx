@@ -3143,38 +3143,357 @@ export default function VaultPage() {
                                   )}
                                 </>
                               )}
-                        {(isClubAdmin || isAppAdmin) && (
-                          <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
-                            {showTrash ? (
-                              <>
-                                <FolderOpen className="h-4 w-4 mr-2" />
-                                View Files
-                              </>
-                            ) : (
-                              <>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                View Trash
-                              </>
-                            )}
+                              {(isClubAdmin || isAppAdmin) && (
+                                <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
+                                  {showTrash ? (
+                                    <>
+                                      <FolderOpen className="h-4 w-4 mr-2" />
+                                      View Files
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      View Trash
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                      </div>
+                    );
+                  })()}
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-3 pt-3 border-t">
+                  {/* Expanded storage details */}
+                  <div className="space-y-3">
+                    {/* Team-specific storage - only shown in team view */}
+                    {currentView.type === "team" && currentTeamStorageUsed > 0 && (
+                      <div className="pb-3 border-b">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                          <span className="font-medium text-foreground">This Team</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-semibold text-foreground">
+                            {formatStorageSize(currentTeamStorageUsed)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({Math.round((currentTeamStorageUsed / totalClubStorageUsed) * 100)}% of club storage)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Storage breakdown pie chart - photos vs documents */}
+                    {storageBreakdown && (storageBreakdown.photos > 0 || storageBreakdown.documents > 0) && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                                ].filter(d => d.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={16}
+                                outerRadius={28}
+                                paddingAngle={2}
+                                dataKey="value"
+                              >
+                                {[
+                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                                ].filter(d => d.value > 0).map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 rounded-sm bg-primary shrink-0" />
+                            <FileImage className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Photos</span>
+                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.photos)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 rounded-sm bg-muted-foreground shrink-0" />
+                            <File className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Documents</span>
+                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.documents)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Storage breakdown by team */}
+                    {currentView.type === "club" && storageBreakdown?.byTeam && storageBreakdown.byTeam.length > 0 && (
+                      <Collapsible className="pt-3 border-t">
+                        <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
+                          <span>Storage by Team</span>
+                          <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2">
+                          {storageBreakdown.byTeam.slice(0, 5).map((team) => {
+                            const teamPercentageOfTotal = totalClubStorageUsed > 0 
+                              ? Math.min(100, (team.size / totalClubStorageUsed) * 100)
+                              : 0;
+                            return (
+                              <div key={team.teamId || "club"} className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    <span className="truncate">{team.teamName}</span>
+                                  </div>
+                                  <span className="text-muted-foreground shrink-0">
+                                    {formatStorageSize(team.size)} ({Math.round(teamPercentageOfTotal)}%)
+                                  </span>
+                                </div>
+                                <Progress 
+                                  value={teamPercentageOfTotal} 
+                                  className="h-1.5 w-full bg-white dark:bg-muted [&>div]:bg-primary"
+                                />
+                              </div>
+                            );
+                          })}
+                          {storageBreakdown.byTeam.length > 5 && (
+                            <span className="text-xs text-muted-foreground">+{storageBreakdown.byTeam.length - 5} more teams</span>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    
+                    {/* Compact action icons row */}
+                    {(isClubAdmin || (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8) && (
+                      <div className="pt-3 border-t flex items-center gap-2">
+                        {/* Large Files - only when storage >= 80% */}
+                        {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    setLargeFilesDialogOpen(true);
+                                    fetchLargeFiles();
+                                  }}
+                                >
+                                  <HardDrive className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Manage Large Files</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        
+                        {/* Buy/Manage Storage */}
+                        {isClubAdmin && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => setStoragePurchaseDialogOpen(true)}
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+          
+          <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
+            <TooltipProvider>
+              {/* Selection Mode Controls - visible when there's content */}
+              {(photos?.length > 0 || files?.length > 0) && !showTrash && selectionMode && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={selectAll}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-1" />
+                        Select All
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Select all photos and files</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={exitSelectionMode}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Exit selection mode</TooltipContent>
+                  </Tooltip>
+                  {selectedCount > 0 && (
+                    <>
+                      {isExporting ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled
+                            className="min-w-[80px]"
+                          >
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                            <span className="text-xs">{exportProgress.current}/{exportProgress.total}</span>
+                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                onClick={cancelExport}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Cancel export</TooltipContent>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="default" 
+                                size="sm" 
+                                onClick={() => initiateExport('zip')}
+                              >
+                                <FileArchive className="h-4 w-4 mr-1" />
+                                Export ({selectedCount})
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Export {selectedCount} selected items as ZIP</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => initiateExport('download')}
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Download ({selectedCount})
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Download {selectedCount} selected items individually</TooltipContent>
+                          </Tooltip>
+                          {(isClubAdmin || isAppAdmin) && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                onClick={() => setBulkDeleteDialogOpen(true)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete ({selectedCount})
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete {selectedCount} selected items</TooltipContent>
+                          </Tooltip>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              
+              {/* Export progress when exporting */}
+              {!selectionMode && isExporting && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled
+                    className="min-w-[80px]"
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    <span className="text-xs">{exportProgress.current}/{exportProgress.total}</span>
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={cancelExport}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Cancel export</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+
+              {/* Main toolbar - only when not in selection mode or exporting */}
+              {!selectionMode && !isExporting && (
+                <>
+                  {/* Primary Upload Button - always visible */}
+                  {canUpload && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+                          <Upload className="h-4 w-4 mr-1" /> Upload
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Upload photos or files</TooltipContent>
+                    </Tooltip>
+                  )}
+
+                  {/* Add Dropdown - New Folder, Add Link, Import from Drive */}
+                  {canUpload && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Plus className="h-4 w-4 mr-1" /> Add
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-popover">
+                        <DropdownMenuItem onClick={() => setNewFolderDialogOpen(true)}>
+                          <FolderPlus className="h-4 w-4 mr-2" />
+                          New Folder
+                        </DropdownMenuItem>
+                        {Capacitor.getPlatform() !== 'ios' && (
+                          <DropdownMenuItem onClick={() => setAddLinkDialogOpen(true)}>
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Add Link
                           </DropdownMenuItem>
                         )}
                         {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
-                          <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync with Drive folder
-                          </DropdownMenuItem>
-                        )}
-                        {isClubAdmin && (
-                          <DropdownMenuItem
-                            onClick={handleResolveDriveTitles}
-                            disabled={resolvingDriveTitles}
-                          >
-                            {resolvingDriveTitles ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Sheet className="h-4 w-4 mr-2" />
-                            )}
-                            Fetch real Google titles
+                          <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
+                            <CloudDownload className="h-4 w-4 mr-2" />
+                            Import from Drive
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
