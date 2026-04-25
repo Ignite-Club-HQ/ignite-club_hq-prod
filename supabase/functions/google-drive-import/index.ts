@@ -57,9 +57,52 @@ const getSafeExtension = (fileName: string, contentType: string) => {
   return 'bin';
 };
 
+const getOptionalNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const uploadStreamToStorage = async ({
+  supabaseUrl,
+  serviceKey,
+  bucket,
+  storagePath,
+  body,
+  contentType,
+}: {
+  supabaseUrl: string;
+  serviceKey: string;
+  bucket: string;
+  storagePath: string;
+  body: ReadableStream<Uint8Array>;
+  contentType: string;
+}) => {
+  const encodedPath = storagePath.split('/').map(encodeURIComponent).join('/');
+  const uploadResponse = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${encodedPath}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+      'Content-Type': contentType,
+      'x-upsert': 'false',
+    },
+    body,
+  });
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    throw new Error(errorText || `Storage upload failed with HTTP ${uploadResponse.status}`);
+  }
+};
+
 const importDriveFile = async ({
   serviceClient,
   supabaseUrl,
+  serviceKey,
   accessToken,
   file,
   folderId,
@@ -69,6 +112,7 @@ const importDriveFile = async ({
 }: {
   serviceClient: any;
   supabaseUrl: string;
+  serviceKey: string;
   accessToken: string;
   file: any;
   folderId?: string | null;
