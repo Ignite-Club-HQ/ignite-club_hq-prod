@@ -43,12 +43,15 @@ export function GoogleDriveImportDialog({
 }: GoogleDriveImportDialogProps) {
   const [step, setStep] = useState<"connect" | "browse" | "importing">("connect");
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [folders, setFolders] = useState<DriveFile[]>([]);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [keepInSync, setKeepInSync] = useState(true);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentFile: "" });
