@@ -636,6 +636,7 @@ export function UploadPhotoSheet({
     const clubId = selectedClubId;
     const teamId = selectedTeamId;
     const miniLeagueId = selectedMiniLeagueId;
+    const eventId = selectedEventId;
     const photoCaption = caption.trim();
     
     // Notify parent about uploading count for skeleton display BEFORE closing
