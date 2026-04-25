@@ -56,8 +56,15 @@ async function listDriveFolder(accessToken: string, folderId: string) {
   do {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set('q', `'${folderId}' in parents and trashed = false`);
-    url.searchParams.set('fields', 'nextPageToken, files(id,name,mimeType,size,modifiedTime)');
+    url.searchParams.set(
+      'fields',
+      'nextPageToken, files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+    );
     url.searchParams.set('pageSize', '1000');
+    // Required so 'root' resolves to the user's My Drive root and so we can
+    // see files in shared drives the user has access to.
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -68,10 +75,27 @@ async function listDriveFolder(accessToken: string, folderId: string) {
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  const folders = allFiles.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
-  const files = allFiles.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
+  // Resolve shortcuts to their target so we treat them like the real file/folder.
+  const resolved = allFiles.map((f: any) => {
+    if (
+      f.mimeType === 'application/vnd.google-apps.shortcut' &&
+      f.shortcutDetails?.targetId &&
+      f.shortcutDetails?.targetMimeType
+    ) {
+      return {
+        ...f,
+        id: f.shortcutDetails.targetId,
+        mimeType: f.shortcutDetails.targetMimeType,
+      };
+    }
+    return f;
+  });
+
+  const folders = resolved.filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder');
+  const files = resolved.filter((f: any) => f.mimeType !== 'application/vnd.google-apps.folder');
   return { folders, files };
 }
+
 
 async function getDriveFileMetadata(accessToken: string, fileId: string) {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime,trashed`;
@@ -97,6 +121,14 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
     exportedMimeType = 'application/pdf';
     extraExt = '.pdf';
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
+  } else if (mimeType === 'application/vnd.google-apps.form') {
+    // Google Forms cannot be exported via the Drive API. Skip cleanly.
+    throw new Error('SKIP_UNSUPPORTED: Google Forms cannot be exported');
+  } else if (mimeType.startsWith('application/vnd.google-apps.')) {
+    // Other Google native types (drawings, sites, scripts, etc.) — try PDF export.
+    exportedMimeType = 'application/pdf';
+    extraExt = '.pdf';
+    downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportedMimeType)}`;
   } else {
     downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
   }
@@ -108,6 +140,17 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 }
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
+
+// Supabase Storage rejects keys containing characters outside a safe set
+// (e.g. '|', '#', '?', control chars). Sanitize the filename portion of the
+// path so uploads succeed for files like "Profit | Loss Statement.xlsx".
+function sanitizeStorageName(name: string): string {
+  return name
+    .replace(/[\\/]/g, '-')
+    .replace(/[^A-Za-z0-9._\-\s()[\]]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
 
@@ -140,9 +183,10 @@ async function processFile(
     const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
     let fileName = file.name;
     if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+    const safeFileName = sanitizeStorageName(fileName);
     const blob = new Blob([bytes], { type: contentType });
     const bucket = 'photos';
-    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
     const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -163,9 +207,10 @@ async function processFile(
   const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
   let fileName = file.name;
   if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
+  const safeFileName = sanitizeStorageName(fileName);
   const blob = new Blob([bytes], { type: contentType });
   const bucket = 'photos';
-  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${fileName}`;
+  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
   if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
   const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
