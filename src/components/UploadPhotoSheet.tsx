@@ -379,7 +379,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, photoCaption: string): Promise<string> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, photoCaption: string): Promise<{ url: string; photoId: string }> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
