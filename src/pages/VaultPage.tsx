@@ -380,6 +380,10 @@ export default function VaultPage() {
             setLinkDriveFolderOpen(true);
           } else {
             sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
+            // Also stash refresh token + google email so the import dialog can
+            // optionally create a sync link for any folder the user imports.
+            if (data.refreshToken) sessionStorage.setItem('googleDriveRefreshToken', data.refreshToken);
+            if (data.googleEmail) sessionStorage.setItem('googleDriveGoogleEmail', data.googleEmail);
             setGoogleDriveImportOpen(true);
           }
         } catch (err) {
