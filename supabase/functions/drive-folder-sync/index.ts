@@ -141,20 +141,26 @@ async function downloadDriveFile(accessToken: string, fileId: string, mimeType: 
 
 const MAX_FILE_BYTES = 40 * 1024 * 1024; // 40 MB — edge function memory safety
 
-// Supabase Storage rejects keys containing characters outside a safe set.
-// Keep names conservative here because Drive files commonly include spaces,
-// brackets, punctuation, and unicode that can make uploads fail.
-function sanitizeStorageName(name: string): string {
-  const sanitized = name
+function sanitizeExtension(name: string): string {
+  const rawExt = name.includes('.') ? name.split('.').pop() ?? 'bin' : 'bin';
+  const cleanExt = rawExt
     .normalize('NFKD')
     .replace(/[^\x20-\x7E]/g, '')
-    .replace(/[\\/]/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .replace(/[-_]{2,}/g, (match) => match[0])
-    .replace(/^[-_.]+|[-_.]+$/g, '');
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toLowerCase();
 
-  return sanitized || 'file';
+  return cleanExt || 'bin';
+}
+
+function buildStoragePath(link: DriveLink, fileName: string): string {
+  const ext = sanitizeExtension(fileName);
+  const objectName = `${crypto.randomUUID()}.${ext}`;
+
+  if (link.team_id) {
+    return `clubs/${link.club_id}/teams/${link.team_id}/drive-sync/${objectName}`;
+  }
+
+  return `clubs/${link.club_id}/drive-sync/${objectName}`;
 }
 
 type FileOutcome = 'imported' | 'updated' | 'skipped' | 'failed' | 'unchanged';
@@ -188,10 +194,9 @@ async function processFile(
     const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
     let fileName = file.name;
     if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
-    const safeFileName = sanitizeStorageName(fileName);
     const blob = new Blob([bytes], { type: contentType });
     const bucket = 'photos';
-    const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
+    const storagePath = buildStoragePath(link, fileName);
     const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -212,10 +217,9 @@ async function processFile(
   const { bytes, contentType, extraExt } = await downloadDriveFile(accessToken, file.id, file.mimeType);
   let fileName = file.name;
   if (extraExt && !fileName.endsWith(extraExt)) fileName += extraExt;
-  const safeFileName = sanitizeStorageName(fileName);
   const blob = new Blob([bytes], { type: contentType });
   const bucket = 'photos';
-  const storagePath = `${link.club_id}/${crypto.randomUUID()}-${safeFileName}`;
+  const storagePath = buildStoragePath(link, fileName);
   const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, blob, { contentType });
   if (upErr) throw new Error(`Storage upload failed: ${upErr.message ?? upErr}`);
   const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(storagePath);
