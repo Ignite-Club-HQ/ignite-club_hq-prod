@@ -614,6 +614,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     let errorCount = 0;
     let firstErrorMessage: string | null = null;
     const uploadedUrls: string[] = [];
+    const uploadedPhotoIds: string[] = [];
     
     for (let i = 0; i < photosToUpload.length; i++) {
       const photo = photosToUpload[i];
@@ -625,8 +626,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       );
       
       try {
-        const url = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, photoCaption);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, photoCaption);
         uploadedUrls.push(url);
+        uploadedPhotoIds.push(photoId);
         successCount++;
       } catch (error: unknown) {
         errorCount++;
@@ -655,6 +657,70 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
           })
         )
       );
+    }
+
+    // ---------------------------------------------------------------------
+    // Team Gallery → Chat Card
+    // Trigger ONLY for batches uploaded to a TEAM gallery with ≥3 successful items.
+    // Aggregation (10-min window) and message text are handled in the RPC.
+    // Push notification only when ≥5 items in the resulting card.
+    // ---------------------------------------------------------------------
+    if (teamId && successCount >= 3 && uploadedPhotoIds.length >= 3) {
+      try {
+        const heroPhotoId = uploadedPhotoIds[0];
+        const heroUrl = uploadedUrls[0];
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "post_or_update_team_gallery_card",
+          {
+            _team_id: teamId,
+            _photo_ids: uploadedPhotoIds,
+            _hero_photo_id: heroPhotoId,
+            _hero_image_url: heroUrl,
+            _event_id: null,
+          },
+        );
+        if (rpcError) {
+          console.error("[gallery-card] RPC failed", rpcError);
+        } else if (rpcData && Array.isArray(rpcData) && rpcData[0]) {
+          const card = rpcData[0] as { card_id: string; message_id: string; total_count: number; was_new: boolean };
+          // Push notification rule: only when card represents ≥5 items AND not yet pushed.
+          if (card.total_count >= 5) {
+            try {
+              // Lookup team name for nicer message body.
+              const { data: teamRow } = await supabase
+                .from("teams")
+                .select("name")
+                .eq("id", teamId)
+                .maybeSingle();
+              const teamName = teamRow?.name || "Team";
+              const body = `📸 ${card.total_count} new ${teamName} photos added`;
+              const { error: pushError } = await supabase.functions.invoke(
+                "process-message-notifications",
+                {
+                  body: {
+                    messageType: "team",
+                    messageId: card.message_id,
+                    authorId: user!.id,
+                    messageText: body,
+                    imageUrl: null,
+                    teamId,
+                    replyToId: null,
+                  },
+                },
+              );
+              if (pushError) {
+                console.error("[gallery-card] push invoke failed", pushError);
+              } else {
+                await supabase.rpc("mark_gallery_card_push_sent", { _card_id: card.card_id });
+              }
+            } catch (e) {
+              console.error("[gallery-card] push step failed", e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[gallery-card] failed", e);
+      }
     }
     
     // Invalidate photos query, vault files query, and storage breakdown
