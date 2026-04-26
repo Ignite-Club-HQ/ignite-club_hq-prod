@@ -31,6 +31,16 @@ interface AddressAutocompleteProps {
 interface Suggestion {
   place_id: string;
   description: string;
+  main_text?: string;
+  secondary_text?: string;
+}
+
+// Generate a Google Places session token (UUID v4) for billing optimization
+function generateSessionToken() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 export function AddressAutocomplete({
@@ -53,6 +63,7 @@ export function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const isSelectingRef = useRef(false);
   const skipNextSearchRef = useRef(false);
+  const sessionTokenRef = useRef<string>(generateSessionToken());
 
   // Fetch user's saved favorite locations
   useEffect(() => {
@@ -101,86 +112,22 @@ export function AddressAutocomplete({
       setSearchAttempted(true);
       setShowSavedLocations(false);
       try {
-        const searchQuery = encodeURIComponent(value);
-        let data: any[] = [];
-        
-        // First search: freeform query
-        const freeformResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&countrycodes=au&limit=5&addressdetails=1&extratags=1&namedetails=1`,
-          {
-            headers: {
-              'Accept': 'application/json',
-            }
-          }
-        );
-        data = await freeformResponse.json();
-        
-        // Try a structured search if we have a pattern like "<number> <street> <suburb>"
-        const trimmedValue = value.trim();
-        const tokens = trimmedValue.split(/\s+/);
-        const hasHouseNumber = tokens.length >= 3 && /^\d+[A-Za-z]?$/.test(tokens[0]);
-
-        if (hasHouseNumber && data.length === 0) {
-          const houseNumber = tokens[0];
-          const suburb = tokens[tokens.length - 1];
-          const streetName = tokens.slice(1, -1).join(" ");
-
-          const structuredResponse = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&street=${encodeURIComponent(
-              houseNumber + " " + streetName
-            )}&city=${encodeURIComponent(suburb)}&countrycodes=au&limit=5&addressdetails=1&namedetails=1`,
-            {
-              headers: {
-                Accept: "application/json",
-              },
-            }
-          );
-          const structuredData = await structuredResponse.json();
-          if (structuredData.length > 0) {
-            data = structuredData;
-          }
-        }
-
-        // If still no results, try searching just street + suburb as freeform
-        if (data.length === 0 && hasHouseNumber) {
-          const suburb = tokens[tokens.length - 1];
-          const streetName = tokens.slice(1, -1).join(" ");
-          const fallbackResponse = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-              streetName + " " + suburb
-            )}&countrycodes=au&limit=5&addressdetails=1&namedetails=1`,
-            {
-              headers: {
-                Accept: "application/json",
-              },
-            }
-          );
-          data = await fallbackResponse.json();
-        }
-        
-        // Sort results to prioritize exact matches and venues
-        const sortedData = data.sort((a: any, b: any) => {
-          // Prioritize venues (ovals, parks, etc) if searching for them
-          const aIsVenue = a.class === 'leisure' || a.class === 'amenity' || a.class === 'sport';
-          const bIsVenue = b.class === 'leisure' || b.class === 'amenity' || b.class === 'sport';
-          if (aIsVenue && !bIsVenue) return -1;
-          if (!aIsVenue && bIsVenue) return 1;
-          
-          // Then prioritize by importance
-          return (b.importance || 0) - (a.importance || 0);
+        const { data, error } = await supabase.functions.invoke('google-places-search', {
+          body: {
+            action: 'autocomplete',
+            query: value,
+            sessionToken: sessionTokenRef.current,
+          },
         });
-        
-        setSuggestions(
-          sortedData.map((item: any) => ({
-            place_id: item.place_id,
-            description: item.display_name,
-            address: item.address,
-            name: item.namedetails?.name || item.name,
-          }))
-        );
+
+        if (error) throw error;
+
+        const results = (data?.suggestions || []) as Suggestion[];
+        setSuggestions(results);
         setShowSuggestions(true);
       } catch (error) {
         console.error("Address search error:", error);
+        setSuggestions([]);
       } finally {
         setLoading(false);
       }
@@ -193,72 +140,61 @@ export function AddressAutocomplete({
     };
   }, [value]);
 
-  const handleSelect = async (suggestion: any) => {
-    // Try to preserve any leading street number from the user's typed value
-    const trimmedValue = value.trim();
-    const leadingNumberMatch = trimmedValue.match(/^(\d+[A-Za-z]?)/);
-
-    let displayAddress = suggestion.description as string;
-
-    if (leadingNumberMatch) {
-      const leadingNumber = leadingNumberMatch[1];
-      const suggestionFirstPart = displayAddress.split(",")[0].trim();
-
-      // If the suggestion is missing the number, prepend it
-      if (!suggestionFirstPart.startsWith(leadingNumber)) {
-        const parts = displayAddress.split(",");
-        parts[0] = `${leadingNumber} ${suggestionFirstPart.replace(/^\d+\s*/, "").trim()}`;
-        displayAddress = parts.join(", ");
-      }
-    }
-
+  const handleSelect = async (suggestion: Suggestion) => {
     skipNextSearchRef.current = true;
-    onChange(displayAddress);
+    // Optimistic display while details load
+    onChange(suggestion.description);
     setShowSuggestions(false);
     setShowSavedLocations(false);
+    setLoading(true);
 
-    if (onSelect && suggestion.address) {
-      const addr = suggestion.address;
-      
-      // For venues (ovals, parks, sports facilities), use the venue name as the address
-      // Check for venue name in namedetails or the first part of description
-      const venueName = suggestion.name;
-      const isVenue = addr.leisure || addr.amenity || addr.sport || 
-                      (venueName && !venueName.match(/^\d/)); // Has a name that doesn't start with a number
-      
-      let finalStreet: string;
-      
-      if (isVenue && venueName) {
-        // For venues, use the venue name, optionally with street info
-        const streetPart = [addr.house_number, addr.road].filter(Boolean).join(" ");
-        finalStreet = streetPart ? `${venueName}, ${streetPart}` : venueName;
-      } else {
-        // For regular addresses, use house number + road
-        const baseStreet =
-          [addr.house_number, addr.road].filter(Boolean).join(" ") ||
-          suggestion.description.split(",")[0];
-
-        finalStreet = baseStreet;
-        if (leadingNumberMatch) {
-          const leadingNumber = leadingNumberMatch[1];
-          if (!baseStreet.trim().startsWith(leadingNumber)) {
-            finalStreet = `${leadingNumber} ${baseStreet.replace(/^\d+\s*/, "").trim()}`;
-          }
-        }
-      }
-
-      onSelect({
-        address: finalStreet,
-        suburb: addr.suburb || addr.city || addr.town || "",
-        state: addr.state || "",
-        postcode: addr.postcode || "",
+    try {
+      const { data, error } = await supabase.functions.invoke('google-places-search', {
+        body: {
+          action: 'details',
+          placeId: suggestion.place_id,
+          sessionToken: sessionTokenRef.current,
+        },
       });
+      // Rotate session token after details call (Google billing best practice)
+      sessionTokenRef.current = generateSessionToken();
+
+      if (error) throw error;
+      const place = data?.place;
+      if (!place) return;
+
+      // For named venues (e.g. parks, ovals), prefer the display name as the "street"
+      const hasVenueName = !!place.name && place.name !== place.street;
+      const finalStreet = hasVenueName
+        ? (place.street ? `${place.name}, ${place.street}` : place.name)
+        : (place.street || place.formatted_address.split(',')[0]);
+
+      const fullAddress = [finalStreet, place.suburb, place.state, place.postcode]
+        .filter(Boolean)
+        .join(', ');
+
+      skipNextSearchRef.current = true;
+      onChange(fullAddress);
+
+      if (onSelect) {
+        onSelect({
+          address: finalStreet,
+          suburb: place.suburb || '',
+          state: place.state || '',
+          postcode: place.postcode || '',
+        });
+      }
       setCurrentAddress({
         address: finalStreet,
-        suburb: addr.suburb || addr.city || addr.town || "",
-        state: addr.state || "",
-        postcode: addr.postcode || "",
+        suburb: place.suburb || '',
+        state: place.state || '',
+        postcode: place.postcode || '',
       });
+    } catch (err) {
+      console.error('Place details error:', err);
+      toast.error('Could not load place details');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -336,53 +272,41 @@ export function AddressAutocomplete({
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          
-          // Reverse geocode using Nominatim
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-            {
-              headers: {
-                'Accept': 'application/json',
-              }
-            }
-          );
-          
-          const data = await response.json();
-          
-          if (data && data.address) {
-            const addr = data.address;
-            const street = [addr.house_number, addr.road].filter(Boolean).join(" ") || "";
-            const suburb = addr.suburb || addr.city || addr.town || addr.village || "";
-            const state = addr.state || "";
-            const postcode = addr.postcode || "";
-            
-            const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(", ");
-            
+
+          const { data, error } = await supabase.functions.invoke('google-places-search', {
+            body: {
+              action: 'reverse',
+              lat: latitude,
+              lng: longitude,
+            },
+          });
+
+          if (error) throw error;
+          const place = data?.place;
+
+          if (place) {
+            const street = place.street || '';
+            const suburb = place.suburb || '';
+            const state = place.state || '';
+            const postcode = place.postcode || '';
+
+            const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(', ');
+
             skipNextSearchRef.current = true;
             onChange(fullAddress);
-            setCurrentAddress({
-              address: street,
-              suburb,
-              state,
-              postcode,
-            });
-            
+            setCurrentAddress({ address: street, suburb, state, postcode });
+
             if (onSelect) {
-              onSelect({
-                address: street,
-                suburb,
-                state,
-                postcode,
-              });
+              onSelect({ address: street, suburb, state, postcode });
             }
-            
-            toast.success("Location detected");
+
+            toast.success('Location detected');
           } else {
-            toast.error("Could not determine address from location");
+            toast.error('Could not determine address from location');
           }
         } catch (error) {
-          console.error("Reverse geocoding error:", error);
-          toast.error("Failed to get address from location");
+          console.error('Reverse geocoding error:', error);
+          toast.error('Failed to get address from location');
         } finally {
           setGpsLoading(false);
         }

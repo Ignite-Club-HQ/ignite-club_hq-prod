@@ -635,15 +635,20 @@ export default function MessagesPage() {
     return clubs.map((c: any) => c.id).filter(Boolean) as string[];
   }, [memberClubsWithMessages]);
 
-  const { data: clubProStatus, isLoading: isLoadingClubProStatus } = useQuery({
+  const { data: clubProStatus, isLoading: isLoadingClubProStatus, isFetching: isFetchingClubProStatus } = useQuery({
     queryKey: ["club-pro-status", memberClubIds],
     queryFn: async () => {
       if (memberClubIds.length === 0) return {};
 
-      const { data: subs } = await supabase
+      const { data: subs, error } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
         .in("club_id", memberClubIds);
+
+      // If the query errors transiently (e.g. after returning from phone lock),
+      // throw so React Query keeps the previous (good) data via placeholderData
+      // instead of caching an all-false map that would lock Pro chats.
+      if (error) throw error;
 
       const statusMap: Record<string, boolean> = {};
       memberClubIds.forEach(id => {
@@ -658,6 +663,7 @@ export default function MessagesPage() {
     enabled: memberClubIds.length > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
+    retry: 2,
   });
 
   // Fetch chat groups with their latest messages in a single query
@@ -1258,7 +1264,11 @@ export default function MessagesPage() {
     // Clubs
     filteredClubs.forEach((club: any) => {
       const lastMsg = displayLatestClubMessages?.[club.id];
-      const hasProAccess = isLoadingClubProStatus ? true : (clubProStatus?.[club.id] === true);
+      // Treat as Pro until we have a definitive answer. This prevents a flash of
+      // "Pro only" lock state after returning from phone lock / visibility refetch
+      // when clubProStatus is briefly unavailable.
+      const proStatusKnown = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
+      const hasProAccess = proStatusKnown ? (clubProStatus?.[club.id] === true) : true;
       items.push({
         type: 'club',
         id: club.id,
@@ -1270,7 +1280,7 @@ export default function MessagesPage() {
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.clubs[club.id] || 0,
         isMuted: mutedChats?.clubs.has(club.id) || false,
-        isLocked: !isLoadingClubProStatus && !hasProAccess,
+        isLocked: proStatusKnown && !hasProAccess,
       });
     });
 
@@ -1371,7 +1381,7 @@ export default function MessagesPage() {
     return items;
   }, [
     showBroadcast, displayLatestBroadcast, unreadCounts,
-    filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, clubProStatus, mutedChats,
+    filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
     filteredDMs, user?.id, showIgniteSupport, systemMessage,

@@ -1,0 +1,201 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+/**
+ * Hourly cron: for each post-game gallery prompt that:
+ *   - is_prompt = true
+ *   - push_sent = false
+ *   - was created 4–24h ago
+ *   - still has zero photos for the event
+ * send a single push notification to attendees (RSVP "going") — or
+ * the active team roster as a fallback — deep-linking to the upload
+ * sheet pre-tagged to that event. Mark push_sent = true so we never
+ * re-nudge for the same prompt.
+ */
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  try {
+    const now = Date.now();
+    const lowerBound = new Date(now - 24 * 60 * 60 * 1000).toISOString(); // not older than 24h
+    const upperBound = new Date(now - 4 * 60 * 60 * 1000).toISOString();  // at least 4h old
+
+    const { data: prompts, error: promptsError } = await supabase
+      .from("gallery_chat_cards")
+      .select("id, team_id, event_id, created_at")
+      .eq("is_prompt", true)
+      .eq("push_sent", false)
+      .gte("created_at", lowerBound)
+      .lte("created_at", upperBound);
+
+    if (promptsError) {
+      console.error("[photo-prompt-followup] prompts query failed", promptsError);
+      return new Response(JSON.stringify({ error: promptsError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let pushed = 0;
+    let skipped = 0;
+    let errors = 0;
+    let totalRecipients = 0;
+
+    for (const prompt of prompts ?? []) {
+      try {
+        // Re-check that no photos have been uploaded for this event since.
+        const { data: existingPhotos, error: photosError } = await supabase
+          .from("photos")
+          .select("id")
+          .eq("event_id", prompt.event_id)
+          .is("deleted_at", null)
+          .limit(1);
+
+        if (photosError) {
+          console.error("[photo-prompt-followup] photos check failed", prompt.id, photosError);
+          errors++;
+          continue;
+        }
+
+        if ((existingPhotos ?? []).length > 0) {
+          // Photos arrived — don't nudge, but mark push_sent so we move on.
+          await supabase
+            .from("gallery_chat_cards")
+            .update({ push_sent: true })
+            .eq("id", prompt.id);
+          skipped++;
+          continue;
+        }
+
+        // Fetch event details for the push body.
+        const { data: event } = await supabase
+          .from("events")
+          .select("id, title, opponent, type, team_id")
+          .eq("id", prompt.event_id)
+          .maybeSingle();
+
+        if (!event) {
+          await supabase
+            .from("gallery_chat_cards")
+            .update({ push_sent: true })
+            .eq("id", prompt.id);
+          skipped++;
+          continue;
+        }
+
+        // Recipients: attendees who RSVP'd "going" — fall back to the
+        // active team roster if no RSVPs exist.
+        const { data: rsvps } = await supabase
+          .from("rsvps")
+          .select("user_id")
+          .eq("event_id", prompt.event_id)
+          .eq("status", "going")
+          .not("user_id", "is", null);
+
+        let recipientIds = [...new Set((rsvps ?? []).map((r) => r.user_id as string))];
+
+        if (recipientIds.length === 0) {
+          // Fall back to active team roster — team_memberships → club_players.profile_id.
+          const { data: memberships } = await supabase
+            .from("team_memberships")
+            .select("club_player_id, club_players!inner(profile_id)")
+            .eq("team_id", prompt.team_id)
+            .eq("status", "active");
+
+          recipientIds = [
+            ...new Set(
+              (memberships ?? [])
+                .map((m: any) => m.club_players?.profile_id)
+                .filter((id: string | null) => !!id),
+            ),
+          ];
+        }
+
+        if (recipientIds.length === 0) {
+          await supabase
+            .from("gallery_chat_cards")
+            .update({ push_sent: true })
+            .eq("id", prompt.id);
+          skipped++;
+          continue;
+        }
+
+        const opponent = event.opponent ? ` vs ${event.opponent}` : "";
+        const eventLabel = event.title || (event.type === "mini_league" ? "today's match" : `today's game${opponent}`);
+
+        const pushTitle = "📸 Got photos from today?";
+        const pushBody = `Be the first to share photos from ${eventLabel} — tap to upload.`;
+        const url = `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`;
+        const tag = `photo-prompt-${prompt.event_id}`;
+
+        // Fire pushes in parallel; insert in-app notification rows alongside.
+        const results = await Promise.allSettled(
+          recipientIds.map(async (userId) => {
+            await supabase.from("notifications").insert({
+              user_id: userId,
+              type: "photo_prompt_reminder",
+              message: `Be the first to share photos from ${eventLabel}`,
+              related_id: event.id,
+            });
+
+            // Only call push if we have at least one delivery channel registered.
+            const [{ data: webSubs }, { data: fcm }] = await Promise.all([
+              supabase.from("push_subscriptions").select("id").eq("user_id", userId).limit(1),
+              supabase.from("fcm_tokens" as any).select("id").eq("user_id", userId).limit(1),
+            ]);
+
+            if ((webSubs?.length ?? 0) === 0 && (fcm?.length ?? 0) === 0) {
+              return false;
+            }
+
+            await supabase.functions.invoke("send-push-notification", {
+              body: { userId, title: pushTitle, body: pushBody, url, tag },
+            });
+            return true;
+          }),
+        );
+
+        const delivered = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
+        totalRecipients += delivered;
+
+        await supabase
+          .from("gallery_chat_cards")
+          .update({ push_sent: true })
+          .eq("id", prompt.id);
+
+        pushed++;
+      } catch (err) {
+        console.error("[photo-prompt-followup] prompt failed", prompt.id, err);
+        errors++;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        scanned: prompts?.length ?? 0,
+        pushed,
+        skipped,
+        errors,
+        recipients: totalRecipients,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    console.error("[photo-prompt-followup] uncaught", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

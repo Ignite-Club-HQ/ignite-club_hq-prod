@@ -4181,12 +4181,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   if (isLandscape) {
     return createPortal(
       <div
-        className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden pt-safe pl-safe pr-safe"
+        className={cn(
+          "fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden pl-safe pr-safe",
+          // On native we call StatusBar.hide() in landscape, so the OS status bar
+          // is gone and pt-safe would leave a stale gap above the header. Only
+          // apply top safe-area padding on web (browser chrome / display cutouts).
+          !Capacitor.isNativePlatform() && "pt-safe",
+        )}
         style={{ height: '100dvh', zIndex: 99999 }}
       >
-        {/* Landscape header bar — pt-safe on the wrapper keeps content below the
-            system status bar (Android edge-to-edge / display cutouts) even if
-            StatusBar.hide() hasn't taken effect yet or isn't supported. */}
+        {/* Landscape header bar — sits flush at the top on native (status bar
+            hidden) and below the safe area on web. */}
         <div className="shrink-0 h-12 bg-background border-b border-border flex items-center px-3 gap-2 z-[60]">
           {/* Left: Back + Team name */}
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onClose}>

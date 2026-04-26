@@ -86,6 +86,15 @@ export default function MediaPage() {
   const { activeClubFilter } = useClubTheme();
   
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+
+  // Auto-open the upload sheet when ?upload=1 is in the URL (e.g. tapped from
+  // a post-game gallery prompt card in team chat).
+  useEffect(() => {
+    if (searchParams.get("upload") === "1") {
+      setUploadDialogOpen(true);
+    }
+  }, [searchParams]);
+
   const [uploadingCount, setUploadingCount] = useState(0);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -120,9 +129,10 @@ export default function MediaPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  // Apply team/club filter from URL search params (e.g. from My Teams gallery link)
+  // Apply team/club/event filter from URL search params (e.g. from My Teams gallery link or post-game prompt)
   const urlTeamId = searchParams.get("team");
   const urlClubId = searchParams.get("club");
+  const urlEventId = searchParams.get("event");
 
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
@@ -374,7 +384,7 @@ export default function MediaPage() {
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -458,8 +468,33 @@ export default function MediaPage() {
   const { getProfile, isLoading: loadingProfiles } = useProfiles(allUploaderIds);
 
   // Apply filters to photos
+  const cardId = searchParams.get("card");
+
+  // Fetch the gallery card's photo_ids when ?card= is present so we can scope
+  // the gallery to just that upload batch.
+  const { data: cardPhotoIds } = useQuery({
+    queryKey: ["gallery-chat-card-photo-ids", cardId],
+    queryFn: async () => {
+      if (!cardId) return null;
+      const { data } = await supabase
+        .from("gallery_chat_cards")
+        .select("photo_ids")
+        .eq("id", cardId)
+        .maybeSingle();
+      return (data?.photo_ids as string[] | null) ?? [];
+    },
+    enabled: !!cardId,
+    staleTime: 60 * 1000,
+  });
+
   const photos = useMemo(() => {
     let filtered = allPhotos;
+
+    // Filter by gallery card batch (overrides other filters when active)
+    if (cardId && cardPhotoIds) {
+      const idSet = new Set(cardPhotoIds);
+      return filtered.filter(photo => idSet.has(photo.id));
+    }
     
     // Filter by club
     if (selectedClubId !== "all") {
@@ -469,6 +504,11 @@ export default function MediaPage() {
     // Filter by team
     if (selectedTeamId !== "all") {
       filtered = filtered.filter(photo => photo.team_id === selectedTeamId);
+    }
+
+    // Filter by event (auto-applied from URL ?event= param)
+    if (urlEventId) {
+      filtered = filtered.filter(photo => photo.event_id === urlEventId);
     }
     
     // Filter by date range
@@ -490,7 +530,7 @@ export default function MediaPage() {
     }
     
     return filtered;
-  }, [allPhotos, selectedClubId, selectedTeamId, dateRange]);
+  }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
@@ -938,6 +978,8 @@ export default function MediaPage() {
                 open={uploadDialogOpen} 
                 onOpenChange={setUploadDialogOpen}
                 onUploadingCountChange={setUploadingCount}
+                defaultTeamId={searchParams.get("team")}
+                defaultEventId={searchParams.get("event")}
               />
             </>
           )}
@@ -1008,6 +1050,22 @@ export default function MediaPage() {
             <Image className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No photos yet</p>
             <p className="text-sm text-muted-foreground mt-1">Upload your first photo to get started</p>
+          </CardContent>
+        </Card>
+      ) : photos.length === 0 && urlEventId ? (
+        <Card className="border-dashed border-primary/40 bg-primary/5 max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <div className="mx-auto h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Image className="h-7 w-7 text-primary" />
+            </div>
+            <p className="font-semibold text-foreground">Be the first to add photos</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              No photos from this event yet — share what you captured today.
+            </p>
+            <Button onClick={() => setUploadDialogOpen(true)} className="mt-4 gap-2" size="sm">
+              <Plus className="h-4 w-4" />
+              Add photos
+            </Button>
           </CardContent>
         </Card>
       ) : photos.length === 0 && hasActiveFilters ? (

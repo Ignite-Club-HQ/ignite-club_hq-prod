@@ -3117,6 +3117,83 @@ export type Database = {
         }
         Relationships: []
       }
+      gallery_chat_cards: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          hero_image_url: string | null
+          hero_photo_id: string | null
+          id: string
+          is_prompt: boolean
+          message_id: string
+          photo_count: number
+          photo_ids: string[]
+          push_sent: boolean
+          team_id: string
+          updated_at: string
+          uploader_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          hero_image_url?: string | null
+          hero_photo_id?: string | null
+          id?: string
+          is_prompt?: boolean
+          message_id: string
+          photo_count?: number
+          photo_ids?: string[]
+          push_sent?: boolean
+          team_id: string
+          updated_at?: string
+          uploader_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          hero_image_url?: string | null
+          hero_photo_id?: string | null
+          id?: string
+          is_prompt?: boolean
+          message_id?: string
+          photo_count?: number
+          photo_ids?: string[]
+          push_sent?: boolean
+          team_id?: string
+          updated_at?: string
+          uploader_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_chat_cards_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_chat_cards_hero_photo_id_fkey"
+            columns: ["hero_photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_chat_cards_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "team_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_chat_cards_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_player_stats: {
         Row: {
           assists: number | null
@@ -8148,6 +8225,10 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      mark_gallery_card_push_sent: {
+        Args: { _card_id: string }
+        Returns: undefined
+      }
       mask_email: { Args: { _email: string }; Returns: string }
       move_child_to_team: {
         Args: {
@@ -8205,6 +8286,25 @@ export type Database = {
           _type: string
         }
         Returns: undefined
+      }
+      post_or_update_team_gallery_card: {
+        Args: {
+          _event_id?: string
+          _hero_image_url: string
+          _hero_photo_id: string
+          _photo_ids: string[]
+          _team_id: string
+        }
+        Returns: {
+          card_id: string
+          message_id: string
+          total_count: number
+          was_new: boolean
+        }[]
+      }
+      post_team_gallery_prompt: {
+        Args: { _event_id: string; _system_user_id: string; _team_id: string }
+        Returns: string
       }
       profile_team_history: {
         Args: { _profile_id: string }
