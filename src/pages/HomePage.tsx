@@ -13,6 +13,8 @@ import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog"
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
   AlertDialog,
