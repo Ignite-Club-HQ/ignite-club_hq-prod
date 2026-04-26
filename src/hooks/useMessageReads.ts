@@ -221,20 +221,12 @@ export function useMessageReads(
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) return;
 
-      const rows = ids.map((messageId) => ({
-        user_id: currentUserId,
-        [messageIdField]: messageId,
-      }));
-
-      // Single batched UPSERT with ignoreDuplicates so the partial unique
-      // index (user_id, <messageIdField>) silently skips already-read
-      // rows instead of raising 23505. One round-trip, one connection.
-      const { error } = await (supabase
-        .from("message_reads")
-        .upsert(rows as any, {
-          onConflict: `user_id,${messageIdField}`,
-          ignoreDuplicates: true,
-        }) as any);
+      // Single RPC call: the database uses auth.uid() and ON CONFLICT DO NOTHING,
+      // so duplicate read attempts are ignored without creating 23505 log noise.
+      const { error } = await (supabase as any).rpc("mark_message_reads", {
+        _message_type: messageType,
+        _message_ids: ids,
+      });
 
       if (error && error.code !== "23505" && !error.message?.includes("duplicate")) {
         console.error("Error marking messages as read:", error);
