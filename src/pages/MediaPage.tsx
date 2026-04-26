@@ -184,6 +184,15 @@ export default function MediaPage() {
     setTimeout(tryScroll, 200);
   }, [highlightedPhotoId]);
 
+  // Auto-open the comment sheet when arriving from a comment notification
+  // (e.g. ?photo=ID&comments=1). This ensures comment notifications take the
+  // user straight to the comment screen rather than just the photo feed.
+  useEffect(() => {
+    if (!highlightedPhotoId) return;
+    if (searchParams.get("comments") !== "1") return;
+    setActiveCommentPhotoId(highlightedPhotoId);
+  }, [highlightedPhotoId, searchParams]);
+
   // Fast parallel queries - don't block on access check
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
     queryKey: ["user-roles-media", user?.id],
@@ -419,6 +428,25 @@ export default function MediaPage() {
     gcTime: 300000,
   });
 
+  const { data: highlightedPhoto } = useQuery({
+    queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
+    queryFn: async () => {
+      if (!highlightedPhotoId) return null;
+      const { data, error } = await supabase
+        .from("photos")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .eq("id", highlightedPhotoId)
+        .eq("show_in_feed", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !!highlightedPhotoId,
+    staleTime: 60000,
+  });
+
   // Background refresh if cache was stale
   useEffect(() => {
     if (isCacheStale && user) {
@@ -433,10 +461,13 @@ export default function MediaPage() {
   // Flatten all pages into single photos array - prefer real data, fallback to cache
   const allPhotos = useMemo<any[]>(() => {
     const serverPhotos = photosData?.pages.flatMap(page => page.photos) ?? [];
+    const withHighlightedPhoto = highlightedPhoto && !serverPhotos.some((p) => p.id === highlightedPhoto.id)
+      ? [highlightedPhoto, ...serverPhotos]
+      : serverPhotos;
     
     // If we have server data, use it
-    if (serverPhotos.length > 0) {
-      return serverPhotos;
+    if (withHighlightedPhoto.length > 0) {
+      return withHighlightedPhoto;
     }
     
     // Otherwise use cached photos (with placeholder profile data)
@@ -454,7 +485,7 @@ export default function MediaPage() {
     }
     
     return [];
-  }, [photosData, cachedPhotosData]);
+  }, [photosData, highlightedPhoto, cachedPhotosData]);
 
   // Track if we're showing cached data
   const isShowingCachedData = !photosSuccess && cachedPhotosData && cachedPhotosData.length > 0;

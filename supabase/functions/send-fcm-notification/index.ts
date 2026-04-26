@@ -263,21 +263,12 @@ serve(async (req) => {
 
     for (const tokenRecord of tokens) {
       try {
-        // IMPORTANT: We build the FCM message PER-PLATFORM to avoid duplicate
-        // notifications on Android.
-        //
-        // Previously we sent a top-level `notification` block + `android.notification`
-        // config. On Android, the Firebase SDK auto-displays the top-level
-        // `notification` block when the app is backgrounded/killed, AND the
-        // Capacitor PushNotifications plugin also renders the same message —
-        // resulting in TWO banners for a single push.
-        //
-        // Fix:
-        //  - Android: data-only payload. Capacitor's plugin handles display via
-        //    the 'default' channel. priority:high ensures heads-up delivery.
-        //  - iOS: include top-level `notification` (required so APNs renders the
-        //    alert when the app isn't in foreground) + the data block for
-        //    navigation metadata.
+        // Build the FCM message PER-PLATFORM.
+        // Android must receive a visible notification payload; data-only FCM
+        // can be accepted by Firebase but not shown by the OS when the app is
+        // backgrounded/killed. We avoid the previous duplicate-banner issue by
+        // using Android-specific notification config instead of also sending a
+        // top-level `notification` block to Android.
         const isIos = tokenRecord.platform === 'ios';
 
         const message: Record<string, unknown> = {
@@ -300,11 +291,15 @@ serve(async (req) => {
             },
           };
         } else {
-          // Android: data-only. Do NOT include `notification` or
-          // `android.notification` — those cause the Firebase SDK / system tray
-          // to render a second banner alongside the Capacitor-rendered one.
           message.android = {
             priority: 'high',
+            notification: {
+              title: title || 'Ignite Club HQ',
+              body: body || 'You have a new notification',
+              channel_id: 'default',
+              sound: 'default',
+              tag: tag || `notification-${notificationId || Date.now()}`,
+            },
           };
         }
 

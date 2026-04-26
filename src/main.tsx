@@ -48,6 +48,10 @@ import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
+import { checkVaultFoldersSchema } from "./lib/vaultSchemaCheck";
+
+// Non-blocking startup probe: warn loudly if vault_folders.deleted_at is missing.
+checkVaultFoldersSchema();
 
 // Declare global types
 declare global {

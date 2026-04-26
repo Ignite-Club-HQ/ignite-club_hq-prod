@@ -7425,6 +7425,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           drive_folder_id: string | null
           id: string
           name: string
@@ -7438,6 +7439,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           drive_folder_id?: string | null
           id?: string
           name: string
@@ -7451,6 +7453,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           drive_folder_id?: string | null
           id?: string
           name?: string
@@ -7588,6 +7591,13 @@ export type Database = {
       }
     }
     Functions: {
+      admin_get_user_emails: {
+        Args: { user_ids: string[] }
+        Returns: {
+          email: string
+          id: string
+        }[]
+      }
       admin_link_child_to_parent: {
         Args: {
           p_child_name: string
@@ -8196,6 +8206,14 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: number
       }
+      get_user_leaderboard_rank_all_time: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: {
+          points: number
+          rank: number
+          total: number
+        }[]
+      }
       get_user_leaderboard_rank_seasoned: {
         Args: { _club_id: string; _season_id: string; _user_id: string }
         Returns: {
@@ -8287,6 +8305,10 @@ export type Database = {
       }
       mark_gallery_card_push_sent: {
         Args: { _card_id: string }
+        Returns: undefined
+      }
+      mark_message_reads: {
+        Args: { _message_ids: string[]; _message_type: string }
         Returns: undefined
       }
       mask_email: { Args: { _email: string }; Returns: string }
@@ -8496,6 +8518,15 @@ export type Database = {
         Args: { _team_id: string }
         Returns: boolean
       }
+      track_user_activity_start: {
+        Args: {
+          _club_id?: string
+          _page_label: string
+          _page_path: string
+          _session_id: string
+        }
+        Returns: string
+      }
       try_award_streak_bonus: {
         Args: {
           _bonus_points: number
@@ -8516,6 +8547,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_user_activity_duration: {
+        Args: { _activity_log_id: string; _duration_seconds: number }
+        Returns: undefined
       }
       user_email_matches_invite: {
         Args: { _invited_email: string; _user_id: string }
