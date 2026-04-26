@@ -8296,6 +8296,10 @@ export type Database = {
         Args: { _card_id: string }
         Returns: undefined
       }
+      mark_message_reads: {
+        Args: { _message_ids: string[]; _message_type: string }
+        Returns: undefined
+      }
       mask_email: { Args: { _email: string }; Returns: string }
       move_child_to_team: {
         Args: {
@@ -8503,6 +8507,15 @@ export type Database = {
         Args: { _team_id: string }
         Returns: boolean
       }
+      track_user_activity_start: {
+        Args: {
+          _club_id?: string
+          _page_label: string
+          _page_path: string
+          _session_id: string
+        }
+        Returns: string
+      }
       try_award_streak_bonus: {
         Args: {
           _bonus_points: number
@@ -8523,6 +8536,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_user_activity_duration: {
+        Args: { _activity_log_id: string; _duration_seconds: number }
+        Returns: undefined
       }
       user_email_matches_invite: {
         Args: { _invited_email: string; _user_id: string }
