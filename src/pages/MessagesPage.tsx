@@ -765,6 +765,17 @@ export default function MessagesPage() {
   const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
+      // Ensure the access token is valid before any reads. After the phone
+      // wakes from lock, the JWT may have expired — issuing reads with a
+      // stale token causes RLS to evaluate auth.uid() as NULL, which silently
+      // returns empty profile rows and ends up rendering "Unknown User".
+      try {
+        await ensureFreshSession();
+      } catch {
+        // If session refresh fails, fall through — the query below will
+        // throw and React Query will keep showing previous data.
+      }
+
       const { data: convos, error } = await supabase
         .from("direct_conversations")
         .select("*")
@@ -797,11 +808,39 @@ export default function MessagesPage() {
       const profileMap = new Map(profilesResult.data?.map(p => [p.id, p]) || []);
       const messageMap = new Map(messagesResult.map(m => [m.conversationId, m.message]));
 
+      // Build a fallback map of previously-known other_user data so that a
+      // transient empty profile fetch (RLS / network blip after lock screen)
+      // never downgrades a real name back to "Unknown User".
+      const previousResult = queryClient.getQueryData<any[]>(["dm-conversations", user?.id]);
+      const previousOtherUserMap = new Map<string, any>();
+      previousResult?.forEach((c: any) => {
+        if (c?.other_user?.id && c.other_user.display_name) {
+          previousOtherUserMap.set(c.other_user.id, c.other_user);
+        }
+      });
+      // Also seed from the persistent cache as a second layer of defence.
+      cachedData?.dmConversations?.forEach((c: any) => {
+        if (c?.other_user?.id && c.other_user.display_name && !previousOtherUserMap.has(c.other_user.id)) {
+          previousOtherUserMap.set(c.other_user.id, c.other_user);
+        }
+      });
+
       const result = convos.map(conv => {
         const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
+        const fetchedProfile = profileMap.get(otherUserId);
+        const fallbackProfile = previousOtherUserMap.get(otherUserId);
+        // Prefer freshly fetched data, but never overwrite a known good
+        // profile with null/empty values.
+        const otherUser = fetchedProfile
+          ? {
+              id: otherUserId,
+              display_name: fetchedProfile.display_name || fallbackProfile?.display_name || null,
+              avatar_url: fetchedProfile.avatar_url ?? fallbackProfile?.avatar_url ?? null,
+            }
+          : fallbackProfile || null;
         return {
           ...conv,
-          other_user: profileMap.get(otherUserId) || null,
+          other_user: otherUser,
           last_message: messageMap.get(conv.id) || null,
         };
       });
