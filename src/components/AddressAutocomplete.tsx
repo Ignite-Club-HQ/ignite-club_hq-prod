@@ -112,86 +112,22 @@ export function AddressAutocomplete({
       setSearchAttempted(true);
       setShowSavedLocations(false);
       try {
-        const searchQuery = encodeURIComponent(value);
-        let data: any[] = [];
-        
-        // First search: freeform query
-        const freeformResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&countrycodes=au&limit=5&addressdetails=1&extratags=1&namedetails=1`,
-          {
-            headers: {
-              'Accept': 'application/json',
-            }
-          }
-        );
-        data = await freeformResponse.json();
-        
-        // Try a structured search if we have a pattern like "<number> <street> <suburb>"
-        const trimmedValue = value.trim();
-        const tokens = trimmedValue.split(/\s+/);
-        const hasHouseNumber = tokens.length >= 3 && /^\d+[A-Za-z]?$/.test(tokens[0]);
-
-        if (hasHouseNumber && data.length === 0) {
-          const houseNumber = tokens[0];
-          const suburb = tokens[tokens.length - 1];
-          const streetName = tokens.slice(1, -1).join(" ");
-
-          const structuredResponse = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&street=${encodeURIComponent(
-              houseNumber + " " + streetName
-            )}&city=${encodeURIComponent(suburb)}&countrycodes=au&limit=5&addressdetails=1&namedetails=1`,
-            {
-              headers: {
-                Accept: "application/json",
-              },
-            }
-          );
-          const structuredData = await structuredResponse.json();
-          if (structuredData.length > 0) {
-            data = structuredData;
-          }
-        }
-
-        // If still no results, try searching just street + suburb as freeform
-        if (data.length === 0 && hasHouseNumber) {
-          const suburb = tokens[tokens.length - 1];
-          const streetName = tokens.slice(1, -1).join(" ");
-          const fallbackResponse = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-              streetName + " " + suburb
-            )}&countrycodes=au&limit=5&addressdetails=1&namedetails=1`,
-            {
-              headers: {
-                Accept: "application/json",
-              },
-            }
-          );
-          data = await fallbackResponse.json();
-        }
-        
-        // Sort results to prioritize exact matches and venues
-        const sortedData = data.sort((a: any, b: any) => {
-          // Prioritize venues (ovals, parks, etc) if searching for them
-          const aIsVenue = a.class === 'leisure' || a.class === 'amenity' || a.class === 'sport';
-          const bIsVenue = b.class === 'leisure' || b.class === 'amenity' || b.class === 'sport';
-          if (aIsVenue && !bIsVenue) return -1;
-          if (!aIsVenue && bIsVenue) return 1;
-          
-          // Then prioritize by importance
-          return (b.importance || 0) - (a.importance || 0);
+        const { data, error } = await supabase.functions.invoke('google-places-search', {
+          body: {
+            action: 'autocomplete',
+            query: value,
+            sessionToken: sessionTokenRef.current,
+          },
         });
-        
-        setSuggestions(
-          sortedData.map((item: any) => ({
-            place_id: item.place_id,
-            description: item.display_name,
-            address: item.address,
-            name: item.namedetails?.name || item.name,
-          }))
-        );
+
+        if (error) throw error;
+
+        const results = (data?.suggestions || []) as Suggestion[];
+        setSuggestions(results);
         setShowSuggestions(true);
       } catch (error) {
         console.error("Address search error:", error);
+        setSuggestions([]);
       } finally {
         setLoading(false);
       }
