@@ -272,53 +272,41 @@ export function AddressAutocomplete({
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          
-          // Reverse geocode using Nominatim
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-            {
-              headers: {
-                'Accept': 'application/json',
-              }
-            }
-          );
-          
-          const data = await response.json();
-          
-          if (data && data.address) {
-            const addr = data.address;
-            const street = [addr.house_number, addr.road].filter(Boolean).join(" ") || "";
-            const suburb = addr.suburb || addr.city || addr.town || addr.village || "";
-            const state = addr.state || "";
-            const postcode = addr.postcode || "";
-            
-            const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(", ");
-            
+
+          const { data, error } = await supabase.functions.invoke('google-places-search', {
+            body: {
+              action: 'reverse',
+              lat: latitude,
+              lng: longitude,
+            },
+          });
+
+          if (error) throw error;
+          const place = data?.place;
+
+          if (place) {
+            const street = place.street || '';
+            const suburb = place.suburb || '';
+            const state = place.state || '';
+            const postcode = place.postcode || '';
+
+            const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(', ');
+
             skipNextSearchRef.current = true;
             onChange(fullAddress);
-            setCurrentAddress({
-              address: street,
-              suburb,
-              state,
-              postcode,
-            });
-            
+            setCurrentAddress({ address: street, suburb, state, postcode });
+
             if (onSelect) {
-              onSelect({
-                address: street,
-                suburb,
-                state,
-                postcode,
-              });
+              onSelect({ address: street, suburb, state, postcode });
             }
-            
-            toast.success("Location detected");
+
+            toast.success('Location detected');
           } else {
-            toast.error("Could not determine address from location");
+            toast.error('Could not determine address from location');
           }
         } catch (error) {
-          console.error("Reverse geocoding error:", error);
-          toast.error("Failed to get address from location");
+          console.error('Reverse geocoding error:', error);
+          toast.error('Failed to get address from location');
         } finally {
           setGpsLoading(false);
         }
