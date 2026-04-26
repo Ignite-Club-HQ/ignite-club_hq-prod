@@ -8203,6 +8203,14 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: number
       }
+      get_user_leaderboard_rank_all_time: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: {
+          points: number
+          rank: number
+          total: number
+        }[]
+      }
       get_user_leaderboard_rank_seasoned: {
         Args: { _club_id: string; _season_id: string; _user_id: string }
         Returns: {
