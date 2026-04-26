@@ -165,6 +165,24 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
               </Button>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const validation = emailSchema.safeParse(email);
+                if (!validation.success) {
+                  toast({
+                    title: "Enter your email first",
+                    description: "We need your email to verify the code you received.",
+                  });
+                  return;
+                }
+                setStep("code");
+              }}
+              className="w-full text-muted-foreground"
+            >
+              I already have a code
+            </Button>
             <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border/50">
               Already signed in? You can change your password from{" "}
               <span className="font-medium text-foreground">Settings → Change Password</span>.
