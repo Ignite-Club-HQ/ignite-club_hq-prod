@@ -184,6 +184,15 @@ export default function MediaPage() {
     setTimeout(tryScroll, 200);
   }, [highlightedPhotoId]);
 
+  // Auto-open the comment sheet when arriving from a comment notification
+  // (e.g. ?photo=ID&comments=1). This ensures comment notifications take the
+  // user straight to the comment screen rather than just the photo feed.
+  useEffect(() => {
+    if (!highlightedPhotoId) return;
+    if (searchParams.get("comments") !== "1") return;
+    setActiveCommentPhotoId(highlightedPhotoId);
+  }, [highlightedPhotoId, searchParams]);
+
   // Fast parallel queries - don't block on access check
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
     queryKey: ["user-roles-media", user?.id],
