@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
