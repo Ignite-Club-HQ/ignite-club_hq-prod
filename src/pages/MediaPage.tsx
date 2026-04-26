@@ -634,6 +634,52 @@ export default function MediaPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Realtime: keep comments and reactions in sync so newly added ones
+  // appear without waiting for the 2-minute staleTime to expire.
+  useEffect(() => {
+    if (!user?.id || allPhotoIds.length === 0) return;
+    const channel = supabase
+      .channel(`media-comments-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "photo_comments" },
+        (payload: any) => {
+          const row = (payload.new || payload.old) as { photo_id?: string } | undefined;
+          if (row?.photo_id && allPhotoIds.includes(row.photo_id)) {
+            queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "photo_reactions" },
+        (payload: any) => {
+          const row = (payload.new || payload.old) as { photo_id?: string } | undefined;
+          if (row?.photo_id && allPhotoIds.includes(row.photo_id)) {
+            queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, allPhotoIds, queryClient]);
+
+  // Refresh comments/reactions when the tab/app becomes visible again so
+  // returning to the app surfaces anything posted while away.
+  useEffect(() => {
+    if (!user?.id) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
+        queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [user?.id, queryClient]);
+
   const reactMutation = useMutation({
     mutationFn: async ({ photoId, reactionType }: { photoId: string; reactionType: string }) => {
       // First remove any existing reaction
