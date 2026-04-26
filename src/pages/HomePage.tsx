@@ -13,7 +13,7 @@ import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog"
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
-import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { NotificationNudgeDialog } from "@/components/NotificationNudgeDialog";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
@@ -1652,15 +1652,11 @@ export default function HomePage() {
         />
       )}
 
-      {/* Notification nudge - for users with no registered push devices (web/PWA/stale sessions) */}
-      {user?.id && homeNotificationNudge.shouldShowNudge && (
-        <NotificationNudgeBanner
+      {/* Notification nudge popup - shown once per cooldown to users with no registered push devices */}
+      {user?.id && (
+        <NotificationNudgeDialog
+          open={homeNotificationNudge.shouldShowNudge}
           userId={user.id}
-          message={
-            Capacitor.isNativePlatform()
-              ? "You're not set up to receive push notifications — tap Enable so you never miss team updates."
-              : "You're not receiving push notifications. Install the app or enable browser notifications to stay in the loop."
-          }
           onDismiss={homeNotificationNudge.dismiss}
         />
       )}
