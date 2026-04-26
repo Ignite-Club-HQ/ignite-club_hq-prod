@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -65,7 +66,13 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
     // No redirectTo — we want the email's OTP code, not a magic link click.
     // The recovery email template in Supabase must include {{ .Token }}.
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    // redirectTo points to /verify-reset-code so users who DO click the
+    // email link land on the OTP entry page (where they can paste the
+    // 6-digit code from the same email). Cross-device users can also
+    // navigate there directly via "I already have a code".
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(email),
+    });
 
     setSending(false);
 
@@ -170,11 +177,14 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               size="sm"
               onClick={() => {
                 const validation = emailSchema.safeParse(email);
-                const qs = validation.success
-                  ? `?email=${encodeURIComponent(email)}`
-                  : "";
-                handleClose();
-                navigate(`/verify-reset-code${qs}`);
+                if (!validation.success) {
+                  toast({
+                    title: "Enter your email first",
+                    description: "We need your email to verify the code you received.",
+                  });
+                  return;
+                }
+                setStep("code");
               }}
               className="w-full text-muted-foreground"
             >

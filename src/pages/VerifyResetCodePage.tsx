@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
@@ -91,7 +92,9 @@ export default function VerifyResetCodePage() {
     }
 
     setResending(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(email),
+    });
     setResending(false);
 
     if (error) {

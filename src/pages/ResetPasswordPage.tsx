@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -128,7 +129,9 @@ export default function ResetPasswordPage() {
       return;
     }
     setSendingOtp(true);
-    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail);
+    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail, {
+      redirectTo: getPasswordResetRedirectUrl(otpEmail),
+    });
     setSendingOtp(false);
     if (sendError) {
       console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
