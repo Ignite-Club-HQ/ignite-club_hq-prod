@@ -63,6 +63,7 @@ export function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const isSelectingRef = useRef(false);
   const skipNextSearchRef = useRef(false);
+  const sessionTokenRef = useRef<string>(generateSessionToken());
 
   // Fetch user's saved favorite locations
   useEffect(() => {
