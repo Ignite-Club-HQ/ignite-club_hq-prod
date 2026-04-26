@@ -31,6 +31,16 @@ interface AddressAutocompleteProps {
 interface Suggestion {
   place_id: string;
   description: string;
+  main_text?: string;
+  secondary_text?: string;
+}
+
+// Generate a Google Places session token (UUID v4) for billing optimization
+function generateSessionToken() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 export function AddressAutocomplete({
