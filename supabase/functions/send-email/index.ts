@@ -717,17 +717,20 @@ serve(async (req: Request): Promise<Response> => {
     const toUserId = body.toUserId as string | undefined;
 
     // If toUserId is provided instead of "to", look up the user's email
+    // Use batched RPC instead of auth admin REST call to avoid connection pool exhaustion
     if (!to && toUserId) {
       try {
-        const { data: { user: targetUser }, error: userErr } = await adminClient.auth.admin.getUserById(toUserId);
-        if (userErr || !targetUser?.email) {
+        const { data: emailRows, error: userErr } = await adminClient
+          .rpc("get_user_emails", { user_ids: [toUserId] });
+        const resolvedEmail = emailRows?.[0]?.email as string | undefined;
+        if (userErr || !resolvedEmail) {
           console.error("[send-email] Could not resolve toUserId to email:", userErr?.message);
           return new Response(
             JSON.stringify({ error: "Could not resolve user email" }),
             { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
-        to = targetUser.email;
+        to = resolvedEmail;
         console.log(`[send-email] Resolved toUserId ${toUserId} to email`);
       } catch (e) {
         console.error("[send-email] Error resolving toUserId:", e);

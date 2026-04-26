@@ -128,9 +128,12 @@ serve(async (req: Request): Promise<Response> => {
       .eq('id', recipientUserId)
       .single();
 
-    const { data: recipientAuth } = await supabase.auth.admin.getUserById(recipientUserId);
-    
-    if (!recipientAuth?.user?.email) {
+    // Batched RPC instead of auth admin REST call (prevents connection pool exhaustion)
+    const { data: emailRows } = await supabase
+      .rpc("get_user_emails", { user_ids: [recipientUserId] });
+    const recipientEmail = emailRows?.[0]?.email as string | undefined;
+
+    if (!recipientEmail) {
       console.log(`No email found for recipient ${recipientUserId}`);
       return new Response(
         JSON.stringify({ success: false, error: 'No email for recipient' }),

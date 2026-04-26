@@ -25,9 +25,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // Get recipient email
-    const { data: userData } = await supabase.auth.admin.getUserById(recipientUserId);
-    if (!userData?.user?.email) {
+    // Get recipient email via batched RPC (avoids auth admin pool exhaustion)
+    const { data: emailRows } = await supabase
+      .rpc("get_user_emails", { user_ids: [recipientUserId] });
+    const recipientEmail = emailRows?.[0]?.email as string | undefined;
+    if (!recipientEmail) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -47,7 +49,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const recipientEmail = userData.user.email;
+    // recipientEmail already set above via get_user_emails RPC
     const memberName = childName || 'You';
     const isWaitlisted = status === 'waitlisted';
     const isPromotion = status === 'promoted';
