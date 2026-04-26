@@ -549,7 +549,9 @@ export default function NotificationsPage() {
           toast.info("This photo is no longer available.");
           break;
         }
-        navigate(`/media?photo=${relatedId}`);
+        // photo_comment notifications should land on the comment screen
+        const suffix = notification.type === "photo_comment" ? "&comments=1" : "";
+        navigate(`/media?photo=${relatedId}${suffix}`);
         break;
       }
       case "comment_reaction":
@@ -578,7 +580,8 @@ export default function NotificationsPage() {
           toast.info("This photo is no longer available.");
           break;
         }
-        navigate(`/media?photo=${targetPhotoId}`);
+        // comment replies / reactions also belong on the comment screen
+        navigate(`/media?photo=${targetPhotoId}&comments=1`);
         break;
       }
       case "team_invite": {
