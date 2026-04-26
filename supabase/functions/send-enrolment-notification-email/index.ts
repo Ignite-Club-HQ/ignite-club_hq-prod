@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const recipientEmail = userData.user.email;
+    // recipientEmail already set above via get_user_emails RPC
     const memberName = childName || 'You';
     const isWaitlisted = status === 'waitlisted';
     const isPromotion = status === 'promoted';

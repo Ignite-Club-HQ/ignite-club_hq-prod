@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       try {
         const { error: emailError } = await supabase.functions.invoke('send-email', {
           body: {
-            to: authUser.user.email,
+            to: staffEmail,
             subject: `📊 Game Stats Ready: ${team.name} vs ${opponent || 'Opponent'}`,
             template: 'game-stats-ready',
             templateData: {
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
           console.error(`[GAME-STATS-EMAIL] Failed to send to ${staff.user_id}:`, emailError);
           emailsSkipped++;
         } else {
-          console.log(`[GAME-STATS-EMAIL] Email sent to ${authUser.user.email}`);
+          console.log(`[GAME-STATS-EMAIL] Email sent to ${staffEmail}`);
           emailsSent++;
         }
       } catch (err) {
