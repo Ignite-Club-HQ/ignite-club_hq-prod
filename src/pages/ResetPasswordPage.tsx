@@ -129,7 +129,9 @@ export default function ResetPasswordPage() {
       return;
     }
     setSendingOtp(true);
-    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail);
+    const { error: sendError } = await supabase.auth.resetPasswordForEmail(otpEmail, {
+      redirectTo: getPasswordResetRedirectUrl(otpEmail),
+    });
     setSendingOtp(false);
     if (sendError) {
       console.error("[ResetPassword] resetPasswordForEmail error:", sendError);
