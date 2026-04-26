@@ -34,6 +34,21 @@ function extractClubIdFromPath(path: string): string | null {
   return clubMatch?.[1] || null;
 }
 
+// Debounce window before we actually log a page view. If the user navigates
+// away within this window we skip the insert entirely. Prevents flurries of
+// inserts during rapid back/forward or programmatic redirects.
+const ROUTE_DEBOUNCE_MS = 600;
+
+// Module-level flag so concurrent hook instances (StrictMode double-mount,
+// duplicate provider) don't both insert.
+let inflightInsert = false;
+
+// Backoff after RLS / auth failure — once we hit a 401/403/RLS error we
+// pause all activity tracking inserts for this window to stop the loop
+// that floods the connection pool.
+let suppressUntil = 0;
+const SUPPRESS_AFTER_AUTH_ERROR_MS = 60_000;
+
 /**
  * Tracks user page views and active time.
  * Inserts a row when the user navigates to a page, then updates duration on leave.
@@ -44,11 +59,17 @@ export function useActivityTracking() {
   const activeLogIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushDuration = useCallback(async () => {
     if (!activeLogIdRef.current) return;
+    if (Date.now() < suppressUntil) return;
     const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
     if (elapsed < 1) return;
+
+    // Only update if we still have a live session.
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return;
 
     try {
       await supabase
@@ -62,6 +83,19 @@ export function useActivityTracking() {
 
   const startTracking = useCallback(async (path: string) => {
     if (!user) return;
+    if (inflightInsert) return;
+    if (Date.now() < suppressUntil) return;
+
+    // Critical: confirm the JWT is still present before inserting. React
+    // state can lag the auth state during sign-out / refresh failure;
+    // inserting without a session triggers an RLS violation which retries
+    // on every route change and exhausts the connection pool.
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session || sessionData.session.user.id !== user.id) {
+      return;
+    }
+
+    inflightInsert = true;
 
     // Flush previous
     await flushDuration();
@@ -70,7 +104,7 @@ export function useActivityTracking() {
     startTimeRef.current = Date.now();
 
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_activity_logs" as any)
         .insert({
           user_id: user.id,
@@ -83,22 +117,52 @@ export function useActivityTracking() {
         .select("id")
         .single();
 
-      activeLogIdRef.current = (data as any)?.id || null;
+      if (error) {
+        // RLS / auth errors mean the session is no longer valid for
+        // writes. Pause inserts for a minute so we don't keep retrying
+        // on every route change.
+        const code = (error as any)?.code;
+        const status = (error as any)?.status;
+        const msg = (error as any)?.message ?? "";
+        if (
+          code === "42501" ||
+          code === "PGRST301" ||
+          status === 401 ||
+          status === 403 ||
+          msg.includes("row-level security")
+        ) {
+          suppressUntil = Date.now() + SUPPRESS_AFTER_AUTH_ERROR_MS;
+        }
+      } else {
+        activeLogIdRef.current = (data as any)?.id || null;
+      }
     } catch {
       // Silently fail
+    } finally {
+      inflightInsert = false;
     }
   }, [user, flushDuration]);
 
-  // Track page changes
+  // Track page changes (debounced)
   useEffect(() => {
     if (!user) return;
 
-    startTracking(location.pathname);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      startTracking(location.pathname);
+    }, ROUTE_DEBOUNCE_MS);
 
     // Periodically flush duration every 30s for long-lived pages
     flushIntervalRef.current = setInterval(flushDuration, 30_000);
 
     return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
       if (flushIntervalRef.current) {
         clearInterval(flushIntervalRef.current);
       }
