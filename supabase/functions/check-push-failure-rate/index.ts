@@ -137,27 +137,19 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get admin emails from profiles
+    // Get admin emails from auth.users (profiles table does not store email)
     const adminUserIds = adminRoles.map(r => r.user_id);
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, email, first_name")
-      .in("id", adminUserIds);
-
-    if (profilesError || !profiles?.length) {
-      console.error("Error fetching admin profiles:", profilesError);
-      return new Response(
-        JSON.stringify({ 
-          checked: true, 
-          alertSent: false, 
-          reason: "no_admin_emails"
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    const adminEmails: string[] = [];
+    for (const uid of adminUserIds) {
+      const { data: userResult, error: userErr } = await supabase.auth.admin.getUserById(uid);
+      if (userErr) {
+        console.error(`[check-push-failure-rate] Error fetching auth user ${uid}:`, userErr);
+        continue;
+      }
+      const email = userResult?.user?.email;
+      if (email) adminEmails.push(email);
     }
 
-    const adminEmails = profiles.filter(p => p.email).map(p => p.email);
-    
     if (adminEmails.length === 0) {
       console.log("No admin emails available");
       return new Response(
