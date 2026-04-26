@@ -48,15 +48,22 @@ async function tryEdgePrefetch(
   try {
     // Only call edge function if we have a valid user session (not just anon key)
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData?.session?.access_token) {
-      console.warn("[Prefetch] No active session, skipping edge function");
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      // No session yet — silently skip. Falling back to direct queries would
+      // also fail RLS, so just return null and let the caller decide.
       return null;
     }
 
-    const { data, error } = await supabase.functions.invoke("prefetch-user-data");
+    // Pass the token explicitly so we never accidentally invoke with just
+    // the anon key (which would return 401 "Auth session missing").
+    const { data, error } = await supabase.functions.invoke("prefetch-user-data", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (error || !data) {
-      console.warn("[Prefetch] Edge function error:", error?.message);
+      // 401s here are non-fatal — the session likely just expired between
+      // getSession() and invoke(). Skip silently to avoid log noise.
       return null;
     }
 
