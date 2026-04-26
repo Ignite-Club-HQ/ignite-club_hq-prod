@@ -8178,6 +8178,13 @@ export type Database = {
           id: string
         }[]
       }
+      get_user_emails: {
+        Args: { user_ids: string[] }
+        Returns: {
+          email: string
+          id: string
+        }[]
+      }
       get_user_emails_by_ids: {
         Args: { user_ids: string[] }
         Returns: {
