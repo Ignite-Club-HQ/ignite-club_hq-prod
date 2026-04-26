@@ -30,6 +30,7 @@ import AuthPage from "./pages/AuthPage";
 import CompleteProfilePage from "./pages/CompleteProfilePage";
 import HomePage from "./pages/HomePage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import VerifyResetCodePage from "./pages/VerifyResetCodePage";
 import SignupProPage from "./pages/SignupProPage";
 
 // Lazy loaded pages (code splitting)
