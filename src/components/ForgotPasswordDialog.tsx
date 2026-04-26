@@ -66,7 +66,13 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
     // No redirectTo — we want the email's OTP code, not a magic link click.
     // The recovery email template in Supabase must include {{ .Token }}.
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    // redirectTo points to /verify-reset-code so users who DO click the
+    // email link land on the OTP entry page (where they can paste the
+    // 6-digit code from the same email). Cross-device users can also
+    // navigate there directly via "I already have a code".
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(email),
+    });
 
     setSending(false);
 
