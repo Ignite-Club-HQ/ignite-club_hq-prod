@@ -7588,6 +7588,13 @@ export type Database = {
       }
     }
     Functions: {
+      admin_get_user_emails: {
+        Args: { user_ids: string[] }
+        Returns: {
+          email: string
+          id: string
+        }[]
+      }
       admin_link_child_to_parent: {
         Args: {
           p_child_name: string
