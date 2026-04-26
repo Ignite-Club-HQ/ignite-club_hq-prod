@@ -59,8 +59,22 @@ export default function OnlineUsersTab() {
 
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url, email")
+        .select("id, display_name, avatar_url")
         .in("id", userIds);
+
+      // Emails live in auth.users — fetch via the service-role-backed RPC.
+      // Failures here are non-fatal; we just render the row without an email.
+      const emailMap: Record<string, string> = {};
+      try {
+        const { data: emailRows } = await supabase.rpc("get_user_emails" as any, {
+          user_ids: userIds,
+        } as any);
+        (emailRows as any[] | null)?.forEach((row: any) => {
+          if (row?.id && row?.email) emailMap[row.id] = row.email;
+        });
+      } catch {
+        // RPC may be restricted in this environment; ignore.
+      }
 
       const profileMap: Record<string, any> = {};
       (profiles || []).forEach((p: any) => {
@@ -72,7 +86,7 @@ export default function OnlineUsersTab() {
         lastSeenAt: r.last_seen_at,
         platform: r.platform || "unknown",
         displayName: profileMap[r.user_id]?.display_name || "Unknown User",
-        email: profileMap[r.user_id]?.email || null,
+        email: emailMap[r.user_id] || null,
         avatarUrl: profileMap[r.user_id]?.avatar_url || null,
       }));
     },
