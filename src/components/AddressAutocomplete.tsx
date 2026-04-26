@@ -140,72 +140,61 @@ export function AddressAutocomplete({
     };
   }, [value]);
 
-  const handleSelect = async (suggestion: any) => {
-    // Try to preserve any leading street number from the user's typed value
-    const trimmedValue = value.trim();
-    const leadingNumberMatch = trimmedValue.match(/^(\d+[A-Za-z]?)/);
-
-    let displayAddress = suggestion.description as string;
-
-    if (leadingNumberMatch) {
-      const leadingNumber = leadingNumberMatch[1];
-      const suggestionFirstPart = displayAddress.split(",")[0].trim();
-
-      // If the suggestion is missing the number, prepend it
-      if (!suggestionFirstPart.startsWith(leadingNumber)) {
-        const parts = displayAddress.split(",");
-        parts[0] = `${leadingNumber} ${suggestionFirstPart.replace(/^\d+\s*/, "").trim()}`;
-        displayAddress = parts.join(", ");
-      }
-    }
-
+  const handleSelect = async (suggestion: Suggestion) => {
     skipNextSearchRef.current = true;
-    onChange(displayAddress);
+    // Optimistic display while details load
+    onChange(suggestion.description);
     setShowSuggestions(false);
     setShowSavedLocations(false);
+    setLoading(true);
 
-    if (onSelect && suggestion.address) {
-      const addr = suggestion.address;
-      
-      // For venues (ovals, parks, sports facilities), use the venue name as the address
-      // Check for venue name in namedetails or the first part of description
-      const venueName = suggestion.name;
-      const isVenue = addr.leisure || addr.amenity || addr.sport || 
-                      (venueName && !venueName.match(/^\d/)); // Has a name that doesn't start with a number
-      
-      let finalStreet: string;
-      
-      if (isVenue && venueName) {
-        // For venues, use the venue name, optionally with street info
-        const streetPart = [addr.house_number, addr.road].filter(Boolean).join(" ");
-        finalStreet = streetPart ? `${venueName}, ${streetPart}` : venueName;
-      } else {
-        // For regular addresses, use house number + road
-        const baseStreet =
-          [addr.house_number, addr.road].filter(Boolean).join(" ") ||
-          suggestion.description.split(",")[0];
-
-        finalStreet = baseStreet;
-        if (leadingNumberMatch) {
-          const leadingNumber = leadingNumberMatch[1];
-          if (!baseStreet.trim().startsWith(leadingNumber)) {
-            finalStreet = `${leadingNumber} ${baseStreet.replace(/^\d+\s*/, "").trim()}`;
-          }
-        }
-      }
-
-      onSelect({
-        address: finalStreet,
-        suburb: addr.suburb || addr.city || addr.town || "",
-        state: addr.state || "",
-        postcode: addr.postcode || "",
+    try {
+      const { data, error } = await supabase.functions.invoke('google-places-search', {
+        body: {
+          action: 'details',
+          placeId: suggestion.place_id,
+          sessionToken: sessionTokenRef.current,
+        },
       });
+      // Rotate session token after details call (Google billing best practice)
+      sessionTokenRef.current = generateSessionToken();
+
+      if (error) throw error;
+      const place = data?.place;
+      if (!place) return;
+
+      // For named venues (e.g. parks, ovals), prefer the display name as the "street"
+      const hasVenueName = !!place.name && place.name !== place.street;
+      const finalStreet = hasVenueName
+        ? (place.street ? `${place.name}, ${place.street}` : place.name)
+        : (place.street || place.formatted_address.split(',')[0]);
+
+      const fullAddress = [finalStreet, place.suburb, place.state, place.postcode]
+        .filter(Boolean)
+        .join(', ');
+
+      skipNextSearchRef.current = true;
+      onChange(fullAddress);
+
+      if (onSelect) {
+        onSelect({
+          address: finalStreet,
+          suburb: place.suburb || '',
+          state: place.state || '',
+          postcode: place.postcode || '',
+        });
+      }
       setCurrentAddress({
         address: finalStreet,
-        suburb: addr.suburb || addr.city || addr.town || "",
-        state: addr.state || "",
-        postcode: addr.postcode || "",
+        suburb: place.suburb || '',
+        state: place.state || '',
+        postcode: place.postcode || '',
       });
+    } catch (err) {
+      console.error('Place details error:', err);
+      toast.error('Could not load place details');
+    } finally {
+      setLoading(false);
     }
   };
 
