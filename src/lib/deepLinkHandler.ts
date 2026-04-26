@@ -78,6 +78,22 @@ export function initDeepLinkHandler() {
         const isPasswordRecovery =
           routePath === '/reset-password' || url.host === 'reset-password';
 
+        const isVerifyResetCode =
+          routePath === '/verify-reset-code' || url.host === 'verify-reset-code';
+
+        if (isVerifyResetCode) {
+          // Supabase recovery email links land here when redirectTo points
+          // at /verify-reset-code. We do NOT exchange the code — the user
+          // enters the 6-digit OTP from the same email instead. Forward
+          // any email/code params so the page can pre-fill them.
+          console.log('[DeepLink] Verify-reset-code link detected, routing to /verify-reset-code');
+          const fwd = new URLSearchParams(url.search);
+          // Preserve the code param too in case we ever want auto-verify.
+          if (!fwd.has('code')) fwd.set('code', code);
+          window.location.href = `/verify-reset-code?${fwd.toString()}`;
+          return;
+        }
+
         if (isPasswordRecovery) {
           console.log('[DeepLink] Password recovery code detected, routing to /reset-password');
           // Preserve the code so ResetPasswordPage can exchange it
