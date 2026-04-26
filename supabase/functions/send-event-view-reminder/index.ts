@@ -130,23 +130,22 @@ serve(async (req) => {
       });
     }
 
-    // Fetch user profiles and emails in parallel (targeted, not listUsers)
-    const [profilesResult, ...userResults] = await Promise.all([
+    // Fetch profiles AND emails in parallel — emails come from a single batched
+    // RPC call instead of N parallel auth.admin.getUserById() calls (which exhaust
+    // the auth admin connection pool when userIds is large).
+    const [profilesResult, emailsResult] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, display_name")
         .in("id", userIds),
-      ...userIds.map(id => supabase.auth.admin.getUserById(id)),
+      supabase.rpc("get_user_emails", { user_ids: userIds }),
     ]);
 
     const profiles = profilesResult.data;
 
     const userEmailMap = new Map<string, string>();
-    userResults.forEach((result, index) => {
-      const userId = userIds[index];
-      if (result.data?.user?.email) {
-        userEmailMap.set(userId, result.data.user.email);
-      }
+    (emailsResult.data as Array<{ id: string; email: string }> | null)?.forEach((row) => {
+      if (row.email) userEmailMap.set(row.id, row.email);
     });
 
     const profileMap = new Map<string, string>();
