@@ -610,7 +610,9 @@ export function AppHeader() {
             toast.info("This photo is no longer available.");
             return;
           }
-          navigate(`/media?photo=${relatedId}`);
+          // photo_comment notifications should land on the comment screen
+          const suffix = notification.type === "photo_comment" ? "&comments=1" : "";
+          navigate(`/media?photo=${relatedId}${suffix}`);
           return;
         }
         case "comment_reaction":
@@ -639,7 +641,8 @@ export function AppHeader() {
             toast.info("This photo is no longer available.");
             return;
           }
-          navigate(`/media?photo=${targetPhotoId}`);
+          // comment replies / reactions also belong on the comment screen
+          navigate(`/media?photo=${targetPhotoId}&comments=1`);
           return;
         }
         case "join_request":
