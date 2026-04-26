@@ -72,10 +72,10 @@ export function useActivityTracking() {
     if (!sessionData.session) return;
 
     try {
-      await supabase
-        .from("user_activity_logs" as any)
-        .update({ duration_seconds: elapsed } as any)
-        .eq("id", activeLogIdRef.current);
+      await (supabase as any).rpc("update_user_activity_duration", {
+        _activity_log_id: activeLogIdRef.current,
+        _duration_seconds: elapsed,
+      });
     } catch {
       // Silently fail - activity tracking is non-critical
     }
@@ -104,18 +104,12 @@ export function useActivityTracking() {
     startTimeRef.current = Date.now();
 
     try {
-      const { data, error } = await supabase
-        .from("user_activity_logs" as any)
-        .insert({
-          user_id: user.id,
-          page_path: path,
-          page_label: getPageLabel(path),
-          session_id: SESSION_ID,
-          club_id: clubId,
-          duration_seconds: 0,
-        } as any)
-        .select("id")
-        .single();
+      const { data, error } = await (supabase as any).rpc("track_user_activity_start", {
+        _page_path: path,
+        _page_label: getPageLabel(path),
+        _session_id: SESSION_ID,
+        _club_id: clubId,
+      });
 
       if (error) {
         // RLS / auth errors mean the session is no longer valid for
@@ -134,7 +128,7 @@ export function useActivityTracking() {
           suppressUntil = Date.now() + SUPPRESS_AFTER_AUTH_ERROR_MS;
         }
       } else {
-        activeLogIdRef.current = (data as any)?.id || null;
+        activeLogIdRef.current = (data as string | null) || null;
       }
     } catch {
       // Silently fail
@@ -211,16 +205,19 @@ export function useActivityTracking() {
 
       try {
         fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_logs?id=eq.${activeLogIdRef.current}`,
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/update_user_activity_duration`,
           {
-            method: 'PATCH',
+            method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               'Authorization': `Bearer ${token}`,
               'Prefer': 'return=minimal',
             },
-            body: JSON.stringify({ duration_seconds: elapsed }),
+            body: JSON.stringify({
+              _activity_log_id: activeLogIdRef.current,
+              _duration_seconds: elapsed,
+            }),
             keepalive: true,
           }
         ).catch(() => {});
