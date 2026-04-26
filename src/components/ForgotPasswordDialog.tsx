@@ -170,14 +170,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               size="sm"
               onClick={() => {
                 const validation = emailSchema.safeParse(email);
-                if (!validation.success) {
-                  toast({
-                    title: "Enter your email first",
-                    description: "We need your email to verify the code you received.",
-                  });
-                  return;
-                }
-                setStep("code");
+                const qs = validation.success
+                  ? `?email=${encodeURIComponent(email)}`
+                  : "";
+                handleClose();
+                navigate(`/verify-reset-code${qs}`);
               }}
               className="w-full text-muted-foreground"
             >
