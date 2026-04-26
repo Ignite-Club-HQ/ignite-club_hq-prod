@@ -128,10 +128,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get user profile and email
-      const { data: authUser } = await supabase.auth.admin.getUserById(staff.user_id);
-      
-      if (!authUser?.user?.email) {
+      // Get user email via batched RPC (avoids auth admin pool exhaustion)
+      const { data: emailRows } = await supabase
+        .rpc("get_user_emails", { user_ids: [staff.user_id] });
+      const staffEmail = emailRows?.[0]?.email as string | undefined;
+
+      if (!staffEmail) {
         console.log(`[GAME-STATS-EMAIL] User ${staff.user_id} has no email`);
         emailsSkipped++;
         continue;
