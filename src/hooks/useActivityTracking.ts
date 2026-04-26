@@ -170,6 +170,25 @@ export function useActivityTracking() {
     };
   }, [location.pathname, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cache the current access token so the unload handler (which can't await)
+  // has a fresh JWT to send. Without the user's JWT, the PATCH runs as the
+  // anon role and trips the RLS update policy, flooding postgres logs with
+  // "new row violates row-level security policy" errors.
+  const accessTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) accessTokenRef.current = data.session?.access_token ?? null;
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token ?? null;
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   // Flush on visibility change (tab switch, app background)
   useEffect(() => {
     const handleVisibility = () => {
@@ -181,28 +200,32 @@ export function useActivityTracking() {
     const handleBeforeUnload = () => {
       // Use fetch with keepalive for reliable delivery during page unload
       // (sendBeacon only supports POST, but we need PATCH)
-      if (activeLogIdRef.current) {
-        const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
-        if (elapsed >= 1) {
-          try {
-            fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_logs?id=eq.${activeLogIdRef.current}`,
-              {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                  'Prefer': 'return=minimal',
-                },
-                body: JSON.stringify({ duration_seconds: elapsed }),
-                keepalive: true,
-              }
-            ).catch(() => {});
-          } catch {
-            // Silently fail - activity tracking is non-critical
+      if (!activeLogIdRef.current) return;
+      const token = accessTokenRef.current;
+      // No JWT → skip. An anon PATCH would always fail RLS and just spam logs.
+      if (!token) return;
+      if (Date.now() < suppressUntil) return;
+
+      const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+      if (elapsed < 1) return;
+
+      try {
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_logs?id=eq.${activeLogIdRef.current}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Authorization': `Bearer ${token}`,
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ duration_seconds: elapsed }),
+            keepalive: true,
           }
-        }
+        ).catch(() => {});
+      } catch {
+        // Silently fail - activity tracking is non-critical
       }
     };
 
