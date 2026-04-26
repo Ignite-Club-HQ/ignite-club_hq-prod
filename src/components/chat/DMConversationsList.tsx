@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { ensureFreshSession } from "@/lib/ensureFreshSession";
 import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
 
