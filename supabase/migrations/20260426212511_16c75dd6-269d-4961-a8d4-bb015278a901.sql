@@ -1,0 +1,1 @@
+ALTER TABLE public.vault_folders ADD COLUMN IF NOT EXISTS deleted_at timestamptz;

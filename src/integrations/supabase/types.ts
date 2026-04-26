@@ -7425,6 +7425,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           drive_folder_id: string | null
           id: string
           name: string
@@ -7438,6 +7439,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           drive_folder_id?: string | null
           id?: string
           name: string
@@ -7451,6 +7453,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           drive_folder_id?: string | null
           id?: string
           name?: string
