@@ -62,18 +62,19 @@ export default function OnlineUsersTab() {
         .select("id, display_name, avatar_url")
         .in("id", userIds);
 
-      // Emails live in auth.users — fetch via the service-role-backed RPC.
+      // Emails live in auth.users — fetch via the admin-gated RPC.
       // Failures here are non-fatal; we just render the row without an email.
       const emailMap: Record<string, string> = {};
       try {
-        const { data: emailRows } = await supabase.rpc("get_user_emails" as any, {
-          user_ids: userIds,
-        } as any);
+        const { data: emailRows } = await supabase.rpc(
+          "admin_get_user_emails" as any,
+          { user_ids: userIds } as any,
+        );
         (emailRows as any[] | null)?.forEach((row: any) => {
           if (row?.id && row?.email) emailMap[row.id] = row.email;
         });
       } catch {
-        // RPC may be restricted in this environment; ignore.
+        // Caller is not an app_admin or RPC is unavailable; render without emails.
       }
 
       const profileMap: Record<string, any> = {};
