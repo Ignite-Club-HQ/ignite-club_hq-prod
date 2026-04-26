@@ -1652,15 +1652,6 @@ export default function HomePage() {
         />
       )}
 
-      {/* Notification nudge popup - shown once per cooldown to users with no registered push devices */}
-      {user?.id && (
-        <NotificationNudgeDialog
-          open={homeNotificationNudge.shouldShowNudge}
-          userId={user.id}
-          onDismiss={homeNotificationNudge.dismiss}
-        />
-      )}
-
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
