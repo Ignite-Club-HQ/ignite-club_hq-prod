@@ -189,15 +189,15 @@ export function ClubTeamFilter({
             </Button>
 
             <Drawer open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
-              <DrawerContent>
-                <DrawerHeader className="text-left border-b">
+              <DrawerContent className="max-h-[85vh] flex flex-col overflow-hidden">
+                <DrawerHeader className="text-left border-b shrink-0">
                   <DrawerTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5" />
                     Select {teamLabel}
                   </DrawerTitle>
                 </DrawerHeader>
-                <ScrollArea className="max-h-[60vh]">
-                  <div className="p-4 space-y-2">
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="p-4 space-y-2 pb-safe">
                     <button
                       type="button"
                       onClick={() => handleTeamSelect("all")}
