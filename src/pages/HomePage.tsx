@@ -153,6 +153,7 @@ function formatEventDate(dateStr: string) {
 
 export default function HomePage() {
   const { user, profile, refreshProfile, initialized } = useAuth();
+  const homeNotificationNudge = useNotificationNudge(user?.id, "home");
   usePageTitle("Home");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1648,6 +1649,19 @@ export default function HomePage() {
         <AccountRecoveryBanner 
           userId={user.id} 
           onRecovered={() => queryClient.invalidateQueries()}
+        />
+      )}
+
+      {/* Notification nudge - for users with no registered push devices (web/PWA/stale sessions) */}
+      {user?.id && homeNotificationNudge.shouldShowNudge && (
+        <NotificationNudgeBanner
+          userId={user.id}
+          message={
+            Capacitor.isNativePlatform()
+              ? "You're not set up to receive push notifications — tap Enable so you never miss team updates."
+              : "You're not receiving push notifications. Install the app or enable browser notifications to stay in the loop."
+          }
+          onDismiss={homeNotificationNudge.dismiss}
         />
       )}
 
