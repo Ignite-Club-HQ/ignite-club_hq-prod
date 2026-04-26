@@ -14,21 +14,26 @@ interface MessageAction {
   destructive?: boolean;
 }
 
-// Extract plain URLs from message text
+// Extract plain URLs from message text, including bare domains like example.com
 const extractUrls = (text: string): string[] => {
   const urlRegex = /(?:https?:\/\/|www\.)[^\s\]]+/gi;
+  const bareDomainRegex = /(?:^|[\s([{<])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|edu|gov|au|co|io|app|dev|club|team|sport|sports|com\.au|org\.au|net\.au)(?::\d{2,5})?(?:\/[^\s\])}>,]*)?)/gi;
   const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
   const urls: string[] = [];
+  const addUrl = (url: string) => {
+    const normalized = url.replace(/[.,!?;:]+$/g, "");
+    if (normalized && !urls.includes(normalized)) urls.push(normalized);
+  };
   
   let match;
   while ((match = markdownLinkRegex.exec(text)) !== null) {
-    urls.push(match[2]);
+    addUrl(match[2]);
   }
   while ((match = urlRegex.exec(text)) !== null) {
-    // Skip if this URL was already captured as part of a markdown link
-    if (!urls.includes(match[0])) {
-      urls.push(match[0]);
-    }
+    addUrl(match[0]);
+  }
+  while ((match = bareDomainRegex.exec(text)) !== null) {
+    addUrl(match[1]);
   }
   return urls;
 };
