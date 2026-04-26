@@ -162,6 +162,16 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
   const { data: conversations, isLoading, isFetching } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
+      // Refresh the access token before reading. After phone lock/unlock the
+      // JWT can be expired; an expired token makes RLS evaluate auth.uid()
+      // as NULL and silently returns empty profile rows → "Unknown User".
+      try {
+        await ensureFreshSession();
+      } catch {
+        // Continue — query will throw if truly unauthenticated and React
+        // Query will keep showing the previous data.
+      }
+
       const { data: convos, error } = await supabase
         .from("direct_conversations")
         .select("*")
@@ -203,11 +213,35 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
         messagesResult.map(m => [m.conversationId, m.message])
       );
 
+      // Build a fallback map of previously-known good profiles so a transient
+      // empty profile fetch never downgrades a real name back to "Unknown User".
+      const previousResult = queryClient.getQueryData<DMConversation[]>(["dm-conversations", user?.id]);
+      const previousOtherUserMap = new Map<string, DMConversation["other_user"]>();
+      previousResult?.forEach((c) => {
+        if (c?.other_user?.id && c.other_user.display_name) {
+          previousOtherUserMap.set(c.other_user.id, c.other_user);
+        }
+      });
+      cachedData?.dmConversations?.forEach((c: any) => {
+        if (c?.other_user?.id && c.other_user.display_name && !previousOtherUserMap.has(c.other_user.id)) {
+          previousOtherUserMap.set(c.other_user.id, c.other_user);
+        }
+      });
+
       const result = convos.map(conv => {
         const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
+        const fetched = profileMap.get(otherUserId);
+        const fallback = previousOtherUserMap.get(otherUserId);
+        const otherUser: DMConversation["other_user"] = fetched
+          ? {
+              id: otherUserId,
+              display_name: fetched.display_name || fallback?.display_name || null,
+              avatar_url: fetched.avatar_url ?? fallback?.avatar_url ?? null,
+            }
+          : fallback || null;
         return {
           ...conv,
-          other_user: profileMap.get(otherUserId) || null,
+          other_user: otherUser,
           last_message: messageMap.get(conv.id) || null,
         };
       }) as DMConversation[];
