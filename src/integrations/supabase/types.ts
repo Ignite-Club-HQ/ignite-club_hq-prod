@@ -4612,6 +4612,48 @@ export type Database = {
           },
         ]
       }
+      photo_albums: {
+        Row: {
+          caption: string | null
+          club_id: string | null
+          cover_photo_id: string | null
+          created_at: string
+          event_id: string | null
+          id: string
+          mini_league_id: string | null
+          photo_count: number
+          team_id: string | null
+          updated_at: string
+          uploader_id: string
+        }
+        Insert: {
+          caption?: string | null
+          club_id?: string | null
+          cover_photo_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          mini_league_id?: string | null
+          photo_count?: number
+          team_id?: string | null
+          updated_at?: string
+          uploader_id: string
+        }
+        Update: {
+          caption?: string | null
+          club_id?: string | null
+          cover_photo_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          mini_league_id?: string | null
+          photo_count?: number
+          team_id?: string | null
+          updated_at?: string
+          uploader_id?: string
+        }
+        Relationships: []
+      }
       photo_comment_reactions: {
         Row: {
           comment_id: string
@@ -4869,6 +4911,7 @@ export type Database = {
       }
       photos: {
         Row: {
+          album_id: string | null
           caption: string | null
           club_id: string | null
           created_at: string
@@ -4886,6 +4929,7 @@ export type Database = {
           uploader_id: string
         }
         Insert: {
+          album_id?: string | null
           caption?: string | null
           club_id?: string | null
           created_at?: string
@@ -4903,6 +4947,7 @@ export type Database = {
           uploader_id: string
         }
         Update: {
+          album_id?: string | null
           caption?: string | null
           club_id?: string | null
           created_at?: string
@@ -4920,6 +4965,13 @@ export type Database = {
           uploader_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "photos_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "photo_albums"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "photos_club_id_fkey"
             columns: ["club_id"]
@@ -7648,6 +7700,7 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_album: { Args: { _album_id: string }; Returns: boolean }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
@@ -8122,6 +8175,13 @@ export type Database = {
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {
+          id: string
+        }[]
+      }
+      get_user_emails: {
+        Args: { user_ids: string[] }
+        Returns: {
+          email: string
           id: string
         }[]
       }

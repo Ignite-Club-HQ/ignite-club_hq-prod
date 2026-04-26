@@ -97,17 +97,17 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // Get recipient's email and notification preferences
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(payload.recipientUserId);
-    if (authError || !authUser?.user?.email) {
+    // Get recipient's email via batched RPC (avoids auth admin connection pool storm)
+    const { data: emailRows, error: authError } = await supabase
+      .rpc("get_user_emails", { user_ids: [payload.recipientUserId] });
+    const recipientEmail = emailRows?.[0]?.email as string | undefined;
+    if (authError || !recipientEmail) {
       console.log("Could not get recipient email:", authError?.message || "No email found");
       return new Response(JSON.stringify({ success: false, reason: "no_email" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const recipientEmail = authUser.user.email;
 
     // Check notification preferences
     const { data: prefs } = await supabase

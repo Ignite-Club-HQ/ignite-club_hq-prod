@@ -135,18 +135,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get recipient's profile and email
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(recipientUserId);
-    
-    if (authError || !authUser?.user?.email) {
+    // Get recipient's email via batched RPC (avoids auth admin pool exhaustion)
+    const { data: emailRows, error: authError } = await supabase
+      .rpc("get_user_emails", { user_ids: [recipientUserId] });
+    const recipientEmail = emailRows?.[0]?.email as string | undefined;
+
+    if (authError || !recipientEmail) {
       console.error(`[PITCH-EMAIL] Could not get email for user ${recipientUserId}:`, authError?.message);
       return new Response(JSON.stringify({ error: 'User email not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    const recipientEmail = authUser.user.email;
 
     // Get recipient's display name
     const { data: profile } = await supabase

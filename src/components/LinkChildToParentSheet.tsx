@@ -87,52 +87,57 @@ export default function LinkChildToParentSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
-        <SheetHeader className="pb-4">
-          <SheetTitle className="text-base">Link "{childName}" to a Parent</SheetTitle>
-          <p className="text-sm text-muted-foreground">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85vh] flex flex-col overflow-hidden p-0"
+      >
+        <SheetHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+          <SheetTitle className="text-base text-left">Link "{childName}" to a Parent</SheetTitle>
+          <p className="text-sm text-muted-foreground text-left">
             Select a team member to assign as {childName}'s parent
           </p>
         </SheetHeader>
 
-        {parentOptions.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No team members available. Add a member to the team first.
-          </p>
-        ) : (
-          <div className="space-y-2 pb-4">
-            {parentOptions.map((parent) => (
-              <button
-                key={parent.id}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                  selectedParentId === parent.id
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-muted/50"
-                }`}
-                onClick={() => setSelectedParentId(parent.id)}
-                disabled={linkMutation.isPending}
-              >
-                <Avatar className="h-8 w-8">
-                  {parent.avatar && <AvatarImage src={parent.avatar} />}
-                  <AvatarFallback className="text-sm">
-                    {parent.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium">{parent.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {parent.roles.join(", ")}
-                  </p>
-                </div>
-                {selectedParentId === parent.id && (
-                  <UserCheck className="h-4 w-4 text-primary" />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto px-6 py-4 overscroll-contain">
+          {parentOptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No team members available. Add a member to the team first.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {parentOptions.map((parent) => (
+                <button
+                  key={parent.id}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    selectedParentId === parent.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                  onClick={() => setSelectedParentId(parent.id)}
+                  disabled={linkMutation.isPending}
+                >
+                  <Avatar className="h-8 w-8">
+                    {parent.avatar && <AvatarImage src={parent.avatar} />}
+                    <AvatarFallback className="text-sm">
+                      {parent.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-medium">{parent.name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {parent.roles.join(", ")}
+                    </p>
+                  </div>
+                  {selectedParentId === parent.id && (
+                    <UserCheck className="h-4 w-4 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <div className="pt-2 pb-2">
+        <div className="px-6 py-4 border-t bg-background pb-safe shrink-0">
           <Button
             className="w-full"
             disabled={!selectedParentId || linkMutation.isPending}

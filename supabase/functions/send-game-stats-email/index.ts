@@ -128,10 +128,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get user profile and email
-      const { data: authUser } = await supabase.auth.admin.getUserById(staff.user_id);
-      
-      if (!authUser?.user?.email) {
+      // Get user email via batched RPC (avoids auth admin pool exhaustion)
+      const { data: emailRows } = await supabase
+        .rpc("get_user_emails", { user_ids: [staff.user_id] });
+      const staffEmail = emailRows?.[0]?.email as string | undefined;
+
+      if (!staffEmail) {
         console.log(`[GAME-STATS-EMAIL] User ${staff.user_id} has no email`);
         emailsSkipped++;
         continue;
@@ -147,7 +149,7 @@ Deno.serve(async (req) => {
       try {
         const { error: emailError } = await supabase.functions.invoke('send-email', {
           body: {
-            to: authUser.user.email,
+            to: staffEmail,
             subject: `📊 Game Stats Ready: ${team.name} vs ${opponent || 'Opponent'}`,
             template: 'game-stats-ready',
             templateData: {
@@ -169,7 +171,7 @@ Deno.serve(async (req) => {
           console.error(`[GAME-STATS-EMAIL] Failed to send to ${staff.user_id}:`, emailError);
           emailsSkipped++;
         } else {
-          console.log(`[GAME-STATS-EMAIL] Email sent to ${authUser.user.email}`);
+          console.log(`[GAME-STATS-EMAIL] Email sent to ${staffEmail}`);
           emailsSent++;
         }
       } catch (err) {

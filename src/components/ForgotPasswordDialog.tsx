@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasswordResetRedirectUrl } from "@/lib/passwordResetRedirect";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -65,7 +66,13 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
     // No redirectTo — we want the email's OTP code, not a magic link click.
     // The recovery email template in Supabase must include {{ .Token }}.
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    // redirectTo points to /verify-reset-code so users who DO click the
+    // email link land on the OTP entry page (where they can paste the
+    // 6-digit code from the same email). Cross-device users can also
+    // navigate there directly via "I already have a code".
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(email),
+    });
 
     setSending(false);
 
@@ -165,6 +172,24 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Code"}
               </Button>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const validation = emailSchema.safeParse(email);
+                if (!validation.success) {
+                  toast({
+                    title: "Enter your email first",
+                    description: "We need your email to verify the code you received.",
+                  });
+                  return;
+                }
+                setStep("code");
+              }}
+              className="w-full text-muted-foreground"
+            >
+              I already have a code
+            </Button>
             <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border/50">
               Already signed in? You can change your password from{" "}
               <span className="font-medium text-foreground">Settings → Change Password</span>.
