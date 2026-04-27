@@ -779,11 +779,16 @@ export default function GroupChatPage() {
       const olderReactions = reactionsData as MessageReaction[];
 
       // Prepend older messages and reactions to cache
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
-        if (!old) return { messages: olderMessages, reactions: olderReactions };
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+        if (!old) return { messages: olderMessages, reactions: olderReactions, hasOlderMessages: hasMore };
         return {
+          ...old,
           messages: [...olderMessages, ...old.messages],
           reactions: [...olderReactions, ...old.reactions],
+          // CRITICAL: preserve / update hasOlderMessages so the sync effect
+          // (which reads it back into local state) doesn't reset it to false
+          // and remove the infinite-scroll trigger after the first page.
+          hasOlderMessages: hasMore,
         };
       });
 
