@@ -902,6 +902,22 @@ export default function BroadcastChatPage() {
     }
   };
 
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: true,
+    cacheKey: `broadcast`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "broadcast_messages",
+        scope: {},
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, reply_to_id",
+      })) as Message[],
+  });
+
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
     const base = !searchQuery.trim()
