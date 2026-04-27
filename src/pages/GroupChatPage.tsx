@@ -20,7 +20,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 
@@ -1730,6 +1730,8 @@ export default function GroupChatPage() {
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
+        ) : isSearchFetching ? (
+          <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
             title="No messages yet"
