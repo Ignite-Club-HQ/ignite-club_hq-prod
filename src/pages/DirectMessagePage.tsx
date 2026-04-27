@@ -1042,6 +1042,22 @@ export default function DirectMessagePage() {
     );
   }
 
+  useChatHistorySearch<DirectMessage>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!conversationId,
+    cacheKey: `dm:${conversationId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "direct_messages",
+        scope: { conversation_id: conversationId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
+      })) as DirectMessage[],
+  });
+
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
