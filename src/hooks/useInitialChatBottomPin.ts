@@ -162,6 +162,16 @@ export function useInitialChatBottomPin({
 
     const guardSnap = () => {
       if (cancelled || userScrolledAwayRef.current) return;
+      // Read current scroll position synchronously — the cached
+      // userScrolledAwayRef may not have been flipped yet by the rAF-throttled
+      // scroll listener. If the user is no longer near the bottom, do NOT
+      // snap them back — that would prevent them from reaching older messages
+      // (especially when prepending older history triggers a resize event).
+      const metrics = getChatScrollMetrics(scrollContainerRef.current);
+      if (metrics && metrics.distanceFromBottom > 32) {
+        userScrolledAwayRef.current = true;
+        return;
+      }
       scrollChatToBottom(scrollContainerRef.current);
     };
 
