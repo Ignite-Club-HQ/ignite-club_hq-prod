@@ -117,6 +117,9 @@ const STORAGE_DATA_KEY_PREFIX = "ignite-club-theme-data-";
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}${userId}`;
 const getStorageDataKey = (userId: string) => `${STORAGE_DATA_KEY_PREFIX}${userId}`;
 
+// Track last applied signature to avoid redundant CSS variable writes
+let lastAppliedThemeSignature: string | null = null;
+
 // Helper to clear ALL theme-related inline CSS properties from document root
 const clearAllThemeCSS = () => {
   const root = document.documentElement;
@@ -138,9 +141,6 @@ const clearAllThemeCSS = () => {
   // Reset throttle signature so next applyThemeCSS will run
   lastAppliedThemeSignature = null;
 };
-
-// Track last applied signature to avoid redundant CSS variable writes
-let lastAppliedThemeSignature: string | null = null;
 
 // Apply theme CSS from theme data based on current mode
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
