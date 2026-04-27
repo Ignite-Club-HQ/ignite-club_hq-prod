@@ -297,21 +297,13 @@ export function DriblImportMapper({
         time = `${time.slice(0, 2)}:${time.slice(2, 4)}`;
       }
       
-      // Build description
-      const descParts = [
-        row.league,
-        row.ageGroup && row.division ? `${row.ageGroup} ${row.division}` : row.ageGroup || row.division,
-        row.gender,
-        isHome ? 'Home' : 'Away',
-      ].filter(Boolean);
-      
       fixtures.push({
         id: crypto.randomUUID(),
         title,
         date: parsedDate,
         time: time.substring(0, 5),
         address,
-        description: descParts.join(' • '),
+        description: '',
         opponent,
         driblTeamKey,
         isHomeGame: isHome,
