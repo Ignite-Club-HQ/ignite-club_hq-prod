@@ -1731,7 +1731,7 @@ export default function GroupChatPage() {
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
-        ) : isSearchFetching ? (
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState

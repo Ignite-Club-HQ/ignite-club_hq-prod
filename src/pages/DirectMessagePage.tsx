@@ -1135,7 +1135,7 @@ export default function DirectMessagePage() {
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : isSearchFetching ? (
+            ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
               <ChatSearchLoadingState />
             ) : filteredMessages?.length === 0 ? (
               <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />

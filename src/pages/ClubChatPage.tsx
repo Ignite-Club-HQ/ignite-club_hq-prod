@@ -1320,7 +1320,7 @@ export default function ClubChatPage() {
               <Skeleton key={i} className="h-16 w-3/4" />
             ))}
           </div>
-        ) : isSearchFetching ? (
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
