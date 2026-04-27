@@ -55,21 +55,23 @@ export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange
       <Button variant="ghost" size="icon" onClick={handleClose} className="shrink-0 h-9 w-9">
         <ArrowLeft className="h-5 w-5" />
       </Button>
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-w-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           ref={inputRef}
           placeholder="Search messages..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className={`pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1 ${query && isSearching ? "pr-16" : "pr-9"}`}
+          className={`h-9 bg-muted/50 border-0 pl-9 focus-visible:ring-1 ${query ? "pr-20" : "pr-9"}`}
         />
-        {isSearching && (
-          <Loader2
-            className="absolute right-9 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-primary"
-            aria-label="Searching messages"
-          />
-        )}
+        <div className="pointer-events-none absolute right-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center">
+          {isSearching && (
+            <Loader2
+              className="h-4 w-4 animate-spin text-primary"
+              aria-label="Searching messages"
+            />
+          )}
+        </div>
         <span className="sr-only" aria-live="polite">
           {isSearching ? "Searching messages" : ""}
         </span>
