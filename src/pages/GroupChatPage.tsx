@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 30;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
