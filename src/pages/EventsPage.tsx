@@ -291,14 +291,20 @@ export default function EventsPage() {
   const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
+      const overall = performance.now();
+      diagLog("events:start", { hasMemberships: !!userMemberships });
       if (!userMemberships) return [];
 
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
-      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      if (teamIds.length === 0 && clubIds.length === 0) {
+        diagLog("events:end-empty-memberships");
+        return [];
+      }
 
       // Offline fallback: serve cached events list
       if (!navigator.onLine) {
         const cached = getCachedEventsList(eventsScopeKey);
+        diagLog("events:offline-cache", { hasCached: !!cached });
         if (cached) return cached as Event[];
       }
 
@@ -339,10 +345,13 @@ export default function EventsPage() {
       if (clubFilter) query = query.eq("club_id", clubFilter);
       if (teamFilter) query = query.eq("team_id", teamFilter);
 
+      const queryStart = performance.now();
       const { data, error } = await query;
+      diagLog("events:query-resolved", { ms: Math.round(performance.now() - queryStart), rows: data?.length ?? null, error: error?.message });
       if (error) {
         // Network failed — try cache as fallback
         const cached = getCachedEventsList(eventsScopeKey);
+        diagLog("events:error-fallback-cache", { hasCached: !!cached, error: error.message });
         if (cached) return cached as Event[];
         throw error;
       }
