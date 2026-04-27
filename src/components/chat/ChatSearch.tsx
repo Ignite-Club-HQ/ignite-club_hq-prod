@@ -91,13 +91,54 @@ export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange
 }
 
 export function ChatSearchLoadingState() {
+  // Skeleton list mimicking message rows so the user always sees results
+  // loading instead of any "no messages" empty state during fetch.
+  const rows = [
+    { side: "left", w: "70%" },
+    { side: "right", w: "55%" },
+    { side: "left", w: "85%" },
+    { side: "left", w: "45%" },
+    { side: "right", w: "65%" },
+    { side: "left", w: "75%" },
+  ] as const;
+
   return (
-    <div className="flex min-h-[10rem] flex-col items-center justify-center gap-3 px-4 py-10 text-center text-muted-foreground">
-      <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-      <p className="text-sm font-medium">Searching messages…</p>
+    <div
+      className="flex flex-col gap-3 px-3 py-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Searching messages"
+    >
+      <span className="sr-only">Searching messages…</span>
+      {rows.map((row, i) => (
+        <div
+          key={i}
+          className={`flex ${row.side === "right" ? "justify-end" : "justify-start"}`}
+        >
+          <div
+            className={`flex max-w-[80%] items-end gap-2 ${
+              row.side === "right" ? "flex-row-reverse" : ""
+            }`}
+          >
+            {row.side === "left" && (
+              <div className="h-8 w-8 shrink-0 rounded-full bg-muted animate-pulse" />
+            )}
+            <div className="flex flex-col gap-1.5">
+              {row.side === "left" && i % 2 === 0 && (
+                <div className="h-2.5 w-20 rounded bg-muted/70 animate-pulse" />
+              )}
+              <div
+                className="h-10 rounded-2xl bg-muted animate-pulse"
+                style={{ width: row.w, minWidth: "4rem" }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
+
 
 // Keep legacy component for backward compat if needed
 export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: string) => void; debounceMs?: number }) {
