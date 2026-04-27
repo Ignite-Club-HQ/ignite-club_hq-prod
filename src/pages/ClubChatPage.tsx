@@ -720,7 +720,9 @@ export default function ClubChatPage() {
           loadOlderMessages();
         }
       },
-      { root: scrollRoot, threshold: 0.1 }
+      // Pre-fetch older messages BEFORE the user reaches the very top so the next
+      // page is already in the DOM, eliminating the scroll-then-wait stutter.
+      { root: scrollRoot, rootMargin: "800px 0px 0px 0px", threshold: 0 }
     );
     
     observer.observe(loadTriggerRef.current);
