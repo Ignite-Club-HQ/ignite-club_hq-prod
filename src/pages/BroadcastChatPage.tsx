@@ -13,7 +13,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -53,7 +53,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 30;
 
@@ -930,6 +930,13 @@ export default function BroadcastChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  useEffect(() => {
+    if (isSearchFetching) return;
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, isSearchFetching, searchQuery]);
+
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
     (filteredMessages || []).map(m => m.id).filter(id => !id.startsWith('temp-')),
@@ -1015,7 +1022,9 @@ export default function BroadcastChatPage() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
-        {filteredMessages?.length === 0 ? (
+        {isSearchFetching ? (
+          <ChatSearchLoadingState />
+        ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
             title="No announcements yet"
             isSearchResult={!!searchQuery}
@@ -1041,6 +1050,7 @@ export default function BroadcastChatPage() {
                   <div key={msg.id}>
                     {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                     <div
+                      id={`message-${msg.id}`}
                       className={`transition-colors duration-500 ${
                         highlightedMessageId === msg.id
                           ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-2"
