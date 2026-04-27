@@ -701,9 +701,16 @@ export default function TeamChatPage() {
     }
   }, [messagesData]);
 
+  // Keep a ref to localMessages so loadOlderMessages doesn't churn
+  const localMessagesRef = useRef<Message[] | undefined>(localMessages);
+  useEffect(() => {
+    localMessagesRef.current = localMessages;
+  }, [localMessages]);
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
-    if (!localMessages?.length || isLoadingOlder || !hasOlderMessages) return;
+    const currentMessages = localMessagesRef.current;
+    if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
 
@@ -713,12 +720,12 @@ export default function TeamChatPage() {
     const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
     const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
-    // Create abort controller for timeout
+    // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
-      const oldestMessage = localMessages[0];
+      const oldestMessage = currentMessages[0];
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
