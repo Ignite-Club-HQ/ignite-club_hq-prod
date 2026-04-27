@@ -62,7 +62,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGuestsManager } from "@/components/EventGuestsManager";
@@ -2240,7 +2240,7 @@ export default function EventDetailPage() {
               <span>${Number(eventPrice).toFixed(2)} per person</span>
             </div>
           )}
-          {/* Pitch Board / Start Game button for game events */}
+          {/* Pitch Board / Start Game button for game events — only available on the day of the game */}
           {canAccessPitchBoard && teamMembers && (() => {
             const eventTime = parseISO(event.event_date);
             const now = new Date();
@@ -2248,10 +2248,14 @@ export default function EventDetailPage() {
             const isWithin120Min = minutesUntilKickoff <= 120;
             const hasStarted = minutesUntilKickoff <= 0;
             const isPastGame = hasStarted && minutesUntilKickoff < -180; // more than 3 hours ago
-            
+            const isGameDay = isSameDay(eventTime, now);
+
+            // Pitch board can only be started/opened on the day of the game
+            if (!isGameDay) return null;
+
             // Don't show any pitch board button for past games
             if (isPastGame) return null;
-            
+
             return isWithin120Min ? (
               <Button
                 variant="default"
