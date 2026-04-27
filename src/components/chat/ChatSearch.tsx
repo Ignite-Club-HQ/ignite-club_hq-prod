@@ -103,7 +103,8 @@ export function highlightText(text: string, query: string): React.ReactNode {
     part && part.toLowerCase() === lower ? (
       <mark
         key={i}
-        className="bg-yellow-300 dark:bg-yellow-500/70 text-foreground rounded px-0.5 font-semibold"
+        className="rounded px-0.5 font-semibold"
+        style={{ backgroundColor: "#fde047", color: "#1f2937" }}
       >
         {part}
       </mark>
