@@ -1298,6 +1298,12 @@ export default function TeamChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  useEffect(() => {
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, searchQuery]);
+
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
     (filteredMessages || []).map(m => m.id).filter(id => !id.startsWith('temp-')),
@@ -1520,8 +1526,8 @@ export default function TeamChatPage() {
        </div>
 
       {/* Input - Fixed at bottom above nav bar */}
-      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+      <div ref={composerRef} className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t bg-background z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
