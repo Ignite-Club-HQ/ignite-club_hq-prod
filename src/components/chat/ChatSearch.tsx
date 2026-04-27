@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, ArrowLeft, X } from "lucide-react";
+import { Search, ArrowLeft, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -9,6 +9,7 @@ interface ChatSearchProps {
   debounceMs?: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  isSearching?: boolean;
 }
 
 export function ChatSearchTrigger({ onClick }: { onClick: () => void }) {
@@ -19,7 +20,7 @@ export function ChatSearchTrigger({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange }: ChatSearchProps) {
+export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange, isSearching = false }: ChatSearchProps) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, debounceMs);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,8 +62,17 @@ export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange
           placeholder="Search messages..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="pl-9 pr-9 h-9 bg-muted/50 border-0 focus-visible:ring-1"
+          className={`pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1 ${query && isSearching ? "pr-16" : "pr-9"}`}
         />
+        {isSearching && (
+          <Loader2
+            className="absolute right-9 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-primary"
+            aria-label="Searching messages"
+          />
+        )}
+        <span className="sr-only" aria-live="polite">
+          {isSearching ? "Searching messages" : ""}
+        </span>
         {query && (
           <Button
             variant="ghost"
