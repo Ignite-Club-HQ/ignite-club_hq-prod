@@ -667,8 +667,8 @@ export default function MediaPage() {
   // Use fetched reactions
   const allReactions = fetchedReactions || [];
 
-  // Stable query key for comments - include photo count to refetch when more photos load
-  const commentsQueryKey = useMemo(() => ["photo-comments", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
+  // Stable query key for comments - bucket photo count by 50 to avoid refetching on every page
+  const commentsQueryKey = useMemo(() => ["photo-comments", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
 
   // Fetch comments for ALL loaded photos (not just filtered)
   const { data: allComments } = useQuery({
