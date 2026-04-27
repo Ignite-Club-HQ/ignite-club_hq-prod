@@ -137,10 +137,31 @@ const clearAllThemeCSS = () => {
   root.style.removeProperty("--popover-foreground");
 };
 
+// Track last applied signature to avoid redundant CSS variable writes
+let lastAppliedThemeSignature: string | null = null;
+
 // Apply theme CSS from theme data based on current mode
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const root = document.documentElement;
-  
+
+  // Build a stable signature representing the resolved theme + mode
+  const signature = !theme || theme.logoOnlyMode
+    ? `none|${isDarkMode}`
+    : JSON.stringify({
+        c: theme.clubId,
+        d: isDarkMode,
+        p: isDarkMode ? (theme.darkPrimary || theme.primary) : theme.primary,
+        s: isDarkMode ? (theme.darkSecondary || theme.secondary) : theme.secondary,
+        a: isDarkMode ? (theme.darkAccent || theme.accent) : theme.accent,
+        lo: theme.logoOnlyMode,
+      });
+
+  // Skip if nothing changed since the last application
+  if (signature === lastAppliedThemeSignature) {
+    return;
+  }
+  lastAppliedThemeSignature = signature;
+
   if (!theme || theme.logoOnlyMode) {
     clearAllThemeCSS();
     return;
@@ -151,21 +172,9 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const secondary = isDarkMode ? (theme.darkSecondary || theme.secondary) : theme.secondary;
   const accent = isDarkMode ? (theme.darkAccent || theme.accent) : theme.accent;
 
-  // DEBUG: Log what we're actually setting
-  console.log('[ClubTheme] applyThemeCSS:', {
-    isDarkMode,
-    themeDarkPrimary: theme.darkPrimary,
-    themePrimary: theme.primary,
-    resolvedPrimary: primary,
-  });
-
   if (primary) {
     const cssValue = `${primary.h} ${primary.s}% ${primary.l}%`;
-    console.log('[ClubTheme] Setting --primary to:', cssValue);
     root.style.setProperty("--primary", cssValue);
-    // Verify the value was actually set
-    const computedValue = getComputedStyle(root).getPropertyValue('--primary');
-    console.log('[ClubTheme] Verified --primary computed value:', computedValue);
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
     root.style.setProperty("--ring", cssValue);
