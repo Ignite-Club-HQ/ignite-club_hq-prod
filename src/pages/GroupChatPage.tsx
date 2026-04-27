@@ -1520,6 +1520,22 @@ export default function GroupChatPage() {
     setTimeout(() => setHighlightedMessageId(null), 2000);
   };
 
+  useChatHistorySearch<GroupMessage>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!groupId,
+    cacheKey: `group:${groupId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "group_messages",
+        scope: { group_id: groupId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message",
+      })) as GroupMessage[],
+  });
+
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
     const base = !searchQuery.trim()
