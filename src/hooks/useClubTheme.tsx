@@ -135,6 +135,8 @@ const clearAllThemeCSS = () => {
   root.style.removeProperty("--muted");
   root.style.removeProperty("--popover");
   root.style.removeProperty("--popover-foreground");
+  // Reset throttle signature so next applyThemeCSS will run
+  lastAppliedThemeSignature = null;
 };
 
 // Track last applied signature to avoid redundant CSS variable writes
