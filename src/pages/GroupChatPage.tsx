@@ -844,7 +844,7 @@ export default function GroupChatPage() {
       // rootMargin pre-fetches older messages BEFORE the user reaches the very top
       // so the next page is already in the DOM by the time they keep scrolling up.
       // This prevents the visible "scroll → wait a few seconds → messages appear" stutter.
-      { root: scrollRoot, rootMargin: "800px 0px 0px 0px", threshold: 0 }
+      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
     );
     
     observer.observe(loadTriggerRef.current);
