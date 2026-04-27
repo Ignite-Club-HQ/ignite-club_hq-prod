@@ -14,6 +14,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { Button } from "@/components/ui/button";
@@ -899,6 +901,22 @@ export default function BroadcastChatPage() {
       handleSend();
     }
   };
+
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: true,
+    cacheKey: `broadcast`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "broadcast_messages",
+        scope: {},
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, reply_to_id",
+      })) as Message[],
+  });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;

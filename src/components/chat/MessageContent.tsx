@@ -475,7 +475,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                       WebkitTapHighlightColor: 'transparent',
                     }}
                   >
-                    {part.content}
+                    {searchQuery ? highlightText(part.content, searchQuery) : part.content}
                   </span>
                 );
               }

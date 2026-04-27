@@ -91,14 +91,24 @@ export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: s
 }
 
 export function highlightText(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text;
-  
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
-  
-  return parts.map((part, i) => 
-    regex.test(part) ? (
-      <mark key={i} className="bg-primary/30 text-inherit rounded px-0.5">{part}</mark>
-    ) : part
+  if (!query.trim() || !text) return text;
+
+  const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Capture group so split keeps matches; case-insensitive
+  const splitter = new RegExp(`(${escaped})`, "gi");
+  const lower = query.trim().toLowerCase();
+  const parts = text.split(splitter);
+
+  return parts.map((part, i) =>
+    part && part.toLowerCase() === lower ? (
+      <mark
+        key={i}
+        className="bg-yellow-300 dark:bg-yellow-500/70 text-foreground rounded px-0.5 font-semibold"
+      >
+        {part}
+      </mark>
+    ) : (
+      <span key={i}>{part}</span>
+    )
   );
 }

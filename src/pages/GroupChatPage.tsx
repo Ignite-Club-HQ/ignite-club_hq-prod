@@ -21,6 +21,8 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -1517,6 +1519,22 @@ export default function GroupChatPage() {
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => setHighlightedMessageId(null), 2000);
   };
+
+  useChatHistorySearch<GroupMessage>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!groupId,
+    cacheKey: `group:${groupId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "group_messages",
+        scope: { group_id: groupId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message",
+      })) as GroupMessage[],
+  });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;

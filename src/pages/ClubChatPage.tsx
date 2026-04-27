@@ -16,6 +16,8 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { Button } from "@/components/ui/button";
@@ -1132,6 +1134,22 @@ export default function ClubChatPage() {
       handleSend();
     }
   };
+
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!clubId,
+    cacheKey: `club:${clubId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "club_messages",
+        scope: { club_id: clubId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, club_id, reply_to_id",
+      })) as Message[],
+  });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;

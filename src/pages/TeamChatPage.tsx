@@ -17,6 +17,8 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
@@ -1262,6 +1264,27 @@ export default function TeamChatPage() {
       handleSend();
     }
   };
+
+  // Full-history server-side search: when the user types a query, fetch any
+  // matching messages older than what's already loaded and merge them in so
+  // the existing client-side filter + highlight covers the entire history.
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!teamId,
+    cacheKey: `team:${teamId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "team_messages",
+        scope: { team_id: teamId! },
+        query: q,
+        signal,
+        selectColumns:
+          "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message",
+        hasAnnouncements: true,
+      })) as Message[],
+  });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;

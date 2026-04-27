@@ -35,6 +35,8 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 import { Capacitor } from "@capacitor/core";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -404,6 +406,22 @@ export default function ClubAdminChatPage() {
         });
       }
     },
+  });
+
+  useChatHistorySearch<ClubAdminMessage>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!conversationId,
+    cacheKey: `club_admin:${conversationId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "club_admin_messages",
+        scope: { conversation_id: conversationId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
+      })) as ClubAdminMessage[],
   });
 
   const updateMessageMutation = useMutation({
