@@ -1042,7 +1042,7 @@ export default function DirectMessagePage() {
     );
   }
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<DirectMessage>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),

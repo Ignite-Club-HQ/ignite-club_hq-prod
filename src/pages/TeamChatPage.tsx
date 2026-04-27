@@ -1268,7 +1268,7 @@ export default function TeamChatPage() {
   // Full-history server-side search: when the user types a query, fetch any
   // matching messages older than what's already loaded and merge them in so
   // the existing client-side filter + highlight covers the entire history.
-  const { isSearching: isSearchFetching } = useChatHistorySearch<Message>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<Message>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),

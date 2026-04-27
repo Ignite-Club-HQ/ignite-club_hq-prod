@@ -1520,7 +1520,7 @@ export default function GroupChatPage() {
     setTimeout(() => setHighlightedMessageId(null), 2000);
   };
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<GroupMessage>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<GroupMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),

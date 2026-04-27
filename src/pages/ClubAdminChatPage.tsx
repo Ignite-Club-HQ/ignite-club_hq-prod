@@ -408,7 +408,7 @@ export default function ClubAdminChatPage() {
     },
   });
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<ClubAdminMessage>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<ClubAdminMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),

@@ -1135,7 +1135,7 @@ export default function ClubChatPage() {
     }
   };
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<Message>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<Message>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
