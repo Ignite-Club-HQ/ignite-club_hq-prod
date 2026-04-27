@@ -81,6 +81,7 @@ interface GroupChatMessageRowProps {
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   groupId?: string;
+  searchQuery?: string;
   isPinned?: boolean;
   pinLimitReached?: boolean;
   onPin?: (messageId: string) => void;
@@ -103,6 +104,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   deleteMessageMutation,
   toggleReactionMutation,
   groupId,
+  searchQuery,
   isPinned = false,
   pinLimitReached = false,
   onPin,
@@ -445,6 +447,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   <MessageContent
                     text={msg.text}
                     imageUrl={msg.image_url}
+                    searchQuery={searchQuery}
                     showPreviews={false}
                     showImageActions={!isOwnMessage && !!msg.image_url}
                     onReportImage={() => setShowReportDialog(true)}
