@@ -40,8 +40,7 @@ export async function searchChatHistory({
   limit = 100,
 }: Args): Promise<any[]> {
   const safe = query.replace(/[\\%_]/g, (m) => `\\${m}`);
-  let q = supabase
-    .from(table as never)
+  let q: any = (supabase.from as any)(table)
     .select(selectColumns)
     .ilike("text", `%${safe}%`)
     .order("created_at", { ascending: false })
