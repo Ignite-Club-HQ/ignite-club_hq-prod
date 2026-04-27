@@ -90,6 +90,15 @@ export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange
   );
 }
 
+export function ChatSearchLoadingState() {
+  return (
+    <div className="flex min-h-[10rem] flex-col items-center justify-center gap-3 px-4 py-10 text-center text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+      <p className="text-sm font-medium">Searching messages…</p>
+    </div>
+  );
+}
+
 // Keep legacy component for backward compat if needed
 export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: string) => void; debounceMs?: number }) {
   const [isOpen, setIsOpen] = useState(false);
