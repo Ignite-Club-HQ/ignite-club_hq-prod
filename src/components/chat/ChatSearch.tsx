@@ -101,13 +101,13 @@ export function highlightText(text: string, query: string): React.ReactNode {
 
   return parts.map((part, i) =>
     part && part.toLowerCase() === lower ? (
-      <mark
+      <span
         key={i}
-        className="rounded px-0.5 font-semibold"
-        style={{ backgroundColor: "#fde047", color: "#1f2937" }}
+        data-search-highlight=""
+        className="search-highlight rounded px-0.5 font-semibold"
       >
         {part}
-      </mark>
+      </span>
     ) : (
       <span key={i}>{part}</span>
     )
