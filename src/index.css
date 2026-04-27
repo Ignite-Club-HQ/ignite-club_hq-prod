@@ -243,3 +243,13 @@ html, body {
   -webkit-user-select: none !important;
   user-select: none !important;
 }
+
+/* Chat search match highlight — override any parent text/bg color so the
+   yellow swatch and dark text are always legible inside chat bubbles
+   (including dark mode + own-message primary bubbles). */
+.search-highlight,
+.search-highlight * {
+  background-color: #fde047 !important;
+  color: #1f2937 !important;
+  border-radius: 3px;
+}
