@@ -473,7 +473,26 @@ export default function EventsPage() {
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
   const isInitialLoad = !events && !upcomingEvents && !pastEvents;
-  if (isInitialLoad && (isLoading || membershipsLoading || !userMemberships)) {
+  const isStuckOnSpinner = isInitialLoad && (isLoading || membershipsLoading || !userMemberships);
+
+  // Diagnostic: log what's blocking the spinner so we can see it client-side.
+  useEffect(() => {
+    console.warn("[ScheduleDiag] render-state", {
+      t: new Date().toISOString(),
+      hasUser: !!user,
+      userId: user?.id,
+      hasMemberships: !!userMemberships,
+      membershipsLoading,
+      eventsLoading: isLoading,
+      eventsFetching: isFetching,
+      hasEvents: !!events,
+      eventsCount: events?.length ?? null,
+      isInitialLoad,
+      isStuckOnSpinner,
+    });
+  }, [user, userMemberships, membershipsLoading, isLoading, isFetching, events, isInitialLoad, isStuckOnSpinner]);
+
+  if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;
   }
 
