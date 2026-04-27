@@ -14,7 +14,7 @@ const REACTION_FK: Record<ChatTable, string | null> = {
   club_messages: "club_message_id",
   group_messages: "group_message_id",
   broadcast_messages: "broadcast_message_id",
-  club_admin_messages: null, // no reactions table fk
+  club_admin_messages: "club_admin_message_id",
   direct_messages: "direct_message_id",
 };
 
