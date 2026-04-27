@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 30;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
@@ -735,56 +735,20 @@ export default function GroupChatPage() {
       const replyToIds = reversedOlder.filter((m) => m.reply_to_id).map((m) => m.reply_to_id);
       const authorIds = [...new Set(reversedOlder.map((m) => m.author_id))];
 
-      // Fetch reactions, reply-to messages, and profiles
-      let reactionsData: any[] = [];
-      let replyToData: any[] = [];
-      let profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-      
-      try {
-        const secondaryController = new AbortController();
-        const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
-        
-        const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
-          supabase
-            .from("message_reactions")
-            .select("id, user_id, reaction_type, group_message_id")
-            .in("group_message_id", messageIds)
-            .abortSignal(secondaryController.signal),
-          replyToIds.length > 0
-            ? supabase
-                .from("group_messages")
-                .select("id, text, author_id")
-                .in("id", replyToIds)
-                .abortSignal(secondaryController.signal)
-            : Promise.resolve({ data: [] as any[], error: null }),
-          fetchProfilesWithCache(authorIds),
-        ]);
-        
-        clearTimeout(secondaryTimeout);
-        reactionsData = reactionsResult.data || [];
-        replyToData = replyToResult.data || [];
-        cachedProfiles.forEach((p, id) => {
-          profilesMap.set(id, { display_name: p.display_name, avatar_url: p.avatar_url });
-        });
-      } catch {
-        // Continue without reactions/replies/profiles if they timeout
-      }
-
-      const olderMessages = reversedOlder.map((msg) => ({
+      // PASS 1: Render messages IMMEDIATELY with no enrichment.
+      // This eliminates the perceived "scroll → wait → messages appear" stutter.
+      // Reactions, reply previews, and author profiles get filled in by PASS 2 below.
+      const initialOlderMessages = reversedOlder.map((msg) => ({
         ...msg,
-        author: profilesMap.get(msg.author_id) || null,
-        reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
+        author: null,
+        reply_to: null,
       })) as GroupMessage[];
 
-      const olderReactions = reactionsData as MessageReaction[];
-
-      // Prepend older messages and reactions to cache
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-        if (!old) return { messages: olderMessages, reactions: olderReactions, hasOlderMessages: hasMore };
+        if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
         return {
           ...old,
-          messages: [...olderMessages, ...old.messages],
-          reactions: [...olderReactions, ...old.reactions],
+          messages: [...initialOlderMessages, ...old.messages],
           // CRITICAL: preserve / update hasOlderMessages so the sync effect
           // (which reads it back into local state) doesn't reset it to false
           // and remove the infinite-scroll trigger after the first page.
@@ -801,6 +765,63 @@ export default function GroupChatPage() {
         const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
         container.scrollTop = previousScrollTop + scrollHeightDelta;
       });
+
+      // PASS 2: Fire-and-forget enrichment. Allow loader to release immediately
+      // so the next page can start prefetching while enrichment is in flight.
+      setIsLoadingOlder(false);
+
+      (async () => {
+        try {
+          const secondaryController = new AbortController();
+          const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
+
+          const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
+            supabase
+              .from("message_reactions")
+              .select("id, user_id, reaction_type, group_message_id")
+              .in("group_message_id", messageIds)
+              .abortSignal(secondaryController.signal),
+            replyToIds.length > 0
+              ? supabase
+                  .from("group_messages")
+                  .select("id, text, author_id")
+                  .in("id", replyToIds)
+                  .abortSignal(secondaryController.signal)
+              : Promise.resolve({ data: [] as any[], error: null }),
+            fetchProfilesWithCache(authorIds),
+          ]);
+
+          clearTimeout(secondaryTimeout);
+          const reactionsData = reactionsResult.data || [];
+          const replyToData = replyToResult.data || [];
+          const profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+          cachedProfiles.forEach((p, id) => {
+            profilesMap.set(id, { display_name: p.display_name, avatar_url: p.avatar_url });
+          });
+
+          // Patch the cached messages with author + reply_to, append reactions.
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+            if (!old) return old;
+            const idSet = new Set(messageIds);
+            return {
+              ...old,
+              messages: old.messages.map((m: GroupMessage) =>
+                idSet.has(m.id)
+                  ? {
+                      ...m,
+                      author: profilesMap.get(m.author_id) || m.author || null,
+                      reply_to: replyToData.find((r) => r.id === m.reply_to_id) || m.reply_to || null,
+                    }
+                  : m
+              ),
+              reactions: [...(reactionsData as MessageReaction[]), ...old.reactions],
+            };
+          });
+        } catch {
+          // Enrichment failed — messages already visible, ignore.
+        }
+      })();
+      return;
     } catch (err) {
       clearTimeout(timeoutId);
       console.error('Failed to load older messages:', err);
@@ -823,7 +844,7 @@ export default function GroupChatPage() {
       // rootMargin pre-fetches older messages BEFORE the user reaches the very top
       // so the next page is already in the DOM by the time they keep scrolling up.
       // This prevents the visible "scroll → wait a few seconds → messages appear" stutter.
-      { root: scrollRoot, rootMargin: "800px 0px 0px 0px", threshold: 0 }
+      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
     );
     
     observer.observe(loadTriggerRef.current);

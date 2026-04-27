@@ -61,7 +61,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 30;
 
 interface Message {
   id: string;
@@ -832,7 +832,7 @@ export default function TeamChatPage() {
       },
       // Pre-fetch older messages BEFORE the user reaches the very top so the next
       // page is already in the DOM, eliminating the scroll-then-wait stutter.
-      { root: scrollRoot, rootMargin: "800px 0px 0px 0px", threshold: 0 }
+      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
     );
     
     observer.observe(loadTriggerRef.current);
