@@ -67,19 +67,21 @@ export async function searchChatHistory({
   const authorIds = [...new Set(rows.map((m) => m.author_id).filter(Boolean))];
   const reactionFk = REACTION_FK[table];
 
-  const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
-    reactionFk
-      ? supabase
-          .from("message_reactions")
-          .select(`id, user_id, reaction_type, ${reactionFk}`)
-          .in(reactionFk, messageIds)
-      : Promise.resolve({ data: [] as any[] }),
+  const reactionsPromise: Promise<{ data: any[] }> = reactionFk
+    ? ((supabase.from as any)("message_reactions")
+        .select(`id, user_id, reaction_type, ${reactionFk}`)
+        .in(reactionFk, messageIds) as Promise<{ data: any[] }>)
+    : Promise.resolve({ data: [] });
+  const replyToPromise: Promise<{ data: any[] }> =
     replyToIds.length > 0
-      ? supabase
-          .from(table as never)
+      ? ((supabase.from as any)(table)
           .select("id, text, author_id")
-          .in("id", replyToIds)
-      : Promise.resolve({ data: [] as any[] }),
+          .in("id", replyToIds) as Promise<{ data: any[] }>)
+      : Promise.resolve({ data: [] });
+
+  const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+    reactionsPromise,
+    replyToPromise,
     fetchProfilesWithCache(authorIds),
   ]);
 
