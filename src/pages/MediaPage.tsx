@@ -412,6 +412,8 @@ export default function MediaPage() {
   } = useInfiniteQuery({
     queryKey: ["photos", user?.id],
     queryFn: async ({ pageParam = 0 }) => {
+      const start = performance.now();
+      diagLog("photos:start", { pageParam });
       const { data, error } = await supabase
         .from("photos")
         .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
@@ -419,6 +421,7 @@ export default function MediaPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1);
+      diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
       
