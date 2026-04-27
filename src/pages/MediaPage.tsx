@@ -239,13 +239,19 @@ export default function MediaPage() {
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
     queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(","), activeClubFilter ?? ""],
     queryFn: async () => {
+      const overall = performance.now();
+      diagLog("hasProClub:start", { roleClubIds: roleClubIds.length, roleTeamIds: roleTeamIds.length, activeClubFilter });
       const candidateClubIds = activeClubFilter
         ? [...new Set([...roleClubIds, activeClubFilter])]
         : roleClubIds;
 
-      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) return false;
+      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) {
+        diagLog("hasProClub:end-no-candidates");
+        return false;
+      }
 
       // Fetch club subscriptions and team info in parallel
+      const parallelStart = performance.now();
       const [clubSubResult, teamInfoResult] = await Promise.all([
         candidateClubIds.length > 0
           ? supabase
@@ -257,6 +263,12 @@ export default function MediaPage() {
           ? supabase.from("teams").select("id, club_id").in("id", roleTeamIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
+      diagLog("hasProClub:parallel-resolved", {
+        ms: Math.round(performance.now() - parallelStart),
+        clubSubError: clubSubResult.error?.message,
+        teamInfoError: teamInfoResult.error?.message,
+        totalMs: Math.round(performance.now() - overall),
+      });
 
       if (clubSubResult.error) throw clubSubResult.error;
       if (teamInfoResult.error) throw teamInfoResult.error;
