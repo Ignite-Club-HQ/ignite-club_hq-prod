@@ -408,7 +408,7 @@ export default function ClubAdminChatPage() {
     },
   });
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<ClubAdminMessage>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<ClubAdminMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
@@ -692,7 +692,7 @@ export default function ClubAdminChatPage() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : isSearchFetching ? (
+          ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
             <ChatSearchLoadingState />
           ) : filteredMessages?.length === 0 ? (
             <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${memberProfile?.display_name || "this member"}`} />

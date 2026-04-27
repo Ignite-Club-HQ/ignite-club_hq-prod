@@ -902,7 +902,7 @@ export default function BroadcastChatPage() {
     }
   };
 
-  const { isSearching: isSearchFetching } = useChatHistorySearch<Message>({
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<Message>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
@@ -1022,7 +1022,7 @@ export default function BroadcastChatPage() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
-        {isSearchFetching ? (
+        {(isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
