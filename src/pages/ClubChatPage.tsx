@@ -714,7 +714,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [localMessages, clubId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages]);
 
   // Intersection observer for infinite scroll
   useEffect(() => {
