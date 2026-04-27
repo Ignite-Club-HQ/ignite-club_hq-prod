@@ -107,15 +107,24 @@ export default function EventsPage() {
     setSearchParams(params, { replace: true });
   }, [activeClubFilter]);
 
+  // ─── Diagnostic logging for hung-spinner debugging ───
+  // Uses console.warn so messages survive the production console silencer.
+  const diagLog = (step: string, extra?: Record<string, unknown>) => {
+    console.warn(`[ScheduleDiag] ${step}`, { t: new Date().toISOString(), userId: user?.id, ...extra });
+  };
+
   // Fetch user's clubs (clubs they are members of)
   const { data: userClubs } = useQuery({
     queryKey: ["user-clubs-for-filter", user?.id],
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const start = performance.now();
+      diagLog("userClubs:start");
+      const { data: roles, error } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
         .eq("user_id", user!.id);
-      
+      diagLog("userClubs:roles-resolved", { ms: Math.round(performance.now() - start), rolesCount: roles?.length ?? null, error: error?.message });
+
       if (!roles) return [];
       
       // Get unique club IDs (direct club roles + clubs from team roles)
