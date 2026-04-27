@@ -262,14 +262,21 @@ export function DriblImportMapper({
       const opponent = isHome 
         ? (row.awayClubName || row.awayTeamName || 'TBA')
         : (row.homeClubName || row.homeTeamName || 'TBA');
+      // Opposing team name (specific team, not just club)
+      const opponentTeamName = isHome
+        ? (row.awayTeamName || row.awayTeamCode || row.awayClubName || 'TBA')
+        : (row.homeTeamName || row.homeTeamCode || row.homeClubName || 'TBA');
       
       // Build address from ground + field
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
       
-      // Build title from Competition + Round
-      const titleParts = [row.competition, row.round].filter(Boolean);
-      const title = titleParts.join(' - ') || `vs ${opponent}`;
+      // Build title: "Round {N} - {OurTeam} V {OpponentTeam}"
+      const roundLabel = row.round
+        ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
+        : null;
+      const matchup = `${teamName} V ${opponentTeamName}`;
+      const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
       
       // Parse date (Dribl uses DD/MM/YYYY format typically)
       let parsedDate = row.date;
