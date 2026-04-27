@@ -39,7 +39,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
 import { queueMessage } from "@/lib/messageQueue";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
@@ -49,7 +49,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -1058,6 +1058,25 @@ export default function DirectMessagePage() {
       })) as DirectMessage[],
   });
 
+  const filteredMessages = useMemo(() => {
+    if (!localMessages) return localMessages;
+    const base = !searchQuery.trim()
+      ? localMessages
+      : localMessages.filter((msg) =>
+          msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    return [...base].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [localMessages, searchQuery]);
+
+  useEffect(() => {
+    if (isSearchFetching) return;
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, isSearchFetching, searchQuery]);
+
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
@@ -1116,11 +1135,12 @@ export default function DirectMessagePage() {
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : localMessages?.length === 0 ? (
+            ) : isSearchFetching ? (
+              <ChatSearchLoadingState />
+            ) : filteredMessages?.length === 0 ? (
               <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
             ) : (
-              localMessages
-                ?.filter((msg) => !searchQuery || msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
+              filteredMessages
                 .map((msg, index, filteredMessages) => {
                 const showDateSeparator = index === 0 || 
                   !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));

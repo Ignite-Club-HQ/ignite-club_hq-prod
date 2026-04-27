@@ -16,7 +16,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 
@@ -1299,10 +1299,11 @@ export default function TeamChatPage() {
   }, [localMessages, searchQuery]);
 
   useEffect(() => {
+    if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
     requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
-  }, [filteredMessages, searchQuery]);
+  }, [filteredMessages, isSearchFetching, searchQuery]);
 
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
@@ -1437,6 +1438,8 @@ export default function TeamChatPage() {
               <Skeleton key={i} className="h-16 w-3/4" />
             ))}
           </div>
+        ) : isSearchFetching ? (
+          <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
             title="No messages yet"

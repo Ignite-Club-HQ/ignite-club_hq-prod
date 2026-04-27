@@ -34,11 +34,11 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { useProfiles } from "@/hooks/useProfiles";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { Capacitor } from "@capacitor/core";
-import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 
@@ -424,6 +424,25 @@ export default function ClubAdminChatPage() {
       })) as ClubAdminMessage[],
   });
 
+  const filteredMessages = useMemo(() => {
+    if (!localMessages) return localMessages;
+    const base = !searchQuery.trim()
+      ? localMessages
+      : localMessages.filter((msg) =>
+          msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    return [...base].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [localMessages, searchQuery]);
+
+  useEffect(() => {
+    if (isSearchFetching) return;
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, isSearchFetching, searchQuery]);
+
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
       if (!editingMessage) return;
@@ -673,11 +692,12 @@ export default function ClubAdminChatPage() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : localMessages?.length === 0 ? (
+          ) : isSearchFetching ? (
+            <ChatSearchLoadingState />
+          ) : filteredMessages?.length === 0 ? (
             <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${memberProfile?.display_name || "this member"}`} />
           ) : (
-            localMessages
-              ?.filter((msg) => !searchQuery || msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
+            filteredMessages
               .map((msg, index, filteredMessages) => {
                 const showDateSeparator = index === 0 ||
                   !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
