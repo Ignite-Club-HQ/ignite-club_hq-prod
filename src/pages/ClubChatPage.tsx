@@ -1163,6 +1163,13 @@ export default function ClubChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  useEffect(() => {
+    if (isSearchFetching) return;
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, isSearchFetching, searchQuery]);
+
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
     (filteredMessages || []).map(m => m.id).filter(id => !id.startsWith('temp-')),
