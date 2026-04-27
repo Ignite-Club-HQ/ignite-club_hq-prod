@@ -94,7 +94,17 @@ export function useInitialChatBottomPin({
         setIsPinned(false);
         // Fall through to the main pin sequence below.
       } else if (grew && !userScrolledAwayRef.current) {
+        // Only snap on growth if the user is currently near the bottom.
+        // Otherwise prepending older messages (which also grows itemCount)
+        // would yank them back to the latest message and they'd never reach
+        // the older history they're trying to read.
+        const growMetrics = getChatScrollMetrics(scrollContainerRef.current);
+        const userNearBottom = !growMetrics || growMetrics.distanceFromBottom <= 200;
         lastItemCountRef.current = itemCount;
+        if (!userNearBottom) {
+          userScrolledAwayRef.current = true;
+          return;
+        }
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
@@ -108,6 +118,11 @@ export function useInitialChatBottomPin({
         if (viewport && typeof ResizeObserver !== "undefined") {
           const guardObserver = new ResizeObserver(() => {
             if (!userScrolledAwayRef.current) {
+              const m = getChatScrollMetrics(scrollContainerRef.current);
+              if (m && m.distanceFromBottom > 200) {
+                userScrolledAwayRef.current = true;
+                return;
+              }
               scrollChatToBottom(scrollContainerRef.current);
             }
           });
@@ -162,6 +177,16 @@ export function useInitialChatBottomPin({
 
     const guardSnap = () => {
       if (cancelled || userScrolledAwayRef.current) return;
+      // Read current scroll position synchronously — the cached
+      // userScrolledAwayRef may not have been flipped yet by the rAF-throttled
+      // scroll listener. If the user is no longer near the bottom, do NOT
+      // snap them back — that would prevent them from reaching older messages
+      // (especially when prepending older history triggers a resize event).
+      const metrics = getChatScrollMetrics(scrollContainerRef.current);
+      if (metrics && metrics.distanceFromBottom > 32) {
+        userScrolledAwayRef.current = true;
+        return;
+      }
       scrollChatToBottom(scrollContainerRef.current);
     };
 
