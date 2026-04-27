@@ -688,9 +688,18 @@ export default function GroupChatPage() {
     }
   }, [messagesData]);
 
+  // Keep a ref to the latest localMessages so loadOlderMessages doesn't get
+  // recreated on every message change (which would churn the IntersectionObserver
+  // and cause overlapping fetches that race past the abort timeout).
+  const localMessagesRef = useRef<GroupMessage[] | undefined>(localMessages);
+  useEffect(() => {
+    localMessagesRef.current = localMessages;
+  }, [localMessages]);
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
-    if (!localMessages?.length || isLoadingOlder || !hasOlderMessages) return;
+    const currentMessages = localMessagesRef.current;
+    if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
 
@@ -700,12 +709,13 @@ export default function GroupChatPage() {
     const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
     const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
-    // Create abort controller for timeout
+    // Create abort controller for timeout. 25s gives slow networks/cold queries
+    // enough headroom; the previous 10s was tripping AbortError on real users.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
     
     try {
-      const oldestMessage = localMessages[0];
+      const oldestMessage = currentMessages[0];
       
       const { data: olderData, error } = await supabase
         .from("group_messages")
