@@ -546,7 +546,10 @@ export function MentionInput({
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showSuggestions || !users || users.length === 0) {
-      if (e.key === "Enter" && !e.shiftKey && onKeyPress) {
+      // On iOS native, Enter should insert a newline (matches iMessage / WhatsApp).
+      // Sending is done via the explicit Send button. On desktop, Enter still sends
+      // and Shift+Enter inserts a newline.
+      if (e.key === "Enter" && !e.shiftKey && !isNativeIOS && onKeyPress) {
         e.preventDefault();
         onKeyPress(e);
       }
@@ -567,7 +570,7 @@ export function MentionInput({
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
-  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress]);
+  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress, isNativeIOS]);
 
   // Close suggestions when clicking outside (but not inside our component)
   const containerRef = useRef<HTMLDivElement>(null);
