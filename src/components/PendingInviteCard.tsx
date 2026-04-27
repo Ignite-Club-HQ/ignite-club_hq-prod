@@ -560,6 +560,17 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
+                  {invite.invited_email && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        navigator.clipboard.writeText(invite.invited_email!);
+                        toast({ title: "Email copied", description: invite.invited_email });
+                      }}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy email
+                    </DropdownMenuItem>
+                  )}
                   {teamId && clubId && (
                     <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
                       <ArrowRightLeft className="h-4 w-4 mr-2" />
