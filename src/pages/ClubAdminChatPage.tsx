@@ -35,6 +35,8 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { searchChatHistory } from "@/lib/searchChatHistory";
 import { Capacitor } from "@capacitor/core";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
