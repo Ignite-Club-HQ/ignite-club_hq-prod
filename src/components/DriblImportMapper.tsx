@@ -256,16 +256,17 @@ export function DriblImportMapper({
       if (!isHome && !isAway) continue;
       
       const driblTeamKey = generateTeamKey(row, isHome);
+      // Prefer full club/team names over codes for display
       const teamName = isHome 
-        ? (row.homeTeamName || row.homeTeamCode || 'Unknown Team')
-        : (row.awayTeamName || row.awayTeamCode || 'Unknown Team');
+        ? (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'Unknown Team')
+        : (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'Unknown Team');
       const opponent = isHome 
-        ? (row.awayClubName || row.awayTeamName || 'TBA')
-        : (row.homeClubName || row.homeTeamName || 'TBA');
-      // Opposing team name (specific team, not just club)
+        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
+      // Opposing team display name (prefer club name over codes)
       const opponentTeamName = isHome
-        ? (row.awayTeamName || row.awayTeamCode || row.awayClubName || 'TBA')
-        : (row.homeTeamName || row.homeTeamCode || row.homeClubName || 'TBA');
+        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
       
       // Build address from ground + field
       const addressParts = [row.ground, row.field].filter(Boolean);
