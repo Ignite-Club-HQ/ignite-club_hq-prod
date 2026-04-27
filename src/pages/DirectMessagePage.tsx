@@ -1042,7 +1042,7 @@ export default function DirectMessagePage() {
     );
   }
 
-  useChatHistorySearch<DirectMessage>({
+  const { isSearching: isSearchFetching } = useChatHistorySearch<DirectMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
@@ -1069,7 +1069,7 @@ export default function DirectMessagePage() {
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
         onOpenDetails={() => setDetailsOpen(true)}
         leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
         }
         rightSlot={
           <>
@@ -1110,7 +1110,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
       >
-        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
+        <div className="p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
             {showLoading ? (
               <div className="flex justify-center py-8">
@@ -1177,10 +1177,10 @@ export default function DirectMessagePage() {
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
         <>
-           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+           <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
-             className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]"
+             className={`fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
@@ -1190,10 +1190,10 @@ export default function DirectMessagePage() {
         </>
       ) : (
         <>
-           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+           <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
-             className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]"
+             className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
              <TypingIndicator typingUsers={typingUsers} />
