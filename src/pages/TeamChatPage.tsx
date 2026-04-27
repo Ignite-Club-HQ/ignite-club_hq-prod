@@ -1264,6 +1264,63 @@ export default function TeamChatPage() {
     }
   };
 
+  // Full-history server-side search: when the user types a query, fetch any
+  // matching messages older than what's already loaded and merge them in so
+  // the existing client-side filter + highlight covers the entire history.
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!teamId,
+    cacheKey: `team:${teamId ?? ""}`,
+    fetcher: async (q, signal) => {
+      const safe = q.replace(/[\\%_]/g, (m) => `\\${m}`);
+      const { data: rawMessages, error } = await supabase
+        .from("team_messages")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message")
+        .eq("team_id", teamId!)
+        .is("deleted_at", null)
+        .ilike("text", `%${safe}%`)
+        .order("created_at", { ascending: false })
+        .limit(100)
+        .abortSignal(signal);
+      if (error || !rawMessages?.length) return [];
+
+      const messageIds = rawMessages.map((m) => m.id);
+      const replyToIds = rawMessages.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
+      const authorIds = [...new Set(rawMessages.map((m) => m.author_id))];
+
+      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+        supabase
+          .from("message_reactions")
+          .select("id, user_id, reaction_type, team_message_id")
+          .in("team_message_id", messageIds),
+        replyToIds.length > 0
+          ? supabase.from("team_messages").select("id, text, author_id").in("id", replyToIds)
+          : Promise.resolve({ data: [] as any[] }),
+        fetchProfilesWithCache(authorIds),
+      ]);
+
+      const reactionsData = reactionsResult.data || [];
+      const replyToData = replyToResult.data || [];
+
+      return rawMessages.map((msg: any) => ({
+        ...msg,
+        is_club_announcement: msg.is_club_announcement || false,
+        club_announcement_name: msg.club_announcement_name || null,
+        is_system_message: msg.is_system_message || false,
+        profiles: profilesMap.get(msg.author_id)
+          ? {
+              display_name: profilesMap.get(msg.author_id)!.display_name,
+              avatar_url: profilesMap.get(msg.author_id)!.avatar_url,
+            }
+          : null,
+        reactions: reactionsData.filter((r) => r.team_message_id === msg.id),
+        reply_to: replyToData.find((r: any) => r.id === msg.reply_to_id) || null,
+      })) as Message[];
+    },
+  });
+
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
     const base = !searchQuery.trim()
