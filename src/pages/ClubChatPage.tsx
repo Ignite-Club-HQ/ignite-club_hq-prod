@@ -1135,6 +1135,22 @@ export default function ClubChatPage() {
     }
   };
 
+  useChatHistorySearch<Message>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!clubId,
+    cacheKey: `club:${clubId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "club_messages",
+        scope: { club_id: clubId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, club_id, reply_to_id",
+      })) as Message[],
+  });
+
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
     const base = !searchQuery.trim()
