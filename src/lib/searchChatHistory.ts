@@ -46,10 +46,8 @@ export async function searchChatHistory({
     .order("created_at", { ascending: false })
     .limit(limit)
     .abortSignal(signal);
-  // Soft-delete: only team_messages currently uses deleted_at as a soft-delete marker.
-  if (table === "team_messages") {
-    q = q.is("deleted_at", null);
-  }
+  // All message tables use deleted_at as a soft-delete marker.
+  q = q.is("deleted_at", null);
   for (const [col, val] of Object.entries(scope)) {
     q = q.eq(col, val);
   }
