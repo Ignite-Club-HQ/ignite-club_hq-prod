@@ -1299,10 +1299,11 @@ export default function TeamChatPage() {
   }, [localMessages, searchQuery]);
 
   useEffect(() => {
+    if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
     requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
-  }, [filteredMessages, searchQuery]);
+  }, [filteredMessages, isSearchFetching, searchQuery]);
 
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
