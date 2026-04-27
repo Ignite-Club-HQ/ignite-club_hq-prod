@@ -824,7 +824,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [localMessages, teamId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages]);
 
   // Intersection observer for infinite scroll
   useEffect(() => {
