@@ -200,12 +200,19 @@ export default function EventsPage() {
   const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const overall = performance.now();
+      diagLog("memberships:start");
+      let step = performance.now();
+      const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
-      
-      if (!roles) return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      diagLog("memberships:user_roles", { ms: Math.round(performance.now() - step), rolesCount: roles?.length ?? null, error: rolesErr?.message });
+
+      if (!roles) {
+        diagLog("memberships:end-no-roles", { totalMs: Math.round(performance.now() - overall) });
+        return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      }
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
@@ -229,26 +236,32 @@ export default function EventsPage() {
       
       // Get club IDs from team memberships
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase
+        step = performance.now();
+        const { data: teams, error: teamsErr } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
+        diagLog("memberships:teams-lookup", { ms: Math.round(performance.now() - step), teamCount: teams?.length ?? null, error: teamsErr?.message });
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
       // Get mini league IDs where user is a parent (has a player)
-      const { data: playerLeagues } = await supabase
+      step = performance.now();
+      const { data: playerLeagues, error: pLeaguesErr } = await supabase
         .from("mini_league_players")
         .select("mini_league_id")
         .eq("parent_user_id", user!.id);
+      diagLog("memberships:mini_league_players", { ms: Math.round(performance.now() - step), count: playerLeagues?.length ?? null, error: pLeaguesErr?.message });
       
       const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
       
       // Also get mini leagues where user is league admin via club_admin role
-      const { data: adminLeagues } = await supabase
+      step = performance.now();
+      const { data: adminLeagues, error: adminLeaguesErr } = await supabase
         .from("mini_leagues")
         .select("id")
         .in("club_id", Array.from(leagueAdminClubIds));
+      diagLog("memberships:mini_leagues-admin", { ms: Math.round(performance.now() - step), count: adminLeagues?.length ?? null, error: adminLeaguesErr?.message });
       
       // Add leagues where user is admin
       adminLeagues?.forEach(l => {
@@ -257,6 +270,7 @@ export default function EventsPage() {
         }
       });
       
+      diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
         teamIds, 
         clubIds: Array.from(clubIds), 
