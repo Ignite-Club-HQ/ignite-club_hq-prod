@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
+import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft, MoreVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SwipeableCard } from "@/components/ui/swipeable-card";
 import { Capacitor } from "@capacitor/core";
@@ -530,9 +530,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </div>
           </div>
 
-          {/* Send Reminder CTA */}
+          {/* Send Reminder CTA + overflow menu */}
           {isAdmin && (
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-1">
               <Button
                 size="sm"
                 variant="default"
@@ -542,6 +542,38 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 <Send className="h-3.5 w-3.5" />
                 <span className="hidden xs:inline">Remind</span>
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="More actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={handleOpenEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  {teamId && clubId && (
+                    <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Move to team
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Revoke invite
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </CardContent>
