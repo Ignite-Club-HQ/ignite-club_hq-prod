@@ -1026,7 +1026,27 @@ export default function MediaPage() {
 
   // Show skeletons only if we have no cached data and are loading
   const showSkeletons = (loadingPhotos || loadingProAccess) && allPhotos.length === 0;
-  
+
+  // Diagnostic: log what's blocking the skeleton from clearing.
+  useEffect(() => {
+    console.warn("[MediaDiag] render-state", {
+      t: new Date().toISOString(),
+      hasUser: !!user,
+      userId: user?.id,
+      loadingRoles,
+      hasUserRoles: !!userRoles,
+      userRolesCount: userRoles?.length ?? null,
+      loadingProAccess,
+      hasProClub,
+      proAccessError: (proAccessError as Error | null)?.message,
+      loadingPhotos,
+      photosSuccess,
+      allPhotosCount: allPhotos.length,
+      cachedPhotos: cachedPhotosData?.length ?? null,
+      showSkeletons,
+    });
+  }, [user, loadingRoles, userRoles, loadingProAccess, hasProClub, proAccessError, loadingPhotos, photosSuccess, allPhotos.length, cachedPhotosData, showSkeletons]);
+
   // Don't block on loading if we have cached data to show
   if (showSkeletons) {
     return (
