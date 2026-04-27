@@ -365,22 +365,47 @@ export default function EventGroupPitchPage() {
         </Badge>
       </div>
 
-      {/* Open Pitch Board Button */}
-      <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-        <CardContent className="p-6">
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => setShowPitchBoard(true)}
-          >
-            <Flame className="h-5 w-5 mr-2" />
-            Open Pitch Board
-          </Button>
-          <p className="text-center text-sm text-muted-foreground mt-3">
-            Manage players, track game time, and record substitutions
-          </p>
-        </CardContent>
-      </Card>
+      {/* Open Pitch Board Button — only available on the day of the game */}
+      {(() => {
+        const eventDateStr = (group as any)?.event?.event_date;
+        if (!eventDateStr) return null;
+        const eventDate = new Date(eventDateStr);
+        const now = new Date();
+        const isGameDay =
+          eventDate.getFullYear() === now.getFullYear() &&
+          eventDate.getMonth() === now.getMonth() &&
+          eventDate.getDate() === now.getDate();
+
+        if (!isGameDay) {
+          return (
+            <Card className="bg-muted/40 border-dashed">
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  The pitch board for this match opens on game day.
+                </p>
+              </CardContent>
+            </Card>
+          );
+        }
+
+        return (
+          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-6">
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => setShowPitchBoard(true)}
+              >
+                <Flame className="h-5 w-5 mr-2" />
+                Open Pitch Board
+              </Button>
+              <p className="text-center text-sm text-muted-foreground mt-3">
+                Manage players, track game time, and record substitutions
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Players */}
       <Card>
