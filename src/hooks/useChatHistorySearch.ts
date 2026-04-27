@@ -41,25 +41,27 @@ export function useChatHistorySearch<TMsg extends { id: string }>({
 }: Options<TMsg>) {
   const debouncedQuery = useDebounce(searchQuery, 350);
   const lastQueryRef = useRef<string>("");
-  const [isSearching, setIsSearching] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const rawQuery = searchQuery.trim();
+  const debouncedTrimmedQuery = debouncedQuery.trim();
 
   useEffect(() => {
-    const trimmed = debouncedQuery.trim();
+    const trimmed = debouncedTrimmedQuery;
     if (!enabled || trimmed.length < minChars) {
       lastQueryRef.current = "";
-      setIsSearching(false);
+      setIsFetching(false);
       return;
     }
 
     const memoKey = `${cacheKey}|${trimmed}`;
     if (lastQueryRef.current === memoKey) {
-      setIsSearching(false);
+      setIsFetching(false);
       return;
     }
     lastQueryRef.current = memoKey;
 
     const controller = new AbortController();
-    setIsSearching(true);
+    setIsFetching(true);
     (async () => {
       try {
         const fetched = await fetcher(trimmed, controller.signal);
@@ -75,13 +77,15 @@ export function useChatHistorySearch<TMsg extends { id: string }>({
       } catch {
         // Best-effort; ignore
       } finally {
-        if (!controller.signal.aborted) setIsSearching(false);
+        if (!controller.signal.aborted) setIsFetching(false);
       }
     })();
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, enabled, cacheKey]);
+  }, [debouncedTrimmedQuery, enabled, cacheKey]);
 
-  return { isSearching };
+  const isWaitingForDebounce = enabled && rawQuery.length >= minChars && rawQuery !== debouncedTrimmedQuery;
+
+  return { isSearching: isWaitingForDebounce || isFetching };
 }
