@@ -408,7 +408,7 @@ export default function ClubAdminChatPage() {
     },
   });
 
-  useChatHistorySearch<ClubAdminMessage>({
+  const { isSearching: isSearchFetching } = useChatHistorySearch<ClubAdminMessage>({
     searchQuery,
     loadedMessages: localMessages,
     setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
@@ -633,7 +633,7 @@ export default function ClubAdminChatPage() {
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <ChatBackButton />
           <Avatar className="h-10 w-10 shrink-0">
@@ -668,7 +668,7 @@ export default function ClubAdminChatPage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
       >
-        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
+        <div className="p-4 space-y-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -730,8 +730,8 @@ export default function ClubAdminChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+      <div ref={composerRef} className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
