@@ -61,7 +61,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 30;
 
 interface Message {
   id: string;
