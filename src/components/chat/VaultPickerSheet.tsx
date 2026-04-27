@@ -165,6 +165,8 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
         q = q.is("folder_id", null);
         if (teamId) {
           q = q.or(`team_id.is.null,team_id.eq.${teamId}`);
+        } else {
+          q = q.is("team_id", null);
         }
       }
       const { data, error } = await q;
