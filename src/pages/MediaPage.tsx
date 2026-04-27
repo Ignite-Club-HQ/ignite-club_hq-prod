@@ -194,13 +194,22 @@ export default function MediaPage() {
   }, [highlightedPhotoId, searchParams]);
 
   // Fast parallel queries - don't block on access check
+  // ─── Diagnostic logging for hung-spinner debugging ───
+  // Uses console.warn so messages survive the production console silencer.
+  const diagLog = (step: string, extra?: Record<string, unknown>) => {
+    console.warn(`[MediaDiag] ${step}`, { t: new Date().toISOString(), userId: user?.id, ...extra });
+  };
+
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
     queryKey: ["user-roles-media", user?.id],
     queryFn: async () => {
+      const start = performance.now();
+      diagLog("userRoles:start");
       const { data, error } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
         .eq("user_id", user!.id);
+      diagLog("userRoles:end", { ms: Math.round(performance.now() - start), count: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
       return data || [];
