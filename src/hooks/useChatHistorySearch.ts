@@ -1,32 +1,25 @@
 import { useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
 
-type ChatTable =
-  | "team_messages"
-  | "club_messages"
-  | "group_messages"
-  | "broadcast_messages"
-  | "club_admin_messages"
-  | "direct_messages";
-
-interface Options<TMsg extends { id: string; created_at: string; text: string | null }> {
-  /** Table name to search */
-  table: ChatTable;
-  /** Column + value pairs to scope the search (e.g. team_id, club_id, conversation_id) */
-  scope: Record<string, string | null | undefined>;
+interface Options<TMsg extends { id: string }> {
   /** Current search query from the search bar */
   searchQuery: string;
-  /** Currently loaded messages (newest-or-oldest order, doesn't matter — we use ids) */
+  /** Currently loaded messages */
   loadedMessages: TMsg[] | undefined;
   /** Setter to merge fetched historical matches into local state */
   setMessages: (updater: (prev: TMsg[] | undefined) => TMsg[] | undefined) => void;
-  /** SELECT projection — should match what the page already loads */
-  select: string;
-  /** Optional max results to fetch */
-  limit?: number;
-  /** Disable when missing context */
+  /**
+   * Fetch matching messages from the DB. Should be the SAME shape the page
+   * already loads (profiles, reactions, reply_to, etc.) so they render correctly.
+   * Receives the trimmed query string and a `signal` for cancellation.
+   */
+  fetcher: (query: string, signal: AbortSignal) => Promise<TMsg[]>;
+  /** Disable when missing context (e.g. before ids are ready) */
   enabled?: boolean;
+  /** Min characters before searching */
+  minChars?: number;
+  /** Stable cache key — when this changes, last-query memo resets */
+  cacheKey?: string;
 }
 
 /**
@@ -37,77 +30,48 @@ interface Options<TMsg extends { id: string; created_at: string; text: string | 
  * The page's existing client-side `searchQuery.includes` filter then narrows
  * the merged set, and `highlightText` highlights matches in the rendered output.
  */
-export function useChatHistorySearch<
-  TMsg extends { id: string; created_at: string; text: string | null }
->({
-  table,
-  scope,
+export function useChatHistorySearch<TMsg extends { id: string }>({
   searchQuery,
   loadedMessages,
   setMessages,
-  select,
-  limit = 100,
+  fetcher,
   enabled = true,
+  minChars = 2,
+  cacheKey = "",
 }: Options<TMsg>) {
   const debouncedQuery = useDebounce(searchQuery, 350);
   const lastQueryRef = useRef<string>("");
 
   useEffect(() => {
     const trimmed = debouncedQuery.trim();
-    if (!enabled || trimmed.length < 2) {
+    if (!enabled || trimmed.length < minChars) {
       lastQueryRef.current = "";
       return;
     }
-    // Skip if scope columns aren't ready
-    const scopeReady = Object.values(scope).every((v) => v !== undefined && v !== null && v !== "");
-    if (!scopeReady) return;
 
-    // Avoid refetch storms on identical query
-    const key = `${table}|${JSON.stringify(scope)}|${trimmed}`;
-    if (lastQueryRef.current === key) return;
-    lastQueryRef.current = key;
+    const memoKey = `${cacheKey}|${trimmed}`;
+    if (lastQueryRef.current === memoKey) return;
+    lastQueryRef.current = memoKey;
 
-    let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        // Escape % and _ for ilike
-        const safe = trimmed.replace(/[\\%_]/g, (m) => `\\${m}`);
-        let q = supabase
-          .from(table as never)
-          .select(select)
-          .ilike("text", `%${safe}%`)
-          .order("created_at", { ascending: false })
-          .limit(limit);
-
-        for (const [col, val] of Object.entries(scope)) {
-          q = (q as never as { eq: (c: string, v: unknown) => typeof q }).eq(col, val as string);
-        }
-
-        const { data, error } = await q;
-        if (cancelled || error || !data) return;
-
-        const fetched = data as unknown as TMsg[];
-        const existingIds = new Set((loadedMessages ?? []).map((m) => m.id));
-        const additions = fetched.filter((m) => m.id && !existingIds.has(m.id));
-        if (additions.length === 0) return;
+        const fetched = await fetcher(trimmed, controller.signal);
+        if (controller.signal.aborted || !fetched?.length) return;
 
         setMessages((prev) => {
           if (!prev) return fetched;
-          const ids = new Set(prev.map((m) => m.id));
-          const merged = [...prev];
-          for (const m of additions) {
-            if (!ids.has(m.id)) merged.push(m);
-          }
-          return merged;
+          const existing = new Set(prev.map((m) => m.id));
+          const additions = fetched.filter((m) => m.id && !existing.has(m.id));
+          if (additions.length === 0) return prev;
+          return [...prev, ...additions];
         });
       } catch {
-        // Silently ignore — search is best-effort
+        // Best-effort; ignore
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, table, JSON.stringify(scope), enabled]);
+  }, [debouncedQuery, enabled, cacheKey]);
 }
