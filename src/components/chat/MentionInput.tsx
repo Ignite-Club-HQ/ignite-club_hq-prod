@@ -727,6 +727,7 @@ export function MentionInput({
             autoComplete="off"
             autoCorrect="on"
             spellCheck
+            enterKeyHint="enter"
             aria-label={placeholder || "Message"}
             aria-multiline="true"
             role="textbox"
