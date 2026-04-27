@@ -194,13 +194,22 @@ export default function MediaPage() {
   }, [highlightedPhotoId, searchParams]);
 
   // Fast parallel queries - don't block on access check
+  // ─── Diagnostic logging for hung-spinner debugging ───
+  // Uses console.warn so messages survive the production console silencer.
+  const diagLog = (step: string, extra?: Record<string, unknown>) => {
+    console.warn(`[MediaDiag] ${step}`, { t: new Date().toISOString(), userId: user?.id, ...extra });
+  };
+
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
     queryKey: ["user-roles-media", user?.id],
     queryFn: async () => {
+      const start = performance.now();
+      diagLog("userRoles:start");
       const { data, error } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
         .eq("user_id", user!.id);
+      diagLog("userRoles:end", { ms: Math.round(performance.now() - start), count: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
       return data || [];
@@ -230,13 +239,19 @@ export default function MediaPage() {
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
     queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(","), activeClubFilter ?? ""],
     queryFn: async () => {
+      const overall = performance.now();
+      diagLog("hasProClub:start", { roleClubIds: roleClubIds.length, roleTeamIds: roleTeamIds.length, activeClubFilter });
       const candidateClubIds = activeClubFilter
         ? [...new Set([...roleClubIds, activeClubFilter])]
         : roleClubIds;
 
-      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) return false;
+      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) {
+        diagLog("hasProClub:end-no-candidates");
+        return false;
+      }
 
       // Fetch club subscriptions and team info in parallel
+      const parallelStart = performance.now();
       const [clubSubResult, teamInfoResult] = await Promise.all([
         candidateClubIds.length > 0
           ? supabase
@@ -248,6 +263,12 @@ export default function MediaPage() {
           ? supabase.from("teams").select("id, club_id").in("id", roleTeamIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
+      diagLog("hasProClub:parallel-resolved", {
+        ms: Math.round(performance.now() - parallelStart),
+        clubSubError: clubSubResult.error?.message,
+        teamInfoError: teamInfoResult.error?.message,
+        totalMs: Math.round(performance.now() - overall),
+      });
 
       if (clubSubResult.error) throw clubSubResult.error;
       if (teamInfoResult.error) throw teamInfoResult.error;
@@ -391,6 +412,8 @@ export default function MediaPage() {
   } = useInfiniteQuery({
     queryKey: ["photos", user?.id],
     queryFn: async ({ pageParam = 0 }) => {
+      const start = performance.now();
+      diagLog("photos:start", { pageParam });
       const { data, error } = await supabase
         .from("photos")
         .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
@@ -398,6 +421,7 @@ export default function MediaPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1);
+      diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
       
@@ -1002,7 +1026,27 @@ export default function MediaPage() {
 
   // Show skeletons only if we have no cached data and are loading
   const showSkeletons = (loadingPhotos || loadingProAccess) && allPhotos.length === 0;
-  
+
+  // Diagnostic: log what's blocking the skeleton from clearing.
+  useEffect(() => {
+    console.warn("[MediaDiag] render-state", {
+      t: new Date().toISOString(),
+      hasUser: !!user,
+      userId: user?.id,
+      loadingRoles,
+      hasUserRoles: !!userRoles,
+      userRolesCount: userRoles?.length ?? null,
+      loadingProAccess,
+      hasProClub,
+      proAccessError: (proAccessError as Error | null)?.message,
+      loadingPhotos,
+      photosSuccess,
+      allPhotosCount: allPhotos.length,
+      cachedPhotos: cachedPhotosData?.length ?? null,
+      showSkeletons,
+    });
+  }, [user, loadingRoles, userRoles, loadingProAccess, hasProClub, proAccessError, loadingPhotos, photosSuccess, allPhotos.length, cachedPhotosData, showSkeletons]);
+
   // Don't block on loading if we have cached data to show
   if (showSkeletons) {
     return (
