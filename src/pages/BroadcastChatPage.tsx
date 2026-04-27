@@ -549,7 +549,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [localMessages, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages]);
 
   // Intersection observer for infinite scroll
   useEffect(() => {
