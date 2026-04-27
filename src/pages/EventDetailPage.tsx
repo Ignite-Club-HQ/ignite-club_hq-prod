@@ -62,7 +62,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGuestsManager } from "@/components/EventGuestsManager";
