@@ -838,7 +838,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [localMessages, groupId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages]);
 
   // Intersection observer for infinite scroll
   useEffect(() => {
