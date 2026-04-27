@@ -130,8 +130,13 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
       } else {
         q = q.is("parent_id", null);
         // At root, show club-wide folders plus this team's folders.
+        // When there is no teamId (e.g. club-admin or club-wide chat),
+        // only show club-wide folders — otherwise we'd list every team's
+        // root folders (e.g. one "Team Admins" / "Coaches" per team).
         if (teamId) {
           q = q.or(`team_id.is.null,team_id.eq.${teamId}`);
+        } else {
+          q = q.is("team_id", null);
         }
       }
       const { data, error } = await q;
@@ -160,6 +165,8 @@ export function VaultPickerSheet({ open, onOpenChange, clubId, teamId, onPick, o
         q = q.is("folder_id", null);
         if (teamId) {
           q = q.or(`team_id.is.null,team_id.eq.${teamId}`);
+        } else {
+          q = q.is("team_id", null);
         }
       }
       const { data, error } = await q;
