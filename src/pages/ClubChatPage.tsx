@@ -58,7 +58,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
-const MESSAGES_PER_PAGE = 15;
+const MESSAGES_PER_PAGE = 30;
 
 interface Message {
   id: string;
@@ -593,9 +593,16 @@ export default function ClubChatPage() {
     }
   }, [messagesData]);
 
+  // Keep a ref to localMessages so loadOlderMessages doesn't churn
+  const localMessagesRef = useRef<Message[] | undefined>(localMessages);
+  useEffect(() => {
+    localMessagesRef.current = localMessages;
+  }, [localMessages]);
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
-    if (!localMessages?.length || isLoadingOlder || !hasOlderMessages) return;
+    const currentMessages = localMessagesRef.current;
+    if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
 
@@ -605,12 +612,12 @@ export default function ClubChatPage() {
     const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
     const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
-    // Create abort controller for timeout
+    // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
     
     try {
-      const oldestMessage = localMessages[0];
+      const oldestMessage = currentMessages[0];
       
       const { data: olderData, error } = await supabase
         .from("club_messages")
@@ -707,7 +714,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [localMessages, clubId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages]);
 
   // Intersection observer for infinite scroll
   useEffect(() => {
@@ -720,7 +727,9 @@ export default function ClubChatPage() {
           loadOlderMessages();
         }
       },
-      { root: scrollRoot, threshold: 0.1 }
+      // Pre-fetch older messages BEFORE the user reaches the very top so the next
+      // page is already in the DOM, eliminating the scroll-then-wait stutter.
+      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
     );
     
     observer.observe(loadTriggerRef.current);

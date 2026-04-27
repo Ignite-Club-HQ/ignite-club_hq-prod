@@ -256,20 +256,28 @@ export function DriblImportMapper({
       if (!isHome && !isAway) continue;
       
       const driblTeamKey = generateTeamKey(row, isHome);
+      // Prefer full club/team names over codes for display
       const teamName = isHome 
-        ? (row.homeTeamName || row.homeTeamCode || 'Unknown Team')
-        : (row.awayTeamName || row.awayTeamCode || 'Unknown Team');
+        ? (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'Unknown Team')
+        : (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'Unknown Team');
       const opponent = isHome 
-        ? (row.awayClubName || row.awayTeamName || 'TBA')
-        : (row.homeClubName || row.homeTeamName || 'TBA');
+        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
+      // Opposing team display name (prefer club name over codes)
+      const opponentTeamName = isHome
+        ? (row.awayClubName || row.awayTeamName || row.awayTeamCode || 'TBA')
+        : (row.homeClubName || row.homeTeamName || row.homeTeamCode || 'TBA');
       
       // Build address from ground + field
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
       
-      // Build title from Competition + Round
-      const titleParts = [row.competition, row.round].filter(Boolean);
-      const title = titleParts.join(' - ') || `vs ${opponent}`;
+      // Build title: "Round {N} - {OurTeam} V {OpponentTeam}"
+      const roundLabel = row.round
+        ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
+        : null;
+      const matchup = `${teamName} V ${opponentTeamName}`;
+      const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
       
       // Parse date (Dribl uses DD/MM/YYYY format typically)
       let parsedDate = row.date;
@@ -289,21 +297,13 @@ export function DriblImportMapper({
         time = `${time.slice(0, 2)}:${time.slice(2, 4)}`;
       }
       
-      // Build description
-      const descParts = [
-        row.league,
-        row.ageGroup && row.division ? `${row.ageGroup} ${row.division}` : row.ageGroup || row.division,
-        row.gender,
-        isHome ? 'Home' : 'Away',
-      ].filter(Boolean);
-      
       fixtures.push({
         id: crypto.randomUUID(),
         title,
         date: parsedDate,
         time: time.substring(0, 5),
         address,
-        description: descParts.join(' • '),
+        description: '',
         opponent,
         driblTeamKey,
         isHomeGame: isHome,
