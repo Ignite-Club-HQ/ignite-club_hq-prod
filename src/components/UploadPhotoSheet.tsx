@@ -833,7 +833,7 @@ export function UploadPhotoSheet({
                 Cancel
               </Button>
               <SheetTitle className="text-lg font-semibold">
-                Upload Photos {selectedPhotos.length > 0 && `(${selectedPhotos.length})`}
+                Upload Media {selectedPhotos.length > 0 && `(${selectedPhotos.length})`}
               </SheetTitle>
               <Button 
                 size="sm" 
