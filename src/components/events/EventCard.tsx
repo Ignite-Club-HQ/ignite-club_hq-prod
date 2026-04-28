@@ -49,7 +49,8 @@ export interface EventCardEvent {
   is_recurring: boolean;
   parent_event_id: string | null;
   opponent: string | null;
-  teams: { name: string } | null;
+  arrival_minutes_before?: number | null;
+  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
 
