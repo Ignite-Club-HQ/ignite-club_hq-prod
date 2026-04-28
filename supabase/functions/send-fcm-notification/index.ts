@@ -245,7 +245,7 @@ serve(async (req) => {
     const dataPayload: Record<string, string> = (() => {
       const raw: Record<string, unknown> = {
         ...(url ? { url } : {}),
-        title: title || 'Ignite Club HQ',
+        title: title || 'Ignite',
         body: body || 'You have a new notification',
         notificationId: notificationId?.toString() || '',
         tag: tag || `notification-${notificationId || Date.now()}`,
