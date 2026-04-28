@@ -465,6 +465,19 @@ export default function EditEventPage() {
       return;
     }
 
+    // Validate arrival time when provided (game only). Empty = no arrival info.
+    if (type === "game" && arrivalMinutesBefore.trim() !== "") {
+      const n = Number(arrivalMinutesBefore);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 480) {
+        toast({
+          title: "Invalid arrival time",
+          description: "Enter a whole number between 1 and 480 minutes, or leave blank.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSaving(true);
 
     const parsedDateTime = new Date(eventDateTime);
@@ -482,7 +495,7 @@ export default function EditEventPage() {
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
         opponent: type === "game" ? opponent.trim() || null : null,
-        arrival_minutes_before: type === "game" ? (arrivalMinutesBefore === "" ? null : parseInt(arrivalMinutesBefore, 10) || DEFAULT_MATCH_ARRIVAL_MINUTES) : null,
+        arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
@@ -822,7 +835,7 @@ export default function EditEventPage() {
                       id="arrival"
                       type="number"
                       inputMode="numeric"
-                      min={0}
+                      min={1}
                       max={480}
                       placeholder={teamDefaultArrival != null ? `${teamDefaultArrival} (team default)` : "e.g. 30"}
                       value={arrivalMinutesBefore}
