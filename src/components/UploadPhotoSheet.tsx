@@ -959,16 +959,27 @@ export function UploadPhotoSheet({
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                         {isVideo ? (
                           <>
-                            <video
-                              src={photo.previewUrl}
-                              className={cn(
-                                "w-full h-full object-cover transition-opacity",
-                                photo.status === 'success' && "opacity-75"
-                              )}
-                              muted
-                              playsInline
-                              preload="metadata"
-                            />
+                            {photo.thumbnailUrl ? (
+                              <img
+                                src={photo.thumbnailUrl}
+                                alt="Video preview"
+                                className={cn(
+                                  "w-full h-full object-cover transition-opacity",
+                                  photo.status === 'success' && "opacity-75"
+                                )}
+                              />
+                            ) : (
+                              <video
+                                src={photo.previewUrl}
+                                className={cn(
+                                  "w-full h-full object-cover transition-opacity",
+                                  photo.status === 'success' && "opacity-75"
+                                )}
+                                muted
+                                playsInline
+                                preload="metadata"
+                              />
+                            )}
                             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
                               <div className="rounded-full bg-black/60 p-2">
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white"><path d="M8 5v14l11-7z" /></svg>
