@@ -710,7 +710,7 @@ export default function CreateEventPage() {
       reminder_sent: false,
       amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
-      arrival_minutes_before: type === "game" ? (parseInt(arrivalMinutesBefore, 10) || DEFAULT_MATCH_ARRIVAL_MINUTES) : null,
+      arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
