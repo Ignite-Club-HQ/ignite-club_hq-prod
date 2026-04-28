@@ -493,6 +493,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
+            if (mins == null || mins <= 0) return null;
+            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            return (
+              <div className="flex items-center gap-2 text-[13px] text-warning">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="font-medium">Arrive by {format(arrive, "h:mm a")}</span>
+                <span className="text-muted-foreground">({mins} min before)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* RSVP Buttons */}
