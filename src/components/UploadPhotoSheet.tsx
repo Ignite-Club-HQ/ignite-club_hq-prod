@@ -889,14 +889,14 @@ export function UploadPhotoSheet({
                       )}
                     </div>
                     <div className="text-center">
-                      <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos"}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Select multiple photos at once</p>
+                      <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos or videos"}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Photos (multi-select) or short videos up to 30s</p>
                     </div>
                   </div>
                   <input
                     ref={primaryFileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     className="sr-only"
                     onChange={handleFileSelect}
