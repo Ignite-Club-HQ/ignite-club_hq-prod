@@ -130,7 +130,7 @@ export default function CreateEventPage() {
 
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
-  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState(String(DEFAULT_MATCH_ARRIVAL_MINUTES));
+  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
