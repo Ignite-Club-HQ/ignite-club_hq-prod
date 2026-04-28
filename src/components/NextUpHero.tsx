@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -18,6 +19,7 @@ interface NextUpHeroProps {
     title: string;
     type: string;
     event_date: string;
+    start_time?: string | null;
     address: string | null;
     location_name: string | null;
     suburb: string | null;
@@ -181,13 +183,13 @@ export function NextUpHero({ event }: NextUpHeroProps) {
               </div>
             )}
             {event.type === "game" && (() => {
-              const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
-              if (mins == null || mins <= 0) return null;
-              const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+              const mins = getMatchArrivalMinutes(event);
+              const arrivalTime = formatMatchArrivalTime(event);
+              if (mins == null || !arrivalTime) return null;
               return (
                 <div className="flex items-center gap-2 text-warning">
                   <Clock className="h-4 w-4 shrink-0" />
-                  <span className="font-medium">Arrive by {format(arrive, "h:mm a")}</span>
+                  <span className="font-medium">Arrive by {arrivalTime}</span>
                   <span>({mins} min before)</span>
                 </div>
               );
