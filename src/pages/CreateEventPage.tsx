@@ -130,7 +130,7 @@ export default function CreateEventPage() {
 
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
-  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState(String(DEFAULT_MATCH_ARRIVAL_MINUTES));
+  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -667,6 +667,18 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Validate arrival time when provided (game only). Empty = no arrival info.
+    if (type === "game" && arrivalMinutesBefore.trim() !== "") {
+      const n = Number(arrivalMinutesBefore);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 480) {
+        toast({
+          title: "Invalid arrival time",
+          description: "Enter a whole number between 1 and 480 minutes, or leave blank.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     // Check for conflicts before saving
     if (!skipConflictCheck && type === "training") {
       const hasConflicts = await checkForConflicts();
@@ -698,7 +710,7 @@ export default function CreateEventPage() {
       reminder_sent: false,
       amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
-      arrival_minutes_before: type === "game" ? (parseInt(arrivalMinutesBefore, 10) || DEFAULT_MATCH_ARRIVAL_MINUTES) : null,
+      arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
@@ -1095,20 +1107,22 @@ export default function CreateEventPage() {
 
               {type === "game" && (
                 <div className="space-y-2">
-                  <Label htmlFor="arrival">Arrive before kickoff</Label>
+                  <Label htmlFor="arrival">Arrive before kickoff (optional)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="arrival"
                       type="number"
                       inputMode="numeric"
-                      min={0}
+                      min={1}
                       max={480}
+                      placeholder="e.g. 30"
                       value={arrivalMinutesBefore}
                       onChange={(e) => setArrivalMinutesBefore(e.target.value)}
                       className="w-32"
                     />
                     <span className="text-sm text-muted-foreground">minutes before</span>
                   </div>
+                  <p className="text-xs text-muted-foreground">Leave blank to hide arrival time on this match.</p>
                 </div>
               )}
 
