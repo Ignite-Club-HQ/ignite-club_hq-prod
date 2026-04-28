@@ -23,8 +23,8 @@ const navItems = [
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_NATIVE_BOTTOM_INSET_PX = 0;
-const IOS_WEB_BOTTOM_INSET_PX = 16;
-const MAX_IOS_NATIVE_BOTTOM_INSET_PX = 40;
+const IOS_WEB_BOTTOM_INSET_PX = 0;
+const MAX_IOS_NATIVE_BOTTOM_INSET_PX = 60;
 const DEFAULT_NAV_GUARD_MS = 900;
 
 export function BottomNav() {
