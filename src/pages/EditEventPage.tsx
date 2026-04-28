@@ -109,6 +109,10 @@ export default function EditEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
 
+  // Arrival time before kickoff (matches only). Empty = use team default.
+  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
+  const [teamDefaultArrival, setTeamDefaultArrival] = useState<number | null>(null);
+
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
     details: true,
