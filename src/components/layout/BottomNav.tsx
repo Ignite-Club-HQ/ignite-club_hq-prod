@@ -247,8 +247,11 @@ export function BottomNav() {
   }, []);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
+  // For native iOS, use the live CSS env() value as the source of truth so the nav
+  // tracks the real home-indicator inset without JS measurement lag and without
+  // any extra hard-coded floor that would push the bar away from the bottom edge.
   const navBottomInset = isNativeIOS
-    ? nativeInsetFloor
+    ? "env(safe-area-inset-bottom, 0px)"
     : shouldStabilizeIOSLayout
       ? nativeInsetFloor
       : isAndroidNative
