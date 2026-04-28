@@ -480,7 +480,10 @@ export function UploadPhotoSheet({
 
   const handleClose = () => {
     // Cleanup preview URLs
-    selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    selectedPhotos.forEach(photo => {
+      URL.revokeObjectURL(photo.previewUrl);
+      if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+    });
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
@@ -643,7 +646,10 @@ export function UploadPhotoSheet({
   const removePhoto = (id: string) => {
     setSelectedPhotos(prev => {
       const photo = prev.find(p => p.id === id);
-      if (photo) URL.revokeObjectURL(photo.previewUrl);
+      if (photo) {
+        URL.revokeObjectURL(photo.previewUrl);
+        if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+      }
       return prev.filter(p => p.id !== id);
     });
   };
@@ -797,7 +803,10 @@ export function UploadPhotoSheet({
     toast.dismiss(uploadToastId);
     
     // Cleanup state
-    selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    selectedPhotos.forEach(photo => {
+      URL.revokeObjectURL(photo.previewUrl);
+      if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+    });
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
