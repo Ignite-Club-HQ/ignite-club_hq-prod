@@ -46,6 +46,7 @@ import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { cn } from "@/lib/utils";
+import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 
 type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -129,6 +130,7 @@ export default function CreateEventPage() {
 
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
+  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState(String(DEFAULT_MATCH_ARRIVAL_MINUTES));
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -696,6 +698,7 @@ export default function CreateEventPage() {
       reminder_sent: false,
       amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
+      arrival_minutes_before: type === "game" ? (parseInt(arrivalMinutesBefore, 10) || DEFAULT_MATCH_ARRIVAL_MINUTES) : null,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
@@ -1088,6 +1091,25 @@ export default function CreateEventPage() {
                   clubId={clubId}
                   teamId={teamId}
                 />
+              )}
+
+              {type === "game" && (
+                <div className="space-y-2">
+                  <Label htmlFor="arrival">Arrive before kickoff</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="arrival"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={480}
+                      value={arrivalMinutesBefore}
+                      onChange={(e) => setArrivalMinutesBefore(e.target.value)}
+                      className="w-32"
+                    />
+                    <span className="text-sm text-muted-foreground">minutes before</span>
+                  </div>
+                </div>
               )}
 
               {/* Price - only for social events */}

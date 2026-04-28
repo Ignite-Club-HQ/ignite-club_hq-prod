@@ -75,6 +75,7 @@ import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 
 // Lazy load PitchBoard for game events
@@ -248,7 +249,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select(`*, teams (name), clubs (name, is_pro, sport)`)
+        .select(`*, teams (name, default_match_arrival_minutes), clubs (name, is_pro, sport)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -1855,7 +1856,7 @@ export default function EventDetailPage() {
         supabase.functions.invoke("send-push-notification", {
           body: {
             userId,
-            title: "Ignite Club HQ",
+            title: "Ignite",
             body: `You've been invited to: ${event.title}`,
             url: `/events/${id}`,
             tag: `event-invite-${id}`,
@@ -2229,6 +2230,20 @@ export default function EventDetailPage() {
               <span>vs {event.opponent}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = getMatchArrivalMinutes(event as any);
+            const arrivalTime = formatMatchArrivalTime(event as any);
+            if (mins == null || !arrivalTime) return null;
+            return (
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-warning" />
+                <span>
+                  Arrive by {arrivalTime}{" "}
+                  <span className="text-muted-foreground">({mins} min before kickoff)</span>
+                </span>
+              </div>
+            );
+          })()}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
             <span>{rsvps ? `${rsvps.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length + (eventGuests?.length || 0)} attending` : 'Loading...'}</span>

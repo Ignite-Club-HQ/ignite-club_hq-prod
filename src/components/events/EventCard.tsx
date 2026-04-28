@@ -25,12 +25,12 @@ import { RecurringEventActionDialog } from "@/components/RecurringEventActionDia
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical } from "lucide-react";
-import { format } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -39,6 +39,7 @@ export interface EventCardEvent {
   title: string;
   type: "game" | "training" | "social";
   event_date: string;
+  start_time?: string | null;
   address: string | null;
   suburb: string | null;
   location_name: string | null;
@@ -49,7 +50,8 @@ export interface EventCardEvent {
   is_recurring: boolean;
   parent_event_id: string | null;
   opponent: string | null;
-  teams: { name: string } | null;
+  arrival_minutes_before?: number | null;
+  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
 
@@ -380,6 +382,18 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
+        {/* Row 0: Team / scope chip — prominent so it's instantly scannable */}
+        {subtitle && (
+          <div className="flex items-center gap-1.5">
+            <Badge
+              variant="secondary"
+              className="text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
+            >
+              {subtitle}
+            </Badge>
+          </div>
+        )}
+
         {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -387,9 +401,6 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               {event.title}
               {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
             </h3>
-            {subtitle && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
-            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
@@ -414,6 +425,17 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
             <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
           </div>
+          {event.type === "game" && (() => {
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
+            return (
+              <div className="flex items-center gap-2 text-[13px] text-warning">
+                <Clock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                <span>Arrive by {arrivalTime} ({mins} min before)</span>
+              </div>
+            );
+          })()}
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />

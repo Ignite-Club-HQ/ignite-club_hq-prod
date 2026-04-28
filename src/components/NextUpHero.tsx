@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -18,6 +19,7 @@ interface NextUpHeroProps {
     title: string;
     type: string;
     event_date: string;
+    start_time?: string | null;
     address: string | null;
     location_name: string | null;
     suburb: string | null;
@@ -25,7 +27,8 @@ interface NextUpHeroProps {
     team_id: string | null;
     is_cancelled: boolean;
     opponent: string | null;
-    teams: { name: string } | null;
+    arrival_minutes_before?: number | null;
+    teams: { name: string; default_match_arrival_minutes?: number | null } | null;
     clubs: { name: string; sport: string | null };
   };
 }
@@ -179,6 +182,18 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
+            {event.type === "game" && (() => {
+              const mins = getMatchArrivalMinutes(event);
+              const arrivalTime = formatMatchArrivalTime(event);
+              if (mins == null || !arrivalTime) return null;
+              return (
+                <div className="flex items-center gap-2 text-warning">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span className="font-medium">Arrive by {arrivalTime}</span>
+                  <span>({mins} min before)</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* RSVP Buttons */}

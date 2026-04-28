@@ -245,7 +245,7 @@ serve(async (req) => {
     const dataPayload: Record<string, string> = (() => {
       const raw: Record<string, unknown> = {
         ...(url ? { url } : {}),
-        title: title || 'Ignite Club HQ',
+        title: title || 'Ignite',
         body: body || 'You have a new notification',
         notificationId: notificationId?.toString() || '',
         tag: tag || `notification-${notificationId || Date.now()}`,
@@ -278,7 +278,7 @@ serve(async (req) => {
 
         if (isIos) {
           message.notification = {
-            title: title || 'Ignite Club HQ',
+            title: title || 'Ignite',
             body: body || 'You have a new notification',
           };
           message.apns = {
@@ -294,7 +294,7 @@ serve(async (req) => {
           message.android = {
             priority: 'high',
             notification: {
-              title: title || 'Ignite Club HQ',
+              title: title || 'Ignite',
               body: body || 'You have a new notification',
               channel_id: 'default',
               sound: 'default',

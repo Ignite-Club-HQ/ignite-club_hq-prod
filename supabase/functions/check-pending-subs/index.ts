@@ -217,12 +217,16 @@ async function notifyTeamStaff(
   elapsedMinutes?: number,
   currentHalf?: number,
 ) {
-  // For mini-league matches, only notify referees (staffUserIds already filtered)
-  // For regular teams, include game owner + team staff
+  // Only notify users who are actual staff/duty assignees for this team or event.
+  // The game owner (whoever opened the pitch board) is intentionally NOT auto-included:
+  // app_admins and cross-club admins can open any team's board, and they should not
+  // receive sub notifications for teams they don't coach. Include the owner ONLY if
+  // they are also in the staff list (i.e. a real coach / team_admin / duty assignee).
   const isMiniLeague = teamId?.startsWith('event-group-');
-  const allRecipients = isMiniLeague
-    ? new Set<string>(staffUserIds)
-    : new Set<string>([gameOwnerId, ...staffUserIds]);
+  const allRecipients = new Set<string>(staffUserIds);
+  if (!isMiniLeague && staffUserIds.includes(gameOwnerId)) {
+    allRecipients.add(gameOwnerId);
+  }
   let notificationsSent = 0;
 
   // Deduplicate notifications before fan-out.

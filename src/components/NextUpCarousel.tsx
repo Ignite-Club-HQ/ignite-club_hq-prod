@@ -9,11 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -22,6 +22,7 @@ interface EventItem {
   title: string;
   type: string;
   event_date: string;
+  start_time?: string | null;
   address: string | null;
   location_name: string | null;
   suburb: string | null;
@@ -29,7 +30,8 @@ interface EventItem {
   team_id: string | null;
   is_cancelled: boolean;
   opponent: string | null;
-  teams: { name: string } | null;
+  arrival_minutes_before?: number | null;
+  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
 
@@ -492,6 +494,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
+            return (
+              <div className="flex items-center gap-2 text-[13px] text-warning">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="font-medium">Arrive by {arrivalTime}</span>
+                <span className="text-muted-foreground">({mins} min before)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* RSVP Buttons */}
@@ -697,6 +711,17 @@ function CompactCard({ event }: { event: EventItem }) {
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
+            return (
+              <div className="flex items-center gap-1.5 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="font-medium truncate">Arrive by {arrivalTime} ({mins}m before)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* RSVP Status */}
