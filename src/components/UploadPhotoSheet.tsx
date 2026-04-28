@@ -964,7 +964,7 @@ export function UploadPhotoSheet({
                         />
                       </label>
                       <p className="mt-2 text-xs text-muted-foreground text-center px-2">
-                        iOS will ask where to find it — tap <span className="font-medium text-foreground">Photo Library</span> to pick a recorded clip, or <span className="font-medium text-foreground">Choose File</span> for one saved in Files.
+                        iOS will ask where the video is. Almost always tap <span className="font-medium text-foreground">Photo Library</span> — that's where clips you recorded on your iPhone are stored. Only use <span className="font-medium text-foreground">Choose File</span> if you saved the video into the Files app (iCloud Drive, Dropbox, etc.).
                       </p>
                     </div>
                   )}
