@@ -6,6 +6,7 @@ import { Calendar, MapPin, Clock, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 interface TeamNextEventCardProps {
   teamId: string;
@@ -21,7 +22,7 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("events")
-        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled")
+        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled, arrival_minutes_before, teams (default_match_arrival_minutes)")
         .eq("team_id", teamId)
         .eq("is_cancelled", false)
         .gte("event_date", today)
@@ -93,6 +94,17 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
                   {locationDisplay}
                 </span>
               )}
+              {nextEvent.type === "game" && (() => {
+                const mins = getMatchArrivalMinutes(nextEvent as any);
+                const arrivalTime = formatMatchArrivalTime(nextEvent as any);
+                if (mins == null || !arrivalTime) return null;
+                return (
+                  <span className="flex items-center gap-1 text-warning">
+                    <Clock className="h-3 w-3" />
+                    Arrive by {arrivalTime}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
