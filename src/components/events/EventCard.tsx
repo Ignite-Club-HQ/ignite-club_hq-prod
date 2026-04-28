@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -39,6 +40,7 @@ export interface EventCardEvent {
   title: string;
   type: "game" | "training" | "social";
   event_date: string;
+  start_time?: string | null;
   address: string | null;
   suburb: string | null;
   location_name: string | null;
@@ -416,15 +418,13 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
           </div>
           {event.type === "game" && (() => {
-            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
-            if (mins == null || mins <= 0) return null;
-            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
-            const hh = String(arrive.getHours()).padStart(2, "0");
-            const mm = String(arrive.getMinutes()).padStart(2, "0");
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
             return (
               <div className="flex items-center gap-2 text-[13px] text-warning">
                 <Clock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
-                <span>Arrive by {hh}:{mm} ({mins} min before)</span>
+                <span>Arrive by {arrivalTime} ({mins} min before)</span>
               </div>
             );
           })()}
