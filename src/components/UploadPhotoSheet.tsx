@@ -1018,7 +1018,7 @@ export function UploadPhotoSheet({
                         <input
                           ref={addMoreFileInputRef}
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           multiple
                           className="sr-only"
                           onChange={handleFileSelect}
