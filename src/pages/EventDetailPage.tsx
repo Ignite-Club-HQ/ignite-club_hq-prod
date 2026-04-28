@@ -75,6 +75,7 @@ import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 
 // Lazy load PitchBoard for game events
@@ -2230,16 +2231,14 @@ export default function EventDetailPage() {
             </div>
           )}
           {event.type === "game" && (() => {
-            const mins = (event as any).arrival_minutes_before
-              ?? (event as any).teams?.default_match_arrival_minutes
-              ?? null;
-            if (mins == null || mins <= 0) return null;
-            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            const mins = getMatchArrivalMinutes(event as any);
+            const arrivalTime = formatMatchArrivalTime(event as any);
+            if (mins == null || !arrivalTime) return null;
             return (
               <div className="flex items-center gap-3">
                 <Clock className="h-5 w-5 text-warning" />
                 <span>
-                  Arrive by {format(arrive, "h:mm a")}{" "}
+                  Arrive by {arrivalTime}{" "}
                   <span className="text-muted-foreground">({mins} min before kickoff)</span>
                 </span>
               </div>
