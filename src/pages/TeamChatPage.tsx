@@ -341,6 +341,14 @@ export default function TeamChatPage() {
     setSelectedMember(null);
   }, [teamId, selectedMember, queryClient]);
 
+  // Force a fresh fetch whenever we land on this team chat. Push notifications
+  // and inbox taps can land here while react-query still has stale data —
+  // invalidating guarantees the latest message is fetched on entry.
+  useEffect(() => {
+    if (!teamId || !authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+  }, [teamId, authReady, queryClient]);
+
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
     queryFn: async () => {

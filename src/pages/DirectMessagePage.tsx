@@ -337,6 +337,14 @@ export default function DirectMessagePage() {
   // Memoize query key to prevent ChatMessage memo breaks
   const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
 
+  // Force a fresh fetch whenever we land on this conversation. Push notifications
+  // and inbox taps can land here while react-query still has stale data from a
+  // prefetch — invalidating guarantees the latest message is fetched on entry.
+  useEffect(() => {
+    if (!conversationId || !authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+  }, [conversationId, authReady, queryClient]);
+
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: dmQueryKey,

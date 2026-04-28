@@ -278,6 +278,14 @@ export default function ClubChatPage() {
   // Note: app_admin and club_admin can still access for admin/support purposes, but the club must have Pro
   const canAccessClubChat = hasClubProAccess || club?.is_pro;
 
+  // Force a fresh fetch whenever we land on this club chat. Push notifications
+  // and inbox taps can land here while react-query still has stale data —
+  // invalidating guarantees the latest message is fetched on entry.
+  useEffect(() => {
+    if (!clubId || !authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+  }, [clubId, authReady, queryClient]);
+
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["club-messages", clubId],
     queryFn: async () => {

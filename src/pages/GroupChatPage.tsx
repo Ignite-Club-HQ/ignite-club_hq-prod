@@ -329,6 +329,14 @@ export default function GroupChatPage() {
 
   const { isOnline } = useOnlineStatus();
 
+  // Force a fresh fetch whenever we land on this group. Push notifications and
+  // inbox taps can land here while react-query still has stale data — invalidating
+  // guarantees the latest message is fetched on entry.
+  useEffect(() => {
+    if (!groupId || !authReady || !group) return;
+    queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+  }, [groupId, authReady, group, queryClient]);
+
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ["group-messages", groupId],
