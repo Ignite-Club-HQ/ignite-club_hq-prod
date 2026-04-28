@@ -506,15 +506,16 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             {isAdmin && invite.invited_email && (
               <button
                 type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5 group"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground active:text-foreground transition-colors mt-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigator.clipboard.writeText(invite.invited_email!);
                   toast({ title: "Email copied", description: invite.invited_email });
                 }}
+                aria-label={`Copy email ${invite.invited_email}`}
               >
                 <span className="truncate max-w-[180px]">{invite.invited_email}</span>
-                <Copy className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                <Copy className="h-3 w-3 shrink-0 text-primary" />
               </button>
             )}
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -559,6 +560,17 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
+                  {invite.invited_email && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        navigator.clipboard.writeText(invite.invited_email!);
+                        toast({ title: "Email copied", description: invite.invited_email });
+                      }}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy email
+                    </DropdownMenuItem>
+                  )}
                   {teamId && clubId && (
                     <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
                       <ArrowRightLeft className="h-4 w-4 mr-2" />

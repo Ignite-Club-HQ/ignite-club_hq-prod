@@ -639,8 +639,10 @@ export default function MediaPage() {
   const { recordView, observeView } = useRecordPhotoView(user?.id);
   usePhotoViewRealtime(allPhotoIds);
 
-  // Stable query key for reactions - include photo count to refetch when more photos load
-  const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
+  // Stable query key for reactions - bucket photo count by 50 to avoid refetching
+  // on every infinite-scroll page load. Realtime channel below keeps data fresh in between.
+  const photoCountBucket = Math.ceil(allPhotoIds.length / 50);
+  const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
   
   // Fetch reactions for ALL loaded photos - use inline reactions as placeholder for instant display
   const { data: fetchedReactions } = useQuery({
@@ -665,8 +667,8 @@ export default function MediaPage() {
   // Use fetched reactions
   const allReactions = fetchedReactions || [];
 
-  // Stable query key for comments - include photo count to refetch when more photos load
-  const commentsQueryKey = useMemo(() => ["photo-comments", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
+  // Stable query key for comments - bucket photo count by 50 to avoid refetching on every page
+  const commentsQueryKey = useMemo(() => ["photo-comments", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
 
   // Fetch comments for ALL loaded photos (not just filtered)
   const { data: allComments } = useQuery({

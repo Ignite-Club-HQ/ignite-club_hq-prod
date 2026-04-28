@@ -44,6 +44,16 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   setTimeout(snap, 150);
 }
 
+export function scrollChatElementIntoView(container: HTMLElement | null | undefined, element: HTMLElement | null | undefined) {
+  const viewport = resolveChatScrollViewport(container);
+  if (!viewport || !element) return;
+
+  const viewportRect = viewport.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  const targetTop = viewport.scrollTop + elementRect.top - viewportRect.top - Math.max(24, (viewport.clientHeight - elementRect.height) / 2);
+  viewport.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+}
+
 /**
  * Returns true if the viewport is scrolled near the bottom (within threshold px).
  */

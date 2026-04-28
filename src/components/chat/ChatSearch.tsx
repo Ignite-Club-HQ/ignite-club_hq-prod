@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, ArrowLeft, X } from "lucide-react";
+import { Search, ArrowLeft, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -9,6 +9,7 @@ interface ChatSearchProps {
   debounceMs?: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  isSearching?: boolean;
 }
 
 export function ChatSearchTrigger({ onClick }: { onClick: () => void }) {
@@ -19,7 +20,7 @@ export function ChatSearchTrigger({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange }: ChatSearchProps) {
+export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange, isSearching = false }: ChatSearchProps) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, debounceMs);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,29 +55,97 @@ export function ChatSearchBar({ onSearch, debounceMs = 300, isOpen, onOpenChange
       <Button variant="ghost" size="icon" onClick={handleClose} className="shrink-0 h-9 w-9">
         <ArrowLeft className="h-5 w-5" />
       </Button>
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative flex-1 min-w-0">
+        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           ref={inputRef}
           placeholder="Search messages..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="pl-9 pr-9 h-9 bg-muted/50 border-0 focus-visible:ring-1"
+          className="h-9 bg-muted/50 border-0 pl-9 pr-20 focus-visible:ring-1 text-ellipsis"
         />
-        {query && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClear}
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+        {/* Trailing controls: fixed-width slots aligned to the input so the
+            spinner never shifts when text truncates or width changes. */}
+        <div className="absolute right-1 top-0 h-9 flex items-center gap-0.5">
+          <span
+            className="flex h-7 w-7 items-center justify-center pointer-events-none"
+            aria-hidden={!isSearching}
           >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        )}
+            {isSearching && (
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            )}
+          </span>
+          <span className="flex h-7 w-7 items-center justify-center">
+            {query && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleClear}
+                className="h-7 w-7"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </span>
+        </div>
+        <span className="sr-only" aria-live="polite">
+          {isSearching ? "Searching messages" : ""}
+        </span>
       </div>
     </div>
   );
 }
+
+export function ChatSearchLoadingState() {
+  // Skeleton list mimicking message rows so the user always sees results
+  // loading instead of any "no messages" empty state during fetch.
+  const rows = [
+    { side: "left", w: "70%" },
+    { side: "right", w: "55%" },
+    { side: "left", w: "85%" },
+    { side: "left", w: "45%" },
+    { side: "right", w: "65%" },
+    { side: "left", w: "75%" },
+  ] as const;
+
+  return (
+    <div
+      className="flex flex-col gap-3 px-3 py-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Searching messages"
+    >
+      <span className="sr-only">Searching messages…</span>
+      {rows.map((row, i) => (
+        <div
+          key={i}
+          className={`flex ${row.side === "right" ? "justify-end" : "justify-start"}`}
+        >
+          <div
+            className={`flex max-w-[80%] items-end gap-2 ${
+              row.side === "right" ? "flex-row-reverse" : ""
+            }`}
+          >
+            {row.side === "left" && (
+              <div className="h-8 w-8 shrink-0 rounded-full bg-muted animate-pulse" />
+            )}
+            <div className="flex flex-col gap-1.5">
+              {row.side === "left" && i % 2 === 0 && (
+                <div className="h-2.5 w-20 rounded bg-muted/70 animate-pulse" />
+              )}
+              <div
+                className="h-10 rounded-2xl bg-muted animate-pulse"
+                style={{ width: row.w, minWidth: "4rem" }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 // Keep legacy component for backward compat if needed
 export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: string) => void; debounceMs?: number }) {
@@ -91,14 +160,25 @@ export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: s
 }
 
 export function highlightText(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text;
-  
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
-  
-  return parts.map((part, i) => 
-    regex.test(part) ? (
-      <mark key={i} className="bg-primary/30 text-inherit rounded px-0.5">{part}</mark>
-    ) : part
+  if (!query.trim() || !text) return text;
+
+  const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Capture group so split keeps matches; case-insensitive
+  const splitter = new RegExp(`(${escaped})`, "gi");
+  const lower = query.trim().toLowerCase();
+  const parts = text.split(splitter);
+
+  return parts.map((part, i) =>
+    part && part.toLowerCase() === lower ? (
+      <span
+        key={i}
+        data-search-highlight=""
+        className="search-highlight rounded px-0.5 font-semibold"
+      >
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
   );
 }
