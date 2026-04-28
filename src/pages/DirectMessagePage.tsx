@@ -1077,6 +1077,38 @@ export default function DirectMessagePage() {
     );
   }
 
+  return (
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+      {/* Header */}
+      <ChatHeaderShell
+        type={isIgniteSupportConversation ? "support" : "dm"}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
+        onOpenDetails={() => setDetailsOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        chatType={isIgniteSupportConversation ? "support" : "dm"}
+        chatId={conversationId!}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        otherUserId={otherUserId || undefined}
+      />
 
       {/* Notification Nudge */}
       {notificationNudge.shouldShowNudge && (
