@@ -173,7 +173,7 @@ serve(async (req: Request): Promise<Response> => {
           return supabase.functions.invoke('send-push-notification', {
             body: {
               userId: notif.user_id,
-              title: 'Ignite Club HQ',
+              title: 'Ignite',
               body: notif.message,
               url,
               notificationId: notif.id,
