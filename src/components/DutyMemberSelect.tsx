@@ -79,7 +79,7 @@ export function DutyMemberSelect({
             <ResponsiveDialogTitle>Assign: {dutyName}</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
 
-          <ScrollArea className="max-h-[60vh]">
+          <div>
             <div className="space-y-3 py-4">
               {/* Unassigned option */}
               <button
