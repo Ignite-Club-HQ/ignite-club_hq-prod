@@ -14,6 +14,7 @@ import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
+import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -22,6 +23,7 @@ interface EventItem {
   title: string;
   type: string;
   event_date: string;
+  start_time?: string | null;
   address: string | null;
   location_name: string | null;
   suburb: string | null;
@@ -494,13 +496,13 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             </div>
           )}
           {event.type === "game" && (() => {
-            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
-            if (mins == null || mins <= 0) return null;
-            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
             return (
               <div className="flex items-center gap-2 text-[13px] text-warning">
                 <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="font-medium">Arrive by {format(arrive, "h:mm a")}</span>
+                <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
             );
@@ -711,13 +713,13 @@ function CompactCard({ event }: { event: EventItem }) {
             </div>
           )}
           {event.type === "game" && (() => {
-            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
-            if (mins == null || mins <= 0) return null;
-            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            const mins = getMatchArrivalMinutes(event);
+            const arrivalTime = formatMatchArrivalTime(event);
+            if (mins == null || !arrivalTime) return null;
             return (
               <div className="flex items-center gap-1.5 text-[12px] text-warning">
                 <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="font-medium truncate">Arrive by {format(arrive, "h:mm a")} ({mins}m before)</span>
+                <span className="font-medium truncate">Arrive by {arrivalTime} ({mins}m before)</span>
               </div>
             );
           })()}
