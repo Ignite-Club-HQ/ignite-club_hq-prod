@@ -1107,20 +1107,22 @@ export default function CreateEventPage() {
 
               {type === "game" && (
                 <div className="space-y-2">
-                  <Label htmlFor="arrival">Arrive before kickoff</Label>
+                  <Label htmlFor="arrival">Arrive before kickoff (optional)</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="arrival"
                       type="number"
                       inputMode="numeric"
-                      min={0}
+                      min={1}
                       max={480}
+                      placeholder="e.g. 30"
                       value={arrivalMinutesBefore}
                       onChange={(e) => setArrivalMinutesBefore(e.target.value)}
                       className="w-32"
                     />
                     <span className="text-sm text-muted-foreground">minutes before</span>
                   </div>
+                  <p className="text-xs text-muted-foreground">Leave blank to hide arrival time on this match.</p>
                 </div>
               )}
 
