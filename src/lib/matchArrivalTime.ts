@@ -21,7 +21,7 @@ export function getMatchArrivalMinutes(event: MatchArrivalEvent): number | null 
     return event.teams.default_match_arrival_minutes > 0 ? event.teams.default_match_arrival_minutes : null;
   }
 
-  return DEFAULT_MATCH_ARRIVAL_MINUTES;
+  return null;
 }
 
 export function getMatchArrivalDate(event: MatchArrivalEvent): Date | null {
