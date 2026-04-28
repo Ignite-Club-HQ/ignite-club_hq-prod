@@ -902,7 +902,24 @@ export function UploadPhotoSheet({
                     onChange={handleFileSelect}
                     disabled={uploading || isPickingNativePhoto}
                   />
-                </label>
+                  </label>
+                  {isNativeIOS && (
+                    <label className={cn(
+                      "mt-3 flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium cursor-pointer hover:bg-muted transition-colors",
+                      (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
+                    )}>
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M8 5v14l11-7z" /></svg>
+                      Or upload a video
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="sr-only"
+                        onChange={handleFileSelect}
+                        disabled={uploading || isPickingNativePhoto}
+                      />
+                    </label>
+                  )}
+                </>
               ) : (
                 <div className="space-y-4">
                   {/* Photo Grid */}
