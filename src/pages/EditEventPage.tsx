@@ -43,6 +43,7 @@ import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { EventSponsorSelector } from "@/components/EventSponsorSelector";
+import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 
 type EventType = "game" | "training" | "social";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -195,7 +196,7 @@ export default function EditEventPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select("*, teams (name), clubs (name)")
+        .select("*, teams (name, default_match_arrival_minutes), clubs (name)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -374,7 +375,7 @@ export default function EditEventPage() {
     queryFn: async () => {
       const query = supabase
         .from("user_roles")
-        .select("team_id, teams(id, name, club_id)")
+        .select("team_id, teams(id, name, club_id, default_match_arrival_minutes)")
         .eq("user_id", user!.id)
         .not("team_id", "is", null)
         .in("role", ["team_admin", "coach"]);
@@ -382,7 +383,7 @@ export default function EditEventPage() {
       const { data } = await query;
       
       if (!data) return [];
-      let teams = data.filter(r => r.teams).map(r => r.teams as { id: string; name: string; club_id: string });
+      let teams = data.filter(r => r.teams).map(r => r.teams as { id: string; name: string; club_id: string; default_match_arrival_minutes: number | null });
       
       // Filter by selected club if set
       if (selectedClubId) {
@@ -407,6 +408,8 @@ export default function EditEventPage() {
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
+      setArrivalMinutesBefore((event as any).arrival_minutes_before != null ? String((event as any).arrival_minutes_before) : "");
+      setTeamDefaultArrival((event as any).teams?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
       setAllowGuests(event.allow_guests === true);
       setMaxGuestsPerMember(event.max_guests_per_member || 2);
       
@@ -414,6 +417,15 @@ export default function EditEventPage() {
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
     }
   }, [event]);
+
+  useEffect(() => {
+    if (!selectedTeamId) {
+      setTeamDefaultArrival(DEFAULT_MATCH_ARRIVAL_MINUTES);
+      return;
+    }
+    const selectedTeam = userTeams?.find((team) => team.id === selectedTeamId);
+    setTeamDefaultArrival(selectedTeam?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
+  }, [selectedTeamId, userTeams]);
 
   // Load existing duties
   useEffect(() => {
@@ -470,6 +482,7 @@ export default function EditEventPage() {
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
         opponent: type === "game" ? opponent.trim() || null : null,
+        arrival_minutes_before: type === "game" ? (arrivalMinutesBefore === "" ? null : parseInt(arrivalMinutesBefore, 10) || DEFAULT_MATCH_ARRIVAL_MINUTES) : null,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
