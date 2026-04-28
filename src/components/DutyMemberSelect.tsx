@@ -10,7 +10,7 @@ import {
   ResponsiveDialogTitle,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 interface Member {
   id: string;
@@ -79,7 +79,7 @@ export function DutyMemberSelect({
             <ResponsiveDialogTitle>Assign: {dutyName}</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
 
-          <ScrollArea className="max-h-[60vh]">
+          <div>
             <div className="space-y-3 py-4">
               {/* Unassigned option */}
               <button
@@ -167,7 +167,7 @@ export function DutyMemberSelect({
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <ResponsiveDialogFooter>
             <Button
