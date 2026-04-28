@@ -183,6 +183,14 @@ export default function BroadcastChatPage() {
 
   const { isOnline } = useOnlineStatus();
 
+  // Force a fresh fetch whenever we land on the broadcast chat. Push
+  // notifications and inbox taps can land here while react-query still has
+  // stale data — invalidating guarantees the latest message is fetched on entry.
+  useEffect(() => {
+    if (!authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+  }, [authReady, queryClient]);
+
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["broadcast-messages"],
     queryFn: async () => {
