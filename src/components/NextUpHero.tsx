@@ -25,7 +25,8 @@ interface NextUpHeroProps {
     team_id: string | null;
     is_cancelled: boolean;
     opponent: string | null;
-    teams: { name: string } | null;
+    arrival_minutes_before?: number | null;
+    teams: { name: string; default_match_arrival_minutes?: number | null } | null;
     clubs: { name: string; sport: string | null };
   };
 }
@@ -179,6 +180,18 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
+            {event.type === "game" && (() => {
+              const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
+              if (mins == null || mins <= 0) return null;
+              const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+              return (
+                <div className="flex items-center gap-2 text-warning">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span className="font-medium">Arrive by {format(arrive, "h:mm a")}</span>
+                  <span>({mins} min before)</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* RSVP Buttons */}

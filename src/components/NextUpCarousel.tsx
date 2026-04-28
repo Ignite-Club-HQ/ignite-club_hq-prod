@@ -29,7 +29,8 @@ interface EventItem {
   team_id: string | null;
   is_cancelled: boolean;
   opponent: string | null;
-  teams: { name: string } | null;
+  arrival_minutes_before?: number | null;
+  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
 
@@ -492,6 +493,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
+            if (mins == null || mins <= 0) return null;
+            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            return (
+              <div className="flex items-center gap-2 text-[13px] text-warning">
+                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="font-medium">Arrive by {format(arrive, "h:mm a")}</span>
+                <span className="text-muted-foreground">({mins} min before)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* RSVP Buttons */}
@@ -697,6 +710,17 @@ function CompactCard({ event }: { event: EventItem }) {
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
+            if (mins == null || mins <= 0) return null;
+            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            return (
+              <div className="flex items-center gap-1.5 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="font-medium truncate">Arrive by {format(arrive, "h:mm a")} ({mins}m before)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* RSVP Status */}
