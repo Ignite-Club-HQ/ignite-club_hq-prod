@@ -835,7 +835,7 @@ export default function EditEventPage() {
                       id="arrival"
                       type="number"
                       inputMode="numeric"
-                      min={0}
+                      min={1}
                       max={480}
                       placeholder={teamDefaultArrival != null ? `${teamDefaultArrival} (team default)` : "e.g. 30"}
                       value={arrivalMinutesBefore}
