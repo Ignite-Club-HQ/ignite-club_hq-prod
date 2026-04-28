@@ -667,6 +667,18 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Validate arrival time when provided (game only). Empty = no arrival info.
+    if (type === "game" && arrivalMinutesBefore.trim() !== "") {
+      const n = Number(arrivalMinutesBefore);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 480) {
+        toast({
+          title: "Invalid arrival time",
+          description: "Enter a whole number between 1 and 480 minutes, or leave blank.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     // Check for conflicts before saving
     if (!skipConflictCheck && type === "training") {
       const hasConflicts = await checkForConflicts();
