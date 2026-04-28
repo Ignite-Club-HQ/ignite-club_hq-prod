@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
-import { isVideoFile, validateVideo } from "@/lib/videoUtils";
+import { isVideoFile, validateVideo, generateVideoThumbnail } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
@@ -60,6 +60,7 @@ interface SelectedPhoto {
   file: File;
   originalFile: File;
   previewUrl: string;
+  thumbnailUrl?: string | null;
   status: 'pending' | 'compressing' | 'uploading' | 'success' | 'error';
   error?: string;
   originalSize: number;
@@ -479,7 +480,10 @@ export function UploadPhotoSheet({
 
   const handleClose = () => {
     // Cleanup preview URLs
-    selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    selectedPhotos.forEach(photo => {
+      URL.revokeObjectURL(photo.previewUrl);
+      if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+    });
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
@@ -515,12 +519,30 @@ export function UploadPhotoSheet({
       file,
       originalFile: file,
       previewUrl: URL.createObjectURL(file),
+      thumbnailUrl: null,
       status: isVideoFile(file) ? ('pending' as const) : ('compressing' as const),
       originalSize: file.size,
       compressedSize: file.size,
     }));
 
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
+
+    // Generate poster thumbnails for video entries in parallel (non-blocking)
+    for (const photo of newPhotos) {
+      if (!isVideoFile(photo.originalFile)) continue;
+      void generateVideoThumbnail(photo.originalFile).then(thumb => {
+        if (!thumb) return;
+        setSelectedPhotos(prev => {
+          // If the entry was removed before the thumb arrived, revoke immediately
+          const exists = prev.some(p => p.id === photo.id);
+          if (!exists) {
+            URL.revokeObjectURL(thumb);
+            return prev;
+          }
+          return prev.map(p => p.id === photo.id ? { ...p, thumbnailUrl: thumb } : p);
+        });
+      });
+    }
 
     // Compress only image entries
     for (const photo of newPhotos) {
@@ -624,7 +646,10 @@ export function UploadPhotoSheet({
   const removePhoto = (id: string) => {
     setSelectedPhotos(prev => {
       const photo = prev.find(p => p.id === id);
-      if (photo) URL.revokeObjectURL(photo.previewUrl);
+      if (photo) {
+        URL.revokeObjectURL(photo.previewUrl);
+        if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+      }
       return prev.filter(p => p.id !== id);
     });
   };
@@ -778,7 +803,10 @@ export function UploadPhotoSheet({
     toast.dismiss(uploadToastId);
     
     // Cleanup state
-    selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+    selectedPhotos.forEach(photo => {
+      URL.revokeObjectURL(photo.previewUrl);
+      if (photo.thumbnailUrl) URL.revokeObjectURL(photo.thumbnailUrl);
+    });
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
@@ -931,16 +959,27 @@ export function UploadPhotoSheet({
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                         {isVideo ? (
                           <>
-                            <video
-                              src={photo.previewUrl}
-                              className={cn(
-                                "w-full h-full object-cover transition-opacity",
-                                photo.status === 'success' && "opacity-75"
-                              )}
-                              muted
-                              playsInline
-                              preload="metadata"
-                            />
+                            {photo.thumbnailUrl ? (
+                              <img
+                                src={photo.thumbnailUrl}
+                                alt="Video preview"
+                                className={cn(
+                                  "w-full h-full object-cover transition-opacity",
+                                  photo.status === 'success' && "opacity-75"
+                                )}
+                              />
+                            ) : (
+                              <video
+                                src={photo.previewUrl}
+                                className={cn(
+                                  "w-full h-full object-cover transition-opacity",
+                                  photo.status === 'success' && "opacity-75"
+                                )}
+                                muted
+                                playsInline
+                                preload="metadata"
+                              />
+                            )}
                             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
                               <div className="rounded-full bg-black/60 p-2">
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white"><path d="M8 5v14l11-7z" /></svg>
