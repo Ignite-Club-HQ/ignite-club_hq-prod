@@ -861,6 +861,7 @@ export function UploadPhotoSheet({
             {/* Photo Grid / Select Area */}
             <div className="p-4">
               {selectedPhotos.length === 0 ? (
+                <>
                 <label
                   className={cn(
                     "block cursor-pointer",
