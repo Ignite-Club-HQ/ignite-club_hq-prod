@@ -988,6 +988,41 @@ export default function DirectMessagePage() {
     };
   }, [conversationId, queryClient]);
 
+  const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
+    searchQuery,
+    loadedMessages: localMessages,
+    setMessages: (updater) => setLocalMessages((prev) => updater(prev)),
+    enabled: !!conversationId,
+    cacheKey: `dm:${conversationId ?? ""}`,
+    fetcher: async (q, signal) =>
+      (await searchChatHistory({
+        table: "direct_messages",
+        scope: { conversation_id: conversationId! },
+        query: q,
+        signal,
+        selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
+      })) as DirectMessage[],
+  });
+
+  const filteredMessages = useMemo(() => {
+    if (!localMessages) return localMessages;
+    const base = !searchQuery.trim()
+      ? localMessages
+      : localMessages.filter((msg) =>
+          msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    return [...base].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [localMessages, searchQuery]);
+
+  useEffect(() => {
+    if (isSearchFetching) return;
+    const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
+    if (!firstMatch) return;
+    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+  }, [filteredMessages, isSearchFetching, searchQuery]);
+
   if (conversationLoading || checkingCanDM) {
     return <PageLoading />;
   }
