@@ -58,7 +58,7 @@ async function dispatchPushBatch(
           },
           body: JSON.stringify({
             userId: n.userId,
-            title: 'Ignite Club HQ',
+            title: 'Ignite',
             body: n.body,
             url: n.url,
             notificationId: n.notificationId,
