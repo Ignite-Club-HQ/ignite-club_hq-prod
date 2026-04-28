@@ -167,7 +167,7 @@ export function DutyMemberSelect({
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <ResponsiveDialogFooter>
             <Button
