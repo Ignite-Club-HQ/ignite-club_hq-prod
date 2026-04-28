@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         userId,
-        title: 'Ignite Club HQ',
+        title: 'Ignite',
         body,
         url,
         tag: `new-member-events-${userId}`,
