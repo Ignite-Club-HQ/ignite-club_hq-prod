@@ -278,7 +278,7 @@ serve(async (req) => {
 
         if (isIos) {
           message.notification = {
-            title: title || 'Ignite Club HQ',
+            title: title || 'Ignite',
             body: body || 'You have a new notification',
           };
           message.apns = {
@@ -294,7 +294,7 @@ serve(async (req) => {
           message.android = {
             priority: 'high',
             notification: {
-              title: title || 'Ignite Club HQ',
+              title: title || 'Ignite',
               body: body || 'You have a new notification',
               channel_id: 'default',
               sound: 'default',

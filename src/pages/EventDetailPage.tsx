@@ -1856,7 +1856,7 @@ export default function EventDetailPage() {
         supabase.functions.invoke("send-push-notification", {
           body: {
             userId,
-            title: "Ignite Club HQ",
+            title: "Ignite",
             body: `You've been invited to: ${event.title}`,
             url: `/events/${id}`,
             tag: `event-invite-${id}`,
