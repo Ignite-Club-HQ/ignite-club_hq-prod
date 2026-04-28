@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
-import { isVideoFile, validateVideo } from "@/lib/videoUtils";
+import { isVideoFile, validateVideo, generateVideoThumbnail } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
@@ -60,6 +60,7 @@ interface SelectedPhoto {
   file: File;
   originalFile: File;
   previewUrl: string;
+  thumbnailUrl?: string | null;
   status: 'pending' | 'compressing' | 'uploading' | 'success' | 'error';
   error?: string;
   originalSize: number;
