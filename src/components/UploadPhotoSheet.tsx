@@ -516,12 +516,30 @@ export function UploadPhotoSheet({
       file,
       originalFile: file,
       previewUrl: URL.createObjectURL(file),
+      thumbnailUrl: null,
       status: isVideoFile(file) ? ('pending' as const) : ('compressing' as const),
       originalSize: file.size,
       compressedSize: file.size,
     }));
 
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
+
+    // Generate poster thumbnails for video entries in parallel (non-blocking)
+    for (const photo of newPhotos) {
+      if (!isVideoFile(photo.originalFile)) continue;
+      void generateVideoThumbnail(photo.originalFile).then(thumb => {
+        if (!thumb) return;
+        setSelectedPhotos(prev => {
+          // If the entry was removed before the thumb arrived, revoke immediately
+          const exists = prev.some(p => p.id === photo.id);
+          if (!exists) {
+            URL.revokeObjectURL(thumb);
+            return prev;
+          }
+          return prev.map(p => p.id === photo.id ? { ...p, thumbnailUrl: thumb } : p);
+        });
+      });
+    }
 
     // Compress only image entries
     for (const photo of newPhotos) {
