@@ -63,7 +63,7 @@ export function AssignDutySheet({
           <ResponsiveDialogTitle>Assign: {dutyName}</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto max-h-[60vh] px-1">
+        <div className="px-1">
           <div className="space-y-3 py-4 px-3">
             {/* Unassigned option */}
             <button
