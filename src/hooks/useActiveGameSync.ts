@@ -153,6 +153,15 @@ export function useActiveGameSync() {
       return;
     }
 
+    // Guard against creating a phantom active_games row from stale localStorage.
+    // A real running game always has either isRunning=true OR elapsedSeconds>0
+    // (halftime). If the board has never actually started ticking, do NOT
+    // insert a new row — only update an existing one we already own.
+    const hasRealProgress = timerState.isRunning || timerState.elapsedSeconds > 0;
+    if (!hasRealProgress && !activeGameIdRef.current) {
+      return;
+    }
+
     // Skip syncing to active_games for event-group based games
     // Those are synced via useEventGroupSync to the event_groups table
     const isEventGroup = timerState.teamId?.startsWith("event-group-");
