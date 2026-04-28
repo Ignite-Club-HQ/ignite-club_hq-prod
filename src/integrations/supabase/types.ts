@@ -2762,6 +2762,7 @@ export type Database = {
           address: string | null
           allow_guests: boolean | null
           amount: number | null
+          arrival_minutes_before: number | null
           club_id: string
           created_at: string
           created_by: string
@@ -2802,6 +2803,7 @@ export type Database = {
           address?: string | null
           allow_guests?: boolean | null
           amount?: number | null
+          arrival_minutes_before?: number | null
           club_id: string
           created_at?: string
           created_by: string
@@ -2842,6 +2844,7 @@ export type Database = {
           address?: string | null
           allow_guests?: boolean | null
           amount?: number | null
+          arrival_minutes_before?: number | null
           club_id?: string
           created_at?: string
           created_by?: string
@@ -6854,6 +6857,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           default_formation: string | null
+          default_match_arrival_minutes: number | null
           default_pitch_format: string | null
           default_pitch_orientation: string | null
           default_pitch_view: string | null
@@ -6887,6 +6891,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           default_formation?: string | null
+          default_match_arrival_minutes?: number | null
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
@@ -6920,6 +6925,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           default_formation?: string | null
+          default_match_arrival_minutes?: number | null
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null

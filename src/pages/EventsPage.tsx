@@ -334,8 +334,9 @@ export default function EventsPage() {
           is_recurring,
           parent_event_id,
           opponent,
+          arrival_minutes_before,
           updated_at,
-          teams (name),
+          teams (name, default_match_arrival_minutes),
           clubs (name, sport)
         `)
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])

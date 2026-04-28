@@ -109,6 +109,10 @@ export default function EditEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
 
+  // Arrival time before kickoff (matches only). Empty = use team default.
+  const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
+  const [teamDefaultArrival, setTeamDefaultArrival] = useState<number | null>(null);
+
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
     details: true,
@@ -794,6 +798,32 @@ export default function EditEventPage() {
                   clubId={selectedClubId}
                   teamId={selectedTeamId}
                 />
+              )}
+
+              {/* Arrival time - only for game events */}
+              {type === "game" && (
+                <div className="space-y-2">
+                  <Label htmlFor="arrival">Arrive before kickoff</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="arrival"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={480}
+                      placeholder={teamDefaultArrival != null ? `${teamDefaultArrival} (team default)` : "e.g. 30"}
+                      value={arrivalMinutesBefore}
+                      onChange={(e) => setArrivalMinutesBefore(e.target.value)}
+                      className="w-32"
+                    />
+                    <span className="text-sm text-muted-foreground">minutes before</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {teamDefaultArrival != null
+                      ? "Leave blank to use the team default."
+                      : "Optional. Tell players how early to arrive."}
+                  </p>
+                </div>
               )}
             </CardContent>
           </CollapsibleContent>

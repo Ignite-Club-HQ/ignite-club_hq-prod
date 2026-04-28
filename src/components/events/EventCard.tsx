@@ -49,7 +49,8 @@ export interface EventCardEvent {
   is_recurring: boolean;
   parent_event_id: string | null;
   opponent: string | null;
-  teams: { name: string } | null;
+  arrival_minutes_before?: number | null;
+  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
 
@@ -414,6 +415,19 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
             <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
           </div>
+          {event.type === "game" && (() => {
+            const mins = event.arrival_minutes_before ?? event.teams?.default_match_arrival_minutes ?? null;
+            if (mins == null || mins <= 0) return null;
+            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            const hh = String(arrive.getHours()).padStart(2, "0");
+            const mm = String(arrive.getMinutes()).padStart(2, "0");
+            return (
+              <div className="flex items-center gap-2 text-[13px] text-warning">
+                <Clock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                <span>Arrive by {hh}:{mm} ({mins} min before)</span>
+              </div>
+            );
+          })()}
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />

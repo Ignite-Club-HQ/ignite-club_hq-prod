@@ -248,7 +248,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select(`*, teams (name), clubs (name, is_pro, sport)`)
+        .select(`*, teams (name, default_match_arrival_minutes), clubs (name, is_pro, sport)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -2229,6 +2229,22 @@ export default function EventDetailPage() {
               <span>vs {event.opponent}</span>
             </div>
           )}
+          {event.type === "game" && (() => {
+            const mins = (event as any).arrival_minutes_before
+              ?? (event as any).teams?.default_match_arrival_minutes
+              ?? null;
+            if (mins == null || mins <= 0) return null;
+            const arrive = new Date(new Date(event.event_date).getTime() - mins * 60000);
+            return (
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-warning" />
+                <span>
+                  Arrive by {format(arrive, "h:mm a")}{" "}
+                  <span className="text-muted-foreground">({mins} min before kickoff)</span>
+                </span>
+              </div>
+            );
+          })()}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
             <span>{rsvps ? `${rsvps.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length + (eventGuests?.length || 0)} attending` : 'Loading...'}</span>
