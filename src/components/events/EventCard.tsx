@@ -382,6 +382,18 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
+        {/* Row 0: Team / scope chip — prominent so it's instantly scannable */}
+        {subtitle && (
+          <div className="flex items-center gap-1.5">
+            <Badge
+              variant="secondary"
+              className="text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
+            >
+              {subtitle}
+            </Badge>
+          </div>
+        )}
+
         {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -389,9 +401,6 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               {event.title}
               {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
             </h3>
-            {subtitle && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
-            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
