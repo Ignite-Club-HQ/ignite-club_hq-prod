@@ -158,11 +158,14 @@ function makeJwt() {
   try {
     crypto.createPrivateKey(privateKey);
   } catch (err) {
+    const head = (privateKey.split('\n')[0] || '').slice(0, 40);
     console.error('❌ Could not parse ASC_PRIVATE_KEY as a PEM private key.');
-    console.error('   Tip: paste the FULL contents of the .p8 file (including the');
+    console.error(`   Got ${privateKey.length} chars, first line: "${head}"`);
+    console.error('   Paste the FULL contents of the .p8 file (including the');
     console.error('   "-----BEGIN PRIVATE KEY-----" / "-----END PRIVATE KEY-----" lines)');
-    console.error('   into the secret. In Codemagic, store it as a "Secure file" or use');
-    console.error('   a base64-encoded variable — both are accepted by this script.');
+    console.error('   directly into the secret VALUE — not a file path, not the filename.');
+    console.error('   In Codemagic, add it as an Environment variable (Group: app_store_credentials),');
+    console.error('   or base64-encode the .p8 contents — both are accepted by this script.');
     console.error(`   Underlying error: ${err.message}`);
     process.exit(2);
   }
