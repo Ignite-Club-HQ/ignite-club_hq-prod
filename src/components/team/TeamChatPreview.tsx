@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 
 import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
+import { isSystemMessageLike } from "@/lib/systemMessagePatterns";
 
 interface TeamChatPreviewProps {
   teamId: string;
