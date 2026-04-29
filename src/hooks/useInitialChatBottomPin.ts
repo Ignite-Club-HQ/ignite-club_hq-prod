@@ -36,6 +36,15 @@ export function useInitialChatBottomPin({
   // Track last known item count per resetKey so we can re-snap when fresh
   // network data arrives after the initial cached render (iOS cold start).
   const lastItemCountRef = useRef(0);
+  // Timestamp of the most recent successful pin. Used to distinguish "late
+  // server data settling" (within the post-pin window) from genuine user
+  // scrolling away after the chat has stabilised.
+  const pinnedAtRef = useRef(0);
+  // Threshold (px) at which we consider the user has intentionally scrolled
+  // away from the bottom. Generous to avoid tripping on layout/content jumps
+  // when fresh server data appends new messages after the cached render.
+  const USER_SCROLL_AWAY_THRESHOLD_PX = 400;
+  const POST_PIN_TRUST_WINDOW_MS = 3500;
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -45,6 +54,7 @@ export function useInitialChatBottomPin({
   useEffect(() => {
     userScrolledAwayRef.current = false;
     lastItemCountRef.current = 0;
+    pinnedAtRef.current = 0;
   }, [resetKey]);
 
   // Detect manual scrolling away from bottom to suppress auto-snap
@@ -60,8 +70,12 @@ export function useInitialChatBottomPin({
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
+        // Don't trust scroll events fired within the post-pin settle window —
+        // they're almost always layout shifts (image loads, late messages,
+        // composer resizes), not real user intent.
+        if (performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS) return;
         const metrics = getChatScrollMetrics(scrollContainerRef.current);
-        if (metrics && metrics.distanceFromBottom > 200) {
+        if (metrics && metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
           userScrolledAwayRef.current = true;
         }
       });
@@ -94,17 +108,29 @@ export function useInitialChatBottomPin({
         setIsPinned(false);
         // Fall through to the main pin sequence below.
       } else if (grew && !userScrolledAwayRef.current) {
-        // Only snap on growth if the user is currently near the bottom.
-        // Otherwise prepending older messages (which also grows itemCount)
-        // would yank them back to the latest message and they'd never reach
-        // the older history they're trying to read.
-        const growMetrics = getChatScrollMetrics(scrollContainerRef.current);
-        const userNearBottom = !growMetrics || growMetrics.distanceFromBottom <= 200;
-        lastItemCountRef.current = itemCount;
-        if (!userNearBottom) {
-          userScrolledAwayRef.current = true;
-          return;
+        // Within the post-pin settle window, growth is almost certainly late
+        // server data (cached render → fresh fetch appended newer messages,
+        // images loading, profile hydration causing re-render). Trust the
+        // prior pin intent and snap forward — don't gate on current
+        // distanceFromBottom, which is misleading during layout settling.
+        const withinSettleWindow =
+          performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
+
+        if (!withinSettleWindow) {
+          // After the settle window, only re-snap if the user is genuinely
+          // near the bottom. Use the same generous threshold as the scroll
+          // listener so a single content-height jump doesn't trip us.
+          const growMetrics = getChatScrollMetrics(scrollContainerRef.current);
+          const userNearBottom =
+            !growMetrics || growMetrics.distanceFromBottom <= USER_SCROLL_AWAY_THRESHOLD_PX;
+          if (!userNearBottom) {
+            userScrolledAwayRef.current = true;
+            lastItemCountRef.current = itemCount;
+            return;
+          }
         }
+
+        lastItemCountRef.current = itemCount;
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
@@ -119,7 +145,7 @@ export function useInitialChatBottomPin({
           const guardObserver = new ResizeObserver(() => {
             if (!userScrolledAwayRef.current) {
               const m = getChatScrollMetrics(scrollContainerRef.current);
-              if (m && m.distanceFromBottom > 200) {
+              if (m && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
                 userScrolledAwayRef.current = true;
                 return;
               }
@@ -179,11 +205,13 @@ export function useInitialChatBottomPin({
       if (cancelled || userScrolledAwayRef.current) return;
       // Read current scroll position synchronously — the cached
       // userScrolledAwayRef may not have been flipped yet by the rAF-throttled
-      // scroll listener. If the user is no longer near the bottom, do NOT
+      // scroll listener. If the user is genuinely far from the bottom, do NOT
       // snap them back — that would prevent them from reaching older messages
       // (especially when prepending older history triggers a resize event).
+      // Use a generous threshold here so layout settling (image loads, late
+      // messages, composer height changes) doesn't get misread as user intent.
       const metrics = getChatScrollMetrics(scrollContainerRef.current);
-      if (metrics && metrics.distanceFromBottom > 32) {
+      if (metrics && metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
         userScrolledAwayRef.current = true;
         return;
       }
@@ -254,6 +282,7 @@ export function useInitialChatBottomPin({
 
     const reveal = () => {
       pinnedKeyRef.current = resetKey;
+      pinnedAtRef.current = performance.now();
       setIsPinned(true);
       startPostPinGuard();
       onPinnedRef.current?.();
