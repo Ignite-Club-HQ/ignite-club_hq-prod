@@ -81,13 +81,70 @@ function base64url(input) {
     .replace(/\//g, '_');
 }
 
+/**
+ * Normalise the App Store Connect .p8 private key into a PEM string Node's
+ * crypto module can decode. Handles the common ways CI systems mangle it:
+ *   - surrounded by single/double quotes
+ *   - literal "\n" sequences instead of real newlines (Codemagic, GH Actions)
+ *   - CRLF line endings
+ *   - base64-encoded blob of the .p8 contents (no PEM headers at all)
+ *   - raw base64 body without BEGIN/END headers
+ */
+function normalizePrivateKey(raw) {
+  let key = String(raw).trim();
+  // Strip wrapping quotes
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1);
+  }
+  // Convert literal \n (and \r\n) to real newlines
+  if (!key.includes('\n') && key.includes('\\n')) {
+    key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+  }
+  // Normalise CRLF
+  key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  const hasHeader = key.includes('-----BEGIN');
+
+  // If it has no PEM header, it might be the raw base64 body OR a base64-encoded
+  // copy of the entire .p8 file. Try decoding once to see if a PEM falls out.
+  if (!hasHeader) {
+    const base64ish = /^[A-Za-z0-9+/=\s]+$/.test(key);
+    if (base64ish) {
+      try {
+        const decoded = Buffer.from(key.replace(/\s+/g, ''), 'base64').toString('utf8');
+        if (decoded.includes('-----BEGIN')) {
+          key = decoded.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        } else {
+          // Treat as raw base64 body of a PKCS#8 key — wrap with PEM headers.
+          const body = key.replace(/\s+/g, '').match(/.{1,64}/g).join('\n');
+          key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
+        }
+      } catch {
+        // fall through; crypto will throw a clearer error below
+      }
+    }
+  }
+
+  if (!key.endsWith('\n')) key += '\n';
+  return key;
+}
+
 function makeJwt() {
   const keyId = requireEnv('ASC_KEY_ID');
   const issuerId = requireEnv('ASC_ISSUER_ID');
-  let privateKey = requireEnv('ASC_PRIVATE_KEY');
-  // Allow secret stored with literal "\n"
-  if (!privateKey.includes('\n') && privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
+  const privateKey = normalizePrivateKey(requireEnv('ASC_PRIVATE_KEY'));
+
+  // Validate the key parses before we try to sign — gives a clearer error.
+  try {
+    crypto.createPrivateKey(privateKey);
+  } catch (err) {
+    console.error('❌ Could not parse ASC_PRIVATE_KEY as a PEM private key.');
+    console.error('   Tip: paste the FULL contents of the .p8 file (including the');
+    console.error('   "-----BEGIN PRIVATE KEY-----" / "-----END PRIVATE KEY-----" lines)');
+    console.error('   into the secret. In Codemagic, store it as a "Secure file" or use');
+    console.error('   a base64-encoded variable — both are accepted by this script.');
+    console.error(`   Underlying error: ${err.message}`);
+    process.exit(2);
   }
 
   const header = { alg: 'ES256', kid: keyId, typ: 'JWT' };
