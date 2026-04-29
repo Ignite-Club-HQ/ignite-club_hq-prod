@@ -117,7 +117,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
         <span className="text-sm font-semibold">Team Chat</span>
         {latestMessage ? (
           <p className="text-[11px] text-muted-foreground truncate">
-            {(latestMessage as any).is_system_message ? (
+            {isSystemMessageLike(latestMessage.text, (latestMessage as any).is_system_message) ? (
               <span className="italic">{latestMessage.text}</span>
             ) : (
               <>
