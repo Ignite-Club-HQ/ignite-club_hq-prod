@@ -2915,26 +2915,27 @@ export default function EventDetailPage() {
                           </Button>
                         )}
                         {duty.status === "completed" && (
-                          (duty.assigned_to === user?.id || isAdmin) ? (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="bg-primary/20 text-primary hover:bg-primary/30"
-                              onClick={() => uncompleteDutyMutation.mutate(duty.id)}
-                              disabled={uncompleteDutyMutation.isPending}
-                              title="Tap to undo completion"
-                            >
-                              {uncompleteDutyMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "Done · Undo"
-                              )}
-                            </Button>
-                          ) : (
-                            <Badge variant="secondary" className="bg-primary/20 text-primary">
-                              Done
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-primary/20 text-primary gap-1">
+                              <Check className="h-3 w-3" />
+                              Completed
                             </Badge>
-                          )
+                            {(duty.assigned_to === user?.id || isAdmin) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => uncompleteDutyMutation.mutate(duty.id)}
+                                disabled={uncompleteDutyMutation.isPending}
+                                title="Marked complete by mistake? Tap to reopen this duty."
+                              >
+                                {uncompleteDutyMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Mark as not done"
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </CardContent>
