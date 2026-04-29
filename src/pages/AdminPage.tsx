@@ -186,6 +186,12 @@ export default function AdminPage() {
               description="Find single-frame drills and auto-generate motion"
               onClick={() => navigate("/admin/drills")}
             />
+            <AdminMenuItem
+              icon={Paperclip}
+              label="DM Attachments"
+              description="Disable the + attachment menu in DMs by club or user"
+              onClick={() => navigate("/admin/dm-attachments")}
+            />
           </CardContent>
         </Card>
       )}
