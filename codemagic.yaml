@@ -451,6 +451,12 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
+      vars:
+        # Numeric App Store ID for this app — used to ask ASC for the latest
+        # build number via the Codemagic-managed integration. Public value;
+        # safe to commit. Find it in App Store Connect → My Apps → App
+        # Information → "Apple ID". REPLACE with your real numeric ID.
+        APP_STORE_APPLE_ID: "REPLACE_WITH_NUMERIC_APP_ID"
       xcode: latest
       node: 22
     scripts:
