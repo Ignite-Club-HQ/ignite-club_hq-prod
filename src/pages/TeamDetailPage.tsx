@@ -1156,12 +1156,58 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
+                {/* Child selection — required for parent role */}
+                {selectedRole === "parent" && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Which child are you the parent of?</Label>
+                    {teamChildren.length > 0 ? (
+                      <Select
+                        value={selectedChildForLink || ""}
+                        onValueChange={(v) => {
+                          setSelectedChildForLink(v);
+                          if (v !== "__new__") setNewChildName("");
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your child" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teamChildren.map((c: any) => (
+                            <SelectItem key={c.children.id} value={c.children.id}>
+                              {c.children.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__new__">+ Add a new child</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                    {(teamChildren.length === 0 || selectedChildForLink === "__new__") && (
+                      <Input
+                        placeholder="Child's full name"
+                        value={newChildName}
+                        onChange={(e) => setNewChildName(e.target.value.slice(0, 100))}
+                        maxLength={100}
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Admins need to know who your child is to approve your request.
+                    </p>
+                  </div>
+                )}
+
                 {/* Submit Button */}
                 <Button
                   className="w-full"
                   size="lg"
                   onClick={() => requestRoleMutation.mutate()}
-                  disabled={requestRoleMutation.isPending}
+                  disabled={
+                    requestRoleMutation.isPending ||
+                    (selectedRole === "parent" &&
+                      !(
+                        (selectedChildForLink && selectedChildForLink !== "__new__") ||
+                        newChildName.trim().length > 0
+                      ))
+                  }
                 >
                   {requestRoleMutation.isPending ? (
                     <>
