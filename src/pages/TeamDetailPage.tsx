@@ -597,22 +597,38 @@ export default function TeamDetailPage() {
 
   const requestRoleMutation = useMutation({
     mutationFn: async () => {
+      const metadata: Record<string, any> = {};
+      if (selectedRole === "parent") {
+        const trimmedNew = newChildName.trim();
+        if (selectedChildForLink && selectedChildForLink !== "__new__") {
+          const child = teamChildren.find((c: any) => c.children?.id === selectedChildForLink);
+          metadata.child_id = selectedChildForLink;
+          metadata.child_name = child?.children?.name || "";
+        } else if (trimmedNew) {
+          metadata.child_name = trimmedNew;
+        } else {
+          throw new Error("Please select your child or add their name");
+        }
+      }
       const { error } = await supabase.from("role_requests").insert({
         user_id: user!.id,
         team_id: id!,
         club_id: team?.club_id,
         role: selectedRole,
-      });
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      } as any);
       if (error) throw error;
       // Admin notifications are created by the on_role_request_created DB trigger
       // (which includes the requester's name). No client-side insert needed.
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-request", id] });
+      setSelectedChildForLink("");
+      setNewChildName("");
       toast({ title: "Request submitted", description: "An admin will review your request." });
     },
-    onError: () => {
-      toast({ title: "Failed to submit request", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Failed to submit request", description: error.message, variant: "destructive" });
     },
   });
 
