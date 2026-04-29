@@ -1337,6 +1337,28 @@ export default function EventDetailPage() {
     },
   });
 
+  // Undo duty completion (in case of accidental tap)
+  const uncompleteDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      const { error } = await supabase
+        .from("duties")
+        .update({ status: "open" as DutyStatus, completed_at: null })
+        .eq("id", dutyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      toast({ title: "Marked as not complete" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to undo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
       const { error } = await supabase.from("duties").delete().eq("id", dutyId);
@@ -2893,9 +2915,26 @@ export default function EventDetailPage() {
                           </Button>
                         )}
                         {duty.status === "completed" && (
-                          <Badge variant="secondary" className="bg-primary/20 text-primary">
-                            Done
-                          </Badge>
+                          (duty.assigned_to === user?.id || isAdmin) ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="bg-primary/20 text-primary hover:bg-primary/30"
+                              onClick={() => uncompleteDutyMutation.mutate(duty.id)}
+                              disabled={uncompleteDutyMutation.isPending}
+                              title="Tap to undo completion"
+                            >
+                              {uncompleteDutyMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Done · Undo"
+                              )}
+                            </Button>
+                          ) : (
+                            <Badge variant="secondary" className="bg-primary/20 text-primary">
+                              Done
+                            </Badge>
+                          )
                         )}
                       </div>
                     </CardContent>
