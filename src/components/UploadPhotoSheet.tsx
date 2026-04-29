@@ -917,9 +917,19 @@ export function UploadPhotoSheet({
                         <Camera className="h-8 w-8 text-primary" />
                       )}
                     </div>
-                    <div className="text-center">
-                      <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos or videos"}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Photos (multi-select) or short videos up to 30s</p>
+                    <div className="text-center px-4">
+                      <p className="font-medium">
+                        {isPickingNativePhoto
+                          ? "Opening photo library..."
+                          : isNativeIOS
+                            ? "Tap to add photos"
+                            : "Tap to select photos or videos"}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {isNativeIOS
+                          ? "Choose one or more photos from your library"
+                          : "Photos (multi-select) or short videos up to 30s"}
+                      </p>
                     </div>
                   </div>
                   <input
@@ -933,20 +943,30 @@ export function UploadPhotoSheet({
                   />
                   </label>
                   {isNativeIOS && (
-                    <label className={cn(
-                      "mt-3 flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium cursor-pointer hover:bg-muted transition-colors",
-                      (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
-                    )}>
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current"><path d="M8 5v14l11-7z" /></svg>
-                      Or upload a video
-                      <input
-                        type="file"
-                        accept="video/*"
-                        className="sr-only"
-                        onChange={handleFileSelect}
-                        disabled={uploading || isPickingNativePhoto}
-                      />
-                    </label>
+                    <div className="mt-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">Want to upload a video?</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <label className={cn(
+                        "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 py-4 text-sm font-medium cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
+                        (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
+                      )}>
+                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M8 5v14l11-7z" /></svg>
+                        <span>Pick a video (up to 30s)</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="sr-only"
+                          onChange={handleFileSelect}
+                          disabled={uploading || isPickingNativePhoto}
+                        />
+                      </label>
+                      <p className="mt-2 text-xs text-muted-foreground text-center px-2">
+                        iOS will ask where the video is. Almost always tap <span className="font-medium text-foreground">Photo Library</span> — that's where clips you recorded on your iPhone are stored. Only use <span className="font-medium text-foreground">Choose File</span> if you saved the video into the Files app (iCloud Drive, Dropbox, etc.).
+                      </p>
+                    </div>
                   )}
                 </>
               ) : (
