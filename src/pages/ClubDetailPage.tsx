@@ -689,23 +689,8 @@ export default function ClubDetailPage() {
         role: selectedRole,
       });
       if (error) throw error;
-
-      // Notify club admins
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("club_id", id!)
-        .eq("role", "club_admin");
-
-      if (admins?.length) {
-        const notifications = admins.map((admin) => ({
-          user_id: admin.user_id,
-          type: "role_request",
-          message: `New role request: Someone wants to join ${club?.name} as ${selectedRole.replace("_", " ")}`,
-          related_id: id!,
-        }));
-        await supabase.from("notifications").insert(notifications);
-      }
+      // Admin notifications are created by the on_role_request_created DB trigger
+      // (which includes the requester's name). No client-side insert needed.
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-request", id] });
