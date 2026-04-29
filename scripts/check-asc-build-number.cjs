@@ -11,8 +11,11 @@
  *
  * Required env vars (set as Lovable Cloud secrets / Codemagic env):
  *   ASC_KEY_ID         - App Store Connect API Key ID  (e.g. "ABC123DEFG")
+ *                        Alias: APP_STORE_CONNECT_KEY_IDENTIFIER
  *   ASC_ISSUER_ID      - Issuer ID (UUID from App Store Connect → Users and Access → Keys)
+ *                        Alias: APP_STORE_CONNECT_ISSUER_ID
  *   ASC_PRIVATE_KEY    - Contents of the .p8 file (full PEM, including BEGIN/END lines)
+ *                        Alias: APP_STORE_CONNECT_PRIVATE_KEY
  *   ASC_APP_ID         - Numeric App Store Connect "Apple ID" of the app (e.g. "1234567890")
  *   ASC_BUNDLE_ID      - (optional) Used only if ASC_APP_ID is not provided; will look up the app.
  *
@@ -43,11 +46,27 @@ function readPlist() {
   return { version: v[1], build: b[1] };
 }
 
+const ENV_ALIASES = {
+  ASC_KEY_ID: ['APP_STORE_CONNECT_KEY_IDENTIFIER'],
+  ASC_ISSUER_ID: ['APP_STORE_CONNECT_ISSUER_ID'],
+  ASC_PRIVATE_KEY: ['APP_STORE_CONNECT_PRIVATE_KEY'],
+};
+
+function getEnv(name) {
+  const names = [name, ...(ENV_ALIASES[name] || [])];
+  for (const envName of names) {
+    const value = process.env[envName];
+    if (value && value.trim()) return value;
+  }
+  return '';
+}
+
 function requireEnv(name) {
-  const v = process.env[name];
+  const v = getEnv(name);
   if (!v || !v.trim()) {
     console.error(`❌ Missing required env var: ${name}`);
     console.error('   Set ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, and ASC_APP_ID (or ASC_BUNDLE_ID).');
+    console.error('   Codemagic aliases are also supported: APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY.');
     process.exit(2);
   }
   return v;

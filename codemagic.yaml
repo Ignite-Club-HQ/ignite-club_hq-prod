@@ -712,13 +712,14 @@ workflows:
         script: |
           set -euo pipefail
           ROOT_DIR="$(pwd)"
-          APP_VERSION="1.2.18"
-          NEXT_BUILD_NUMBER="20260423003"
+          node scripts/check-asc-build-number.cjs
+          APP_VERSION=$(node -p "require('./package.json').version")
+          NEXT_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ROOT_DIR/ios/App/App/Info.plist")
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
           PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
 
-          echo "=== Hardcoded iOS version: $APP_VERSION ==="
-          echo "=== Hardcoded iOS build number: $NEXT_BUILD_NUMBER ==="
+          echo "=== ASC-confirmed iOS version: $APP_VERSION ==="
+          echo "=== ASC-confirmed unused iOS build number: $NEXT_BUILD_NUMBER ==="
 
           sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
           sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEXT_BUILD_NUMBER;/g" "$PROJECT_FILE"
