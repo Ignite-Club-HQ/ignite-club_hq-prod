@@ -72,15 +72,50 @@ if (!versionArg || ['patch', 'minor', 'major'].includes(versionArg)) {
   process.exit(1);
 }
 
-// --- read current build from Info.plist ---
+// --- read current values from each file BEFORE writing ---
 const plistRaw = read(PLIST);
-const buildMatch = plistRaw.match(/<key>CFBundleVersion<\/key>\s*<string>([^<]+)<\/string>/);
-const currentBuild = buildMatch ? buildMatch[1] : '';
-const newBuild = explicitBuild || nextBuildNumber(currentBuild);
+const pbxRaw = read(PBXPROJ);
 
-console.log(`Bumping iOS version:`);
-console.log(`  version: ${currentVersion}  ->  ${newVersion}`);
-console.log(`  build:   ${currentBuild || '(none)'}  ->  ${newBuild}`);
+const plistShortMatch = plistRaw.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
+const plistBuildMatch = plistRaw.match(/<key>CFBundleVersion<\/key>\s*<string>([^<]+)<\/string>/);
+const pbxMarketingMatch = pbxRaw.match(/MARKETING_VERSION = ([^;]+);/);
+const pbxCurrentMatch = pbxRaw.match(/CURRENT_PROJECT_VERSION = ([^;]+);/);
+
+const before = {
+  pkgVersion: currentVersion,
+  plistShort: plistShortMatch ? plistShortMatch[1] : '(none)',
+  plistBuild: plistBuildMatch ? plistBuildMatch[1] : '(none)',
+  pbxMarketing: pbxMarketingMatch ? pbxMarketingMatch[1] : '(none)',
+  pbxCurrent: pbxCurrentMatch ? pbxCurrentMatch[1] : '(none)',
+};
+
+const newBuild = explicitBuild || nextBuildNumber(before.plistBuild === '(none)' ? '' : before.plistBuild);
+
+// --- helpers for pretty diff output ---
+const COL = { reset: '\x1b[0m', dim: '\x1b[2m', cyan: '\x1b[36m', green: '\x1b[32m', yellow: '\x1b[33m', bold: '\x1b[1m' };
+function diff(label, oldVal, newVal) {
+  const changed = String(oldVal) !== String(newVal);
+  const arrow = changed ? `${COL.yellow}->${COL.reset}` : `${COL.dim}==${COL.reset}`;
+  const newCol = changed ? COL.green : COL.dim;
+  const tag = changed ? '' : `${COL.dim} (unchanged)${COL.reset}`;
+  console.log(`    ${label.padEnd(28)} ${COL.dim}${oldVal}${COL.reset} ${arrow} ${newCol}${newVal}${COL.reset}${tag}`);
+}
+
+console.log(`\n${COL.bold}${COL.cyan}🔧 Bumping iOS version${COL.reset}`);
+console.log(`${COL.dim}─────────────────────────────────────────────────────────────${COL.reset}`);
+
+console.log(`\n  ${COL.bold}package.json${COL.reset}`);
+diff('version', before.pkgVersion, newVersion);
+
+console.log(`\n  ${COL.bold}ios/App/App/Info.plist${COL.reset}`);
+diff('CFBundleShortVersionString', before.plistShort, newVersion);
+diff('CFBundleVersion', before.plistBuild, newBuild);
+
+console.log(`\n  ${COL.bold}ios/App/App.xcodeproj/project.pbxproj${COL.reset}`);
+diff('MARKETING_VERSION', before.pbxMarketing, newVersion);
+diff('CURRENT_PROJECT_VERSION', before.pbxCurrent, newBuild);
+
+console.log(`\n${COL.dim}─────────────────────────────────────────────────────────────${COL.reset}`);
 
 // --- update package.json ---
 pkg.version = newVersion;
@@ -98,12 +133,12 @@ plist = plist.replace(
 write(PLIST, plist);
 
 // --- update project.pbxproj (multiple occurrences) ---
-let pbx = read(PBXPROJ);
-pbx = pbx.replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${newVersion};`);
+let pbx = pbxRaw.replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${newVersion};`);
 pbx = pbx.replace(
   /CURRENT_PROJECT_VERSION = [^;]+;/g,
   `CURRENT_PROJECT_VERSION = ${newBuild};`
 );
 write(PBXPROJ, pbx);
 
-console.log(`\n✅ Done. Next: npx cap sync ios && open ios/App/App.xcworkspace`);
+console.log(`\n${COL.green}✅ Wrote 3 files${COL.reset}  ${COL.bold}version ${newVersion}${COL.reset}  ${COL.bold}build ${newBuild}${COL.reset}`);
+console.log(`${COL.dim}   Next: npx cap sync ios && open ios/App/App.xcworkspace${COL.reset}`);
