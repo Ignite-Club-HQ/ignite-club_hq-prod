@@ -189,6 +189,8 @@ export default function DirectMessagePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
