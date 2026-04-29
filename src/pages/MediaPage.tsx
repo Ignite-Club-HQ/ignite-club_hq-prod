@@ -2,13 +2,13 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert, Eye } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useSearchParams } from "react-router-dom";
@@ -106,6 +106,46 @@ export default function MediaPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
+  // Long-press action sheet — opens Delete/Report/Block when the user holds
+  // a finger on a photo. Replaces the previous kebab menu, which was being
+  // tapped accidentally during scroll.
+  const [actionPhotoId, setActionPhotoId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }, []);
+
+  const startLongPress = useCallback((photoId: string, x: number, y: number) => {
+    cancelLongPress();
+    longPressFiredRef.current = false;
+    longPressStartRef.current = { x, y };
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressTimerRef.current = null;
+      // Light haptic if available
+      try {
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          navigator.vibrate?.(15);
+        }
+      } catch { /* noop */ }
+      setActionPhotoId(photoId);
+    }, 500);
+  }, [cancelLongPress]);
+
+  const moveLongPress = useCallback((x: number, y: number) => {
+    const start = longPressStartRef.current;
+    if (!start) return;
+    if (Math.abs(x - start.x) > 8 || Math.abs(y - start.y) > 8) {
+      cancelLongPress();
+    }
+  }, [cancelLongPress]);
   const [cachedPhotosData, setCachedPhotosData] = useState<CachedPhoto[] | null>(null);
   const [isCacheStale, setIsCacheStale] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -1282,45 +1322,42 @@ export default function MediaPage() {
                         teamName={photo.teams?.name}
                       />
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground">
-                          <MoreVertical className="h-6 w-6" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {canDeletePhoto(photo) && (
-                          <DropdownMenuItem
-                            onClick={() => setDeletePhotoId(photo.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Photo
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => setReportPhotoId(photo.id)}>
-                          <Flag className="h-4 w-4 mr-2" />
-                          Report Photo
-                        </DropdownMenuItem>
-                        {photo.uploader_id && photo.uploader_id !== user?.id && (
-                          <DropdownMenuItem onClick={() => setBlockTarget({ userId: photo.uploader_id!, userName: displayName || "this user" })}>
-                            <ShieldAlert className="h-4 w-4 mr-2" />
-                            Block User
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </div>
 
-{/* Image with lazy loading */}
+                {/* Image with lazy loading. Long-press opens the action menu
+                    (Delete / Report / Block). The kebab dropdown was removed
+                    because it was being tapped accidentally during scroll. */}
                 <div 
                   ref={observeView(photo.id)}
-                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer"
+                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer select-none"
+                  style={{ WebkitTouchCallout: "none" }}
                   onClick={() => {
                     if (isDeleting) return;
+                    if (longPressFiredRef.current) {
+                      // Suppress click that follows a long-press release.
+                      longPressFiredRef.current = false;
+                      return;
+                    }
                     recordView(photo.id);
                     setLightboxIndex(index);
+                  }}
+                  onTouchStart={(e) => {
+                    if (isDeleting) return;
+                    const t = e.touches[0];
+                    if (!t) return;
+                    startLongPress(photo.id, t.clientX, t.clientY);
+                  }}
+                  onTouchMove={(e) => {
+                    const t = e.touches[0];
+                    if (!t) return;
+                    moveLongPress(t.clientX, t.clientY);
+                  }}
+                  onTouchEnd={cancelLongPress}
+                  onTouchCancel={cancelLongPress}
+                  onContextMenu={(e) => {
+                    // Suppress native long-press context menu — we provide our own.
+                    e.preventDefault();
                   }}
                 >
                   <LazyImage
@@ -1536,6 +1573,71 @@ export default function MediaPage() {
           userName={blockTarget.userName}
         />
       )}
+
+      {/* Long-press action sheet (Delete / Report / Block).
+          Replaces the kebab dropdown that was opening accidentally on scroll. */}
+      <Sheet open={!!actionPhotoId} onOpenChange={(open) => !open && setActionPhotoId(null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-safe">
+          {(() => {
+            const actionPhoto = actionPhotoId
+              ? allPhotos.find((p) => p.id === actionPhotoId)
+              : null;
+            if (!actionPhoto) return null;
+            const cachedProfile = getProfile(actionPhoto.uploader_id);
+            const actionDisplayName =
+              actionPhoto.profiles?.display_name || cachedProfile?.display_name || "this user";
+            return (
+              <>
+                <SheetHeader>
+                  <SheetTitle className="text-center">Photo options</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-1 mt-4">
+                  {canDeletePhoto(actionPhoto) && (
+                    <Button
+                      variant="ghost"
+                      className="justify-start h-12 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setActionPhotoId(null);
+                        setDeletePhotoId(actionPhoto.id);
+                      }}
+                    >
+                      <Trash2 className="h-5 w-5 mr-3" />
+                      Delete Photo
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="justify-start h-12"
+                    onClick={() => {
+                      setActionPhotoId(null);
+                      setReportPhotoId(actionPhoto.id);
+                    }}
+                  >
+                    <Flag className="h-5 w-5 mr-3" />
+                    Report Photo
+                  </Button>
+                  {actionPhoto.uploader_id && actionPhoto.uploader_id !== user?.id && (
+                    <Button
+                      variant="ghost"
+                      className="justify-start h-12"
+                      onClick={() => {
+                        setActionPhotoId(null);
+                        setBlockTarget({
+                          userId: actionPhoto.uploader_id!,
+                          userName: actionDisplayName,
+                        });
+                      }}
+                    >
+                      <ShieldAlert className="h-5 w-5 mr-3" />
+                      Block User
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
