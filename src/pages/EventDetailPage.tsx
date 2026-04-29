@@ -2866,6 +2866,16 @@ export default function EventDetailPage() {
                           ) : (
                             <p className="text-sm text-muted-foreground">Unassigned</p>
                           )}
+                          {duty.status === "completed" && (duty.assigned_to === user?.id || isAdmin) && (
+                            <button
+                              type="button"
+                              onClick={() => uncompleteDutyMutation.mutate(duty.id)}
+                              disabled={uncompleteDutyMutation.isPending}
+                              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground mt-0.5 disabled:opacity-50"
+                            >
+                              {uncompleteDutyMutation.isPending ? "Reopening…" : "Marked by mistake? Reopen"}
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2915,27 +2925,10 @@ export default function EventDetailPage() {
                           </Button>
                         )}
                         {duty.status === "completed" && (
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-primary/20 text-primary gap-1">
-                              <Check className="h-3 w-3" />
-                              Completed
-                            </Badge>
-                            {(duty.assigned_to === user?.id || isAdmin) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => uncompleteDutyMutation.mutate(duty.id)}
-                                disabled={uncompleteDutyMutation.isPending}
-                                title="Marked complete by mistake? Tap to reopen this duty."
-                              >
-                                {uncompleteDutyMutation.isPending ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  "Mark as not done"
-                                )}
-                              </Button>
-                            )}
-                          </div>
+                          <Badge variant="secondary" className="bg-primary/20 text-primary gap-1">
+                            <Check className="h-3 w-3" />
+                            Completed
+                          </Badge>
                         )}
                       </div>
                     </CardContent>
