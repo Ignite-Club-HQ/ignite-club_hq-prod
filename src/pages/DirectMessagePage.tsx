@@ -337,7 +337,18 @@ export default function DirectMessagePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Check if DM is allowed (both users in Pro club) - skip for Ignite Support
+  // App-admin-controlled per-club / per-user disable of the "+" attachment menu in DMs
+  const { data: attachmentsDisabled } = useQuery({
+    queryKey: ["dm-attachments-disabled", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data, error } = await supabase.rpc("dm_attachments_disabled", { _user_id: user.id });
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!user?.id && !isIgniteSupportConversation,
+    staleTime: 5 * 60 * 1000,
+  });
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
     queryFn: async () => {
@@ -1257,7 +1268,7 @@ export default function DirectMessagePage() {
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
                 <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
-                {!isIgniteSupportConversation && (
+                {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}
                     onImageUploaded={setDmImageUrl}
