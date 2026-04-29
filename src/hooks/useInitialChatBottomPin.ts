@@ -108,17 +108,29 @@ export function useInitialChatBottomPin({
         setIsPinned(false);
         // Fall through to the main pin sequence below.
       } else if (grew && !userScrolledAwayRef.current) {
-        // Only snap on growth if the user is currently near the bottom.
-        // Otherwise prepending older messages (which also grows itemCount)
-        // would yank them back to the latest message and they'd never reach
-        // the older history they're trying to read.
-        const growMetrics = getChatScrollMetrics(scrollContainerRef.current);
-        const userNearBottom = !growMetrics || growMetrics.distanceFromBottom <= 200;
-        lastItemCountRef.current = itemCount;
-        if (!userNearBottom) {
-          userScrolledAwayRef.current = true;
-          return;
+        // Within the post-pin settle window, growth is almost certainly late
+        // server data (cached render → fresh fetch appended newer messages,
+        // images loading, profile hydration causing re-render). Trust the
+        // prior pin intent and snap forward — don't gate on current
+        // distanceFromBottom, which is misleading during layout settling.
+        const withinSettleWindow =
+          performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
+
+        if (!withinSettleWindow) {
+          // After the settle window, only re-snap if the user is genuinely
+          // near the bottom. Use the same generous threshold as the scroll
+          // listener so a single content-height jump doesn't trip us.
+          const growMetrics = getChatScrollMetrics(scrollContainerRef.current);
+          const userNearBottom =
+            !growMetrics || growMetrics.distanceFromBottom <= USER_SCROLL_AWAY_THRESHOLD_PX;
+          if (!userNearBottom) {
+            userScrolledAwayRef.current = true;
+            lastItemCountRef.current = itemCount;
+            return;
+          }
         }
+
+        lastItemCountRef.current = itemCount;
         scrollChatToBottom(scrollContainerRef.current);
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
@@ -133,7 +145,7 @@ export function useInitialChatBottomPin({
           const guardObserver = new ResizeObserver(() => {
             if (!userScrolledAwayRef.current) {
               const m = getChatScrollMetrics(scrollContainerRef.current);
-              if (m && m.distanceFromBottom > 200) {
+              if (m && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
                 userScrolledAwayRef.current = true;
                 return;
               }
