@@ -16,7 +16,8 @@
     "ios:bump": "node scripts/bump-ios-version.cjs",
     "ios:check-build": "node scripts/check-asc-build-number.cjs",
     "ios:check-build:strict": "node scripts/check-asc-build-number.cjs --check-only",
-    "ios:prebuild": "node scripts/bump-ios-version.cjs && node scripts/check-asc-build-number.cjs"
+    "ios:prebuild": "node scripts/bump-ios-version.cjs && node scripts/check-asc-build-number.cjs",
+    "install:hooks": "node scripts/install-git-hooks.cjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",

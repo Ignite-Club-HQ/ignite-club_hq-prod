@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Lovable pre-push hook: prevent pushing an iOS build number that has already
+# been used on App Store Connect.
+#
+# Triggered by `git push`. Only runs when the push includes changes to one of:
+#   - ios/App/App/Info.plist
+#   - ios/App/App.xcodeproj/project.pbxproj
+#   - package.json
+#
+# If the current CFBundleVersion is already taken on ASC, the precheck script
+# auto-bumps the build number. The hook then aborts the push so you can review
+# + commit the bumped files.
+#
+# Skip with: `git push --no-verify` or `SKIP_IOS_BUILD_CHECK=1 git push`.
+
+set -e
+
+if [ "${SKIP_IOS_BUILD_CHECK:-0}" = "1" ]; then
+  echo "⏭  SKIP_IOS_BUILD_CHECK=1 — skipping iOS build precheck"
+  exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Read refs being pushed from stdin: <local_ref> <local_sha> <remote_ref> <remote_sha>
+WATCHED='ios/App/App/Info.plist|ios/App/App.xcodeproj/project.pbxproj|package.json'
+TOUCHED=0
+ZERO="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_sha" ] && continue
+  [ "$local_sha" = "$ZERO" ] && continue
+  if [ "$remote_sha" = "$ZERO" ]; then
+    RANGE_FILES=$(git diff --name-only "$local_sha" 2>/dev/null || true)
+  else
+    RANGE_FILES=$(git diff --name-only "$remote_sha".."$local_sha" 2>/dev/null || true)
+  fi
+  if echo "$RANGE_FILES" | grep -Eq "^($WATCHED)$"; then
+    TOUCHED=1
+    break
+  fi
+done
+
+if [ "$TOUCHED" -eq 0 ]; then
+  exit 0
+fi
+
+echo "🍎 iOS version files in push — running App Store Connect build precheck..."
+
+# If the required ASC env vars are missing, warn but don't block the push.
+if [ -z "${ASC_KEY_ID:-}" ] || [ -z "${ASC_ISSUER_ID:-}" ] || [ -z "${ASC_PRIVATE_KEY:-}" ] || { [ -z "${ASC_APP_ID:-}" ] && [ -z "${ASC_BUNDLE_ID:-}" ]; }; then
+  echo "⚠️  ASC_* env vars not set locally — skipping precheck."
+  echo "   Set ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, and ASC_APP_ID (or ASC_BUNDLE_ID) to enable."
+  exit 0
+fi
+
+if ! node scripts/check-asc-build-number.cjs; then
+  echo ""
+  echo "❌ Push aborted: build number was taken on App Store Connect."
+  echo "   The bump script may have updated version files — review with \`git status\`,"
+  echo "   commit the bumped files, then push again."
+  exit 1
+fi
+
+# Detect if the precheck modified tracked files (auto-bump happened)
+if ! git diff --quiet -- ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj package.json 2>/dev/null; then
+  echo ""
+  echo "⚠️  Build number was auto-bumped. Commit the changes and push again:"
+  echo "     git add ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj package.json"
+  echo "     git commit -m \"chore(ios): bump build number\""
+  echo "     git push"
+  exit 1
+fi
+
+echo "✅ iOS build precheck passed."
+exit 0
