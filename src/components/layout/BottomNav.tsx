@@ -284,6 +284,8 @@ export function BottomNav() {
           style={{
             height: `calc(4rem + ${navBottomInset})`,
             transform: "translate3d(0,0,0)",
+            touchAction: "none",
+            overscrollBehavior: "contain",
             ...gpuLayerStyle,
           }}
         />
@@ -293,7 +295,14 @@ export function BottomNav() {
         style={{
           paddingBottom: navBottomInset,
           transform: hideTransform,
+          touchAction: "none",
+          overscrollBehavior: "contain",
           ...gpuLayerStyle,
+        }}
+        onTouchMove={(e) => {
+          // Prevent Android WebView from treating drags on the bottom nav as
+          // page-pull gestures (which scroll the whole app off-screen).
+          if (e.cancelable) e.preventDefault();
         }}
         aria-label="Main navigation"
         aria-hidden={shouldHideNav}
