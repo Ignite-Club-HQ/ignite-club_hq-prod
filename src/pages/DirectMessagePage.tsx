@@ -318,6 +318,25 @@ export default function DirectMessagePage() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
+  // Find the first club both DM participants share. Used to scope vault picker
+  // and event picker actions inside the "+" menu so users can attach files /
+  // events / live boards even from a 1:1 conversation.
+  const { data: sharedClubId } = useQuery({
+    queryKey: ["dm-shared-club", user?.id, otherUserId],
+    queryFn: async () => {
+      if (!user?.id || !otherUserId) return null;
+      const [mine, theirs] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase.from("user_roles").select("club_id").eq("user_id", otherUserId).not("club_id", "is", null),
+      ]);
+      const mineSet = new Set((mine.data || []).map((r: any) => r.club_id).filter(Boolean));
+      const match = (theirs.data || []).map((r: any) => r.club_id).find((id: string) => id && mineSet.has(id));
+      return (match as string) || null;
+    },
+    enabled: !!user?.id && !!otherUserId && !isIgniteSupportConversation,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Check if DM is allowed (both users in Pro club) - skip for Ignite Support
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
