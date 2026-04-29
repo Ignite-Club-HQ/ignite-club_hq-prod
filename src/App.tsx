@@ -325,6 +325,7 @@ const App = () => {
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
                  <Route path="/admin/drills" element={<AdminDrillsPage />} />
+                 <Route path="/admin/dm-attachments" element={<AdminDmAttachmentsPage />} />
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />
