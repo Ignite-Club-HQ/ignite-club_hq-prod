@@ -284,6 +284,8 @@ export function BottomNav() {
           style={{
             height: `calc(4rem + ${navBottomInset})`,
             transform: "translate3d(0,0,0)",
+            touchAction: "none",
+            overscrollBehavior: "contain",
             ...gpuLayerStyle,
           }}
         />
