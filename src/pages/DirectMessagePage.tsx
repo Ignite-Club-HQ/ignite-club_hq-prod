@@ -1303,6 +1303,27 @@ export default function DirectMessagePage() {
                   }}
                 />
               )}
+              {!isIgniteSupportConversation && (
+                <>
+                  <EventPickerSheet
+                    open={eventPickerOpen}
+                    onOpenChange={setEventPickerOpen}
+                    onSelectEvent={(eventId) => {
+                      const token = `[event:${eventId}]`;
+                      setMessage(message ? `${message} ${token}` : token);
+                    }}
+                    clubId={sharedClubId || undefined}
+                  />
+                  <BoardPickerSheet
+                    open={boardPickerOpen}
+                    onOpenChange={setBoardPickerOpen}
+                    onSelectBoard={(gameId) => {
+                      const token = `[board:${gameId}]`;
+                      setMessage(message ? `${message} ${token}` : token);
+                    }}
+                  />
+                </>
+              )}
            </div>
         </>
       )}
