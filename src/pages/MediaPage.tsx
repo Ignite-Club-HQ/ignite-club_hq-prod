@@ -1573,6 +1573,71 @@ export default function MediaPage() {
           userName={blockTarget.userName}
         />
       )}
+
+      {/* Long-press action sheet (Delete / Report / Block).
+          Replaces the kebab dropdown that was opening accidentally on scroll. */}
+      <Sheet open={!!actionPhotoId} onOpenChange={(open) => !open && setActionPhotoId(null)}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-safe">
+          {(() => {
+            const actionPhoto = actionPhotoId
+              ? allPhotos.find((p) => p.id === actionPhotoId)
+              : null;
+            if (!actionPhoto) return null;
+            const cachedProfile = getProfile(actionPhoto.uploader_id);
+            const actionDisplayName =
+              actionPhoto.profiles?.display_name || cachedProfile?.display_name || "this user";
+            return (
+              <>
+                <SheetHeader>
+                  <SheetTitle className="text-center">Photo options</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-1 mt-4">
+                  {canDeletePhoto(actionPhoto) && (
+                    <Button
+                      variant="ghost"
+                      className="justify-start h-12 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setActionPhotoId(null);
+                        setDeletePhotoId(actionPhoto.id);
+                      }}
+                    >
+                      <Trash2 className="h-5 w-5 mr-3" />
+                      Delete Photo
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="justify-start h-12"
+                    onClick={() => {
+                      setActionPhotoId(null);
+                      setReportPhotoId(actionPhoto.id);
+                    }}
+                  >
+                    <Flag className="h-5 w-5 mr-3" />
+                    Report Photo
+                  </Button>
+                  {actionPhoto.uploader_id && actionPhoto.uploader_id !== user?.id && (
+                    <Button
+                      variant="ghost"
+                      className="justify-start h-12"
+                      onClick={() => {
+                        setActionPhotoId(null);
+                        setBlockTarget({
+                          userId: actionPhoto.uploader_id!,
+                          userName: actionDisplayName,
+                        });
+                      }}
+                    >
+                      <ShieldAlert className="h-5 w-5 mr-3" />
+                      Block User
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
