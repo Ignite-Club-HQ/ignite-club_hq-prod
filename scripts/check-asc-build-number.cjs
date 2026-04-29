@@ -96,6 +96,26 @@ function normalizePrivateKey(raw) {
   if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
     key = key.slice(1, -1);
   }
+  // If the value looks like a filesystem path to a .p8 file (Codemagic "Secure file"
+  // exposes the file path, not the contents), read the file.
+  if (
+    key.length < 1024 &&
+    !key.includes('\n') &&
+    !key.includes(' ') &&
+    (key.startsWith('/') || key.startsWith('~') || /^[A-Za-z]:[\\/]/.test(key)) &&
+    /\.p8$/i.test(key)
+  ) {
+    try {
+      const expanded = key.startsWith('~')
+        ? path.join(process.env.HOME || '', key.slice(1))
+        : key;
+      if (fs.existsSync(expanded)) {
+        key = fs.readFileSync(expanded, 'utf8').trim();
+      }
+    } catch {
+      // fall through
+    }
+  }
   // Convert literal \n (and \r\n) to real newlines
   if (!key.includes('\n') && key.includes('\\n')) {
     key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
@@ -138,11 +158,14 @@ function makeJwt() {
   try {
     crypto.createPrivateKey(privateKey);
   } catch (err) {
+    const head = (privateKey.split('\n')[0] || '').slice(0, 40);
     console.error('❌ Could not parse ASC_PRIVATE_KEY as a PEM private key.');
-    console.error('   Tip: paste the FULL contents of the .p8 file (including the');
+    console.error(`   Got ${privateKey.length} chars, first line: "${head}"`);
+    console.error('   Paste the FULL contents of the .p8 file (including the');
     console.error('   "-----BEGIN PRIVATE KEY-----" / "-----END PRIVATE KEY-----" lines)');
-    console.error('   into the secret. In Codemagic, store it as a "Secure file" or use');
-    console.error('   a base64-encoded variable — both are accepted by this script.');
+    console.error('   directly into the secret VALUE — not a file path, not the filename.');
+    console.error('   In Codemagic, add it as an Environment variable (Group: app_store_credentials),');
+    console.error('   or base64-encode the .p8 contents — both are accepted by this script.');
     console.error(`   Underlying error: ${err.message}`);
     process.exit(2);
   }
