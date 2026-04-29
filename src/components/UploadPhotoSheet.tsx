@@ -943,18 +943,13 @@ export function UploadPhotoSheet({
                   />
                   </label>
                   {isNativeIOS && (
-                    <div className="mt-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="h-px flex-1 bg-border" />
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">Want to upload a video?</span>
-                        <div className="h-px flex-1 bg-border" />
-                      </div>
+                    <div className="mt-3">
                       <label className={cn(
-                        "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 py-4 text-sm font-medium cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
+                        "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 py-3 text-sm font-medium cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
                         (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
                       )}>
                         <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M8 5v14l11-7z" /></svg>
-                        <span>Pick a video (up to 30s)</span>
+                        <span>Upload a video (up to 30s)</span>
                         <input
                           type="file"
                           accept="video/*"
@@ -963,9 +958,6 @@ export function UploadPhotoSheet({
                           disabled={uploading || isPickingNativePhoto}
                         />
                       </label>
-                      <p className="mt-2 text-xs text-muted-foreground text-center px-2">
-                        iOS will ask where the video is. Almost always tap <span className="font-medium text-foreground">Photo Library</span> — that's where clips you recorded on your iPhone are stored. Only use <span className="font-medium text-foreground">Choose File</span> if you saved the video into the Files app (iCloud Drive, Dropbox, etc.).
-                      </p>
                     </div>
                   )}
                 </>
