@@ -1337,6 +1337,28 @@ export default function EventDetailPage() {
     },
   });
 
+  // Undo duty completion (in case of accidental tap)
+  const uncompleteDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      const { error } = await supabase
+        .from("duties")
+        .update({ status: "open" as DutyStatus, completed_at: null })
+        .eq("id", dutyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      toast({ title: "Marked as not complete" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to undo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
       const { error } = await supabase.from("duties").delete().eq("id", dutyId);
@@ -2844,6 +2866,16 @@ export default function EventDetailPage() {
                           ) : (
                             <p className="text-sm text-muted-foreground">Unassigned</p>
                           )}
+                          {duty.status === "completed" && (duty.assigned_to === user?.id || isAdmin) && (
+                            <button
+                              type="button"
+                              onClick={() => uncompleteDutyMutation.mutate(duty.id)}
+                              disabled={uncompleteDutyMutation.isPending}
+                              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground mt-0.5 disabled:opacity-50"
+                            >
+                              {uncompleteDutyMutation.isPending ? "Reopening…" : "Marked by mistake? Reopen"}
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2893,8 +2925,9 @@ export default function EventDetailPage() {
                           </Button>
                         )}
                         {duty.status === "completed" && (
-                          <Badge variant="secondary" className="bg-primary/20 text-primary">
-                            Done
+                          <Badge variant="secondary" className="bg-primary/20 text-primary gap-1">
+                            <Check className="h-3 w-3" />
+                            Completed
                           </Badge>
                         )}
                       </div>
