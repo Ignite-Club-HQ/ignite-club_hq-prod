@@ -205,11 +205,13 @@ export function useInitialChatBottomPin({
       if (cancelled || userScrolledAwayRef.current) return;
       // Read current scroll position synchronously — the cached
       // userScrolledAwayRef may not have been flipped yet by the rAF-throttled
-      // scroll listener. If the user is no longer near the bottom, do NOT
+      // scroll listener. If the user is genuinely far from the bottom, do NOT
       // snap them back — that would prevent them from reaching older messages
       // (especially when prepending older history triggers a resize event).
+      // Use a generous threshold here so layout settling (image loads, late
+      // messages, composer height changes) doesn't get misread as user intent.
       const metrics = getChatScrollMetrics(scrollContainerRef.current);
-      if (metrics && metrics.distanceFromBottom > 32) {
+      if (metrics && metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
         userScrolledAwayRef.current = true;
         return;
       }
