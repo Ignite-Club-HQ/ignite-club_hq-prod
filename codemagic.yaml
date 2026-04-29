@@ -708,57 +708,35 @@ workflows:
           ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
       - name: Set up code signing
         script: xcode-project use-profiles
-      - name: Set hardcoded marketing version and build number
+      - name: Set marketing version and auto-increment build number
         script: |
           set -euo pipefail
           ROOT_DIR="$(pwd)"
-          node scripts/check-asc-build-number.cjs
           APP_VERSION=$(node -p "require('./package.json').version")
-          NEXT_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ROOT_DIR/ios/App/App/Info.plist")
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
           PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
 
-          echo "=== ASC-confirmed iOS version: $APP_VERSION ==="
-          echo "=== ASC-confirmed unused iOS build number: $NEXT_BUILD_NUMBER ==="
+          # Ask App Store Connect (via the Codemagic integration) for the
+          # latest build number used for THIS app, then add 1. No API keys
+          # to manage — auth comes from the `app_store_connect: Codemagic`
+          # integration declared at the top of the workflow.
+          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null \
+            || app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null \
+            || echo "0")
+          NEXT_BUILD_NUMBER=$((LATEST + 1))
+
+          echo "=== iOS marketing version: $APP_VERSION ==="
+          echo "=== Latest build on ASC: $LATEST → using build $NEXT_BUILD_NUMBER ==="
 
           sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
           sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEXT_BUILD_NUMBER;/g" "$PROJECT_FILE"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$PLIST_FILE"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT_BUILD_NUMBER" "$PLIST_FILE"
 
-          echo "=== Project file versions after patch ==="
-          grep -n "MARKETING_VERSION =\|CURRENT_PROJECT_VERSION =" "$PROJECT_FILE"
-          echo "=== Info.plist versions after patch ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_FILE"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_FILE"
-
           cat > "$ROOT_DIR/.codemagic-ios-version.env" <<EOF
           APP_VERSION=$APP_VERSION
           NEXT_BUILD_NUMBER=$NEXT_BUILD_NUMBER
           EOF
-
-          cd "$ROOT_DIR/ios/App"
-          RESOLVED_MARKETING_VERSION=$(xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | awk '/MARKETING_VERSION/ {print $3; exit}')
-          RESOLVED_BUILD_NUMBER=$(xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | awk '/CURRENT_PROJECT_VERSION/ {print $3; exit}')
-          PLIST_MARKETING_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist)
-          PLIST_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/Info.plist)
-          echo "=== Resolved MARKETING_VERSION: $RESOLVED_MARKETING_VERSION ==="
-          echo "=== Resolved CURRENT_PROJECT_VERSION: $RESOLVED_BUILD_NUMBER ==="
-
-          if [ "$RESOLVED_MARKETING_VERSION" != "$APP_VERSION" ]; then
-            echo "ERROR: Resolved MARKETING_VERSION ($RESOLVED_MARKETING_VERSION) does not match hardcoded version ($APP_VERSION)"
-            exit 1
-          fi
-
-          if [ "$RESOLVED_BUILD_NUMBER" != "$NEXT_BUILD_NUMBER" ]; then
-            echo "ERROR: Resolved CURRENT_PROJECT_VERSION ($RESOLVED_BUILD_NUMBER) does not match hardcoded build number ($NEXT_BUILD_NUMBER)"
-            exit 1
-          fi
-
-          if [ "$PLIST_MARKETING_VERSION" != "$APP_VERSION" ] || [ "$PLIST_BUILD_NUMBER" != "$NEXT_BUILD_NUMBER" ]; then
-            echo "ERROR: Info.plist version/build does not match hardcoded values"
-            exit 1
-          fi
       - name: Add Crashlytics run script to Xcode project
         script: |
           cd ios/App
