@@ -156,7 +156,9 @@ export function DutyMemberSelect({
                   <button
                     key={member.id}
                     type="button"
-                    onClick={() => handleSelect(member.id)}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onClick={guardedSelect(member.id)}
                     className={cn(
                       "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
                       "touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
