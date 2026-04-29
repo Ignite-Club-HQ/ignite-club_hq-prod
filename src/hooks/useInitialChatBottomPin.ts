@@ -280,6 +280,7 @@ export function useInitialChatBottomPin({
 
     const reveal = () => {
       pinnedKeyRef.current = resetKey;
+      pinnedAtRef.current = performance.now();
       setIsPinned(true);
       startPostPinGuard();
       onPinnedRef.current?.();
