@@ -1322,45 +1322,42 @@ export default function MediaPage() {
                         teamName={photo.teams?.name}
                       />
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground">
-                          <MoreVertical className="h-6 w-6" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {canDeletePhoto(photo) && (
-                          <DropdownMenuItem
-                            onClick={() => setDeletePhotoId(photo.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Photo
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => setReportPhotoId(photo.id)}>
-                          <Flag className="h-4 w-4 mr-2" />
-                          Report Photo
-                        </DropdownMenuItem>
-                        {photo.uploader_id && photo.uploader_id !== user?.id && (
-                          <DropdownMenuItem onClick={() => setBlockTarget({ userId: photo.uploader_id!, userName: displayName || "this user" })}>
-                            <ShieldAlert className="h-4 w-4 mr-2" />
-                            Block User
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </div>
 
-{/* Image with lazy loading */}
+                {/* Image with lazy loading. Long-press opens the action menu
+                    (Delete / Report / Block). The kebab dropdown was removed
+                    because it was being tapped accidentally during scroll. */}
                 <div 
                   ref={observeView(photo.id)}
-                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer"
+                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer select-none"
+                  style={{ WebkitTouchCallout: "none" }}
                   onClick={() => {
                     if (isDeleting) return;
+                    if (longPressFiredRef.current) {
+                      // Suppress click that follows a long-press release.
+                      longPressFiredRef.current = false;
+                      return;
+                    }
                     recordView(photo.id);
                     setLightboxIndex(index);
+                  }}
+                  onTouchStart={(e) => {
+                    if (isDeleting) return;
+                    const t = e.touches[0];
+                    if (!t) return;
+                    startLongPress(photo.id, t.clientX, t.clientY);
+                  }}
+                  onTouchMove={(e) => {
+                    const t = e.touches[0];
+                    if (!t) return;
+                    moveLongPress(t.clientX, t.clientY);
+                  }}
+                  onTouchEnd={cancelLongPress}
+                  onTouchCancel={cancelLongPress}
+                  onContextMenu={(e) => {
+                    // Suppress native long-press context menu — we provide our own.
+                    e.preventDefault();
                   }}
                 >
                   <LazyImage
