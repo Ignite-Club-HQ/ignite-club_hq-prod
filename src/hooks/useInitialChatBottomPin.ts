@@ -36,6 +36,15 @@ export function useInitialChatBottomPin({
   // Track last known item count per resetKey so we can re-snap when fresh
   // network data arrives after the initial cached render (iOS cold start).
   const lastItemCountRef = useRef(0);
+  // Timestamp of the most recent successful pin. Used to distinguish "late
+  // server data settling" (within the post-pin window) from genuine user
+  // scrolling away after the chat has stabilised.
+  const pinnedAtRef = useRef(0);
+  // Threshold (px) at which we consider the user has intentionally scrolled
+  // away from the bottom. Generous to avoid tripping on layout/content jumps
+  // when fresh server data appends new messages after the cached render.
+  const USER_SCROLL_AWAY_THRESHOLD_PX = 400;
+  const POST_PIN_TRUST_WINDOW_MS = 3500;
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
