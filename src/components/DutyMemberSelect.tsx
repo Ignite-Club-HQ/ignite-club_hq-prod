@@ -42,6 +42,37 @@ export function DutyMemberSelect({
     setOpen(false);
   };
 
+  // Scroll-vs-tap detection: if finger moves more than the threshold between
+  // touchstart and touchend, treat as a scroll and suppress the click.
+  const touchRef = React.useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const MOVE_THRESHOLD = 10;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY, moved: false };
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const start = touchRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    if (
+      Math.abs(t.clientX - start.x) > MOVE_THRESHOLD ||
+      Math.abs(t.clientY - start.y) > MOVE_THRESHOLD
+    ) {
+      start.moved = true;
+    }
+  };
+  const guardedSelect = (memberId: string | null) => (e: React.MouseEvent) => {
+    if (touchRef.current?.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      touchRef.current = null;
+      return;
+    }
+    touchRef.current = null;
+    handleSelect(memberId);
+  };
+
   return (
     <>
       <Button
@@ -84,7 +115,9 @@ export function DutyMemberSelect({
               {/* Unassigned option */}
               <button
                 type="button"
-                onClick={() => handleSelect(null)}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onClick={guardedSelect(null)}
                 className={cn(
                   "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
                   "touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
@@ -123,7 +156,9 @@ export function DutyMemberSelect({
                   <button
                     key={member.id}
                     type="button"
-                    onClick={() => handleSelect(member.id)}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onClick={guardedSelect(member.id)}
                     className={cn(
                       "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
                       "touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",

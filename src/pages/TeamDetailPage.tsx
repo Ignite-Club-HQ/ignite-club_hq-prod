@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -114,6 +115,8 @@ export default function TeamDetailPage() {
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
+  const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
+  const [newChildName, setNewChildName] = useState<string>("");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
@@ -595,22 +598,38 @@ export default function TeamDetailPage() {
 
   const requestRoleMutation = useMutation({
     mutationFn: async () => {
+      const metadata: Record<string, any> = {};
+      if (selectedRole === "parent") {
+        const trimmedNew = newChildName.trim();
+        if (selectedChildForLink && selectedChildForLink !== "__new__") {
+          const child = teamChildren.find((c: any) => c.children?.id === selectedChildForLink);
+          metadata.child_id = selectedChildForLink;
+          metadata.child_name = child?.children?.name || "";
+        } else if (trimmedNew) {
+          metadata.child_name = trimmedNew;
+        } else {
+          throw new Error("Please select your child or add their name");
+        }
+      }
       const { error } = await supabase.from("role_requests").insert({
         user_id: user!.id,
         team_id: id!,
         club_id: team?.club_id,
         role: selectedRole,
-      });
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      } as any);
       if (error) throw error;
       // Admin notifications are created by the on_role_request_created DB trigger
       // (which includes the requester's name). No client-side insert needed.
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-request", id] });
+      setSelectedChildForLink("");
+      setNewChildName("");
       toast({ title: "Request submitted", description: "An admin will review your request." });
     },
-    onError: () => {
-      toast({ title: "Failed to submit request", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Failed to submit request", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1137,12 +1156,58 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
 
+                {/* Child selection — required for parent role */}
+                {selectedRole === "parent" && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Which child are you the parent of?</Label>
+                    {teamChildren.length > 0 ? (
+                      <Select
+                        value={selectedChildForLink || ""}
+                        onValueChange={(v) => {
+                          setSelectedChildForLink(v);
+                          if (v !== "__new__") setNewChildName("");
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your child" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teamChildren.map((c: any) => (
+                            <SelectItem key={c.children.id} value={c.children.id}>
+                              {c.children.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__new__">+ Add a new child</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                    {(teamChildren.length === 0 || selectedChildForLink === "__new__") && (
+                      <Input
+                        placeholder="Child's full name"
+                        value={newChildName}
+                        onChange={(e) => setNewChildName(e.target.value.slice(0, 100))}
+                        maxLength={100}
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Admins need to know who your child is to approve your request.
+                    </p>
+                  </div>
+                )}
+
                 {/* Submit Button */}
                 <Button
                   className="w-full"
                   size="lg"
                   onClick={() => requestRoleMutation.mutate()}
-                  disabled={requestRoleMutation.isPending}
+                  disabled={
+                    requestRoleMutation.isPending ||
+                    (selectedRole === "parent" &&
+                      !(
+                        (selectedChildForLink && selectedChildForLink !== "__new__") ||
+                        newChildName.trim().length > 0
+                      ))
+                  }
                 >
                   {requestRoleMutation.isPending ? (
                     <>
