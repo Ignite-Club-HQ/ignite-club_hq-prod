@@ -106,6 +106,46 @@ export default function MediaPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
+  // Long-press action sheet — opens Delete/Report/Block when the user holds
+  // a finger on a photo. Replaces the previous kebab menu, which was being
+  // tapped accidentally during scroll.
+  const [actionPhotoId, setActionPhotoId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }, []);
+
+  const startLongPress = useCallback((photoId: string, x: number, y: number) => {
+    cancelLongPress();
+    longPressFiredRef.current = false;
+    longPressStartRef.current = { x, y };
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      longPressTimerRef.current = null;
+      // Light haptic if available
+      try {
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          navigator.vibrate?.(15);
+        }
+      } catch { /* noop */ }
+      setActionPhotoId(photoId);
+    }, 500);
+  }, [cancelLongPress]);
+
+  const moveLongPress = useCallback((x: number, y: number) => {
+    const start = longPressStartRef.current;
+    if (!start) return;
+    if (Math.abs(x - start.x) > 8 || Math.abs(y - start.y) > 8) {
+      cancelLongPress();
+    }
+  }, [cancelLongPress]);
   const [cachedPhotosData, setCachedPhotosData] = useState<CachedPhoto[] | null>(null);
   const [isCacheStale, setIsCacheStale] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
