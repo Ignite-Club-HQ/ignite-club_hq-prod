@@ -114,6 +114,8 @@ export default function TeamDetailPage() {
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
+  const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
+  const [newChildName, setNewChildName] = useState<string>("");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
