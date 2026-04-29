@@ -96,6 +96,26 @@ function normalizePrivateKey(raw) {
   if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
     key = key.slice(1, -1);
   }
+  // If the value looks like a filesystem path to a .p8 file (Codemagic "Secure file"
+  // exposes the file path, not the contents), read the file.
+  if (
+    key.length < 1024 &&
+    !key.includes('\n') &&
+    !key.includes(' ') &&
+    (key.startsWith('/') || key.startsWith('~') || /^[A-Za-z]:[\\/]/.test(key)) &&
+    /\.p8$/i.test(key)
+  ) {
+    try {
+      const expanded = key.startsWith('~')
+        ? path.join(process.env.HOME || '', key.slice(1))
+        : key;
+      if (fs.existsSync(expanded)) {
+        key = fs.readFileSync(expanded, 'utf8').trim();
+      }
+    } catch {
+      // fall through
+    }
+  }
   // Convert literal \n (and \r\n) to real newlines
   if (!key.includes('\n') && key.includes('\\n')) {
     key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
