@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { shouldAppendOpponent } from "@/lib/eventTitle";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
