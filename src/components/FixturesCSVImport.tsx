@@ -994,12 +994,13 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                   </p>
                   <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {duplicateFixtures.map((f, i) => (
-                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-2 text-xs space-y-1">
-                        <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {f.teamName || 'No team'}
-                          </Badge>
-                          <span className="text-muted-foreground">{f.date}</span>
+                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-3 text-xs space-y-2">
+                        <div className="pb-2 border-b border-border/40 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Team skipped</p>
+                          <p className="text-sm font-semibold text-foreground whitespace-normal break-words">
+                            {f.teamName || 'No team assigned'}
+                          </p>
+                          <p className="text-muted-foreground">{f.date}</p>
                         </div>
                         <div className="flex items-start gap-1.5">
                           <span className="text-destructive font-medium shrink-0">Skipped:</span>
