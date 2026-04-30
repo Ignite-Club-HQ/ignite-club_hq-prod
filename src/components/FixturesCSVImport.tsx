@@ -333,11 +333,12 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           
           // Conflict if ANY existing game is already on that day for that team.
           // Imports must never overwrite an existing match.
+          // Compare by LOCAL calendar date so timezone offsets don't hide conflicts.
           const existingEvent = existingEvents.find(event => {
-            const eventDate = new Date(event.event_date).toISOString().split('T')[0];
-            const dateMatch = eventDate === fixtureDate;
-            const teamMatch = event.team_id === fixtureTeamId;
-            return dateMatch && teamMatch;
+            if (event.team_id !== fixtureTeamId) return false;
+            const d = new Date(event.event_date);
+            const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return localDate === fixtureDate;
           });
           
           if (existingEvent) {
@@ -495,8 +496,19 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       if (fixtureTeamIds.length > 0 && fixtureDates.length > 0) {
         const minDate = fixtureDates.reduce((a, b) => (a < b ? a : b));
         const maxDate = fixtureDates.reduce((a, b) => (a > b ? a : b));
-        const startIso = new Date(`${minDate}T00:00:00`).toISOString();
-        const endIso = new Date(`${maxDate}T23:59:59.999`).toISOString();
+        // Pad the window by a day on each side so timezone offsets can't hide an event
+        // that lives on the same local calendar day but a different UTC day.
+        const padDay = (iso: string, deltaDays: number) => {
+          const d = new Date(`${iso}T00:00:00`);
+          d.setDate(d.getDate() + deltaDays);
+          return d;
+        };
+        const startIso = padDay(minDate, -1).toISOString();
+        const endIso = (() => {
+          const d = padDay(maxDate, 1);
+          d.setHours(23, 59, 59, 999);
+          return d.toISOString();
+        })();
 
         const { data: liveExisting, error: checkError } = await supabase
           .from('events')
@@ -509,10 +521,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
 
         if (checkError) throw checkError;
 
+        const localDateKey = (iso: string) => {
+          const d = new Date(iso);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
         const conflictKeys = new Set(
-          (liveExisting || []).map(e =>
-            `${e.team_id}|${new Date(e.event_date).toISOString().split('T')[0]}`
-          )
+          (liveExisting || []).map(e => `${e.team_id}|${localDateKey(e.event_date)}`)
         );
 
         const blocked = fixturesToInsert.filter(f => {
