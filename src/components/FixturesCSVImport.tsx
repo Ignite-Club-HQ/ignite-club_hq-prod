@@ -641,10 +641,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   ) => {
     // Convert Dribl fixtures to ParsedFixture format with team IDs
     const mappingLookup = new Map(mappings.map(m => [m.driblTeamKey, m.igniteTeamId]));
+    const teamNameLookup = new Map(teams.map(t => [t.id, t.name]));
     
     const fixtures: ParsedFixture[] = driblFixtures
       .filter(f => mappingLookup.get(f.driblTeamKey)) // Only include fixtures with mapped teams
-      .map(f => ({
+      .map(f => {
+        const mappedTeamId = mappingLookup.get(f.driblTeamKey) || undefined;
+        return ({
         id: f.id,
         title: f.title,
         date: f.date,
@@ -652,9 +655,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: f.address,
         description: f.description,
         opponent: f.opponent,
-        teamId: mappingLookup.get(f.driblTeamKey) || undefined,
+        teamName: mappedTeamId ? teamNameLookup.get(mappedTeamId) : undefined,
+        teamId: mappedTeamId,
         isHomeGame: f.isHomeGame,
-      }));
+        });
+      });
     
     // Exit Dribl mode and process fixtures normally
     setDriblMode(false);
