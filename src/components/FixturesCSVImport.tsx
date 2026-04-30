@@ -922,7 +922,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               const importTeams = groupByTeam(parsedFixtures);
               const skipTeams = groupByTeam(duplicateFixtures);
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="space-y-2">
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
                     <div>
                       <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
@@ -931,8 +931,8 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                     {importTeams.length > 0 && (
                       <ul className="text-xs space-y-0.5 pt-1 border-t border-primary/20">
                         {importTeams.map(([name, count]) => (
-                          <li key={name} className="flex justify-between gap-2">
-                            <span className="text-foreground truncate">{name}</span>
+                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
+                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
                             <span className="text-muted-foreground shrink-0">{count}</span>
                           </li>
                         ))}
@@ -949,8 +949,8 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                     {skipTeams.length > 0 && (
                       <ul className="text-xs space-y-0.5 pt-1 border-t border-destructive/20">
                         {skipTeams.map(([name, count]) => (
-                          <li key={name} className="flex justify-between gap-2">
-                            <span className="text-foreground truncate">{name}</span>
+                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
+                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
                             <span className="text-muted-foreground shrink-0">{count}</span>
                           </li>
                         ))}
