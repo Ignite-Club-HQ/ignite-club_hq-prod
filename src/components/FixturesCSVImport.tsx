@@ -692,14 +692,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
+  const totalToImport = parsedFixtures.length;
   const fileType = file?.name.endsWith('.csv') ? 'CSV' : 'Excel';
-  
-  // Check if all fixtures have valid mandatory fields
-  const allFixturesValid = parsedFixtures.every(isFixtureValid) && 
-    (!updateDuplicates || duplicateFixtures.every(isFixtureValid));
-  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length + 
-    (updateDuplicates ? duplicateFixtures.filter(f => !isFixtureValid(f)).length : 0);
+
+  // Check if all fixtures have valid mandatory fields (conflicts are skipped, not imported)
+  const allFixturesValid = parsedFixtures.every(isFixtureValid);
+  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length;
 
   // If in Dribl mode, show the mapper
   if (driblMode && driblRawData) {
