@@ -192,31 +192,67 @@ export function highlightText(text: string, query: string): React.ReactNode {
     );
   }
 
-  // Fuzzy fallback: highlight subsequence-matched characters of the full query
-  const indices = new Set<number>();
-  let ti = 0;
-  let qi = 0;
-  const compactQuery = lower.replace(/\s+/g, "");
-  while (ti < lowerText.length && qi < compactQuery.length) {
-    if (lowerText[ti] === compactQuery[qi]) {
-      indices.add(ti);
-      qi++;
-    }
-    ti++;
-  }
-  if (qi < compactQuery.length) return text;
+  // Fuzzy fallback: highlight only whole words that are within 1 typo of a
+  // query token (length ≥ 4). Avoids scattering highlights across unrelated
+  // letters like marking 'a','n','d' inside "thanks already".
+  const queryTokens = lower.split(/\s+/).filter((t) => t.length >= 4);
+  if (queryTokens.length === 0) return text;
 
-  return Array.from(text).map((ch, i) =>
-    indices.has(i) ? (
+  const wordRegex = /[\p{L}\p{N}]+/gu;
+  const ranges: Array<{ start: number; end: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = wordRegex.exec(text)) !== null) {
+    const w = m[0].toLowerCase();
+    const matched = queryTokens.some((tok) => {
+      if (Math.abs(w.length - tok.length) > 1) return false;
+      return levenshteinLE1Local(w, tok);
+    });
+    if (matched) ranges.push({ start: m.index, end: m.index + m[0].length });
+  }
+  if (ranges.length === 0) return text;
+
+  const out: React.ReactNode[] = [];
+  let cursor = 0;
+  ranges.forEach((r, idx) => {
+    if (cursor < r.start) out.push(<span key={`p${idx}`}>{text.slice(cursor, r.start)}</span>);
+    out.push(
       <span
-        key={i}
+        key={`h${idx}`}
         data-search-highlight=""
         className="search-highlight rounded px-0.5 font-semibold"
       >
-        {ch}
-      </span>
-    ) : (
-      <span key={i}>{ch}</span>
-    ),
-  );
+        {text.slice(r.start, r.end)}
+      </span>,
+    );
+    cursor = r.end;
+  });
+  if (cursor < text.length) out.push(<span key="tail">{text.slice(cursor)}</span>);
+  return out;
+}
+
+function levenshteinLE1Local(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  if (la > lb) return levenshteinLE1Local(b, a);
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+    } else {
+      if (++edits > 1) return false;
+      if (la === lb) {
+        i++;
+        j++;
+      } else {
+        j++;
+      }
+    }
+  }
+  if (j < lb) edits += lb - j;
+  return edits <= 1;
 }
