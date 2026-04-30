@@ -799,6 +799,22 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
+  // Search filtering across folders, photos, and files (case-insensitive)
+  const normalizedSearch = vaultSearchQuery.trim().toLowerCase();
+  const displaySubfolders = useMemo(() => {
+    if (!subfolders) return [] as any[];
+    if (!normalizedSearch) return subfolders;
+    return subfolders.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+  }, [subfolders, normalizedSearch]);
+  const displayPhotos = useMemo(() => {
+    if (!normalizedSearch) return photos;
+    return photos.filter((p: any) => ((p.title || p.name || "")).toLowerCase().includes(normalizedSearch));
+  }, [photos, normalizedSearch]);
+  const displayFiles = useMemo(() => {
+    if (!normalizedSearch) return files;
+    return files.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+  }, [files, normalizedSearch]);
+
   // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
     queryKey: ["vault-trash", currentView.type !== "root" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
