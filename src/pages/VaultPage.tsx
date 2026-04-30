@@ -36,6 +36,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { VaultFolderCard } from "@/components/vault/VaultFolderCard";
+import { fuzzyFilter } from "@/lib/fuzzySearch";
+import { HighlightedText } from "@/components/vault/HighlightedText";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { removePhotoFromCache } from "@/lib/mediaCache";
 import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
