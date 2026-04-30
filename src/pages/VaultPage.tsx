@@ -3913,10 +3913,10 @@ export default function VaultPage() {
       {currentView.type === "team" && (
         <div className="space-y-6">
           {/* Subfolders - hide when in trash view */}
-          {!showTrash && subfolders && subfolders.length > 0 && (
+          {!showTrash && displaySubfolders && displaySubfolders.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground">Folders</h2>
-              {subfolders.map((folder) => (
+              {displaySubfolders.map((folder) => (
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
