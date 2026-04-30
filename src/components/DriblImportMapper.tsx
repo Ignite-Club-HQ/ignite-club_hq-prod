@@ -188,6 +188,40 @@ function autoMatchTeam(teamKey: string, driblDisplay: string, teams: Team[]): st
   return null;
 }
 
+function normalizeClubValue(value?: string): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/\b(football club|soccer club|fc|sc|club)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function sideMatchesClub(row: DriblRow, isHome: boolean, selectedClubCode: string, clubName: string): boolean {
+  const sideValues = isHome
+    ? [row.homeClubCode, row.homeClubName, row.homeTeamCode, row.homeTeamName]
+    : [row.awayClubCode, row.awayClubName, row.awayTeamCode, row.awayTeamName];
+
+  const selectedValues = [selectedClubCode, clubName].filter(Boolean);
+  if (sideValues.some(value => value && selectedValues.some(selected => value === selected))) {
+    return true;
+  }
+
+  const normalizedSideValues = sideValues.map(normalizeClubValue).filter(Boolean);
+  const normalizedSelectedValues = selectedValues.map(normalizeClubValue).filter(Boolean);
+
+  return normalizedSideValues.some(sideValue =>
+    normalizedSelectedValues.some(selectedValue =>
+      sideValue === selectedValue || sideValue.includes(selectedValue) || selectedValue.includes(sideValue)
+    )
+  );
+}
+
+function getOwnClubCodeFromRow(row: DriblRow, isHome: boolean): string {
+  return isHome
+    ? (row.homeClubCode || row.homeClubName || '')
+    : (row.awayClubCode || row.awayClubName || '');
+}
+
 export function DriblImportMapper({ 
   driblRows, 
   teams, 
@@ -198,19 +232,12 @@ export function DriblImportMapper({
   // Determine which club code represents "your" club
   const [yourClubCode, setYourClubCode] = useState<string>(() => {
     // Try to auto-detect based on club name
-    const clubNameLower = clubName.toLowerCase();
-    
     for (const row of driblRows) {
-      if (row.homeClubName?.toLowerCase().includes(clubNameLower)) {
-        return row.homeClubCode || row.homeClubName || '';
-      }
-      if (row.awayClubName?.toLowerCase().includes(clubNameLower)) {
-        return row.awayClubCode || row.awayClubName || '';
-      }
+      if (sideMatchesClub(row, true, '', clubName)) return getOwnClubCodeFromRow(row, true);
+      if (sideMatchesClub(row, false, '', clubName)) return getOwnClubCodeFromRow(row, false);
     }
     
-    // Default to first home club code found
-    return driblRows[0]?.homeClubCode || driblRows[0]?.homeClubName || '';
+    return '';
   });
 
   // Get all unique club codes from the data
@@ -247,10 +274,8 @@ export function DriblImportMapper({
       if (!row.date || row.eventStatus?.toLowerCase() === 'cancelled') continue;
       
       // Determine if this is a home or away game for your club
-      const isHome = (row.homeClubCode === yourClubCode) || 
-                     (row.homeClubName === yourClubCode);
-      const isAway = (row.awayClubCode === yourClubCode) || 
-                     (row.awayClubName === yourClubCode);
+      const isHome = sideMatchesClub(row, true, yourClubCode, clubName);
+      const isAway = sideMatchesClub(row, false, yourClubCode, clubName);
       
       // Skip if neither home nor away is your club
       if (!isHome && !isAway) continue;
@@ -278,8 +303,8 @@ export function DriblImportMapper({
       const roundLabel = row.round
         ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
         : null;
-      const homeDisplay = row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Home';
-      const awayDisplay = row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Away';
+      const homeDisplay = isHome ? clubName : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Home');
+      const awayDisplay = isAway ? clubName : (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Away');
       const matchup = `${homeDisplay} V ${awayDisplay}`;
       const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
       
@@ -336,7 +361,7 @@ export function DriblImportMapper({
       fixtures, 
       teamMappings: Array.from(teamMap.values()).sort((a, b) => b.fixtureCount - a.fixtureCount)
     };
-  }, [driblRows, yourClubCode, teams]);
+  }, [driblRows, yourClubCode, teams, clubName]);
 
   // State for team mapping overrides
   const [mappingOverrides, setMappingOverrides] = useState<Record<string, string | null>>({});
