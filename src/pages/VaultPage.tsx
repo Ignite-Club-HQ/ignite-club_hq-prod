@@ -3741,24 +3741,42 @@ export default function VaultPage() {
 
       {/* Search bar — filter folders, files, and photos in the current view */}
       {currentView.type !== "root" && !showTrash && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            value={vaultSearchQuery}
-            onChange={(e) => setVaultSearchQuery(e.target.value)}
-            placeholder="Search folders and files..."
-            className="pl-9 pr-9"
-          />
-          {vaultSearchQuery && (
-            <button
-              type="button"
-              onClick={() => setVaultSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
-              aria-label="Clear search"
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
-          )}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={vaultSearchQuery}
+              onChange={(e) => setVaultSearchQuery(e.target.value)}
+              placeholder={recursiveSearch ? "Search all nested folders..." : "Search this folder..."}
+              className="pl-9 pr-9"
+            />
+            {vaultSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setVaultSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={recursiveSearch}
+                onChange={(e) => setRecursiveSearch(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-input accent-primary"
+              />
+              Search inside subfolders
+            </label>
+            {recursiveEnabled && (
+              <span className="text-xs text-muted-foreground">
+                {isFetchingRecursive ? "Searching…" : `${displaySubfolders.length + displayPhotos.length + displayFiles.length} matches`}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
