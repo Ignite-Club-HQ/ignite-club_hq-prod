@@ -45,6 +45,8 @@ interface ParsedFixture {
   teamName?: string;
   teamId?: string;
   existingEventId?: string;
+  existingEventTitle?: string;
+  existingEventDate?: string;
   opponent?: string;
   isHomeGame?: boolean;
 }
@@ -345,6 +347,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
             duplicates.push({
               ...fixture,
               existingEventId: existingEvent.id,
+              existingEventTitle: existingEvent.title,
+              existingEventDate: (() => {
+                const d = new Date(existingEvent.event_date);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              })(),
             });
           } else {
             newFixtures.push(fixture);
