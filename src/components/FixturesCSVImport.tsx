@@ -900,21 +900,57 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               </Alert>
             )}
 
-            {/* Summary banner — clear at-a-glance counts */}
-            {(parsedFixtures.length > 0 || duplicateFixtures.length > 0) && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Will be imported</p>
+            {/* Summary banner — clear at-a-glance counts with per-team breakdown */}
+            {(parsedFixtures.length > 0 || duplicateFixtures.length > 0) && (() => {
+              const groupByTeam = (list: ParsedFixture[]) => {
+                const map = new Map<string, number>();
+                for (const f of list) {
+                  const name = f.teamName || 'No team assigned';
+                  map.set(name, (map.get(name) || 0) + 1);
+                }
+                return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+              };
+              const importTeams = groupByTeam(parsedFixtures);
+              const skipTeams = groupByTeam(duplicateFixtures);
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                    <div>
+                      <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Will be imported</p>
+                    </div>
+                    {importTeams.length > 0 && (
+                      <ul className="text-xs space-y-0.5 pt-1 border-t border-primary/20">
+                        {importTeams.map(([name, count]) => (
+                          <li key={name} className="flex justify-between gap-2">
+                            <span className="text-foreground truncate">{name}</span>
+                            <span className="text-muted-foreground shrink-0">{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className={`rounded-lg border p-3 space-y-2 ${duplicateFixtures.length > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-muted bg-muted/30'}`}>
+                    <div>
+                      <p className={`text-2xl font-bold leading-none ${duplicateFixtures.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {duplicateFixtures.length}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Skipped (already exists)</p>
+                    </div>
+                    {skipTeams.length > 0 && (
+                      <ul className="text-xs space-y-0.5 pt-1 border-t border-destructive/20">
+                        {skipTeams.map(([name, count]) => (
+                          <li key={name} className="flex justify-between gap-2">
+                            <span className="text-foreground truncate">{name}</span>
+                            <span className="text-muted-foreground shrink-0">{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-                <div className={`rounded-lg border p-3 ${duplicateFixtures.length > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-muted bg-muted/30'}`}>
-                  <p className={`text-2xl font-bold leading-none ${duplicateFixtures.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {duplicateFixtures.length}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Skipped (already exists)</p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* New fixtures preview */}
             {parsedFixtures.length > 0 && (
@@ -947,17 +983,23 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                   <p className="text-xs text-muted-foreground">
                     These fixtures were skipped because a match already exists on that day for the team. Delete or edit the existing event first if you need to replace it.
                   </p>
-                  <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {duplicateFixtures.map((f, i) => (
                       <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-2 text-xs space-y-1">
+                        <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {f.teamName || 'No team'}
+                          </Badge>
+                          <span className="text-muted-foreground">{f.date}</span>
+                        </div>
                         <div className="flex items-start gap-1.5">
                           <span className="text-destructive font-medium shrink-0">Skipped:</span>
-                          <span className="text-foreground">{f.date} — {f.title}</span>
+                          <span className="text-foreground">{f.title}</span>
                         </div>
                         <div className="flex items-start gap-1.5">
                           <span className="text-muted-foreground shrink-0">Existing:</span>
                           <span className="text-muted-foreground">
-                            {f.existingEventDate || f.date} — {f.existingEventTitle || '(existing match)'}
+                            {f.existingEventTitle || '(existing match)'}
                           </span>
                         </div>
                       </li>
