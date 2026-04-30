@@ -128,8 +128,10 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     const reminderIdx = header.indexOf('reminder_hours');
 
     const teamNameMap = new Map<string, string>();
+    const teamIdNameMap = new Map<string, string>();
     for (const team of teams) {
       teamNameMap.set(team.name.toLowerCase().trim(), team.id);
+      teamIdNameMap.set(team.id, team.name);
     }
 
     for (let i = 1; i < rows.length; i++) {
@@ -191,6 +193,8 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         }
       }
 
+      const resolvedTeamName = resolvedTeamId ? teamIdNameMap.get(resolvedTeamId) : undefined;
+
       fixtures.push({
         id: crypto.randomUUID(),
         title,
@@ -199,7 +203,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: addressIdx >= 0 ? values[addressIdx]?.toString().trim() : undefined,
         description: descriptionIdx >= 0 ? values[descriptionIdx]?.toString().trim() : undefined,
         reminderHours,
-        teamName: teamNameFromFile,
+        teamName: teamNameFromFile || resolvedTeamName,
         teamId: resolvedTeamId,
         opponent: opponentIdx >= 0 ? values[opponentIdx]?.toString().trim() : undefined,
       });
@@ -637,10 +641,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   ) => {
     // Convert Dribl fixtures to ParsedFixture format with team IDs
     const mappingLookup = new Map(mappings.map(m => [m.driblTeamKey, m.igniteTeamId]));
+    const teamNameLookup = new Map(teams.map(t => [t.id, t.name]));
     
     const fixtures: ParsedFixture[] = driblFixtures
       .filter(f => mappingLookup.get(f.driblTeamKey)) // Only include fixtures with mapped teams
-      .map(f => ({
+      .map(f => {
+        const mappedTeamId = mappingLookup.get(f.driblTeamKey) || undefined;
+        return ({
         id: f.id,
         title: f.title,
         date: f.date,
@@ -648,9 +655,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: f.address,
         description: f.description,
         opponent: f.opponent,
-        teamId: mappingLookup.get(f.driblTeamKey) || undefined,
+        teamName: mappedTeamId ? teamNameLookup.get(mappedTeamId) : undefined,
+        teamId: mappedTeamId,
         isHomeGame: f.isHomeGame,
-      }));
+        });
+      });
     
     // Exit Dribl mode and process fixtures normally
     setDriblMode(false);
@@ -913,7 +922,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               const importTeams = groupByTeam(parsedFixtures);
               const skipTeams = groupByTeam(duplicateFixtures);
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="space-y-2">
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
                     <div>
                       <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
@@ -922,8 +931,8 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                     {importTeams.length > 0 && (
                       <ul className="text-xs space-y-0.5 pt-1 border-t border-primary/20">
                         {importTeams.map(([name, count]) => (
-                          <li key={name} className="flex justify-between gap-2">
-                            <span className="text-foreground truncate">{name}</span>
+                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
+                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
                             <span className="text-muted-foreground shrink-0">{count}</span>
                           </li>
                         ))}
@@ -940,8 +949,8 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                     {skipTeams.length > 0 && (
                       <ul className="text-xs space-y-0.5 pt-1 border-t border-destructive/20">
                         {skipTeams.map(([name, count]) => (
-                          <li key={name} className="flex justify-between gap-2">
-                            <span className="text-foreground truncate">{name}</span>
+                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
+                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
                             <span className="text-muted-foreground shrink-0">{count}</span>
                           </li>
                         ))}
@@ -985,12 +994,13 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                   </p>
                   <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {duplicateFixtures.map((f, i) => (
-                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-2 text-xs space-y-1">
-                        <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {f.teamName || 'No team'}
-                          </Badge>
-                          <span className="text-muted-foreground">{f.date}</span>
+                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-3 text-xs space-y-2">
+                        <div className="pb-2 border-b border-border/40 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Team skipped</p>
+                          <p className="text-sm font-semibold text-foreground whitespace-normal break-words">
+                            {f.teamName || 'No team assigned'}
+                          </p>
+                          <p className="text-muted-foreground">{f.date}</p>
                         </div>
                         <div className="flex items-start gap-1.5">
                           <span className="text-destructive font-medium shrink-0">Skipped:</span>
