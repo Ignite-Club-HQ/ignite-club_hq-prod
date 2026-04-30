@@ -4,7 +4,7 @@ import { Share } from "@capacitor/share";
 import { getShareUrl } from "@/lib/shareUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical, RefreshCw } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical, RefreshCw, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,6 +91,8 @@ export default function VaultPage() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [vaultSearchQuery, setVaultSearchQuery] = useState("");
+  useEffect(() => { setVaultSearchQuery(""); }, [currentView]);
 
   const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
   const [fileName, setFileName] = useState("");
@@ -797,6 +799,22 @@ export default function VaultPage() {
       !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
     );
   }, [vaultItems]);
+
+  // Search filtering across folders, photos, and files (case-insensitive)
+  const normalizedSearch = vaultSearchQuery.trim().toLowerCase();
+  const displaySubfolders = useMemo(() => {
+    if (!subfolders) return [] as any[];
+    if (!normalizedSearch) return subfolders;
+    return subfolders.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+  }, [subfolders, normalizedSearch]);
+  const displayPhotos = useMemo(() => {
+    if (!normalizedSearch) return photos;
+    return photos.filter((p: any) => ((p.title || p.name || "")).toLowerCase().includes(normalizedSearch));
+  }, [photos, normalizedSearch]);
+  const displayFiles = useMemo(() => {
+    if (!normalizedSearch) return files;
+    return files.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+  }, [files, normalizedSearch]);
 
   // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
@@ -3622,6 +3640,30 @@ export default function VaultPage() {
           </div>
         </div>
       )}
+
+      {/* Search bar — filter folders, files, and photos in the current view */}
+      {currentView.type !== "root" && !showTrash && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={vaultSearchQuery}
+            onChange={(e) => setVaultSearchQuery(e.target.value)}
+            placeholder="Search folders and files..."
+            className="pl-9 pr-9"
+          />
+          {vaultSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setVaultSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      )}
+
       {currentView.type === "root" && (
         <div className="space-y-3">
           {isLoadingClubs ? (
@@ -3797,10 +3839,10 @@ export default function VaultPage() {
           )}
 
           {/* Subfolders - hide when in trash view */}
-          {!showTrash && subfolders && subfolders.length > 0 && (
+          {!showTrash && displaySubfolders && displaySubfolders.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground">Folders</h2>
-              {subfolders.map((folder) => (
+              {displaySubfolders.map((folder) => (
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
@@ -3821,8 +3863,8 @@ export default function VaultPage() {
           {/* Club-level content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
-              photos={photos || []} 
-              files={files || []} 
+              photos={displayPhotos || []} 
+              files={displayFiles || []} 
               onPhotoClick={openLightbox}
               canDeletePhoto={canDeletePhoto}
               canDeleteFile={canDeleteFile}
@@ -3872,10 +3914,10 @@ export default function VaultPage() {
       {currentView.type === "team" && (
         <div className="space-y-6">
           {/* Subfolders - hide when in trash view */}
-          {!showTrash && subfolders && subfolders.length > 0 && (
+          {!showTrash && displaySubfolders && displaySubfolders.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground">Folders</h2>
-              {subfolders.map((folder) => (
+              {displaySubfolders.map((folder) => (
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
@@ -3896,8 +3938,8 @@ export default function VaultPage() {
           {/* Team content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
-              photos={photos || []} 
-              files={files || []} 
+              photos={displayPhotos || []} 
+              files={displayFiles || []} 
               onPhotoClick={openLightbox}
               canDeletePhoto={canDeletePhoto}
               canDeleteFile={canDeleteFile}
@@ -3948,7 +3990,7 @@ export default function VaultPage() {
         <div className="space-y-6">
           {/* Mini-league content - photos only for now */}
           <ContentSection 
-            photos={photos || []} 
+            photos={displayPhotos || []} 
             files={[]} 
             onPhotoClick={openLightbox}
             canDeletePhoto={canDeletePhoto}
