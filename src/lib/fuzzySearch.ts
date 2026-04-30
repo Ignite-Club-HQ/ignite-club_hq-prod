@@ -34,37 +34,29 @@ export function fuzzyMatch(text: string, query: string): FuzzyMatch | null {
     return { score, indices };
   }
 
-  // Subsequence walk
-  const indices: number[] = [];
-  let ti = 0;
-  let qi = 0;
-  let score = 0;
-  let consecutive = 0;
-  let prevMatchedAt = -2;
-
-  while (ti < t.length && qi < q.length) {
-    if (t[ti] === q[qi]) {
-      indices.push(ti);
-      let bonus = 10;
-      if (ti === prevMatchedAt + 1) {
-        consecutive++;
-        bonus += consecutive * 8;
-      } else {
-        consecutive = 0;
+  // High-confidence typo tolerance: ≤1 edit against any word in the text.
+  // Avoids loose subsequence noise (e.g. "android" matching "thanks already").
+  if (q.length < 4) return null;
+  const words = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  let bestWord: string | null = null;
+  let bestWordOffset = -1;
+  for (const w of words) {
+    if (Math.abs(w.length - q.length) > 1) continue;
+    if (levenshteinLE1(w, q)) {
+      const off = t.indexOf(w);
+      if (off !== -1) {
+        bestWord = w;
+        bestWordOffset = off;
+        break;
       }
-      if (ti === 0) bonus += 40;
-      else if (/[\s._\-/]/.test(t[ti - 1] || "")) bonus += 25;
-      score += bonus;
-      prevMatchedAt = ti;
-      qi++;
     }
-    ti++;
   }
-
-  if (qi < q.length) return null;
-
-  // Penalize long strings with sparse matches
-  score -= Math.max(0, t.length - q.length) * 0.2;
+  if (!bestWord) return null;
+  const indices: number[] = [];
+  // Highlight the matched word region (approximate).
+  for (let i = 0; i < bestWord.length; i++) indices.push(bestWordOffset + i);
+  let score = 500 - bestWordOffset * 2 + q.length * 3;
+  if (bestWordOffset === 0) score += 100;
   return { score, indices };
 }
 
@@ -85,13 +77,48 @@ export function fuzzyFilter<T>(
 }
 
 /**
- * Lightweight predicate: does `text` fuzzy-match `query`?
- * - Case-insensitive substring → always true.
- * - Whitespace-tokenized: every token must subsequence-match.
- * - Single token: subsequence match in the full text (allowing typos like
- *   missing/extra letters between matched chars).
- * Used by chat search to widen recall vs strict ilike substring matching.
+ * High-confidence fuzzy predicate.
+ *
+ * Rules (per whitespace token, all must pass):
+ *  - Substring match → always passes.
+ *  - Otherwise allow at most 1 typo (Levenshtein ≤ 1) against any word in the
+ *    text whose length is within ±2 of the token. Tokens shorter than 4 chars
+ *    require an exact substring match (no typo tolerance) to avoid noise like
+ *    "and" matching "android" inside arbitrary prose — wait, that IS desired;
+ *    the noise issue is the opposite: short queries doing loose subsequence
+ *    matches across unrelated letters. So we drop subsequence entirely.
+ *
+ * This eliminates false positives like "Android" matching "thanks already
+ * from it reads" via scattered subsequence letters.
  */
+function levenshteinLE1(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  // Ensure la <= lb
+  if (la > lb) return levenshteinLE1(b, a);
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+    } else {
+      if (++edits > 1) return false;
+      if (la === lb) {
+        i++;
+        j++;
+      } else {
+        j++;
+      }
+    }
+  }
+  if (j < lb) edits += lb - j;
+  return edits <= 1;
+}
+
 export function fuzzyMatchesQuery(text: string | null | undefined, query: string): boolean {
   if (!query) return true;
   if (!text) return false;
@@ -101,15 +128,14 @@ export function fuzzyMatchesQuery(text: string | null | undefined, query: string
   if (t.includes(q)) return true;
   const tokens = q.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
+  const words = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   return tokens.every((tok) => {
     if (t.includes(tok)) return true;
-    // Subsequence match
-    let ti = 0;
-    let qi = 0;
-    while (ti < t.length && qi < tok.length) {
-      if (t[ti] === tok[qi]) qi++;
-      ti++;
-    }
-    return qi === tok.length;
+    // Typo tolerance only for tokens long enough to be unambiguous.
+    if (tok.length < 4) return false;
+    return words.some((w) => {
+      if (Math.abs(w.length - tok.length) > 1) return false;
+      return levenshteinLE1(w, tok);
+    });
   });
 }
