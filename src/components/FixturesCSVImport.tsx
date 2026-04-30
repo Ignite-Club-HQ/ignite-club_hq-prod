@@ -620,6 +620,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setUpdateDuplicates(false);
     setDriblMode(false);
     setDriblRawData(null);
+    setExcludedTeams(new Set());
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
