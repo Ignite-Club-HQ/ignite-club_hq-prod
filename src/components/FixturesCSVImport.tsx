@@ -880,34 +880,28 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               </div>
             )}
 
-            {/* Duplicate fixtures */}
+            {/* Conflicting fixtures (existing match on same day for same team) */}
             {duplicateFixtures.length > 0 && (
               <div className="space-y-3 pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                      {duplicateFixtures.length} existing
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="text-sm font-medium">
+                      {duplicateFixtures.length} fixture{duplicateFixtures.length !== 1 ? 's' : ''} skipped — a match already exists on that day for the team.
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="update-duplicates"
-                      checked={updateDuplicates}
-                      onCheckedChange={setUpdateDuplicates}
-                    />
-                    <Label htmlFor="update-duplicates" className="text-sm">
-                      Update
-                    </Label>
-                  </div>
-                </div>
-                {updateDuplicates && (
-                  <FixturePreviewEditor
-                    fixtures={duplicateFixtures}
-                    onUpdate={setDuplicateFixtures}
-                    isDuplicate
-                  />
-                )}
+                    <p className="text-xs mt-1 opacity-80">
+                      Imports cannot overwrite existing matches. Delete or edit the existing event first if you need to replace it.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+                <ul className="text-xs text-muted-foreground space-y-1 pl-1">
+                  {duplicateFixtures.slice(0, 6).map((f, i) => (
+                    <li key={i}>• {f.date} — {f.title}</li>
+                  ))}
+                  {duplicateFixtures.length > 6 && (
+                    <li>+ {duplicateFixtures.length - 6} more</li>
+                  )}
+                </ul>
               </div>
             )}
 
