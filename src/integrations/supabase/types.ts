@@ -7933,6 +7933,25 @@ export type Database = {
         Returns: string
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
+      engagement_activity_trend: {
+        Args: { _days?: number }
+        Returns: {
+          day: string
+          event_views: number
+          messages: number
+          new_users: number
+          rsvps: number
+        }[]
+      }
+      engagement_dau_trend: {
+        Args: { _days?: number }
+        Returns: {
+          dau: number
+          day: string
+          mau: number
+          wau: number
+        }[]
+      }
       ensure_club_role_folders: {
         Args: { _club_id: string }
         Returns: undefined
