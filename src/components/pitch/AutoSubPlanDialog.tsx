@@ -517,6 +517,8 @@ function createSubPlan(
         .sort((a, b) => b.time - a.time);
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
+        // Starting GK is still in goal at the end of H1 — not a real bench option here.
+        .filter(p => !(includeStartingGkInRotation && p.id === gkOnPitch?.id))
         .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
         .sort((a, b) => a.time - b.time);
       const usedOutIds = new Set<string>();
