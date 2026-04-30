@@ -505,6 +505,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
             reminder_sent: false,
             is_recurring: false,
             opponent: fixture.opponent || null,
+            is_home_game: fixture.isHomeGame ?? null,
           };
         });
 
@@ -530,6 +531,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
               description: fixture.description || null,
               reminder_hours_before: fixture.reminderHours || null,
               opponent: fixture.opponent || null,
+              is_home_game: fixture.isHomeGame ?? null,
             })
             .eq('id', fixture.existingEventId);
 
