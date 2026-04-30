@@ -3862,8 +3862,8 @@ export default function VaultPage() {
           {/* Club-level content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
-              photos={photos || []} 
-              files={files || []} 
+              photos={displayPhotos || []} 
+              files={displayFiles || []} 
               onPhotoClick={openLightbox}
               canDeletePhoto={canDeletePhoto}
               canDeleteFile={canDeleteFile}
