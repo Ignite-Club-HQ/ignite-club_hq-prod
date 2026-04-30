@@ -893,42 +893,60 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               </Alert>
             )}
 
-            {/* New fixtures preview */}
-            {parsedFixtures.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  {parsedFixtures.length} new fixture{parsedFixtures.length !== 1 ? 's' : ''}
-                </p>
-                <FixturePreviewEditor
-                  fixtures={parsedFixtures}
-                  onUpdate={setParsedFixtures}
-                />
+            {/* Summary banner — clear at-a-glance counts */}
+            {(parsedFixtures.length > 0 || duplicateFixtures.length > 0) && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Will be imported</p>
+                </div>
+                <div className={`rounded-lg border p-3 ${duplicateFixtures.length > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-muted bg-muted/30'}`}>
+                  <p className={`text-2xl font-bold leading-none ${duplicateFixtures.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {duplicateFixtures.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Skipped (already exists)</p>
+                </div>
               </div>
             )}
 
-            {/* Conflicting fixtures (existing match on same day for same team) */}
+            {/* New fixtures preview */}
+            {parsedFixtures.length > 0 && (
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between h-10">
+                    <span className="text-sm">View {parsedFixtures.length} fixture{parsedFixtures.length !== 1 ? 's' : ''} to import</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <FixturePreviewEditor
+                    fixtures={parsedFixtures}
+                    onUpdate={setParsedFixtures}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Skipped fixtures (existing match on same day for same team) */}
             {duplicateFixtures.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <p className="text-sm font-medium">
-                      {duplicateFixtures.length} fixture{duplicateFixtures.length !== 1 ? 's' : ''} skipped — a match already exists on that day for the team.
-                    </p>
-                    <p className="text-xs mt-1 opacity-80">
-                      Imports cannot overwrite existing matches. Delete or edit the existing event first if you need to replace it.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-                <ul className="text-xs text-muted-foreground space-y-1 pl-1">
-                  {duplicateFixtures.slice(0, 6).map((f, i) => (
-                    <li key={i}>• {f.date} — {f.title}</li>
-                  ))}
-                  {duplicateFixtures.length > 6 && (
-                    <li>+ {duplicateFixtures.length - 6} more</li>
-                  )}
-                </ul>
-              </div>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between h-10 border-destructive/30 text-destructive hover:text-destructive">
+                    <span className="text-sm">View {duplicateFixtures.length} skipped fixture{duplicateFixtures.length !== 1 ? 's' : ''}</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    A match already exists on that day for the team. Delete or edit the existing event first if you need to replace it.
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-1 pl-1 max-h-48 overflow-y-auto">
+                    {duplicateFixtures.map((f, i) => (
+                      <li key={i}>• {f.date} — {f.title}</li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Actions */}
