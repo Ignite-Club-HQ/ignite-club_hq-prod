@@ -398,9 +398,21 @@ function createSubPlan(
   // Threshold: subs within this many seconds of half-end get snapped
   const END_OF_HALF_SNAP_THRESHOLD = 60;
 
+  // Pre-compute who will become GK at halftime so we can correctly model the
+  // outfield rotation pool in the 2nd half (the new GK is no longer an outfielder).
+  const halftimeGkIn = startingGkWillRotate ? (gkOnBench || null) : null;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
+
+    // At the start of H2, apply the halftime GK swap to the simulation state:
+    // the incoming GK leaves the outfield pool (they're now in goal). The
+    // outgoing GK is already off the pitch and will be rotated in normally.
+    if (half === 2 && halftimeGkIn && currentOnPitch.has(halftimeGkIn.id)) {
+      currentOnPitch.delete(halftimeGkIn.id);
+    }
+
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
     const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
