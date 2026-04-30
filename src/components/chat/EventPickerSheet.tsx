@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { Clock, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
