@@ -77,6 +77,8 @@ interface DriblFixture {
 interface TeamMapping {
   driblTeamKey: string;
   driblTeamDisplay: string; // e.g., "U12 Boys Div 1 - Eagles FC"
+  driblGrade: string; // raw ageGroup from Dribl, for badge
+  driblColor: TeamColorHint | null;
   igniteTeamId: string | null;
   fixtureCount: number;
 }
