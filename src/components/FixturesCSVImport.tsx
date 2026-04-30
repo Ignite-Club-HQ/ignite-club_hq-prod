@@ -945,11 +945,22 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2 space-y-2">
                   <p className="text-xs text-muted-foreground">
-                    A match already exists on that day for the team. Delete or edit the existing event first if you need to replace it.
+                    These fixtures were skipped because a match already exists on that day for the team. Delete or edit the existing event first if you need to replace it.
                   </p>
-                  <ul className="text-xs text-muted-foreground space-y-1 pl-1 max-h-48 overflow-y-auto">
+                  <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {duplicateFixtures.map((f, i) => (
-                      <li key={i}>• {f.date} — {f.title}</li>
+                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-2 text-xs space-y-1">
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-destructive font-medium shrink-0">Skipped:</span>
+                          <span className="text-foreground">{f.date} — {f.title}</span>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-muted-foreground shrink-0">Existing:</span>
+                          <span className="text-muted-foreground">
+                            {f.existingEventDate || f.date} — {f.existingEventTitle || '(existing match)'}
+                          </span>
+                        </div>
+                      </li>
                     ))}
                   </ul>
                 </CollapsibleContent>
