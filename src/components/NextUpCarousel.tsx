@@ -449,7 +449,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
-      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
+      aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
@@ -472,8 +472,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         {/* Title */}
         <div>
           <h3 className={`text-base font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {event.title}
-            {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
+            {displayTitle}
           </h3>
           {subtitle && (
             <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
@@ -671,7 +670,7 @@ function CompactCard({ event }: { event: EventItem }) {
       className="cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm transition-all min-w-[220px] w-[65vw] max-w-[280px] shrink-0"
       role="button"
       tabIndex={0}
-      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
+      aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
@@ -694,7 +693,7 @@ function CompactCard({ event }: { event: EventItem }) {
         {/* Title */}
         <div>
           <h3 className={`font-bold text-[14px] leading-snug truncate ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {event.title}{event.opponent ? ` vs ${event.opponent}` : ""}
+            {displayTitle}
           </h3>
           {subtitle && (
             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
