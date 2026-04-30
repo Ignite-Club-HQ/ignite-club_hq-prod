@@ -837,27 +837,12 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoadingOlder && hasOlderMessages) {
-          loadOlderMessages();
-        }
-      },
-      // Pre-fetch older messages BEFORE the user reaches the very top so the next
-      // page is already in the DOM, eliminating the scroll-then-wait stutter.
-      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   useEffect(() => {
     if (!teamId) return;
