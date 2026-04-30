@@ -13,10 +13,25 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getSportEmoji } from "@/lib/sportEmojis";
+import { detectTeamColor, normalizeGrade, type TeamColorHint } from "@/lib/teamColor";
 
 interface Team {
   id: string;
   name: string;
+  level_age?: string | null;
+}
+
+// Small inline swatch used in dropdowns and badges
+function ColorSwatch({ color, className = "" }: { color: TeamColorHint | null; className?: string }) {
+  if (!color) return null;
+  return (
+    <span
+      className={`inline-block h-3 w-3 rounded-full border border-border shrink-0 ${className}`}
+      style={{ backgroundColor: color.hex }}
+      title={color.name}
+      aria-label={`${color.name} team`}
+    />
+  );
 }
 
 interface DriblRow {
