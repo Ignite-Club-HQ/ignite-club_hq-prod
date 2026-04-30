@@ -3989,7 +3989,7 @@ export default function VaultPage() {
         <div className="space-y-6">
           {/* Mini-league content - photos only for now */}
           <ContentSection 
-            photos={photos || []} 
+            photos={displayPhotos || []} 
             files={[]} 
             onPhotoClick={openLightbox}
             canDeletePhoto={canDeletePhoto}
