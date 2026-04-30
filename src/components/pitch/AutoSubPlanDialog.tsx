@@ -184,12 +184,27 @@ function createSubPlan(
     ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
     : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
   
+  // Determine whether the starting GK will be rotated out at halftime — if so,
+  // they need to be eligible for H2 outfield rotation, otherwise they sit the
+  // entire 2nd half (e.g. starting GK gets 50% while everyone else gets 67–83%).
+  const startingGkWillRotate = !!(rotateGkAtHalftime && gkOnPitch && startHalf === 1);
+  const startingGkCanPlayOutfield = !!(
+    gkOnPitch &&
+    (!gkOnPitch.assignedPositions?.length ||
+      gkOnPitch.assignedPositions.some(pos => pos !== "GK"))
+  );
+  const includeStartingGkInRotation = startingGkWillRotate && startingGkCanPlayOutfield;
+
   const outfieldPlayers = playerData.filter(p => {
-    if (p.currentPitchPosition === "GK") return false;
+    if (p.currentPitchPosition === "GK") {
+      // Include the starting GK in the rotation pool so they can come on as
+      // an outfielder in the 2nd half after the halftime GK swap.
+      return includeStartingGkInRotation;
+    }
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
-  
+
   const outfieldOnPitch = playersOnPitch.filter(p => p.currentPitchPosition !== "GK");
   const outfieldOnBench = benchPlayers.filter(p => {
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
