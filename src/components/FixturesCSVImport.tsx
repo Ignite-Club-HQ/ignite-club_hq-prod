@@ -101,6 +101,9 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const [driblMode, setDriblMode] = useState(false);
   const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
+  // Per-team exclusion: team names the user has un-checked in the "Will be imported" list
+  const [excludedTeams, setExcludedTeams] = useState<Set<string>>(new Set());
+
   const validateAndParseRows = (rows: ParsedRow[]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
     const errors: ValidationError[] = [];
