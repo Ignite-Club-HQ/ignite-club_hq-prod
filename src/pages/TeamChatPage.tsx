@@ -719,6 +719,16 @@ export default function TeamChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
@@ -726,11 +736,7 @@ export default function TeamChatPage() {
 
     setIsLoadingOlder(true);
 
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
+    // Create abort controller for timeout (25s headroom for slow networks)
 
     // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
