@@ -719,6 +719,9 @@ export default function TeamChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the (yet-to-be-defined) loader.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
   // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
   const { anchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
@@ -735,8 +738,6 @@ export default function TeamChatPage() {
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Create abort controller for timeout (25s headroom for slow networks)
 
     // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
