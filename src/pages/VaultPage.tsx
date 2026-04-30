@@ -3862,6 +3862,7 @@ export default function VaultPage() {
           {/* Club-level content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
+              searchQuery={normalizedSearch}
               photos={displayPhotos || []} 
               files={displayFiles || []} 
               onPhotoClick={openLightbox}
@@ -3938,6 +3939,7 @@ export default function VaultPage() {
           {/* Team content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
+              searchQuery={normalizedSearch}
               photos={displayPhotos || []} 
               files={displayFiles || []} 
               onPhotoClick={openLightbox}
@@ -3990,6 +3992,7 @@ export default function VaultPage() {
         <div className="space-y-6">
           {/* Mini-league content - photos only for now */}
           <ContentSection 
+            searchQuery={normalizedSearch}
             photos={displayPhotos || []} 
             files={[]} 
             onPhotoClick={openLightbox}
