@@ -331,12 +331,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           const fixtureDate = fixture.date;
           const fixtureTeamId = fixture.teamId || teamId || null;
           
+          // Conflict if ANY existing game is already on that day for that team.
+          // Imports must never overwrite an existing match.
           const existingEvent = existingEvents.find(event => {
             const eventDate = new Date(event.event_date).toISOString().split('T')[0];
-            const titleMatch = event.title.toLowerCase() === fixture.title.toLowerCase();
             const dateMatch = eventDate === fixtureDate;
             const teamMatch = event.team_id === fixtureTeamId;
-            return titleMatch && dateMatch && teamMatch;
+            return dateMatch && teamMatch;
           });
           
           if (existingEvent) {
