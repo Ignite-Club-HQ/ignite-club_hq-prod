@@ -254,7 +254,7 @@ export default function ImportFixturesPage() {
   }
 
   return (
-    <div className="container max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className={`container mx-auto px-4 py-6 space-y-6 ${driblMode ? 'max-w-6xl' : 'max-w-lg'}`}>
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
