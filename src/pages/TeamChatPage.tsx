@@ -812,23 +812,17 @@ export default function TeamChatPage() {
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
       })) as Message[];
 
-      // Prepend older messages to cache (object shape)
-      queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-        const existingMessages: Message[] = old?.messages || [];
-        if (!existingMessages.length) {
-          return { ...(old || {}), messages: olderMessages };
-        }
-        return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend older messages to cache + restore scroll anchor synchronously
+      // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
+      // in the same task, so the user never sees the intermediate state.
+      anchoredPrepend(() => {
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          const existingMessages: Message[] = old?.messages || [];
+          if (!existingMessages.length) {
+            return { ...(old || {}), messages: olderMessages };
+          }
+          return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
+        });
       });
     } catch (err) {
       clearTimeout(timeoutId);
