@@ -34,37 +34,29 @@ export function fuzzyMatch(text: string, query: string): FuzzyMatch | null {
     return { score, indices };
   }
 
-  // Subsequence walk
-  const indices: number[] = [];
-  let ti = 0;
-  let qi = 0;
-  let score = 0;
-  let consecutive = 0;
-  let prevMatchedAt = -2;
-
-  while (ti < t.length && qi < q.length) {
-    if (t[ti] === q[qi]) {
-      indices.push(ti);
-      let bonus = 10;
-      if (ti === prevMatchedAt + 1) {
-        consecutive++;
-        bonus += consecutive * 8;
-      } else {
-        consecutive = 0;
+  // High-confidence typo tolerance: ≤1 edit against any word in the text.
+  // Avoids loose subsequence noise (e.g. "android" matching "thanks already").
+  if (q.length < 4) return null;
+  const words = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  let bestWord: string | null = null;
+  let bestWordOffset = -1;
+  for (const w of words) {
+    if (Math.abs(w.length - q.length) > 1) continue;
+    if (levenshteinLE1(w, q)) {
+      const off = t.indexOf(w);
+      if (off !== -1) {
+        bestWord = w;
+        bestWordOffset = off;
+        break;
       }
-      if (ti === 0) bonus += 40;
-      else if (/[\s._\-/]/.test(t[ti - 1] || "")) bonus += 25;
-      score += bonus;
-      prevMatchedAt = ti;
-      qi++;
     }
-    ti++;
   }
-
-  if (qi < q.length) return null;
-
-  // Penalize long strings with sparse matches
-  score -= Math.max(0, t.length - q.length) * 0.2;
+  if (!bestWord) return null;
+  const indices: number[] = [];
+  // Highlight the matched word region (approximate).
+  for (let i = 0; i < bestWord.length; i++) indices.push(bestWordOffset + i);
+  let score = 500 - bestWordOffset * 2 + q.length * 3;
+  if (bestWordOffset === 0) score += 100;
   return { score, indices };
 }
 
