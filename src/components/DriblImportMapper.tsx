@@ -372,11 +372,15 @@ export function DriblImportMapper({
           row.division,
           teamName !== 'Unknown Team' ? teamName : null,
         ].filter(Boolean).join(' ') || teamName;
-        
+
+        const driblColor = detectTeamColor(teamName, row.ageGroup, row.division);
+
         teamMap.set(driblTeamKey, {
           driblTeamKey,
           driblTeamDisplay,
-          igniteTeamId: autoMatchTeam(driblTeamKey, driblTeamDisplay, teams),
+          driblGrade: row.ageGroup || '',
+          driblColor,
+          igniteTeamId: autoMatchTeam(row, teamName, teams),
           fixtureCount: 0,
         });
       }
