@@ -184,12 +184,27 @@ function createSubPlan(
     ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
     : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
   
+  // Determine whether the starting GK will be rotated out at halftime — if so,
+  // they need to be eligible for H2 outfield rotation, otherwise they sit the
+  // entire 2nd half (e.g. starting GK gets 50% while everyone else gets 67–83%).
+  const startingGkWillRotate = !!(rotateGkAtHalftime && gkOnPitch && startHalf === 1);
+  const startingGkCanPlayOutfield = !!(
+    gkOnPitch &&
+    (!gkOnPitch.assignedPositions?.length ||
+      gkOnPitch.assignedPositions.some(pos => pos !== "GK"))
+  );
+  const includeStartingGkInRotation = startingGkWillRotate && startingGkCanPlayOutfield;
+
   const outfieldPlayers = playerData.filter(p => {
-    if (p.currentPitchPosition === "GK") return false;
+    if (p.currentPitchPosition === "GK") {
+      // Include the starting GK in the rotation pool so they can come on as
+      // an outfielder in the 2nd half after the halftime GK swap.
+      return includeStartingGkInRotation;
+    }
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
-  
+
   const outfieldOnPitch = playersOnPitch.filter(p => p.currentPitchPosition !== "GK");
   const outfieldOnBench = benchPlayers.filter(p => {
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
@@ -383,9 +398,21 @@ function createSubPlan(
   // Threshold: subs within this many seconds of half-end get snapped
   const END_OF_HALF_SNAP_THRESHOLD = 60;
 
+  // Pre-compute who will become GK at halftime so we can correctly model the
+  // outfield rotation pool in the 2nd half (the new GK is no longer an outfielder).
+  const halftimeGkIn = startingGkWillRotate ? (gkOnBench || null) : null;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
+
+    // At the start of H2, apply the halftime GK swap to the simulation state:
+    // the incoming GK leaves the outfield pool (they're now in goal). The
+    // outgoing GK is already off the pitch and will be rotated in normally.
+    if (half === 2 && halftimeGkIn && currentOnPitch.has(halftimeGkIn.id)) {
+      currentOnPitch.delete(halftimeGkIn.id);
+    }
+
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
     const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
@@ -424,6 +451,11 @@ function createSubPlan(
       
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
+        // Starting GK is in the rotation pool but NOT actually available until
+        // they come off goal at halftime — exclude them from H1 sub windows.
+        .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
+        // Halftime GK substitute is in goal during H2, not on the bench.
+        .filter(p => !(half === 2 && halftimeGkIn && p.id === halftimeGkIn.id))
         .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
         .sort((a, b) => a.time - b.time);
       
@@ -499,6 +531,8 @@ function createSubPlan(
         .sort((a, b) => b.time - a.time);
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
+        // Starting GK is still in goal at the end of H1 — not a real bench option here.
+        .filter(p => !(includeStartingGkInRotation && p.id === gkOnPitch?.id))
         .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
         .sort((a, b) => a.time - b.time);
       const usedOutIds = new Set<string>();
