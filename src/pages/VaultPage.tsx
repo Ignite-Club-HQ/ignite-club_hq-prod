@@ -3741,13 +3741,24 @@ export default function VaultPage() {
       {/* Search bar — filter folders, files, and photos in the current view */}
       {currentView.type !== "root" && !showTrash && (
         <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <div
+            className={`relative rounded-md transition-shadow ${
+              isFetchingRecursive ? "ring-2 ring-primary/40 ring-offset-0 animate-pulse" : ""
+            }`}
+          >
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+              {isFetchingRecursive ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </span>
             <Input
               value={vaultSearchQuery}
               onChange={(e) => setVaultSearchQuery(e.target.value)}
               placeholder="Search folders and files..."
               className="pl-9 pr-9"
+              aria-busy={isFetchingRecursive}
             />
             {vaultSearchQuery && (
               <button
@@ -3760,11 +3771,30 @@ export default function VaultPage() {
               </button>
             )}
           </div>
-          {recursiveEnabled && (
-            <p className="text-xs text-muted-foreground px-1">
-              {isFetchingRecursive
-                ? "Searching all nested folders…"
-                : `${displaySubfolders.length + displayPhotos.length + displayFiles.length} matches across all subfolders`}
+          {vaultSearchQuery.trim() && (
+            <p
+              className="text-xs text-muted-foreground px-1 flex items-center gap-1.5"
+              role="status"
+              aria-live="polite"
+            >
+              {isFetchingRecursive ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span>Searching all nested folders…</span>
+                </>
+              ) : (
+                (() => {
+                  const total = displaySubfolders.length + displayPhotos.length + displayFiles.length;
+                  if (total === 0) {
+                    return <span>No matches for "{vaultSearchQuery}"</span>;
+                  }
+                  return (
+                    <span>
+                      {total} {total === 1 ? "match" : "matches"} across all subfolders
+                    </span>
+                  );
+                })()
+              )}
             </p>
           )}
         </div>
