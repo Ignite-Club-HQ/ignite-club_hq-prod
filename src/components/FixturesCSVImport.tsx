@@ -495,10 +495,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     }
   }, [processFile]);
 
+  const teamKeyOf = (f: ParsedFixture) => f.teamName || 'No team assigned';
+  const fixturesAfterExclusion = parsedFixtures.filter(f => !excludedTeams.has(teamKeyOf(f)));
+
   const handleImport = async () => {
     if (!user) return;
 
-    const fixturesToInsert = parsedFixtures;
+    const fixturesToInsert = fixturesAfterExclusion;
 
     if (fixturesToInsert.length === 0) return;
 
