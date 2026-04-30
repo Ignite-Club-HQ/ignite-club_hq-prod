@@ -564,7 +564,7 @@ export function DriblImportMapper({
               Match Dribl teams to your Ignite teams. Fixtures without a mapped team will be skipped.
             </p>
             
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className="h-[60vh] max-h-[600px] pr-2">
               <div className="space-y-3 pr-2">
                 {finalMappings.map((mapping) => (
                   <div key={mapping.driblTeamKey} className="flex items-center gap-2">
