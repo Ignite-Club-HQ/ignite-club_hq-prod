@@ -1447,12 +1447,13 @@ export default function TeamChatPage() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
             data-chat-scroll-lock="true"
             ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y', overflowAnchor: 'auto' }}
           >
             <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-              {/* Invisible trigger for infinite scroll */}
+              {/* Invisible trigger for infinite scroll. overflow-anchor:none so
+                  the browser's scroll-anchoring never picks the sentinel itself. */}
               {hasOlderMessages && !searchQuery && (
-                <div ref={loadTriggerRef} className="h-1" />
+                <div ref={loadTriggerRef} className="h-1" style={{ overflowAnchor: 'none' }} />
               )}
               {(filteredMessages || []).map((msg, index, arr) => {
                 const currentDate = new Date(msg.created_at);
