@@ -60,6 +60,7 @@ interface DriblRow {
   awayTeamName?: string;
   homeTeamColor?: string;
   awayTeamColor?: string;
+  teamColor?: string;
   // Computed
   rawRow: Record<string, string>;
 }
@@ -134,6 +135,12 @@ function normalizeHeader(header: string): string {
     'homecolours': 'homeTeamColor',
     'homecolor': 'homeTeamColor',
     'homecolors': 'homeTeamColor',
+    'teamcolour': 'teamColor',
+    'teamcolours': 'teamColor',
+    'teamcolor': 'teamColor',
+    'teamcolors': 'teamColor',
+    'colour': 'teamColor',
+    'color': 'teamColor',
     'awayclubcode': 'awayClubCode',
     'awayclubname': 'awayClubName',
     'awayteamcode': 'awayTeamCode',
@@ -172,7 +179,7 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
           header === 'homeTeamCode' || header === 'homeTeamName' ||
           header === 'awayClubCode' || header === 'awayClubName' ||
           header === 'awayTeamCode' || header === 'awayTeamName' ||
-          header === 'homeTeamColor' || header === 'awayTeamColor') {
+          header === 'homeTeamColor' || header === 'awayTeamColor' || header === 'teamColor') {
         (driblRow as any)[header] = value;
       }
     });
