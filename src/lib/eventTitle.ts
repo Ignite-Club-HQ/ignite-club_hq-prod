@@ -53,3 +53,17 @@ export function formatEventTitle(event: EventTitleInput): string {
 
   return `${title} vs ${opponent}`;
 }
+
+/**
+ * Returns true when the title does NOT already include the opponent or a
+ * matchup separator (v/vs/versus), meaning it's safe to render a separate
+ * " vs {opponent}" suffix (often styled as muted text).
+ */
+export function shouldAppendOpponent(event: EventTitleInput): boolean {
+  const title = event.title || "";
+  const opponent = event.opponent?.trim();
+  if (event.type !== "game" || !opponent) return false;
+  if (MATCHUP_SEPARATOR_RE.test(title)) return false;
+  if (hasName(title, opponent)) return false;
+  return true;
+}
