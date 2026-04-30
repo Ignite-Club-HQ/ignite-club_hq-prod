@@ -941,12 +941,13 @@ export default function VaultPage() {
 
   // Search filtering across folders, photos, and files (fuzzy + ranked)
   const normalizedSearch = vaultSearchQuery.trim();
-  const searchSourceFolders = recursiveEnabled ? (recursiveData?.folders || []) : (subfolders || []);
+  const recursiveResult = recursiveData as { folders: any[]; files: any[] } | undefined;
+  const searchSourceFolders = recursiveEnabled ? (recursiveResult?.folders || []) : (subfolders || []);
   const searchSourcePhotos = recursiveEnabled
-    ? ((recursiveData?.files || []).filter((f: any) => f.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    ? ((recursiveResult?.files || []).filter((f: any) => f.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
     : (photos || []);
   const searchSourceFiles = recursiveEnabled
-    ? ((recursiveData?.files || []).filter((f: any) => !f.file_type?.startsWith("image/") && !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    ? ((recursiveResult?.files || []).filter((f: any) => !f.file_type?.startsWith("image/") && !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
     : (files || []);
   const displaySubfolders = useMemo(() => {
     return fuzzyFilter(searchSourceFolders as any[], normalizedSearch, (f: any) => f.name || "");
