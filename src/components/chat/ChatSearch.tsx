@@ -162,23 +162,61 @@ export function ChatSearch({ onSearch, debounceMs = 300 }: { onSearch: (query: s
 export function highlightText(text: string, query: string): React.ReactNode {
   if (!query.trim() || !text) return text;
 
-  const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Capture group so split keeps matches; case-insensitive
-  const splitter = new RegExp(`(${escaped})`, "gi");
-  const lower = query.trim().toLowerCase();
-  const parts = text.split(splitter);
+  const trimmed = query.trim();
+  const lower = trimmed.toLowerCase();
+  const lowerText = text.toLowerCase();
 
-  return parts.map((part, i) =>
-    part && part.toLowerCase() === lower ? (
+  // Fast path: exact substring (whole query or any whitespace-separated token)
+  const tokens = Array.from(new Set([lower, ...lower.split(/\s+/).filter(Boolean)]));
+  const hasSubstring = tokens.some((tok) => tok && lowerText.includes(tok));
+
+  if (hasSubstring) {
+    const escaped = tokens
+      .filter((tok) => tok && lowerText.includes(tok))
+      .map((tok) => tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    const splitter = new RegExp(`(${escaped})`, "gi");
+    const parts = text.split(splitter);
+    return parts.map((part, i) =>
+      part && tokens.includes(part.toLowerCase()) ? (
+        <span
+          key={i}
+          data-search-highlight=""
+          className="search-highlight rounded px-0.5 font-semibold"
+        >
+          {part}
+        </span>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  }
+
+  // Fuzzy fallback: highlight subsequence-matched characters of the full query
+  const indices = new Set<number>();
+  let ti = 0;
+  let qi = 0;
+  const compactQuery = lower.replace(/\s+/g, "");
+  while (ti < lowerText.length && qi < compactQuery.length) {
+    if (lowerText[ti] === compactQuery[qi]) {
+      indices.add(ti);
+      qi++;
+    }
+    ti++;
+  }
+  if (qi < compactQuery.length) return text;
+
+  return Array.from(text).map((ch, i) =>
+    indices.has(i) ? (
       <span
         key={i}
         data-search-highlight=""
         className="search-highlight rounded px-0.5 font-semibold"
       >
-        {part}
+        {ch}
       </span>
     ) : (
-      <span key={i}>{part}</span>
-    )
+      <span key={i}>{ch}</span>
+    ),
   );
 }

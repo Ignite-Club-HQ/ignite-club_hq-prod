@@ -83,3 +83,33 @@ export function fuzzyFilter<T>(
   scored.sort((a, b) => b.score - a.score);
   return scored.map((s) => s.item);
 }
+
+/**
+ * Lightweight predicate: does `text` fuzzy-match `query`?
+ * - Case-insensitive substring → always true.
+ * - Whitespace-tokenized: every token must subsequence-match.
+ * - Single token: subsequence match in the full text (allowing typos like
+ *   missing/extra letters between matched chars).
+ * Used by chat search to widen recall vs strict ilike substring matching.
+ */
+export function fuzzyMatchesQuery(text: string | null | undefined, query: string): boolean {
+  if (!query) return true;
+  if (!text) return false;
+  const t = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (t.includes(q)) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  return tokens.every((tok) => {
+    if (t.includes(tok)) return true;
+    // Subsequence match
+    let ti = 0;
+    let qi = 0;
+    while (ti < t.length && qi < tok.length) {
+      if (t[ti] === tok[qi]) qi++;
+      ti++;
+    }
+    return qi === tok.length;
+  });
+}
