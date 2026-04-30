@@ -94,7 +94,8 @@ export default function VaultPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
-  useEffect(() => { setVaultSearchQuery(""); }, [currentView]);
+  const [recursiveSearch, setRecursiveSearch] = useState(false);
+  useEffect(() => { setVaultSearchQuery(""); setRecursiveSearch(false); }, [currentView]);
 
   const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
   const [fileName, setFileName] = useState("");
