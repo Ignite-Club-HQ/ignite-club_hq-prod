@@ -94,8 +94,7 @@ export default function VaultPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
-  const [recursiveSearch, setRecursiveSearch] = useState(false);
-  useEffect(() => { setVaultSearchQuery(""); setRecursiveSearch(false); }, [currentView]);
+  useEffect(() => { setVaultSearchQuery(""); }, [currentView]);
 
   const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
   const [fileName, setFileName] = useState("");
@@ -803,8 +802,8 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
-  // Recursive search - fetch all descendant folders + files when toggle is on
-  const recursiveEnabled = recursiveSearch && vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
+  // Recursive search - always search inside subfolders when a query is active
+  const recursiveEnabled = vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
   const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
     queryKey: [
       "vault-recursive-search",
@@ -3747,7 +3746,7 @@ export default function VaultPage() {
             <Input
               value={vaultSearchQuery}
               onChange={(e) => setVaultSearchQuery(e.target.value)}
-              placeholder={recursiveSearch ? "Search all nested folders..." : "Search this folder..."}
+              placeholder="Search folders and files..."
               className="pl-9 pr-9"
             />
             {vaultSearchQuery && (
@@ -3761,22 +3760,13 @@ export default function VaultPage() {
               </button>
             )}
           </div>
-          <div className="flex items-center justify-between gap-2 px-1">
-            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={recursiveSearch}
-                onChange={(e) => setRecursiveSearch(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-input accent-primary"
-              />
-              Search inside subfolders
-            </label>
-            {recursiveEnabled && (
-              <span className="text-xs text-muted-foreground">
-                {isFetchingRecursive ? "Searching…" : `${displaySubfolders.length + displayPhotos.length + displayFiles.length} matches`}
-              </span>
-            )}
-          </div>
+          {recursiveEnabled && (
+            <p className="text-xs text-muted-foreground px-1">
+              {isFetchingRecursive
+                ? "Searching all nested folders…"
+                : `${displaySubfolders.length + displayPhotos.length + displayFiles.length} matches across all subfolders`}
+            </p>
+          )}
         </div>
       )}
 
