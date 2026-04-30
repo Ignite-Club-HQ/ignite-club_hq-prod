@@ -804,97 +804,140 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
-  // Recursive search - always search inside subfolders when a query is active
-  const recursiveEnabled = vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
-  const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
+  // Recursive search - always search inside subfolders when a query is active.
+  // Performance strategy:
+  //  - Debounce the query so we don't re-fetch on every keystroke.
+  //  - Cache the folder tree per scope (no query in its key) so paths are
+  //    available instantly across searches.
+  //  - Push the name filter to Postgres via ilike so the payload only
+  //    contains matches, not the entire vault.
+  const recursiveEnabled = debouncedVaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
+  const recursiveScope = useMemo(() => ({
+    type: currentView.type,
+    clubId: getCurrentClubId(),
+    teamId: getCurrentTeamId(),
+    miniLeagueId: getCurrentMiniLeagueId(),
+    startFolderId: getCurrentFolderId(),
+  }), [currentView]);
+
+  // Folder tree cache (per scope) — used for path display and descendant set.
+  const { data: folderTree } = useQuery({
     queryKey: [
-      "vault-recursive-search",
-      currentView,
+      "vault-folder-tree",
+      recursiveScope.type,
+      recursiveScope.clubId,
+      recursiveScope.teamId,
       isClubAdmin,
-      isCoachOrTeamAdmin,
+      isAppAdmin,
       Array.from(userClubRoleSet).sort().join(","),
     ],
     queryFn: async () => {
-      const clubId = getCurrentClubId();
-      const teamId = getCurrentTeamId();
-      const miniLeagueId = getCurrentMiniLeagueId();
-      const startFolderId = getCurrentFolderId();
-
-      // 1. Fetch all folders in scope (club/team/mini-league) so we can walk descendants
       let folderQuery: any = supabase
         .from("vault_folders")
-        .select("id,name,parent_id,club_id,team_id,restricted_roles");
-      if (currentView.type === "club") {
-        folderQuery = folderQuery.eq("club_id", clubId).is("team_id", null);
-      } else if (currentView.type === "team") {
-        folderQuery = folderQuery.eq("team_id", teamId);
-      } else if (currentView.type === "mini-league") {
-        return { folders: [], files: [] };
+        .select("id,name,parent_id,restricted_roles");
+      if (recursiveScope.type === "club") {
+        folderQuery = folderQuery.eq("club_id", recursiveScope.clubId).is("team_id", null);
+      } else if (recursiveScope.type === "team") {
+        folderQuery = folderQuery.eq("team_id", recursiveScope.teamId);
+      } else {
+        return { descendants: [] as any[], pathById: new Map<string, string>(), descendantIds: [] as string[] };
       }
-      const { data: allFoldersRaw } = await folderQuery;
-      const allFolders = (allFoldersRaw || []) as Array<{
-        id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; restricted_roles: string[] | null;
-      }>;
-
-      // Apply role-restriction filtering (mirror non-recursive logic)
+      const { data: rawFolders } = await folderQuery;
+      const all = (rawFolders || []) as Array<{ id: string; name: string; parent_id: string | null; restricted_roles: string[] | null }>;
       const isPrivilegedViewer = isAppAdmin || isClubAdmin;
-      const visibleFolders = allFolders.filter((f) => {
+      const visible = all.filter((f) => {
         if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
         if (isPrivilegedViewer) return true;
         return f.restricted_roles.some((r) => userClubRoleSet.has(r));
       });
-
-      // Build descendant set starting at startFolderId (or root if null)
-      const childMap = new Map<string | null, typeof visibleFolders>();
-      for (const f of visibleFolders) {
-        const key = f.parent_id;
-        if (!childMap.has(key)) childMap.set(key, []);
-        childMap.get(key)!.push(f);
+      const childMap = new Map<string | null, typeof visible>();
+      for (const f of visible) {
+        const k = f.parent_id;
+        if (!childMap.has(k)) childMap.set(k, []);
+        childMap.get(k)!.push(f);
       }
-      const descendants: typeof visibleFolders = [];
+      const descendants: typeof visible = [];
       const pathById = new Map<string, string>();
-      const stack: { id: string | null; path: string }[] = [{ id: startFolderId, path: "" }];
+      const stack: { id: string | null; path: string }[] = [{ id: recursiveScope.startFolderId, path: "" }];
       while (stack.length) {
         const { id, path } = stack.pop()!;
-        const kids = childMap.get(id) || [];
-        for (const k of kids) {
+        for (const k of (childMap.get(id) || [])) {
           const kPath = path ? `${path} / ${k.name}` : k.name;
           descendants.push(k);
           pathById.set(k.id, kPath);
           stack.push({ id: k.id, path: kPath });
         }
       }
-      const descendantIds = descendants.map((d) => d.id);
+      return { descendants, pathById, descendantIds: descendants.map((d) => d.id) };
+    },
+    enabled: recursiveScope.type === "club" || recursiveScope.type === "team",
+    staleTime: 60_000,
+  });
 
-      // 2. Fetch files in current folder + all descendant folders
-      const folderIdsForFiles = startFolderId ? [startFolderId, ...descendantIds] : descendantIds;
-      let fileQuery: any = supabase.from("vault_files").select("*").is("deleted_at", null);
-      const viewType = currentView.type as string;
-      if (viewType === "club") {
-        fileQuery = fileQuery.eq("club_id", clubId).is("team_id", null).is("mini_league_id", null);
-      } else if (viewType === "team") {
-        fileQuery = fileQuery.eq("team_id", teamId);
-      } else if (viewType === "mini-league") {
-        fileQuery = fileQuery.eq("mini_league_id", miniLeagueId);
+  const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
+    queryKey: [
+      "vault-recursive-search",
+      recursiveScope,
+      debouncedVaultSearchQuery.trim().toLowerCase(),
+      isClubAdmin,
+      isCoachOrTeamAdmin,
+      Array.from(userClubRoleSet).sort().join(","),
+    ],
+    queryFn: async () => {
+      const safe = debouncedVaultSearchQuery.trim().replace(/[\\%_]/g, (m) => `\\${m}`);
+      const pattern = `%${safe}%`;
+      const tree = folderTree || { descendants: [], pathById: new Map<string, string>(), descendantIds: [] };
+      const startFolderId = recursiveScope.startFolderId;
+
+      // Server-side ilike on file name — only matches come back.
+      let fileQuery: any = supabase
+        .from("vault_files")
+        .select("id,folder_id,club_id,team_id,mini_league_id,name,file_url,file_size,file_type,uploaded_by,created_at,is_external_link")
+        .is("deleted_at", null)
+        .ilike("name", pattern)
+        .limit(200);
+      if (recursiveScope.type === "club") {
+        fileQuery = fileQuery.eq("club_id", recursiveScope.clubId).is("team_id", null).is("mini_league_id", null);
+      } else if (recursiveScope.type === "team") {
+        fileQuery = fileQuery.eq("team_id", recursiveScope.teamId);
+      } else if (recursiveScope.type === "mini-league") {
+        fileQuery = fileQuery.eq("mini_league_id", recursiveScope.miniLeagueId);
       }
       if (startFolderId) {
-        fileQuery = fileQuery.in("folder_id", folderIdsForFiles);
+        const folderIds = [startFolderId, ...tree.descendantIds];
+        fileQuery = fileQuery.in("folder_id", folderIds);
       }
-      // If no startFolderId, also include root-level (folder_id null) files — fetch all in scope
-      const { data: allFilesRaw } = await fileQuery.order("created_at", { ascending: false });
-      const allFiles = (allFilesRaw || []).map((f: any) => ({
-        ...f,
-        image_url: f.file_url,
-        uploader_id: f.uploaded_by,
-        title: f.name,
-        folder_path: f.folder_id ? pathById.get(f.folder_id) || "" : "",
-      }));
 
-      const foldersWithPath = descendants.map((f) => ({ ...f, folder_path: pathById.get(f.id) || f.name }));
-      return { folders: foldersWithPath, files: allFiles };
+      // Folder name matches come from the cached tree — no extra round-trip.
+      const lower = debouncedVaultSearchQuery.trim().toLowerCase();
+      const matchedFolders = (tree.descendants as any[]).filter((f) =>
+        (f.name || "").toLowerCase().includes(lower)
+      );
+
+      const { data: rawFiles } = await fileQuery.order("created_at", { ascending: false });
+      const visibleFolderIds = new Set(tree.descendants.map((d: any) => d.id));
+      // For root searches with no startFolderId, also allow root-level files (folder_id null)
+      const files = (rawFiles || [])
+        .filter((f: any) => !f.folder_id || visibleFolderIds.has(f.folder_id) || f.folder_id === startFolderId)
+        .map((f: any) => ({
+          ...f,
+          image_url: f.file_url,
+          uploader_id: f.uploaded_by,
+          title: f.name,
+          folder_path: f.folder_id ? tree.pathById.get(f.folder_id) || "" : "",
+        }));
+
+      const foldersWithPath = matchedFolders.map((f: any) => ({
+        ...f,
+        folder_path: tree.pathById.get(f.id) || f.name,
+      }));
+      return { folders: foldersWithPath, files };
     },
-    enabled: recursiveEnabled,
-  });
+    enabled: recursiveEnabled && !!folderTree,
+    keepPreviousData: true,
+    staleTime: 30_000,
+  } as any);
+
 
   // Search filtering across folders, photos, and files (fuzzy + ranked)
   const normalizedSearch = vaultSearchQuery.trim();
