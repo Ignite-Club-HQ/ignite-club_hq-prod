@@ -192,6 +192,8 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
           header === 'homeTeamCode' || header === 'homeTeamName' ||
           header === 'awayClubCode' || header === 'awayClubName' ||
           header === 'awayTeamCode' || header === 'awayTeamName' ||
+          header === 'homeTeamGroup' || header === 'awayTeamGroup' ||
+          header === 'homeTeam' || header === 'awayTeam' ||
           header === 'homeTeamColor' || header === 'awayTeamColor' || header === 'teamColor') {
         (driblRow as any)[header] = value;
       }
