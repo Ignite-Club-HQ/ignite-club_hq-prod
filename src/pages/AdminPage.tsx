@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -185,6 +185,12 @@ export default function AdminPage() {
               label="Drill Frame Audit"
               description="Find single-frame drills and auto-generate motion"
               onClick={() => navigate("/admin/drills")}
+            />
+            <AdminMenuItem
+              icon={Paperclip}
+              label="DM Attachments"
+              description="Disable the + attachment menu in DMs by club or user"
+              onClick={() => navigate("/admin/dm-attachments")}
             />
           </CardContent>
         </Card>

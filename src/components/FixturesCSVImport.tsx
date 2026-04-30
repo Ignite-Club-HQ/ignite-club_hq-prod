@@ -21,6 +21,7 @@ import ExcelJS from "exceljs";
 interface Team {
   id: string;
   name: string;
+  level_age?: string | null;
 }
 
 interface FixturesCSVImportProps {
@@ -330,12 +331,14 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           const fixtureDate = fixture.date;
           const fixtureTeamId = fixture.teamId || teamId || null;
           
+          // Conflict if ANY existing game is already on that day for that team.
+          // Imports must never overwrite an existing match.
+          // Compare by LOCAL calendar date so timezone offsets don't hide conflicts.
           const existingEvent = existingEvents.find(event => {
-            const eventDate = new Date(event.event_date).toISOString().split('T')[0];
-            const titleMatch = event.title.toLowerCase() === fixture.title.toLowerCase();
-            const dateMatch = eventDate === fixtureDate;
-            const teamMatch = event.team_id === fixtureTeamId;
-            return titleMatch && dateMatch && teamMatch;
+            if (event.team_id !== fixtureTeamId) return false;
+            const d = new Date(event.event_date);
+            const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return localDate === fixtureDate;
           });
           
           if (existingEvent) {
@@ -477,74 +480,101 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
 
   const handleImport = async () => {
     if (!user) return;
-    
+
     const fixturesToInsert = parsedFixtures;
-    const fixturesToUpdate = updateDuplicates ? duplicateFixtures : [];
-    
-    if (fixturesToInsert.length === 0 && fixturesToUpdate.length === 0) return;
+
+    if (fixturesToInsert.length === 0) return;
 
     setImporting(true);
     try {
-      let insertedCount = 0;
-      let updatedCount = 0;
+      // Re-check conflicts at import time so a concurrent insert can't slip through.
+      const fixtureTeamIds = Array.from(new Set(
+        fixturesToInsert.map(f => f.teamId || teamId || null).filter(Boolean) as string[]
+      ));
+      const fixtureDates = Array.from(new Set(fixturesToInsert.map(f => f.date)));
 
-      if (fixturesToInsert.length > 0) {
-        const eventsToInsert = fixturesToInsert.map(fixture => {
-          const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
-          return {
-            title: fixture.title,
-            type: 'game' as const,
-            club_id: clubId,
-            team_id: fixture.teamId || teamId || null,
-            event_date: eventDateTime.toISOString(),
-            start_time: eventDateTime.toISOString(),
-            address: fixture.address || null,
-            description: fixture.description || null,
-            created_by: user.id,
-            reminder_hours_before: fixture.reminderHours || null,
-            reminder_sent: false,
-            is_recurring: false,
-            opponent: fixture.opponent || null,
-          };
+      if (fixtureTeamIds.length > 0 && fixtureDates.length > 0) {
+        const minDate = fixtureDates.reduce((a, b) => (a < b ? a : b));
+        const maxDate = fixtureDates.reduce((a, b) => (a > b ? a : b));
+        // Pad the window by a day on each side so timezone offsets can't hide an event
+        // that lives on the same local calendar day but a different UTC day.
+        const padDay = (iso: string, deltaDays: number) => {
+          const d = new Date(`${iso}T00:00:00`);
+          d.setDate(d.getDate() + deltaDays);
+          return d;
+        };
+        const startIso = padDay(minDate, -1).toISOString();
+        const endIso = (() => {
+          const d = padDay(maxDate, 1);
+          d.setHours(23, 59, 59, 999);
+          return d.toISOString();
+        })();
+
+        const { data: liveExisting, error: checkError } = await supabase
+          .from('events')
+          .select('id, event_date, team_id')
+          .eq('club_id', clubId)
+          .eq('type', 'game')
+          .in('team_id', fixtureTeamIds)
+          .gte('event_date', startIso)
+          .lte('event_date', endIso);
+
+        if (checkError) throw checkError;
+
+        const localDateKey = (iso: string) => {
+          const d = new Date(iso);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
+        const conflictKeys = new Set(
+          (liveExisting || []).map(e => `${e.team_id}|${localDateKey(e.event_date)}`)
+        );
+
+        const blocked = fixturesToInsert.filter(f => {
+          const tId = f.teamId || teamId || null;
+          return tId && conflictKeys.has(`${tId}|${f.date}`);
         });
 
-        const { error: insertError } = await supabase
-          .from('events')
-          .insert(eventsToInsert);
-
-        if (insertError) throw insertError;
-        insertedCount = fixturesToInsert.length;
-      }
-
-      if (fixturesToUpdate.length > 0) {
-        for (const fixture of fixturesToUpdate) {
-          if (!fixture.existingEventId) continue;
-          
-          const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
-          const { error: updateError } = await supabase
-            .from('events')
-            .update({
-              event_date: eventDateTime.toISOString(),
-              start_time: eventDateTime.toISOString(),
-              address: fixture.address || null,
-              description: fixture.description || null,
-              reminder_hours_before: fixture.reminderHours || null,
-              opponent: fixture.opponent || null,
-            })
-            .eq('id', fixture.existingEventId);
-
-          if (updateError) throw updateError;
-          updatedCount++;
+        if (blocked.length > 0) {
+          toast({
+            variant: "destructive",
+            title: "Import blocked",
+            description: `${blocked.length} fixture${blocked.length !== 1 ? 's' : ''} already have a match scheduled on that day. Remove them and try again.`,
+          });
+          setImporting(false);
+          return;
         }
       }
 
-      const messages: string[] = [];
-      if (insertedCount > 0) messages.push(`${insertedCount} created`);
-      if (updatedCount > 0) messages.push(`${updatedCount} updated`);
+      const eventsToInsert = fixturesToInsert.map(fixture => {
+        const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
+        return {
+          title: fixture.title,
+          type: 'game' as const,
+          club_id: clubId,
+          team_id: fixture.teamId || teamId || null,
+          event_date: eventDateTime.toISOString(),
+          start_time: eventDateTime.toISOString(),
+          address: fixture.address || null,
+          description: fixture.description || null,
+          created_by: user.id,
+          reminder_hours_before: fixture.reminderHours || null,
+          reminder_sent: false,
+          is_recurring: false,
+          opponent: fixture.opponent || null,
+          is_home_game: fixture.isHomeGame ?? null,
+        };
+      });
+
+      const { error: insertError } = await supabase
+        .from('events')
+        .insert(eventsToInsert);
+
+      if (insertError) throw insertError;
 
       toast({
         title: "Fixtures imported",
-        description: `Successfully ${messages.join(', ')}`,
+        description: `Successfully created ${eventsToInsert.length} fixture${eventsToInsert.length !== 1 ? 's' : ''}`,
       });
 
       setFile(null);
@@ -688,14 +718,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
+  const totalToImport = parsedFixtures.length;
   const fileType = file?.name.endsWith('.csv') ? 'CSV' : 'Excel';
-  
-  // Check if all fixtures have valid mandatory fields
-  const allFixturesValid = parsedFixtures.every(isFixtureValid) && 
-    (!updateDuplicates || duplicateFixtures.every(isFixtureValid));
-  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length + 
-    (updateDuplicates ? duplicateFixtures.filter(f => !isFixtureValid(f)).length : 0);
+
+  // Check if all fixtures have valid mandatory fields (conflicts are skipped, not imported)
+  const allFixturesValid = parsedFixtures.every(isFixtureValid);
+  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length;
 
   // If in Dribl mode, show the mapper
   if (driblMode && driblRawData) {
@@ -878,34 +906,28 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               </div>
             )}
 
-            {/* Duplicate fixtures */}
+            {/* Conflicting fixtures (existing match on same day for same team) */}
             {duplicateFixtures.length > 0 && (
               <div className="space-y-3 pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-amber-600" />
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                      {duplicateFixtures.length} existing
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="text-sm font-medium">
+                      {duplicateFixtures.length} fixture{duplicateFixtures.length !== 1 ? 's' : ''} skipped — a match already exists on that day for the team.
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="update-duplicates"
-                      checked={updateDuplicates}
-                      onCheckedChange={setUpdateDuplicates}
-                    />
-                    <Label htmlFor="update-duplicates" className="text-sm">
-                      Update
-                    </Label>
-                  </div>
-                </div>
-                {updateDuplicates && (
-                  <FixturePreviewEditor
-                    fixtures={duplicateFixtures}
-                    onUpdate={setDuplicateFixtures}
-                    isDuplicate
-                  />
-                )}
+                    <p className="text-xs mt-1 opacity-80">
+                      Imports cannot overwrite existing matches. Delete or edit the existing event first if you need to replace it.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+                <ul className="text-xs text-muted-foreground space-y-1 pl-1">
+                  {duplicateFixtures.slice(0, 6).map((f, i) => (
+                    <li key={i}>• {f.date} — {f.title}</li>
+                  ))}
+                  {duplicateFixtures.length > 6 && (
+                    <li>+ {duplicateFixtures.length - 6} more</li>
+                  )}
+                </ul>
               </div>
             )}
 

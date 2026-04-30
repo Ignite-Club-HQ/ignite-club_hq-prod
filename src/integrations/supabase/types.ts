@@ -1990,6 +1990,48 @@ export type Database = {
           },
         ]
       }
+      dm_attachment_restrictions: {
+        Row: {
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          scope: string
+          user_id: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          scope: string
+          user_id?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          scope?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dm_attachment_restrictions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dm_attachment_restrictions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drill_frames: {
         Row: {
           annotations: Json
@@ -7881,6 +7923,7 @@ export type Database = {
         Args: { p_club_id?: string; p_team_id?: string }
         Returns: number
       }
+      dm_attachments_disabled: { Args: { _user_id: string }; Returns: boolean }
       duplicate_season_structure: {
         Args: {
           _copy_staff?: boolean

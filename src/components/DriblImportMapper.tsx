@@ -13,10 +13,25 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getSportEmoji } from "@/lib/sportEmojis";
+import { detectTeamColor, normalizeGrade, type TeamColorHint } from "@/lib/teamColor";
 
 interface Team {
   id: string;
   name: string;
+  level_age?: string | null;
+}
+
+// Small inline swatch used in dropdowns and badges
+function ColorSwatch({ color, className = "" }: { color: TeamColorHint | null; className?: string }) {
+  if (!color) return null;
+  return (
+    <span
+      className={`inline-block h-3 w-3 rounded-full border border-border shrink-0 ${className}`}
+      style={{ backgroundColor: color.hex }}
+      title={color.name}
+      aria-label={`${color.name} team`}
+    />
+  );
 }
 
 interface DriblRow {
@@ -43,6 +58,13 @@ interface DriblRow {
   awayClubName?: string;
   awayTeamCode?: string;
   awayTeamName?: string;
+  homeTeamColor?: string;
+  awayTeamColor?: string;
+  teamColor?: string;
+  homeTeamGroup?: string;
+  awayTeamGroup?: string;
+  homeTeam?: string;
+  awayTeam?: string;
   // Computed
   rawRow: Record<string, string>;
 }
@@ -62,6 +84,8 @@ interface DriblFixture {
 interface TeamMapping {
   driblTeamKey: string;
   driblTeamDisplay: string; // e.g., "U12 Boys Div 1 - Eagles FC"
+  driblGrade: string; // raw ageGroup from Dribl, for badge
+  driblColor: TeamColorHint | null;
   igniteTeamId: string | null;
   fixtureCount: number;
 }
@@ -107,13 +131,44 @@ function normalizeHeader(header: string): string {
     'homeclubname': 'homeClubName',
     'hometeamcode': 'homeTeamCode',
     'hometeamname': 'homeTeamName',
+    'hometeamcolour': 'homeTeamColor',
+    'hometeamcolours': 'homeTeamColor',
+    'hometeamcolor': 'homeTeamColor',
+    'hometeamcolors': 'homeTeamColor',
+    'homecolour': 'homeTeamColor',
+    'homecolours': 'homeTeamColor',
+    'homecolor': 'homeTeamColor',
+    'homecolors': 'homeTeamColor',
+    'teamcolour': 'teamColor',
+    'teamcolours': 'teamColor',
+    'teamcolor': 'teamColor',
+    'teamcolors': 'teamColor',
+    'colour': 'teamColor',
+    'color': 'teamColor',
     'awayclubcode': 'awayClubCode',
     'awayclubname': 'awayClubName',
     'awayteamcode': 'awayTeamCode',
     'awayteamname': 'awayTeamName',
+    'hometeamgroup': 'homeTeamGroup',
+    'awayteamgroup': 'awayTeamGroup',
+    'hometeam': 'homeTeam',
+    'awayteam': 'awayTeam',
+    'awayteamcolour': 'awayTeamColor',
+    'awayteamcolours': 'awayTeamColor',
+    'awayteamcolor': 'awayTeamColor',
+    'awayteamcolors': 'awayTeamColor',
+    'awaycolour': 'awayTeamColor',
+    'awaycolours': 'awayTeamColor',
+    'awaycolor': 'awayTeamColor',
+    'awaycolors': 'awayTeamColor',
   };
   
-  return mappings[h] || h;
+  if (mappings[h]) return mappings[h];
+  if (h.includes('home') && (h.includes('colour') || h.includes('color'))) return 'homeTeamColor';
+  if (h.includes('away') && (h.includes('colour') || h.includes('color'))) return 'awayTeamColor';
+  if (h.includes('colour') || h.includes('color')) return 'teamColor';
+
+  return h;
 }
 
 // Parse raw rows into structured DriblRow objects
@@ -136,7 +191,10 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
           header === 'homeClubCode' || header === 'homeClubName' || 
           header === 'homeTeamCode' || header === 'homeTeamName' ||
           header === 'awayClubCode' || header === 'awayClubName' ||
-          header === 'awayTeamCode' || header === 'awayTeamName') {
+          header === 'awayTeamCode' || header === 'awayTeamName' ||
+          header === 'homeTeamGroup' || header === 'awayTeamGroup' ||
+          header === 'homeTeam' || header === 'awayTeam' ||
+          header === 'homeTeamColor' || header === 'awayTeamColor' || header === 'teamColor') {
         (driblRow as any)[header] = value;
       }
     });
@@ -145,47 +203,128 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
   });
 }
 
+// Treat Dribl placeholder values like "Not Set" / "N/A" / "-" as empty.
+function cleanDriblValue(value?: string): string {
+  const v = (value || '').trim();
+  if (!v) return '';
+  const lower = v.toLowerCase();
+  if (lower === 'not set' || lower === 'notset' || lower === 'n/a' || lower === 'na' || lower === '-' || lower === 'tbc' || lower === 'tbd') return '';
+  return v;
+}
+
 // Generate a unique key for team matching
 function generateTeamKey(row: DriblRow, isHome: boolean): string {
-  const teamName = isHome ? (row.homeTeamName || row.homeTeamCode) : (row.awayTeamName || row.awayTeamCode);
+  const teamName = isHome ? (row.homeTeam || row.homeTeamName || row.homeTeamCode) : (row.awayTeam || row.awayTeamName || row.awayTeamCode);
+  const teamColor = getDriblTeamColorText(row, isHome);
   const ageGroup = row.ageGroup || '';
   const division = row.division || '';
   const gender = row.gender || '';
   
   // Create a normalized key for matching
-  return `${ageGroup}|${division}|${gender}|${teamName}`.toLowerCase();
+  return `${ageGroup}|${division}|${gender}|${teamColor}|${teamName}`.toLowerCase();
 }
 
-// Attempt to auto-match Dribl team to Ignite team
-function autoMatchTeam(teamKey: string, driblDisplay: string, teams: Team[]): string | null {
-  const keyParts = teamKey.split('|').filter(Boolean);
-  
+// Color in Dribl is in the "Team Group" column (e.g. "Blue", "Navy", "White").
+// Falls back to dedicated colour columns, then to keywords inside the full team name.
+function getDriblTeamColorText(row: DriblRow, isHome: boolean): string {
+  const group = cleanDriblValue(isHome ? row.homeTeamGroup : row.awayTeamGroup);
+  if (group) return group;
+
+  const directColor = cleanDriblValue(isHome ? row.homeTeamColor : row.awayTeamColor);
+  if (directColor) return directColor;
+
+  const sidePrefix = isHome ? 'home' : 'away';
+  const genericColor = Object.entries(row.rawRow).find(([key, value]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return Boolean(cleanDriblValue(value)) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color') || normalizedKey.includes('group'));
+  })?.[1];
+  const cleanedGeneric = cleanDriblValue(genericColor);
+  if (cleanedGeneric) return cleanedGeneric;
+
+  // Last resort: scan the full team description (e.g. "Bridgewater JSC Under 8 Mixed Navy")
+  const fullTeam = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+  if (fullTeam) {
+    const detected = detectTeamColor(fullTeam);
+    if (detected) return detected.name;
+  }
+
+  return cleanDriblValue(row.teamColor);
+}
+
+// Attempt to auto-match Dribl team to Ignite team. We score every team and
+// prefer the highest match (grade + colour + division/gender keyword overlap).
+function autoMatchTeam(
+  row: DriblRow,
+  driblTeamName: string,
+  driblTeamColorText: string,
+  teams: Team[],
+): string | null {
+  const driblGrade = normalizeGrade(row.ageGroup);
+  const driblColor = detectTeamColor(driblTeamColorText, driblTeamName);
+  const keywordParts = [row.division, row.gender]
+    .map(p => (p || '').toLowerCase().trim())
+    .filter(Boolean);
+
+  let bestId: string | null = null;
+  let bestScore = 0;
+
   for (const team of teams) {
     const teamNameLower = team.name.toLowerCase();
-    
-    // Check if team name contains age group, division, or gender parts
-    let matchScore = 0;
-    for (const part of keyParts) {
-      if (part && teamNameLower.includes(part)) {
-        matchScore++;
-      }
+    const teamGrade = normalizeGrade(team.level_age || team.name);
+    const teamColor = detectTeamColor(team.name, team.level_age);
+
+    let score = 0;
+    // Grade match is the strongest signal — required for a high-confidence match
+    if (driblGrade && teamGrade && driblGrade === teamGrade) score += 5;
+    // Colour distinguishes teams in the same grade
+    if (driblColor && teamColor && driblColor.name === teamColor.name) score += 3;
+    // Keyword overlap (division / gender)
+    for (const part of keywordParts) {
+      if (part && teamNameLower.includes(part)) score += 1;
     }
-    
-    // If at least 2 parts match, consider it a potential match
-    if (matchScore >= 2) {
-      return team.id;
-    }
-    
-    // Also check for exact substring matches
-    const ageGroupMatch = keyParts[0] && teamNameLower.includes(keyParts[0]);
-    const divisionMatch = keyParts[1] && teamNameLower.includes(keyParts[1]);
-    
-    if (ageGroupMatch && divisionMatch) {
-      return team.id;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = team.id;
     }
   }
-  
-  return null;
+
+  // Require at least a grade match (5) before auto-assigning
+  return bestScore >= 5 ? bestId : null;
+}
+
+function normalizeClubValue(value?: string): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/\b(football club|soccer club|fc|sc|club)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function sideMatchesClub(row: DriblRow, isHome: boolean, selectedClubCode: string, clubName: string): boolean {
+  const sideValues = isHome
+    ? [row.homeClubCode, row.homeClubName, row.homeTeamCode, row.homeTeamName]
+    : [row.awayClubCode, row.awayClubName, row.awayTeamCode, row.awayTeamName];
+
+  const selectedValues = [selectedClubCode, clubName].filter(Boolean);
+  if (sideValues.some(value => value && selectedValues.some(selected => value === selected))) {
+    return true;
+  }
+
+  const normalizedSideValues = sideValues.map(normalizeClubValue).filter(Boolean);
+  const normalizedSelectedValues = selectedValues.map(normalizeClubValue).filter(Boolean);
+
+  return normalizedSideValues.some(sideValue =>
+    normalizedSelectedValues.some(selectedValue =>
+      sideValue === selectedValue || sideValue.includes(selectedValue) || selectedValue.includes(sideValue)
+    )
+  );
+}
+
+function getOwnClubCodeFromRow(row: DriblRow, isHome: boolean): string {
+  return isHome
+    ? (row.homeClubCode || row.homeClubName || '')
+    : (row.awayClubCode || row.awayClubName || '');
 }
 
 export function DriblImportMapper({ 
@@ -198,19 +337,12 @@ export function DriblImportMapper({
   // Determine which club code represents "your" club
   const [yourClubCode, setYourClubCode] = useState<string>(() => {
     // Try to auto-detect based on club name
-    const clubNameLower = clubName.toLowerCase();
-    
     for (const row of driblRows) {
-      if (row.homeClubName?.toLowerCase().includes(clubNameLower)) {
-        return row.homeClubCode || row.homeClubName || '';
-      }
-      if (row.awayClubName?.toLowerCase().includes(clubNameLower)) {
-        return row.awayClubCode || row.awayClubName || '';
-      }
+      if (sideMatchesClub(row, true, '', clubName)) return getOwnClubCodeFromRow(row, true);
+      if (sideMatchesClub(row, false, '', clubName)) return getOwnClubCodeFromRow(row, false);
     }
     
-    // Default to first home club code found
-    return driblRows[0]?.homeClubCode || driblRows[0]?.homeClubName || '';
+    return '';
   });
 
   // Get all unique club codes from the data
@@ -247,10 +379,8 @@ export function DriblImportMapper({
       if (!row.date || row.eventStatus?.toLowerCase() === 'cancelled') continue;
       
       // Determine if this is a home or away game for your club
-      const isHome = (row.homeClubCode === yourClubCode) || 
-                     (row.homeClubName === yourClubCode);
-      const isAway = (row.awayClubCode === yourClubCode) || 
-                     (row.awayClubName === yourClubCode);
+      const isHome = sideMatchesClub(row, true, yourClubCode, clubName);
+      const isAway = sideMatchesClub(row, false, yourClubCode, clubName);
       
       // Skip if neither home nor away is your club
       if (!isHome && !isAway) continue;
@@ -272,11 +402,16 @@ export function DriblImportMapper({
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
       
-      // Build title: "Round {N} - {OurTeam} V {OpponentTeam}"
+      // Build title: "Round {N} - {OurClub} V {Opponent}" — always put the
+      // importing club first regardless of home/away so the matchup reads
+      // from our perspective.
       const roundLabel = row.round
         ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
         : null;
-      const matchup = `${teamName} V ${opponentTeamName}`;
+      const opponentDisplay = isHome
+        ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
+        : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent');
+      const matchup = `${clubName} V ${opponentDisplay}`;
       const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
       
       // Parse date (Dribl uses DD/MM/YYYY format typically)
@@ -311,17 +446,27 @@ export function DriblImportMapper({
       
       // Track team mapping
       if (!teamMap.has(driblTeamKey)) {
-        const driblTeamDisplay = [
-          row.ageGroup,
-          row.gender,
-          row.division,
-          teamName !== 'Unknown Team' ? teamName : null,
-        ].filter(Boolean).join(' ') || teamName;
-        
+        const driblTeamColorText = getDriblTeamColorText(row, isHome);
+        const fullTeamLabel = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+        const displayParts = fullTeamLabel
+          ? [fullTeamLabel, driblTeamColorText && !fullTeamLabel.toLowerCase().includes(driblTeamColorText.toLowerCase()) ? `(${driblTeamColorText})` : null]
+          : [
+              cleanDriblValue(row.ageGroup),
+              cleanDriblValue(row.gender),
+              cleanDriblValue(row.division),
+              driblTeamColorText,
+              teamName !== 'Unknown Team' ? teamName : null,
+            ];
+        const driblTeamDisplay = displayParts.filter(Boolean).join(' ') || teamName;
+
+        const driblColor = detectTeamColor(driblTeamColorText, fullTeamLabel, teamName, row.division);
+
         teamMap.set(driblTeamKey, {
           driblTeamKey,
           driblTeamDisplay,
-          igniteTeamId: autoMatchTeam(driblTeamKey, driblTeamDisplay, teams),
+          driblGrade: row.ageGroup || '',
+          driblColor,
+          igniteTeamId: autoMatchTeam(row, fullTeamLabel || teamName, driblTeamColorText, teams),
           fixtureCount: 0,
         });
       }
@@ -332,7 +477,7 @@ export function DriblImportMapper({
       fixtures, 
       teamMappings: Array.from(teamMap.values()).sort((a, b) => b.fixtureCount - a.fixtureCount)
     };
-  }, [driblRows, yourClubCode, teams]);
+  }, [driblRows, yourClubCode, teams, clubName]);
 
   // State for team mapping overrides
   const [mappingOverrides, setMappingOverrides] = useState<Record<string, string | null>>({});
@@ -420,15 +565,21 @@ export function DriblImportMapper({
               Match Dribl teams to your Ignite teams. Fixtures without a mapped team will be skipped.
             </p>
             
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className="h-[60vh] max-h-[600px] pr-2">
               <div className="space-y-3 pr-2">
                 {finalMappings.map((mapping) => (
                   <div key={mapping.driblTeamKey} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs shrink-0">
                           {mapping.fixtureCount}
                         </Badge>
+                        {mapping.driblGrade && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {mapping.driblGrade}
+                          </Badge>
+                        )}
+                        <ColorSwatch color={mapping.driblColor} />
                         <span className="text-sm truncate">
                           {mapping.driblTeamDisplay}
                         </span>
@@ -444,7 +595,7 @@ export function DriblImportMapper({
                         }));
                       }}
                     >
-                      <SelectTrigger className={`w-[180px] h-10 ${
+                      <SelectTrigger className={`w-[200px] h-10 ${
                         !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
                       }`}>
                         <SelectValue placeholder="Select team" />
@@ -453,11 +604,22 @@ export function DriblImportMapper({
                         <SelectItem value="unmapped">
                           <span className="text-muted-foreground">Skip (no mapping)</span>
                         </SelectItem>
-                        {teams.map(team => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
+                        {teams.map(team => {
+                          const teamColor = detectTeamColor(team.name, team.level_age);
+                          return (
+                            <SelectItem key={team.id} value={team.id}>
+                              <span className="flex items-center gap-2">
+                                {team.level_age && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                    {team.level_age}
+                                  </Badge>
+                                )}
+                                <ColorSwatch color={teamColor} />
+                                <span className="truncate">{team.name}</span>
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>

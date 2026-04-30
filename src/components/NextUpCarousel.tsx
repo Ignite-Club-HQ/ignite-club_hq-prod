@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatEventTitle } from "@/lib/eventTitle";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -318,6 +319,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
+  const displayTitle = formatEventTitle(event);
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -447,7 +449,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
-      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
+      aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
@@ -470,8 +472,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         {/* Title */}
         <div>
           <h3 className={`text-base font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {event.title}
-            {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
+            {displayTitle}
           </h3>
           {subtitle && (
             <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
@@ -628,6 +629,7 @@ function CompactCard({ event }: { event: EventItem }) {
   const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
+  const displayTitle = formatEventTitle(event);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -668,7 +670,7 @@ function CompactCard({ event }: { event: EventItem }) {
       className="cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm transition-all min-w-[220px] w-[65vw] max-w-[280px] shrink-0"
       role="button"
       tabIndex={0}
-      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
+      aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
@@ -691,7 +693,7 @@ function CompactCard({ event }: { event: EventItem }) {
         {/* Title */}
         <div>
           <h3 className={`font-bold text-[14px] leading-snug truncate ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {event.title}{event.opponent ? ` vs ${event.opponent}` : ""}
+            {displayTitle}
           </h3>
           {subtitle && (
             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>

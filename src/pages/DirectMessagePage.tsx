@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search, X } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -24,6 +24,9 @@ import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
+import { ChatImageInput } from "@/components/chat/ChatImageInput";
+import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
@@ -186,6 +189,8 @@ export default function DirectMessagePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -313,7 +318,37 @@ export default function DirectMessagePage() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
-  // Check if DM is allowed (both users in Pro club) - skip for Ignite Support
+  // Find the first club both DM participants share. Used to scope vault picker
+  // and event picker actions inside the "+" menu so users can attach files /
+  // events / live boards even from a 1:1 conversation.
+  const { data: sharedClubId } = useQuery({
+    queryKey: ["dm-shared-club", user?.id, otherUserId],
+    queryFn: async () => {
+      if (!user?.id || !otherUserId) return null;
+      const [mine, theirs] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase.from("user_roles").select("club_id").eq("user_id", otherUserId).not("club_id", "is", null),
+      ]);
+      const mineSet = new Set((mine.data || []).map((r: any) => r.club_id).filter(Boolean));
+      const match = (theirs.data || []).map((r: any) => r.club_id).find((id: string) => id && mineSet.has(id));
+      return (match as string) || null;
+    },
+    enabled: !!user?.id && !!otherUserId && !isIgniteSupportConversation,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // App-admin-controlled per-club / per-user disable of the "+" attachment menu in DMs
+  const { data: attachmentsDisabled } = useQuery({
+    queryKey: ["dm-attachments-disabled", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data, error } = await supabase.rpc("dm_attachments_disabled", { _user_id: user.id });
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!user?.id && !isIgniteSupportConversation,
+    staleTime: 5 * 60 * 1000,
+  });
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
     queryFn: async () => {
@@ -1233,22 +1268,20 @@ export default function DirectMessagePage() {
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
                 <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
-                {dmImageUrl && (
-                  <div className="relative shrink-0 self-end">
-                    <img
-                      src={dmImageUrl}
-                      alt="Attachment preview"
-                      className="h-10 w-10 object-cover rounded"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setDmImageUrl(null)}
-                      className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
-                      aria-label="Remove attachment"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </div>
+                {!isIgniteSupportConversation && !attachmentsDisabled && (
+                  <ChatImageInput
+                    imageUrl={dmImageUrl}
+                    onImageUploaded={setDmImageUrl}
+                    disabled={sendMessageMutation.isPending}
+                    clubId={sharedClubId || undefined}
+                    showEventPicker={!!sharedClubId}
+                    onEventSelect={() => setEventPickerOpen(true)}
+                    showBoardPicker={true}
+                    onBoardPick={() => setBoardPickerOpen(true)}
+                    showVaultPicker={!!sharedClubId}
+                    onAppendToken={(token) => setMessage(message ? `${message} ${token}` : token)}
+                    hasText={!!message.trim()}
+                  />
                 )}
                 <MentionInput
                   value={message}
@@ -1280,6 +1313,27 @@ export default function DirectMessagePage() {
                     clearDraft?.();
                   }}
                 />
+              )}
+              {!isIgniteSupportConversation && (
+                <>
+                  <EventPickerSheet
+                    open={eventPickerOpen}
+                    onOpenChange={setEventPickerOpen}
+                    onSelectEvent={(eventId) => {
+                      const token = `[event:${eventId}]`;
+                      setMessage(message ? `${message} ${token}` : token);
+                    }}
+                    clubId={sharedClubId || undefined}
+                  />
+                  <BoardPickerSheet
+                    open={boardPickerOpen}
+                    onOpenChange={setBoardPickerOpen}
+                    onSelectBoard={(gameId) => {
+                      const token = `[board:${gameId}]`;
+                      setMessage(message ? `${message} ${token}` : token);
+                    }}
+                  />
+                </>
               )}
            </div>
         </>

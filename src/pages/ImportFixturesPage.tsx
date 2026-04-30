@@ -122,7 +122,7 @@ export default function ImportFixturesPage() {
     queryFn: async () => {
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, level_age")
         .eq("club_id", clubId);
       
       if (!teamsData || teamsData.length === 0) return [];
