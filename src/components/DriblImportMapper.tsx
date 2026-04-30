@@ -155,7 +155,12 @@ function normalizeHeader(header: string): string {
     'awaycolors': 'awayTeamColor',
   };
   
-  return mappings[h] || h;
+  if (mappings[h]) return mappings[h];
+  if (h.includes('home') && (h.includes('colour') || h.includes('color'))) return 'homeTeamColor';
+  if (h.includes('away') && (h.includes('colour') || h.includes('color'))) return 'awayTeamColor';
+  if (h.includes('colour') || h.includes('color')) return 'teamColor';
+
+  return h;
 }
 
 // Parse raw rows into structured DriblRow objects
