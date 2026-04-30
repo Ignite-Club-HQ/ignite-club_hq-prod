@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -99,6 +100,9 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   // Dribl-specific state
   const [driblMode, setDriblMode] = useState(false);
   const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
+
+  // Per-team exclusion: team names the user has un-checked in the "Will be imported" list
+  const [excludedTeams, setExcludedTeams] = useState<Set<string>>(new Set());
 
   const validateAndParseRows = (rows: ParsedRow[]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
@@ -367,6 +371,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         setDuplicateFixtures(duplicates);
         setErrors(parseErrors);
         setUpdateDuplicates(false);
+        setExcludedTeams(new Set());
         return;
       }
     }
@@ -376,6 +381,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setDuplicateFixtures([]);
     setErrors(parseErrors);
     setUpdateDuplicates(false);
+    setExcludedTeams(new Set());
   };
 
   const processFile = useCallback(async (selectedFile: File) => {
@@ -489,10 +495,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     }
   }, [processFile]);
 
+  const teamKeyOf = (f: ParsedFixture) => f.teamName || 'No team assigned';
+  const fixturesAfterExclusion = parsedFixtures.filter(f => !excludedTeams.has(teamKeyOf(f)));
+
   const handleImport = async () => {
     if (!user) return;
 
-    const fixturesToInsert = parsedFixtures;
+    const fixturesToInsert = fixturesAfterExclusion;
 
     if (fixturesToInsert.length === 0) return;
 
@@ -614,6 +623,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setUpdateDuplicates(false);
     setDriblMode(false);
     setDriblRawData(null);
+    setExcludedTeams(new Set());
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -734,12 +744,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const totalToImport = parsedFixtures.length;
+  const totalToImport = fixturesAfterExclusion.length;
   const fileType = file?.name.endsWith('.csv') ? 'CSV' : 'Excel';
 
   // Check if all fixtures have valid mandatory fields (conflicts are skipped, not imported)
-  const allFixturesValid = parsedFixtures.every(isFixtureValid);
-  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length;
+  const allFixturesValid = fixturesAfterExclusion.every(isFixtureValid);
+  const invalidCount = fixturesAfterExclusion.filter(f => !isFixtureValid(f)).length;
 
   // If in Dribl mode, show the mapper
   if (driblMode && driblRawData) {
@@ -924,18 +934,59 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               return (
                 <div className="space-y-2">
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
-                    <div>
-                      <p className="text-2xl font-bold text-primary leading-none">{parsedFixtures.length}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Will be imported</p>
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-2xl font-bold text-primary leading-none">{fixturesAfterExclusion.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Will be imported
+                          {excludedTeams.size > 0 && (
+                            <span className="text-muted-foreground/70"> · of {parsedFixtures.length}</span>
+                          )}
+                        </p>
+                      </div>
+                      {importTeams.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => {
+                            if (excludedTeams.size === 0) {
+                              setExcludedTeams(new Set(importTeams.map(([n]) => n)));
+                            } else {
+                              setExcludedTeams(new Set());
+                            }
+                          }}
+                        >
+                          {excludedTeams.size === 0 ? 'Deselect all' : 'Select all'}
+                        </button>
+                      )}
                     </div>
                     {importTeams.length > 0 && (
                       <ul className="text-xs space-y-0.5 pt-1 border-t border-primary/20">
-                        {importTeams.map(([name, count]) => (
-                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
-                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
-                            <span className="text-muted-foreground shrink-0">{count}</span>
-                          </li>
-                        ))}
+                        {importTeams.map(([name, count]) => {
+                          const checked = !excludedTeams.has(name);
+                          return (
+                            <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1.5">
+                              <label className="flex items-start gap-2 min-w-0 flex-1 cursor-pointer">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => {
+                                    setExcludedTeams(prev => {
+                                      const next = new Set(prev);
+                                      if (v) next.delete(name);
+                                      else next.add(name);
+                                      return next;
+                                    });
+                                  }}
+                                  className="mt-0.5 shrink-0"
+                                />
+                                <span className={`font-medium whitespace-normal break-words ${checked ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                                  {name}
+                                </span>
+                              </label>
+                              <span className="text-muted-foreground shrink-0">{count}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
