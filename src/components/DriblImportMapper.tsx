@@ -402,15 +402,16 @@ export function DriblImportMapper({
       const addressParts = [row.ground, row.field].filter(Boolean);
       const address = addressParts.join(' - ');
       
-      // Build title: "Round {N} - {HomeClub} V {AwayClub}" — always use the
-      // actual home/away club names from the source row so the matchup reads
-      // naturally regardless of whether our club is home or away.
+      // Build title: "Round {N} - {OurClub} V {Opponent}" — always put the
+      // importing club first regardless of home/away so the matchup reads
+      // from our perspective.
       const roundLabel = row.round
         ? (/^\d+$/.test(row.round.trim()) ? `Round ${row.round.trim()}` : row.round.trim())
         : null;
-      const homeDisplay = isHome ? clubName : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Home');
-      const awayDisplay = isAway ? clubName : (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Away');
-      const matchup = `${homeDisplay} V ${awayDisplay}`;
+      const opponentDisplay = isHome
+        ? (row.awayClubName || row.awayTeamName || row.awayClubCode || row.awayTeamCode || 'Opponent')
+        : (row.homeClubName || row.homeTeamName || row.homeClubCode || row.homeTeamCode || 'Opponent');
+      const matchup = `${clubName} V ${opponentDisplay}`;
       const title = roundLabel ? `${roundLabel} - ${matchup}` : matchup;
       
       // Parse date (Dribl uses DD/MM/YYYY format typically)
