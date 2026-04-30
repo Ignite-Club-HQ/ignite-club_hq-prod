@@ -208,7 +208,7 @@ function getDriblTeamColorText(row: DriblRow, isHome: boolean): string {
     return Boolean(value) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color'));
   })?.[1];
 
-  return directColor || genericColor || '';
+  return directColor || genericColor || row.teamColor || '';
 }
 
 // Attempt to auto-match Dribl team to Ignite team. We score every team and
