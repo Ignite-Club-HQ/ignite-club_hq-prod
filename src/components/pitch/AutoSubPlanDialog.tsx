@@ -439,6 +439,9 @@ function createSubPlan(
       
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
+        // Starting GK is in the rotation pool but NOT actually available until
+        // they come off goal at halftime — exclude them from H1 sub windows.
+        .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
         .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
         .sort((a, b) => a.time - b.time);
       
