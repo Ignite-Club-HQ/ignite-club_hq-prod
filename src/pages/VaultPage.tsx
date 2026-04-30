@@ -800,20 +800,16 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
-  // Search filtering across folders, photos, and files (case-insensitive)
-  const normalizedSearch = vaultSearchQuery.trim().toLowerCase();
+  // Search filtering across folders, photos, and files (fuzzy + ranked)
+  const normalizedSearch = vaultSearchQuery.trim();
   const displaySubfolders = useMemo(() => {
-    if (!subfolders) return [] as any[];
-    if (!normalizedSearch) return subfolders;
-    return subfolders.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((subfolders || []) as any[], normalizedSearch, (f: any) => f.name || "");
   }, [subfolders, normalizedSearch]);
   const displayPhotos = useMemo(() => {
-    if (!normalizedSearch) return photos;
-    return photos.filter((p: any) => ((p.title || p.name || "")).toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((photos || []) as any[], normalizedSearch, (p: any) => p.title || p.name || "");
   }, [photos, normalizedSearch]);
   const displayFiles = useMemo(() => {
-    if (!normalizedSearch) return files;
-    return files.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((files || []) as any[], normalizedSearch, (f: any) => f.name || "");
   }, [files, normalizedSearch]);
 
   // Trash query - fetches ALL deleted items from vault_files for the current club
