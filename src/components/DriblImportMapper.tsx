@@ -446,22 +446,26 @@ export function DriblImportMapper({
       // Track team mapping
       if (!teamMap.has(driblTeamKey)) {
         const driblTeamColorText = getDriblTeamColorText(row, isHome);
-        const driblTeamDisplay = [
-          row.ageGroup,
-          driblTeamColorText,
-          row.gender,
-          row.division,
-          teamName !== 'Unknown Team' ? teamName : null,
-        ].filter(Boolean).join(' ') || teamName;
+        const fullTeamLabel = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+        const displayParts = fullTeamLabel
+          ? [fullTeamLabel, driblTeamColorText && !fullTeamLabel.toLowerCase().includes(driblTeamColorText.toLowerCase()) ? `(${driblTeamColorText})` : null]
+          : [
+              cleanDriblValue(row.ageGroup),
+              cleanDriblValue(row.gender),
+              cleanDriblValue(row.division),
+              driblTeamColorText,
+              teamName !== 'Unknown Team' ? teamName : null,
+            ];
+        const driblTeamDisplay = displayParts.filter(Boolean).join(' ') || teamName;
 
-        const driblColor = detectTeamColor(driblTeamColorText, teamName, row.division);
+        const driblColor = detectTeamColor(driblTeamColorText, fullTeamLabel, teamName, row.division);
 
         teamMap.set(driblTeamKey, {
           driblTeamKey,
           driblTeamDisplay,
           driblGrade: row.ageGroup || '',
           driblColor,
-          igniteTeamId: autoMatchTeam(row, teamName, driblTeamColorText, teams),
+          igniteTeamId: autoMatchTeam(row, fullTeamLabel || teamName, driblTeamColorText, teams),
           fixtureCount: 0,
         });
       }
