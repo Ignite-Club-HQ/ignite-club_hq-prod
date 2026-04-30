@@ -802,8 +802,8 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
-  // Recursive search - fetch all descendant folders + files when toggle is on
-  const recursiveEnabled = recursiveSearch && vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
+  // Recursive search - always search inside subfolders when a query is active
+  const recursiveEnabled = vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
   const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
     queryKey: [
       "vault-recursive-search",
