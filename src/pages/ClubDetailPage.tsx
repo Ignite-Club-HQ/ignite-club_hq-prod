@@ -144,7 +144,7 @@ export default function ClubDetailPage() {
 
 
   // Fast count-only query for the badge - returns adults, juniors, total, and growth
-  const { data: clubMemberCount } = useQuery({
+  const { data: clubMemberCount, isLoading: isMemberCountLoading } = useQuery({
     queryKey: ["club-members-count", id],
     queryFn: async () => {
       // Get team IDs for this club (exclude deleted teams)
@@ -155,59 +155,55 @@ export default function ClubDetailPage() {
         .is("deleted_at", null);
       const teamIds = teamsData?.map(t => t.id) || [];
 
-      // Count unique adult users from roles
-      const userIdSet = new Set<string>();
-
-      const { data: clubRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("club_id", id!)
-        .is("team_id", null);
-      clubRoles?.forEach(r => userIdSet.add(r.user_id));
-
-      if (teamIds.length > 0) {
-        const { data: teamRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .in("team_id", teamIds);
-        teamRoles?.forEach(r => userIdSet.add(r.user_id));
-      }
-
-      const adults = userIdSet.size;
-
-      // Count unique children assigned to teams in this club
-      let juniors = 0;
-      if (teamIds.length > 0) {
-        const { data: childAssignments } = await supabase
-          .from("child_team_assignments")
-          .select("child_id")
-          .in("team_id", teamIds);
-        const uniqueChildren = new Set(childAssignments?.map(a => a.child_id) || []);
-        juniors = uniqueChildren.size;
-      }
-
-      // Growth this month - count roles created this month
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
       const monthStart = startOfMonth.toISOString();
 
-      let newThisMonth = 0;
-      const { count: newClubRoles } = await supabase
-        .from("user_roles")
-        .select("user_id", { count: "exact", head: true })
-        .eq("club_id", id!)
-        .gte("created_at", monthStart);
-      newThisMonth += newClubRoles || 0;
-
-      if (teamIds.length > 0) {
-        const { count: newTeamRoles } = await supabase
+      // Run all independent queries in parallel
+      const [
+        clubRolesRes,
+        teamRolesRes,
+        childAssignmentsRes,
+        newClubRolesRes,
+        newTeamRolesRes,
+      ] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", id!)
+          .is("team_id", null),
+        teamIds.length > 0
+          ? supabase.from("user_roles").select("user_id").in("team_id", teamIds)
+          : Promise.resolve({ data: [] as { user_id: string }[] }),
+        teamIds.length > 0
+          ? supabase.from("child_team_assignments").select("child_id").in("team_id", teamIds)
+          : Promise.resolve({ data: [] as { child_id: string }[] }),
+        supabase
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
-          .in("team_id", teamIds)
-          .gte("created_at", monthStart);
-        newThisMonth += newTeamRoles || 0;
-      }
+          .eq("club_id", id!)
+          .gte("created_at", monthStart),
+        teamIds.length > 0
+          ? supabase
+              .from("user_roles")
+              .select("user_id", { count: "exact", head: true })
+              .in("team_id", teamIds)
+              .gte("created_at", monthStart)
+          : Promise.resolve({ count: 0 }),
+      ]);
+
+      const userIdSet = new Set<string>();
+      (clubRolesRes.data || []).forEach((r: any) => userIdSet.add(r.user_id));
+      (teamRolesRes.data || []).forEach((r: any) => userIdSet.add(r.user_id));
+      const adults = userIdSet.size;
+
+      const uniqueChildren = new Set(
+        (childAssignmentsRes.data || []).map((a: any) => a.child_id),
+      );
+      const juniors = uniqueChildren.size;
+
+      const newThisMonth = (newClubRolesRes.count || 0) + (newTeamRolesRes.count || 0);
 
       return { adults, juniors, total: adults + juniors, newThisMonth };
     },
