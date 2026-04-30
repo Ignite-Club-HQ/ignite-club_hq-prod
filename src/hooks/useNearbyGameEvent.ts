@@ -29,11 +29,34 @@ async function findActiveGameEventForTeam(teamId: string): Promise<string | null
 
   // Extract linkedEventId from pitch_state
   const pitchState = activeGame.pitch_state as PitchState | null;
-  if (pitchState?.linkedEventId) {
-    return pitchState.linkedEventId;
+  if (!pitchState?.linkedEventId) {
+    return null;
   }
 
-  return null;
+  // Verify the linked event is still within the editable game window.
+  // An active_games row may have been left active from a previous match — only
+  // adopt it if the linked event is actually current.
+  const { data: linkedEvent } = await supabase
+    .from("events")
+    .select("event_date, is_cancelled")
+    .eq("id", pitchState.linkedEventId)
+    .maybeSingle();
+
+  if (!linkedEvent || linkedEvent.is_cancelled) {
+    return null;
+  }
+
+  const eventTime = new Date(linkedEvent.event_date).getTime();
+  const now = Date.now();
+  const inWindow =
+    eventTime - WINDOW_BEFORE_MS <= now && now <= eventTime + WINDOW_AFTER_MS;
+
+  if (!inWindow) {
+    console.log('[NearbyGame] Active game found but linked event outside window, ignoring');
+    return null;
+  }
+
+  return pitchState.linkedEventId;
 }
 
 /**
