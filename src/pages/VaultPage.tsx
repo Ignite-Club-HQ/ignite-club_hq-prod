@@ -36,6 +36,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { VaultFolderCard } from "@/components/vault/VaultFolderCard";
+import { fuzzyFilter } from "@/lib/fuzzySearch";
+import { HighlightedText } from "@/components/vault/HighlightedText";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { removePhotoFromCache } from "@/lib/mediaCache";
 import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
@@ -800,20 +802,16 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
-  // Search filtering across folders, photos, and files (case-insensitive)
-  const normalizedSearch = vaultSearchQuery.trim().toLowerCase();
+  // Search filtering across folders, photos, and files (fuzzy + ranked)
+  const normalizedSearch = vaultSearchQuery.trim();
   const displaySubfolders = useMemo(() => {
-    if (!subfolders) return [] as any[];
-    if (!normalizedSearch) return subfolders;
-    return subfolders.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((subfolders || []) as any[], normalizedSearch, (f: any) => f.name || "");
   }, [subfolders, normalizedSearch]);
   const displayPhotos = useMemo(() => {
-    if (!normalizedSearch) return photos;
-    return photos.filter((p: any) => ((p.title || p.name || "")).toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((photos || []) as any[], normalizedSearch, (p: any) => p.title || p.name || "");
   }, [photos, normalizedSearch]);
   const displayFiles = useMemo(() => {
-    if (!normalizedSearch) return files;
-    return files.filter((f: any) => (f.name || "").toLowerCase().includes(normalizedSearch));
+    return fuzzyFilter((files || []) as any[], normalizedSearch, (f: any) => f.name || "");
   }, [files, normalizedSearch]);
 
   // Trash query - fetches ALL deleted items from vault_files for the current club
@@ -3846,6 +3844,7 @@ export default function VaultPage() {
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
+                  searchQuery={normalizedSearch}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
                   onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
@@ -3863,6 +3862,7 @@ export default function VaultPage() {
           {/* Club-level content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
+              searchQuery={normalizedSearch}
               photos={displayPhotos || []} 
               files={displayFiles || []} 
               onPhotoClick={openLightbox}
@@ -3921,6 +3921,7 @@ export default function VaultPage() {
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
+                  searchQuery={normalizedSearch}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
                   onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
@@ -3938,6 +3939,7 @@ export default function VaultPage() {
           {/* Team content - hide when in trash view */}
           {!showTrash && (
             <ContentSection 
+              searchQuery={normalizedSearch}
               photos={displayPhotos || []} 
               files={displayFiles || []} 
               onPhotoClick={openLightbox}
@@ -3990,6 +3992,7 @@ export default function VaultPage() {
         <div className="space-y-6">
           {/* Mini-league content - photos only for now */}
           <ContentSection 
+            searchQuery={normalizedSearch}
             photos={displayPhotos || []} 
             files={[]} 
             onPhotoClick={openLightbox}
@@ -4956,6 +4959,7 @@ interface ContentSectionProps {
   onRestoreFile?: (id: string) => void;
   onPermanentDeletePhoto?: (id: string) => void;
   onPermanentDeleteFile?: (id: string) => void;
+  searchQuery?: string;
 }
 
 function ContentSection({ 
@@ -4983,6 +4987,7 @@ function ContentSection({
   onRestoreFile,
   onPermanentDeletePhoto,
   onPermanentDeleteFile,
+  searchQuery,
 }: ContentSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
   const [actionSheetFile, setActionSheetFile] = useState<any | null>(null);
@@ -5057,7 +5062,9 @@ function ContentSection({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{file.name}</p>
+                    <p className="font-medium text-sm truncate">
+                      <HighlightedText text={file.name} query={searchQuery} />
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {isExternalLink && externalLinkInfo ? (
                         <span className={externalLinkInfo.color}>{externalLinkInfo.type}</span>
