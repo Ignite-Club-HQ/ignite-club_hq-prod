@@ -203,10 +203,19 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
   });
 }
 
+// Treat Dribl placeholder values like "Not Set" / "N/A" / "-" as empty.
+function cleanDriblValue(value?: string): string {
+  const v = (value || '').trim();
+  if (!v) return '';
+  const lower = v.toLowerCase();
+  if (lower === 'not set' || lower === 'notset' || lower === 'n/a' || lower === 'na' || lower === '-' || lower === 'tbc' || lower === 'tbd') return '';
+  return v;
+}
+
 // Generate a unique key for team matching
 function generateTeamKey(row: DriblRow, isHome: boolean): string {
-  const teamName = isHome ? (row.homeTeamName || row.homeTeamCode) : (row.awayTeamName || row.awayTeamCode);
-  const teamColor = isHome ? row.homeTeamColor : row.awayTeamColor;
+  const teamName = isHome ? (row.homeTeam || row.homeTeamName || row.homeTeamCode) : (row.awayTeam || row.awayTeamName || row.awayTeamCode);
+  const teamColor = getDriblTeamColorText(row, isHome);
   const ageGroup = row.ageGroup || '';
   const division = row.division || '';
   const gender = row.gender || '';
@@ -215,15 +224,31 @@ function generateTeamKey(row: DriblRow, isHome: boolean): string {
   return `${ageGroup}|${division}|${gender}|${teamColor}|${teamName}`.toLowerCase();
 }
 
+// Color in Dribl is in the "Team Group" column (e.g. "Blue", "Navy", "White").
+// Falls back to dedicated colour columns, then to keywords inside the full team name.
 function getDriblTeamColorText(row: DriblRow, isHome: boolean): string {
-  const directColor = isHome ? row.homeTeamColor : row.awayTeamColor;
+  const group = cleanDriblValue(isHome ? row.homeTeamGroup : row.awayTeamGroup);
+  if (group) return group;
+
+  const directColor = cleanDriblValue(isHome ? row.homeTeamColor : row.awayTeamColor);
+  if (directColor) return directColor;
+
   const sidePrefix = isHome ? 'home' : 'away';
   const genericColor = Object.entries(row.rawRow).find(([key, value]) => {
     const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    return Boolean(value) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color'));
+    return Boolean(cleanDriblValue(value)) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color') || normalizedKey.includes('group'));
   })?.[1];
+  const cleanedGeneric = cleanDriblValue(genericColor);
+  if (cleanedGeneric) return cleanedGeneric;
 
-  return directColor || genericColor || row.teamColor || '';
+  // Last resort: scan the full team description (e.g. "Bridgewater JSC Under 8 Mixed Navy")
+  const fullTeam = cleanDriblValue(isHome ? row.homeTeam : row.awayTeam);
+  if (fullTeam) {
+    const detected = detectTeamColor(fullTeam);
+    if (detected) return detected.name;
+  }
+
+  return cleanDriblValue(row.teamColor);
 }
 
 // Attempt to auto-match Dribl team to Ignite team. We score every team and
