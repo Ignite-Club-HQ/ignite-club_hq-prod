@@ -91,6 +91,7 @@ export default function VaultPage() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [vaultSearchQuery, setVaultSearchQuery] = useState("");
 
   const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
   const [fileName, setFileName] = useState("");
