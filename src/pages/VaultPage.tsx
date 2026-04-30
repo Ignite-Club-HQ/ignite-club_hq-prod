@@ -868,11 +868,12 @@ export default function VaultPage() {
       // 2. Fetch files in current folder + all descendant folders
       const folderIdsForFiles = startFolderId ? [startFolderId, ...descendantIds] : descendantIds;
       let fileQuery: any = supabase.from("vault_files").select("*").is("deleted_at", null);
-      if (currentView.type === "club") {
+      const viewType = currentView.type as string;
+      if (viewType === "club") {
         fileQuery = fileQuery.eq("club_id", clubId).is("team_id", null).is("mini_league_id", null);
-      } else if (currentView.type === "team") {
+      } else if (viewType === "team") {
         fileQuery = fileQuery.eq("team_id", teamId);
-      } else if (currentView.type === "mini-league") {
+      } else if (viewType === "mini-league") {
         fileQuery = fileQuery.eq("mini_league_id", miniLeagueId);
       }
       if (startFolderId) {
