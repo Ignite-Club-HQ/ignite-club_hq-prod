@@ -94,7 +94,8 @@ export default function VaultPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
-  useEffect(() => { setVaultSearchQuery(""); }, [currentView]);
+  const [recursiveSearch, setRecursiveSearch] = useState(false);
+  useEffect(() => { setVaultSearchQuery(""); setRecursiveSearch(false); }, [currentView]);
 
   const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
   const [fileName, setFileName] = useState("");
@@ -802,17 +803,116 @@ export default function VaultPage() {
     );
   }, [vaultItems]);
 
+  // Recursive search - fetch all descendant folders + files when toggle is on
+  const recursiveEnabled = recursiveSearch && vaultSearchQuery.trim().length > 0 && currentView.type !== "root" && !showTrash;
+  const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
+    queryKey: [
+      "vault-recursive-search",
+      currentView,
+      isClubAdmin,
+      isCoachOrTeamAdmin,
+      Array.from(userClubRoleSet).sort().join(","),
+    ],
+    queryFn: async () => {
+      const clubId = getCurrentClubId();
+      const teamId = getCurrentTeamId();
+      const miniLeagueId = getCurrentMiniLeagueId();
+      const startFolderId = getCurrentFolderId();
+
+      // 1. Fetch all folders in scope (club/team/mini-league) so we can walk descendants
+      let folderQuery: any = supabase
+        .from("vault_folders")
+        .select("id,name,parent_id,club_id,team_id,restricted_roles");
+      if (currentView.type === "club") {
+        folderQuery = folderQuery.eq("club_id", clubId).is("team_id", null);
+      } else if (currentView.type === "team") {
+        folderQuery = folderQuery.eq("team_id", teamId);
+      } else if (currentView.type === "mini-league") {
+        return { folders: [], files: [] };
+      }
+      const { data: allFoldersRaw } = await folderQuery;
+      const allFolders = (allFoldersRaw || []) as Array<{
+        id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; restricted_roles: string[] | null;
+      }>;
+
+      // Apply role-restriction filtering (mirror non-recursive logic)
+      const isPrivilegedViewer = isAppAdmin || isClubAdmin;
+      const visibleFolders = allFolders.filter((f) => {
+        if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
+        if (isPrivilegedViewer) return true;
+        return f.restricted_roles.some((r) => userClubRoleSet.has(r));
+      });
+
+      // Build descendant set starting at startFolderId (or root if null)
+      const childMap = new Map<string | null, typeof visibleFolders>();
+      for (const f of visibleFolders) {
+        const key = f.parent_id;
+        if (!childMap.has(key)) childMap.set(key, []);
+        childMap.get(key)!.push(f);
+      }
+      const descendants: typeof visibleFolders = [];
+      const pathById = new Map<string, string>();
+      const stack: { id: string | null; path: string }[] = [{ id: startFolderId, path: "" }];
+      while (stack.length) {
+        const { id, path } = stack.pop()!;
+        const kids = childMap.get(id) || [];
+        for (const k of kids) {
+          const kPath = path ? `${path} / ${k.name}` : k.name;
+          descendants.push(k);
+          pathById.set(k.id, kPath);
+          stack.push({ id: k.id, path: kPath });
+        }
+      }
+      const descendantIds = descendants.map((d) => d.id);
+
+      // 2. Fetch files in current folder + all descendant folders
+      const folderIdsForFiles = startFolderId ? [startFolderId, ...descendantIds] : descendantIds;
+      let fileQuery: any = supabase.from("vault_files").select("*").is("deleted_at", null);
+      const viewType = currentView.type as string;
+      if (viewType === "club") {
+        fileQuery = fileQuery.eq("club_id", clubId).is("team_id", null).is("mini_league_id", null);
+      } else if (viewType === "team") {
+        fileQuery = fileQuery.eq("team_id", teamId);
+      } else if (viewType === "mini-league") {
+        fileQuery = fileQuery.eq("mini_league_id", miniLeagueId);
+      }
+      if (startFolderId) {
+        fileQuery = fileQuery.in("folder_id", folderIdsForFiles);
+      }
+      // If no startFolderId, also include root-level (folder_id null) files — fetch all in scope
+      const { data: allFilesRaw } = await fileQuery.order("created_at", { ascending: false });
+      const allFiles = (allFilesRaw || []).map((f: any) => ({
+        ...f,
+        image_url: f.file_url,
+        uploader_id: f.uploaded_by,
+        title: f.name,
+        folder_path: f.folder_id ? pathById.get(f.folder_id) || "" : "",
+      }));
+
+      const foldersWithPath = descendants.map((f) => ({ ...f, folder_path: pathById.get(f.id) || f.name }));
+      return { folders: foldersWithPath, files: allFiles };
+    },
+    enabled: recursiveEnabled,
+  });
+
   // Search filtering across folders, photos, and files (fuzzy + ranked)
   const normalizedSearch = vaultSearchQuery.trim();
+  const searchSourceFolders = recursiveEnabled ? (recursiveData?.folders || []) : (subfolders || []);
+  const searchSourcePhotos = recursiveEnabled
+    ? ((recursiveData?.files || []).filter((f: any) => f.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    : (photos || []);
+  const searchSourceFiles = recursiveEnabled
+    ? ((recursiveData?.files || []).filter((f: any) => !f.file_type?.startsWith("image/") && !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    : (files || []);
   const displaySubfolders = useMemo(() => {
-    return fuzzyFilter((subfolders || []) as any[], normalizedSearch, (f: any) => f.name || "");
-  }, [subfolders, normalizedSearch]);
+    return fuzzyFilter(searchSourceFolders as any[], normalizedSearch, (f: any) => f.name || "");
+  }, [searchSourceFolders, normalizedSearch]);
   const displayPhotos = useMemo(() => {
-    return fuzzyFilter((photos || []) as any[], normalizedSearch, (p: any) => p.title || p.name || "");
-  }, [photos, normalizedSearch]);
+    return fuzzyFilter(searchSourcePhotos as any[], normalizedSearch, (p: any) => p.title || p.name || "");
+  }, [searchSourcePhotos, normalizedSearch]);
   const displayFiles = useMemo(() => {
-    return fuzzyFilter((files || []) as any[], normalizedSearch, (f: any) => f.name || "");
-  }, [files, normalizedSearch]);
+    return fuzzyFilter(searchSourceFiles as any[], normalizedSearch, (f: any) => f.name || "");
+  }, [searchSourceFiles, normalizedSearch]);
 
   // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
@@ -3641,24 +3741,42 @@ export default function VaultPage() {
 
       {/* Search bar — filter folders, files, and photos in the current view */}
       {currentView.type !== "root" && !showTrash && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            value={vaultSearchQuery}
-            onChange={(e) => setVaultSearchQuery(e.target.value)}
-            placeholder="Search folders and files..."
-            className="pl-9 pr-9"
-          />
-          {vaultSearchQuery && (
-            <button
-              type="button"
-              onClick={() => setVaultSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
-              aria-label="Clear search"
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
-          )}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={vaultSearchQuery}
+              onChange={(e) => setVaultSearchQuery(e.target.value)}
+              placeholder={recursiveSearch ? "Search all nested folders..." : "Search this folder..."}
+              className="pl-9 pr-9"
+            />
+            {vaultSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setVaultSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={recursiveSearch}
+                onChange={(e) => setRecursiveSearch(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-input accent-primary"
+              />
+              Search inside subfolders
+            </label>
+            {recursiveEnabled && (
+              <span className="text-xs text-muted-foreground">
+                {isFetchingRecursive ? "Searching…" : `${displaySubfolders.length + displayPhotos.length + displayFiles.length} matches`}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
