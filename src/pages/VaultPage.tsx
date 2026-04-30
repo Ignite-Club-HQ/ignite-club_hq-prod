@@ -3844,6 +3844,7 @@ export default function VaultPage() {
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
+                  searchQuery={normalizedSearch}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
                   onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
@@ -3919,6 +3920,7 @@ export default function VaultPage() {
                 <VaultFolderCard
                   key={folder.id}
                   folder={folder}
+                  searchQuery={normalizedSearch}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
                   onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
