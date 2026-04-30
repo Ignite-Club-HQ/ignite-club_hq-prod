@@ -128,8 +128,10 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     const reminderIdx = header.indexOf('reminder_hours');
 
     const teamNameMap = new Map<string, string>();
+    const teamIdNameMap = new Map<string, string>();
     for (const team of teams) {
       teamNameMap.set(team.name.toLowerCase().trim(), team.id);
+      teamIdNameMap.set(team.id, team.name);
     }
 
     for (let i = 1; i < rows.length; i++) {
@@ -191,6 +193,8 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         }
       }
 
+      const resolvedTeamName = resolvedTeamId ? teamIdNameMap.get(resolvedTeamId) : undefined;
+
       fixtures.push({
         id: crypto.randomUUID(),
         title,
@@ -199,7 +203,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: addressIdx >= 0 ? values[addressIdx]?.toString().trim() : undefined,
         description: descriptionIdx >= 0 ? values[descriptionIdx]?.toString().trim() : undefined,
         reminderHours,
-        teamName: teamNameFromFile,
+        teamName: teamNameFromFile || resolvedTeamName,
         teamId: resolvedTeamId,
         opponent: opponentIdx >= 0 ? values[opponentIdx]?.toString().trim() : undefined,
       });
