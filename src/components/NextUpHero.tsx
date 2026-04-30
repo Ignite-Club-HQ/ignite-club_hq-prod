@@ -156,7 +156,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             <div className="flex items-start justify-between gap-3">
               <h3 className={`text-xl font-bold leading-tight ${event.is_cancelled ? "line-through" : ""}`}>
                 {event.title}
-                {event.opponent ? ` vs ${event.opponent}` : ""}
+                {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
               </h3>
               {event.is_cancelled && (
                 <Badge variant="destructive" className="shrink-0">Cancelled</Badge>

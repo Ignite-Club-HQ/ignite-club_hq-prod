@@ -191,7 +191,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
                     </div>
                     <p className="text-sm font-medium truncate">
                       {event.title}
-                      {event.opponent && (
+                      {shouldAppendOpponent(event) && (
                         <span className="text-muted-foreground font-normal"> vs {event.opponent}</span>
                       )}
                     </p>
