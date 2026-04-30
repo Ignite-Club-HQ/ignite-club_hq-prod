@@ -176,12 +176,24 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
 // Generate a unique key for team matching
 function generateTeamKey(row: DriblRow, isHome: boolean): string {
   const teamName = isHome ? (row.homeTeamName || row.homeTeamCode) : (row.awayTeamName || row.awayTeamCode);
+  const teamColor = isHome ? row.homeTeamColor : row.awayTeamColor;
   const ageGroup = row.ageGroup || '';
   const division = row.division || '';
   const gender = row.gender || '';
   
   // Create a normalized key for matching
-  return `${ageGroup}|${division}|${gender}|${teamName}`.toLowerCase();
+  return `${ageGroup}|${division}|${gender}|${teamColor}|${teamName}`.toLowerCase();
+}
+
+function getDriblTeamColorText(row: DriblRow, isHome: boolean): string {
+  const directColor = isHome ? row.homeTeamColor : row.awayTeamColor;
+  const sidePrefix = isHome ? 'home' : 'away';
+  const genericColor = Object.entries(row.rawRow).find(([key, value]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return Boolean(value) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color'));
+  })?.[1];
+
+  return directColor || genericColor || '';
 }
 
 // Attempt to auto-match Dribl team to Ignite team. We score every team and
@@ -189,10 +201,11 @@ function generateTeamKey(row: DriblRow, isHome: boolean): string {
 function autoMatchTeam(
   row: DriblRow,
   driblTeamName: string,
+  driblTeamColorText: string,
   teams: Team[],
 ): string | null {
   const driblGrade = normalizeGrade(row.ageGroup);
-  const driblColor = detectTeamColor(driblTeamName, row.homeTeamName, row.awayTeamName);
+  const driblColor = detectTeamColor(driblTeamColorText, driblTeamName);
   const keywordParts = [row.division, row.gender]
     .map(p => (p || '').toLowerCase().trim())
     .filter(Boolean);
