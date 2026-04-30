@@ -371,6 +371,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         setDuplicateFixtures(duplicates);
         setErrors(parseErrors);
         setUpdateDuplicates(false);
+        setExcludedTeams(new Set());
         return;
       }
     }
@@ -380,6 +381,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setDuplicateFixtures([]);
     setErrors(parseErrors);
     setUpdateDuplicates(false);
+    setExcludedTeams(new Set());
   };
 
   const processFile = useCallback(async (selectedFile: File) => {
