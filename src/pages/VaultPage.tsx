@@ -4956,6 +4956,7 @@ interface ContentSectionProps {
   onRestoreFile?: (id: string) => void;
   onPermanentDeletePhoto?: (id: string) => void;
   onPermanentDeleteFile?: (id: string) => void;
+  searchQuery?: string;
 }
 
 function ContentSection({ 
@@ -4983,6 +4984,7 @@ function ContentSection({
   onRestoreFile,
   onPermanentDeletePhoto,
   onPermanentDeleteFile,
+  searchQuery,
 }: ContentSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
   const [actionSheetFile, setActionSheetFile] = useState<any | null>(null);
@@ -5057,7 +5059,9 @@ function ContentSection({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{file.name}</p>
+                    <p className="font-medium text-sm truncate">
+                      <HighlightedText text={file.name} query={searchQuery} />
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {isExternalLink && externalLinkInfo ? (
                         <span className={externalLinkInfo.color}>{externalLinkInfo.type}</span>
