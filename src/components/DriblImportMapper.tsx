@@ -484,10 +484,16 @@ export function DriblImportMapper({
                 {finalMappings.map((mapping) => (
                   <div key={mapping.driblTeamKey} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs shrink-0">
                           {mapping.fixtureCount}
                         </Badge>
+                        {mapping.driblGrade && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {mapping.driblGrade}
+                          </Badge>
+                        )}
+                        <ColorSwatch color={mapping.driblColor} />
                         <span className="text-sm truncate">
                           {mapping.driblTeamDisplay}
                         </span>
@@ -503,7 +509,7 @@ export function DriblImportMapper({
                         }));
                       }}
                     >
-                      <SelectTrigger className={`w-[180px] h-10 ${
+                      <SelectTrigger className={`w-[200px] h-10 ${
                         !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
                       }`}>
                         <SelectValue placeholder="Select team" />
@@ -512,11 +518,22 @@ export function DriblImportMapper({
                         <SelectItem value="unmapped">
                           <span className="text-muted-foreground">Skip (no mapping)</span>
                         </SelectItem>
-                        {teams.map(team => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
+                        {teams.map(team => {
+                          const teamColor = detectTeamColor(team.name, team.level_age);
+                          return (
+                            <SelectItem key={team.id} value={team.id}>
+                              <span className="flex items-center gap-2">
+                                {team.level_age && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                    {team.level_age}
+                                  </Badge>
+                                )}
+                                <ColorSwatch color={teamColor} />
+                                <span className="truncate">{team.name}</span>
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
