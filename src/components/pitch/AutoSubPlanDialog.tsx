@@ -454,6 +454,8 @@ function createSubPlan(
         // Starting GK is in the rotation pool but NOT actually available until
         // they come off goal at halftime — exclude them from H1 sub windows.
         .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
+        // Halftime GK substitute is in goal during H2, not on the bench.
+        .filter(p => !(half === 2 && halftimeGkIn && p.id === halftimeGkIn.id))
         .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
         .sort((a, b) => a.time - b.time);
       
