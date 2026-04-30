@@ -58,6 +58,9 @@ interface DriblRow {
   awayClubName?: string;
   awayTeamCode?: string;
   awayTeamName?: string;
+  homeTeamColor?: string;
+  awayTeamColor?: string;
+  teamColor?: string;
   // Computed
   rawRow: Record<string, string>;
 }
@@ -124,13 +127,40 @@ function normalizeHeader(header: string): string {
     'homeclubname': 'homeClubName',
     'hometeamcode': 'homeTeamCode',
     'hometeamname': 'homeTeamName',
+    'hometeamcolour': 'homeTeamColor',
+    'hometeamcolours': 'homeTeamColor',
+    'hometeamcolor': 'homeTeamColor',
+    'hometeamcolors': 'homeTeamColor',
+    'homecolour': 'homeTeamColor',
+    'homecolours': 'homeTeamColor',
+    'homecolor': 'homeTeamColor',
+    'homecolors': 'homeTeamColor',
+    'teamcolour': 'teamColor',
+    'teamcolours': 'teamColor',
+    'teamcolor': 'teamColor',
+    'teamcolors': 'teamColor',
+    'colour': 'teamColor',
+    'color': 'teamColor',
     'awayclubcode': 'awayClubCode',
     'awayclubname': 'awayClubName',
     'awayteamcode': 'awayTeamCode',
     'awayteamname': 'awayTeamName',
+    'awayteamcolour': 'awayTeamColor',
+    'awayteamcolours': 'awayTeamColor',
+    'awayteamcolor': 'awayTeamColor',
+    'awayteamcolors': 'awayTeamColor',
+    'awaycolour': 'awayTeamColor',
+    'awaycolours': 'awayTeamColor',
+    'awaycolor': 'awayTeamColor',
+    'awaycolors': 'awayTeamColor',
   };
   
-  return mappings[h] || h;
+  if (mappings[h]) return mappings[h];
+  if (h.includes('home') && (h.includes('colour') || h.includes('color'))) return 'homeTeamColor';
+  if (h.includes('away') && (h.includes('colour') || h.includes('color'))) return 'awayTeamColor';
+  if (h.includes('colour') || h.includes('color')) return 'teamColor';
+
+  return h;
 }
 
 // Parse raw rows into structured DriblRow objects
@@ -153,7 +183,8 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
           header === 'homeClubCode' || header === 'homeClubName' || 
           header === 'homeTeamCode' || header === 'homeTeamName' ||
           header === 'awayClubCode' || header === 'awayClubName' ||
-          header === 'awayTeamCode' || header === 'awayTeamName') {
+          header === 'awayTeamCode' || header === 'awayTeamName' ||
+          header === 'homeTeamColor' || header === 'awayTeamColor' || header === 'teamColor') {
         (driblRow as any)[header] = value;
       }
     });
@@ -165,12 +196,24 @@ export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] 
 // Generate a unique key for team matching
 function generateTeamKey(row: DriblRow, isHome: boolean): string {
   const teamName = isHome ? (row.homeTeamName || row.homeTeamCode) : (row.awayTeamName || row.awayTeamCode);
+  const teamColor = isHome ? row.homeTeamColor : row.awayTeamColor;
   const ageGroup = row.ageGroup || '';
   const division = row.division || '';
   const gender = row.gender || '';
   
   // Create a normalized key for matching
-  return `${ageGroup}|${division}|${gender}|${teamName}`.toLowerCase();
+  return `${ageGroup}|${division}|${gender}|${teamColor}|${teamName}`.toLowerCase();
+}
+
+function getDriblTeamColorText(row: DriblRow, isHome: boolean): string {
+  const directColor = isHome ? row.homeTeamColor : row.awayTeamColor;
+  const sidePrefix = isHome ? 'home' : 'away';
+  const genericColor = Object.entries(row.rawRow).find(([key, value]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return Boolean(value) && normalizedKey.includes(sidePrefix) && (normalizedKey.includes('colour') || normalizedKey.includes('color'));
+  })?.[1];
+
+  return directColor || genericColor || row.teamColor || '';
 }
 
 // Attempt to auto-match Dribl team to Ignite team. We score every team and
@@ -178,10 +221,11 @@ function generateTeamKey(row: DriblRow, isHome: boolean): string {
 function autoMatchTeam(
   row: DriblRow,
   driblTeamName: string,
+  driblTeamColorText: string,
   teams: Team[],
 ): string | null {
   const driblGrade = normalizeGrade(row.ageGroup);
-  const driblColor = detectTeamColor(driblTeamName, row.homeTeamName, row.awayTeamName);
+  const driblColor = detectTeamColor(driblTeamColorText, driblTeamName);
   const keywordParts = [row.division, row.gender]
     .map(p => (p || '').toLowerCase().trim())
     .filter(Boolean);
@@ -366,21 +410,23 @@ export function DriblImportMapper({
       
       // Track team mapping
       if (!teamMap.has(driblTeamKey)) {
+        const driblTeamColorText = getDriblTeamColorText(row, isHome);
         const driblTeamDisplay = [
           row.ageGroup,
+          driblTeamColorText,
           row.gender,
           row.division,
           teamName !== 'Unknown Team' ? teamName : null,
         ].filter(Boolean).join(' ') || teamName;
 
-        const driblColor = detectTeamColor(teamName, row.ageGroup, row.division);
+        const driblColor = detectTeamColor(driblTeamColorText, teamName, row.division);
 
         teamMap.set(driblTeamKey, {
           driblTeamKey,
           driblTeamDisplay,
           driblGrade: row.ageGroup || '',
           driblColor,
-          igniteTeamId: autoMatchTeam(row, teamName, teams),
+          igniteTeamId: autoMatchTeam(row, teamName, driblTeamColorText, teams),
           fixtureCount: 0,
         });
       }
