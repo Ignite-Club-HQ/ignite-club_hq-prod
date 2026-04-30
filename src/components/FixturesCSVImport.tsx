@@ -21,6 +21,7 @@ import ExcelJS from "exceljs";
 interface Team {
   id: string;
   name: string;
+  level_age?: string | null;
 }
 
 interface FixturesCSVImportProps {

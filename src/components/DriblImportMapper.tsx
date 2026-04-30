@@ -13,10 +13,25 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getSportEmoji } from "@/lib/sportEmojis";
+import { detectTeamColor, normalizeGrade, type TeamColorHint } from "@/lib/teamColor";
 
 interface Team {
   id: string;
   name: string;
+  level_age?: string | null;
+}
+
+// Small inline swatch used in dropdowns and badges
+function ColorSwatch({ color, className = "" }: { color: TeamColorHint | null; className?: string }) {
+  if (!color) return null;
+  return (
+    <span
+      className={`inline-block h-3 w-3 rounded-full border border-border shrink-0 ${className}`}
+      style={{ backgroundColor: color.hex }}
+      title={color.name}
+      aria-label={`${color.name} team`}
+    />
+  );
 }
 
 interface DriblRow {
@@ -62,6 +77,8 @@ interface DriblFixture {
 interface TeamMapping {
   driblTeamKey: string;
   driblTeamDisplay: string; // e.g., "U12 Boys Div 1 - Eagles FC"
+  driblGrade: string; // raw ageGroup from Dribl, for badge
+  driblColor: TeamColorHint | null;
   igniteTeamId: string | null;
   fixtureCount: number;
 }
@@ -156,36 +173,45 @@ function generateTeamKey(row: DriblRow, isHome: boolean): string {
   return `${ageGroup}|${division}|${gender}|${teamName}`.toLowerCase();
 }
 
-// Attempt to auto-match Dribl team to Ignite team
-function autoMatchTeam(teamKey: string, driblDisplay: string, teams: Team[]): string | null {
-  const keyParts = teamKey.split('|').filter(Boolean);
-  
+// Attempt to auto-match Dribl team to Ignite team. We score every team and
+// prefer the highest match (grade + colour + division/gender keyword overlap).
+function autoMatchTeam(
+  row: DriblRow,
+  driblTeamName: string,
+  teams: Team[],
+): string | null {
+  const driblGrade = normalizeGrade(row.ageGroup);
+  const driblColor = detectTeamColor(driblTeamName, row.homeTeamName, row.awayTeamName);
+  const keywordParts = [row.division, row.gender]
+    .map(p => (p || '').toLowerCase().trim())
+    .filter(Boolean);
+
+  let bestId: string | null = null;
+  let bestScore = 0;
+
   for (const team of teams) {
     const teamNameLower = team.name.toLowerCase();
-    
-    // Check if team name contains age group, division, or gender parts
-    let matchScore = 0;
-    for (const part of keyParts) {
-      if (part && teamNameLower.includes(part)) {
-        matchScore++;
-      }
+    const teamGrade = normalizeGrade(team.level_age || team.name);
+    const teamColor = detectTeamColor(team.name, team.level_age);
+
+    let score = 0;
+    // Grade match is the strongest signal — required for a high-confidence match
+    if (driblGrade && teamGrade && driblGrade === teamGrade) score += 5;
+    // Colour distinguishes teams in the same grade
+    if (driblColor && teamColor && driblColor.name === teamColor.name) score += 3;
+    // Keyword overlap (division / gender)
+    for (const part of keywordParts) {
+      if (part && teamNameLower.includes(part)) score += 1;
     }
-    
-    // If at least 2 parts match, consider it a potential match
-    if (matchScore >= 2) {
-      return team.id;
-    }
-    
-    // Also check for exact substring matches
-    const ageGroupMatch = keyParts[0] && teamNameLower.includes(keyParts[0]);
-    const divisionMatch = keyParts[1] && teamNameLower.includes(keyParts[1]);
-    
-    if (ageGroupMatch && divisionMatch) {
-      return team.id;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = team.id;
     }
   }
-  
-  return null;
+
+  // Require at least a grade match (5) before auto-assigning
+  return bestScore >= 5 ? bestId : null;
 }
 
 function normalizeClubValue(value?: string): string {
@@ -346,11 +372,15 @@ export function DriblImportMapper({
           row.division,
           teamName !== 'Unknown Team' ? teamName : null,
         ].filter(Boolean).join(' ') || teamName;
-        
+
+        const driblColor = detectTeamColor(teamName, row.ageGroup, row.division);
+
         teamMap.set(driblTeamKey, {
           driblTeamKey,
           driblTeamDisplay,
-          igniteTeamId: autoMatchTeam(driblTeamKey, driblTeamDisplay, teams),
+          driblGrade: row.ageGroup || '',
+          driblColor,
+          igniteTeamId: autoMatchTeam(row, teamName, teams),
           fixtureCount: 0,
         });
       }
@@ -454,10 +484,16 @@ export function DriblImportMapper({
                 {finalMappings.map((mapping) => (
                   <div key={mapping.driblTeamKey} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs shrink-0">
                           {mapping.fixtureCount}
                         </Badge>
+                        {mapping.driblGrade && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {mapping.driblGrade}
+                          </Badge>
+                        )}
+                        <ColorSwatch color={mapping.driblColor} />
                         <span className="text-sm truncate">
                           {mapping.driblTeamDisplay}
                         </span>
@@ -473,7 +509,7 @@ export function DriblImportMapper({
                         }));
                       }}
                     >
-                      <SelectTrigger className={`w-[180px] h-10 ${
+                      <SelectTrigger className={`w-[200px] h-10 ${
                         !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
                       }`}>
                         <SelectValue placeholder="Select team" />
@@ -482,11 +518,22 @@ export function DriblImportMapper({
                         <SelectItem value="unmapped">
                           <span className="text-muted-foreground">Skip (no mapping)</span>
                         </SelectItem>
-                        {teams.map(team => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
+                        {teams.map(team => {
+                          const teamColor = detectTeamColor(team.name, team.level_age);
+                          return (
+                            <SelectItem key={team.id} value={team.id}>
+                              <span className="flex items-center gap-2">
+                                {team.level_age && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                    {team.level_age}
+                                  </Badge>
+                                )}
+                                <ColorSwatch color={teamColor} />
+                                <span className="truncate">{team.name}</span>
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
