@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatEventTitle } from "@/lib/eventTitle";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -318,6 +319,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
+  const displayTitle = formatEventTitle(event);
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -628,6 +630,7 @@ function CompactCard({ event }: { event: EventItem }) {
   const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
+  const displayTitle = formatEventTitle(event);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
