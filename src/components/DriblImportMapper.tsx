@@ -61,6 +61,10 @@ interface DriblRow {
   homeTeamColor?: string;
   awayTeamColor?: string;
   teamColor?: string;
+  homeTeamGroup?: string;
+  awayTeamGroup?: string;
+  homeTeam?: string;
+  awayTeam?: string;
   // Computed
   rawRow: Record<string, string>;
 }
