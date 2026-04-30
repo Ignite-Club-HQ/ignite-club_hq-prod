@@ -1663,9 +1663,9 @@ export default function ClubDetailPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
-                    <span>{clubMemberCount?.adults ?? 0} Adults</span>
+                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.adults ?? 0} Adults</span>
                     <span>•</span>
-                    <span>{clubMemberCount?.juniors ?? 0} Juniors</span>
+                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.juniors ?? 0} Juniors</span>
                   </div>
                 </div>
               </div>
