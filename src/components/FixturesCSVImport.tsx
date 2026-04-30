@@ -479,76 +479,87 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
 
   const handleImport = async () => {
     if (!user) return;
-    
+
     const fixturesToInsert = parsedFixtures;
-    const fixturesToUpdate = updateDuplicates ? duplicateFixtures : [];
-    
-    if (fixturesToInsert.length === 0 && fixturesToUpdate.length === 0) return;
+
+    if (fixturesToInsert.length === 0) return;
 
     setImporting(true);
     try {
-      let insertedCount = 0;
-      let updatedCount = 0;
+      // Re-check conflicts at import time so a concurrent insert can't slip through.
+      const fixtureTeamIds = Array.from(new Set(
+        fixturesToInsert.map(f => f.teamId || teamId || null).filter(Boolean) as string[]
+      ));
+      const fixtureDates = Array.from(new Set(fixturesToInsert.map(f => f.date)));
 
-      if (fixturesToInsert.length > 0) {
-        const eventsToInsert = fixturesToInsert.map(fixture => {
-          const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
-          return {
-            title: fixture.title,
-            type: 'game' as const,
-            club_id: clubId,
-            team_id: fixture.teamId || teamId || null,
-            event_date: eventDateTime.toISOString(),
-            start_time: eventDateTime.toISOString(),
-            address: fixture.address || null,
-            description: fixture.description || null,
-            created_by: user.id,
-            reminder_hours_before: fixture.reminderHours || null,
-            reminder_sent: false,
-            is_recurring: false,
-            opponent: fixture.opponent || null,
-            is_home_game: fixture.isHomeGame ?? null,
-          };
+      if (fixtureTeamIds.length > 0 && fixtureDates.length > 0) {
+        const minDate = fixtureDates.reduce((a, b) => (a < b ? a : b));
+        const maxDate = fixtureDates.reduce((a, b) => (a > b ? a : b));
+        const startIso = new Date(`${minDate}T00:00:00`).toISOString();
+        const endIso = new Date(`${maxDate}T23:59:59.999`).toISOString();
+
+        const { data: liveExisting, error: checkError } = await supabase
+          .from('events')
+          .select('id, event_date, team_id')
+          .eq('club_id', clubId)
+          .eq('type', 'game')
+          .in('team_id', fixtureTeamIds)
+          .gte('event_date', startIso)
+          .lte('event_date', endIso);
+
+        if (checkError) throw checkError;
+
+        const conflictKeys = new Set(
+          (liveExisting || []).map(e =>
+            `${e.team_id}|${new Date(e.event_date).toISOString().split('T')[0]}`
+          )
+        );
+
+        const blocked = fixturesToInsert.filter(f => {
+          const tId = f.teamId || teamId || null;
+          return tId && conflictKeys.has(`${tId}|${f.date}`);
         });
 
-        const { error: insertError } = await supabase
-          .from('events')
-          .insert(eventsToInsert);
-
-        if (insertError) throw insertError;
-        insertedCount = fixturesToInsert.length;
-      }
-
-      if (fixturesToUpdate.length > 0) {
-        for (const fixture of fixturesToUpdate) {
-          if (!fixture.existingEventId) continue;
-          
-          const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
-          const { error: updateError } = await supabase
-            .from('events')
-            .update({
-              event_date: eventDateTime.toISOString(),
-              start_time: eventDateTime.toISOString(),
-              address: fixture.address || null,
-              description: fixture.description || null,
-              reminder_hours_before: fixture.reminderHours || null,
-              opponent: fixture.opponent || null,
-              is_home_game: fixture.isHomeGame ?? null,
-            })
-            .eq('id', fixture.existingEventId);
-
-          if (updateError) throw updateError;
-          updatedCount++;
+        if (blocked.length > 0) {
+          toast({
+            variant: "destructive",
+            title: "Import blocked",
+            description: `${blocked.length} fixture${blocked.length !== 1 ? 's' : ''} already have a match scheduled on that day. Remove them and try again.`,
+          });
+          setImporting(false);
+          return;
         }
       }
 
-      const messages: string[] = [];
-      if (insertedCount > 0) messages.push(`${insertedCount} created`);
-      if (updatedCount > 0) messages.push(`${updatedCount} updated`);
+      const eventsToInsert = fixturesToInsert.map(fixture => {
+        const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
+        return {
+          title: fixture.title,
+          type: 'game' as const,
+          club_id: clubId,
+          team_id: fixture.teamId || teamId || null,
+          event_date: eventDateTime.toISOString(),
+          start_time: eventDateTime.toISOString(),
+          address: fixture.address || null,
+          description: fixture.description || null,
+          created_by: user.id,
+          reminder_hours_before: fixture.reminderHours || null,
+          reminder_sent: false,
+          is_recurring: false,
+          opponent: fixture.opponent || null,
+          is_home_game: fixture.isHomeGame ?? null,
+        };
+      });
+
+      const { error: insertError } = await supabase
+        .from('events')
+        .insert(eventsToInsert);
+
+      if (insertError) throw insertError;
 
       toast({
         title: "Fixtures imported",
-        description: `Successfully ${messages.join(', ')}`,
+        description: `Successfully created ${eventsToInsert.length} fixture${eventsToInsert.length !== 1 ? 's' : ''}`,
       });
 
       setFile(null);
