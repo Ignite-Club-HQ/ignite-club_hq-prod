@@ -3639,6 +3639,30 @@ export default function VaultPage() {
           </div>
         </div>
       )}
+
+      {/* Search bar — filter folders, files, and photos in the current view */}
+      {currentView.type !== "root" && !showTrash && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={vaultSearchQuery}
+            onChange={(e) => setVaultSearchQuery(e.target.value)}
+            placeholder="Search folders and files..."
+            className="pl-9 pr-9"
+          />
+          {vaultSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setVaultSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-accent"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      )}
+
       {currentView.type === "root" && (
         <div className="space-y-3">
           {isLoadingClubs ? (
