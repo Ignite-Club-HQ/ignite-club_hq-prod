@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatEventTitle } from "@/lib/eventTitle";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -110,6 +111,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const isRecurring = event.is_recurring || event.parent_event_id;
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
   const locationDisplay = event.location_name || event.suburb || event.address?.split(",")[0];
+  const displayTitle = formatEventTitle(event);
 
   // Subtitle: team name for team events, "Club event" for club-wide
   const subtitle = event.teams?.name || (event.team_id ? null : "Club event");
@@ -398,8 +400,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h3 className={`font-bold text-base leading-snug tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-              {event.title}
-              {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
+              {displayTitle}
             </h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
