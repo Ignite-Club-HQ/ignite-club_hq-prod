@@ -700,10 +700,6 @@ export function createSubPlan(
         const playerIn = playerData.find(p => p.id === inId)!;
         const pos = (playerOut.currentPitchPosition || "MID") as PitchPosition;
 
-        if ((globalThis as any).__SUB_DEBUG) {
-          // eslint-disable-next-line no-console
-          console.log(`[sub] t=${t} h=${half} time=${time} OFF=${outId}(proj=${(projected.get(outId)||0)/60}) IN=${inId} fOut=${forcedOutByWindow.get(t)} fIn=${forcedInByWindow.get(t)} oc=${overCap.includes(outId)} gkProtBelow=${gkProtectedOnPitchBelowCeiling}`);
-        }
         plan.push({
           time,
           half,
