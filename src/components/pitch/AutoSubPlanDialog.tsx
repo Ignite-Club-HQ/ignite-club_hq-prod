@@ -1263,10 +1263,19 @@ export function createSubPlan(
       const baseMinutes = (p?.minutesPlayed || 0);
       return baseMinutes + gkDutySeconds(id) + projectedFinalSeconds(id);
     };
+    // GK PROTECTION (Frequent mode): players assigned as GK in either half
+    // should finish at the TOP of the allowed spread band — not the floor.
+    // We lift their total target by the spread cap so the fairness scheduler
+    // treats them as still "owed" minutes until they reach gkCeilingSec.
+    const gkCeilingTotal = sharedTotalTarget + Math.max(0, maxSpreadMinutes * 60) / 2;
     const playerTotalTarget = (id: string) => {
       const p = playerById.get(id);
       const baseMinutes = (p?.minutesPlayed || 0);
-      return Math.max(baseMinutes + gkDutySeconds(id), sharedTotalTarget);
+      const isProtected =
+        (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+        (halftimeGkIn ? id === halftimeGkIn.id : false);
+      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
 
@@ -1281,6 +1290,10 @@ export function createSubPlan(
     const shortfallSpread = Math.max(...shortfallVals) - Math.min(...shortfallVals);
     const capBreached = shortfallSpread > escalationThreshold;
 
+    const isGkProtectedFreq = (id: string) =>
+      (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+      (halftimeGkIn ? id === halftimeGkIn.id : false);
+
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
@@ -1290,6 +1303,15 @@ export function createSubPlan(
           const aS = shortfallsNow.get(a.id) ?? 0;
           const bS = shortfallsNow.get(b.id) ?? 0;
           if (Math.abs(aS - bS) > 15) return bS - aS;
+        }
+        // GK protection: bring protected players on first when both still owe minutes.
+        const aGk = isGkProtectedFreq(a.id) ? 1 : 0;
+        const bGk = isGkProtectedFreq(b.id) ? 1 : 0;
+        if (aGk !== bGk) {
+          const aProj = projectionsNow.get(a.id) ?? 0;
+          const bProj = projectionsNow.get(b.id) ?? 0;
+          if (aGk && aProj < gkCeilingTotal - 30) return -1;
+          if (bGk && bProj < gkCeilingTotal - 30) return 1;
         }
         // Default: pure FIFO queue order — longest-waiting bench player first.
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
@@ -1324,6 +1346,16 @@ export function createSubPlan(
             const aS = shortfallsNow.get(a.playerOut!.id) ?? 0;
             const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
             if (Math.abs(aS - bS) > 15) return aS - bS;
+          }
+          // GK protection: never pull a protected player off until they reach
+          // gkCeilingTotal — pull non-protected players first.
+          const aGk = isGkProtectedFreq(a.playerOut!.id) ? 1 : 0;
+          const bGk = isGkProtectedFreq(b.playerOut!.id) ? 1 : 0;
+          if (aGk !== bGk) {
+            const aProj = projectionsNow.get(a.playerOut!.id) ?? 0;
+            const bProj = projectionsNow.get(b.playerOut!.id) ?? 0;
+            if (aGk && aProj < gkCeilingTotal - 30) return 1;
+            if (bGk && bProj < gkCeilingTotal - 30) return -1;
           }
           // Default: queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
