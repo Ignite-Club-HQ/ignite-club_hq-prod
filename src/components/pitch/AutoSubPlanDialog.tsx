@@ -476,7 +476,17 @@ function createSubPlan(
 
   const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
   const endAbsoluteSeconds = halfDurationSeconds * 2;
-  const maxIntervalSeconds = rotationSpeed === 3 ? 90 : rotationSpeed === 1 ? 180 : 120;
+  // Cap rotation windows based on bench size — small benches don't need many
+  // rotations to achieve fair time. Aim for each bench player to get roughly
+  // 1 (slow) / 1.5 (balanced) / 2 (fast) turns on per half.
+  const benchSize = Math.max(1, outfieldOnBench.length);
+  const turnsPerBenchPlayerPerHalf = rotationSpeed === 3 ? 2 : rotationSpeed === 1 ? 1 : 1.5;
+  const targetWindowsPerHalf = Math.max(1, Math.round(benchSize * turnsPerBenchPlayerPerHalf));
+  // Hard floor on interval so we never sub more often than every ~2 minutes
+  // even with fast rotation, and at least 3 minutes for balanced/slow.
+  const minIntervalFloor = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
+  const intervalFromWindows = halfDurationSeconds / (targetWindowsPerHalf + 1);
+  const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
 
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
