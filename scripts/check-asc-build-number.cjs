@@ -3,7 +3,9 @@
  * App Store Connect build-number precheck.
  *
  * Verifies the build number currently in ios/App/App/Info.plist (CFBundleVersion)
- * has NOT already been used for the app's MARKETING_VERSION on App Store Connect.
+ * has NOT already been used by this app on App Store Connect. This intentionally
+ * checks across all marketing versions because Apple/Transporter can reject reused
+ * CFBundleVersion values with "already been used" during IPA upload.
  *
  * If the build is already used, the script auto-bumps to the next unused build
  * number by repeatedly invoking scripts/bump-ios-version.cjs (which advances the
@@ -212,16 +214,15 @@ async function resolveAppId(jwt) {
 }
 
 /**
- * Returns true if the (version, build) pair is already present on App Store Connect.
+ * Returns true if the build number is already present on App Store Connect for this app.
  *
- * We page through all builds for the app and match preReleaseVersion.version === version
- * and build.version === build. (App Store Connect requires uniqueness of build number
- * within a given marketing version.)
+ * We intentionally check globally across all pre-release versions, not just the current
+ * marketing version, because Transporter rejects duplicate CFBundleVersion values before
+ * the post-upload TestFlight assignment step can recover.
  */
 async function isBuildTaken(appId, version, build, jwt) {
   let url =
     `/v1/builds?filter[app]=${appId}` +
-    `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}` +
     `&filter[version]=${encodeURIComponent(build)}` +
     `&include=preReleaseVersion&limit=200`;
   // Loop pagination just in case
