@@ -608,6 +608,7 @@ export default function EventGroupPitchPage() {
             initialDisableBatchSubs={false}
             initialRotateGkAtHalftime={true}
             initialMinutesPerHalf={leagueSettings?.minutes_per_half || 10}
+            initialMaxSpreadMinutes={(leagueSettings as any)?.max_spread_minutes ?? 5}
             initialTeamSize={initialTeamSize}
             readOnly={!userCanEdit}
             isSubsManager={!!isSubsManagerForGroup}
