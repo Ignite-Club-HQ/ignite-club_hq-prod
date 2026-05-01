@@ -1369,6 +1369,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
 
+  useEffect(() => {
+    if (!isStrictMatchEventRoster || mockMode || realPlayers.length === 0) return;
+
+    setPlayers(prev => {
+      const filtered = applyStrictMatchRoster(prev);
+      return hasSamePlayerOrder(prev, filtered) ? prev : filtered;
+    });
+  }, [isStrictMatchEventRoster, mockMode, realPlayers.length, applyStrictMatchRoster, hasSamePlayerOrder]);
+
   // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
   useEffect(() => {
     if (mockMode || realPlayers.length === 0) return;
