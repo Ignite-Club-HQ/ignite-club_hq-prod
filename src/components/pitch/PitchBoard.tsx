@@ -7125,6 +7125,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onClose={() => setShowLineupPicker(false)}
             onTeamSizeChange={(size) => setTeamSize(size)}
             onFormationChange={(index) => setSelectedFormation(index)}
+            rotationSpeed={rotationSpeed}
+            onRotationSpeedChange={setRotationSpeed}
           />
         </Suspense>
       )}
