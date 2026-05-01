@@ -1217,15 +1217,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
 
-  useEffect(() => {
-    if (!isStrictMatchEventRoster || mockMode || realPlayers.length === 0) return;
-
-    setPlayers(prev => {
-      const filtered = applyStrictMatchRoster(prev);
-      return hasSamePlayerOrder(prev, filtered) ? prev : filtered;
-    });
-  }, [isStrictMatchEventRoster, mockMode, realPlayers.length, applyStrictMatchRoster, hasSamePlayerOrder]);
-  
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
