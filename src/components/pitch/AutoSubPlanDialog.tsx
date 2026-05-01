@@ -406,7 +406,7 @@ export function createSubPlan(
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
       }
     }
-    const protectedGkWindows = [...forcedInByWindow.keys(), ...forcedOutByWindow.keys()];
+    const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
       .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
       .sort((a, b) => a - b);
@@ -494,6 +494,8 @@ export function createSubPlan(
             const onAt = lastSubbedOnAbs.get(id);
             return onAt === undefined || (t - onAt) >= PRACTICAL_RECENT_SUB_PROTECTION_SECONDS;
           })
+          // Keep the nominated 2H GK on until their planned pre-halftime bench window.
+          .filter(id => id !== halftimeGkIn?.id || halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs)
           // Keepers may be subbed off via over-cap once they've cleared the
           // fairness floor — their 20 min in goal already puts them well above.
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
@@ -523,6 +525,7 @@ export function createSubPlan(
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
+            if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
             // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
             // Protect recently-subbed-on players (<4 min on field).
