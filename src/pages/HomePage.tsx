@@ -1271,22 +1271,51 @@ export default function HomePage() {
         findNearbyGameEvent(teamId)
       ]);
 
-      const teamMembers = (membersResult.data || []).map((member) => ({
-        id: member.id,
-        user_id: member.user_id,
-        role: member.role,
-        profiles: member.profiles,
-      }));
+      // STRICT match-day filter: when launched in the context of a match
+      // (linkedEventId), only include players whose RSVP for that event is
+      // "going". Adults (staff) are always included so they can run the
+      // board. Without an event link we keep the full roster.
+      let goingChildIds: Set<string> | null = null;
+      let goingAdultIds: Set<string> | null = null;
+      if (nearbyEventId) {
+        const { data: rsvpRows } = await supabase
+          .from("rsvps")
+          .select("user_id, child_id, status")
+          .eq("event_id", nearbyEventId)
+          .eq("status", "going");
+        goingChildIds = new Set(
+          (rsvpRows || []).map(r => r.child_id).filter((v): v is string => !!v)
+        );
+        goingAdultIds = new Set(
+          (rsvpRows || []).map(r => r.user_id).filter((v): v is string => !!v)
+        );
+      }
 
-      const teamChildren = (childrenResult.data || []).map((child) => ({
-        id: `child-${child.child_id}`,
-        user_id: child.child_id,
-        role: "player",
-        profiles: {
-          display_name: child.child_name,
-          avatar_url: null,
-        },
-      }));
+      const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
+      const teamMembers = (membersResult.data || [])
+        .filter((member) =>
+          !goingAdultIds
+            ? true
+            : STAFF_ROLES.has(member.role) || goingAdultIds.has(member.user_id)
+        )
+        .map((member) => ({
+          id: member.id,
+          user_id: member.user_id,
+          role: member.role,
+          profiles: member.profiles,
+        }));
+
+      const teamChildren = (childrenResult.data || [])
+        .filter((child) => (goingChildIds ? goingChildIds.has(child.child_id) : true))
+        .map((child) => ({
+          id: `child-${child.child_id}`,
+          user_id: child.child_id,
+          role: "player",
+          profiles: {
+            display_name: child.child_name,
+            avatar_url: null,
+          },
+        }));
       
       setPitchBoardTeam({ 
         id: teamId, 
