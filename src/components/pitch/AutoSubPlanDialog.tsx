@@ -550,7 +550,29 @@ export function createSubPlan(
   // Cycles per speed: minimal=1 (longest shifts), balanced=1, fast=2 (shorter shifts)
   // Both minimal and balanced run a single full fairness cycle — they differ in
   // batch size (subsAtOnce), not in window count. Fast doubles rotations.
-  const cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  let cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  // SPREAD CAP ESCALATION: when the user has set a tight max-spread, a single
+  // cycle may not give bench players enough on-pitch time to converge. The
+  // dominant residual spread comes from players "locked out" of part of the
+  // game (e.g. half-game GKs) who need a precise number of outfield turns to
+  // hit their share. Estimate that residual and add cycles until it fits.
+  const maxGkLockoutSeconds = Math.max(
+    0,
+    ...outfieldPlayers.map(p => gkDutySeconds(p.id))
+  );
+  // Residual spread ≈ outfield need a locked-out player misses if we run too
+  // few cycles. A locked-out player needs ~`shareOutfield` minutes; a single
+  // cycle gives them at most one turn (~window length).
+  const targetSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
+  const estimatedResidualSpread = maxGkLockoutSeconds > 0
+    ? Math.min(maxGkLockoutSeconds, halfDurationSeconds * 0.4)
+    : 0;
+  if (estimatedResidualSpread > targetSpreadSeconds) {
+    cycleMultiplier = Math.min(
+      6,
+      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 2)
+    );
+  }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
   // a multiple of N players — this is the ONLY way to get exactly equal time.
   const desiredOffEvents = baseCycleEvents * cycleMultiplier;
@@ -686,23 +708,58 @@ export function createSubPlan(
       return deficit(p.id) / Math.max(1, remain);
     };
 
-    // QUEUE-FIRST with max-spread override.
-    // Default ordering = queue (FIFO). Only escalate by urgency when a player's
-    // projected end-of-game deficit exceeds half the user-configured max spread.
+    // QUEUE-FIRST with hard max-spread cap.
+    // -----------------------------------------------------------------------
+    // The cap is enforced on PROJECTED final minutes (= field minutes already
+    // banked + minutes still to be played if we leave the player in their
+    // current state). When the projected spread between the most-played and
+    // least-played available players would exceed the user cap, we override
+    // queue order and force the worst offenders to swap. Otherwise we keep
+    // pure FIFO queue ordering for predictability.
     const maxSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
-    const escalationThreshold = maxSpreadSeconds / 2;
+    // Escalation kicks in earlier than the hard cap so we have time to correct
+    // before we'd actually breach it.
+    // Use 40% of the cap so corrections start well before the breach.
+    const escalationThreshold = Math.max(30, maxSpreadSeconds * 0.4);
+
+    // Each player has a TARGET total (field + GK duty already received) equal
+    // to the average across the squad. The "shortfall" we want to close is
+    // (target − projected total). When the spread between shortfalls breaches
+    // the cap, override queue order to prioritise the most-shortfall players.
+    const totalProjected = (id: string) => {
+      const p = playerById.get(id);
+      const baseMinutes = (p?.minutesPlayed || 0);
+      return baseMinutes + gkDutySeconds(id) + projectedFinalSeconds(id);
+    };
+    const playerTotalTarget = (id: string) => {
+      const p = playerById.get(id);
+      const baseMinutes = (p?.minutesPlayed || 0);
+      return Math.max(baseMinutes + gkDutySeconds(id), sharedTotalTarget);
+    };
+    const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
+
+    // Snapshot now so we can detect cap breaches.
+    const projectionsNow = new Map<string, number>();
+    const shortfallsNow = new Map<string, number>();
+    outfieldPlayers.forEach(p => {
+      projectionsNow.set(p.id, totalProjected(p.id));
+      shortfallsNow.set(p.id, shortfall(p.id));
+    });
+    const shortfallVals = Array.from(shortfallsNow.values());
+    const shortfallSpread = Math.max(...shortfallVals) - Math.min(...shortfallVals);
+    const capBreached = shortfallSpread > escalationThreshold;
+
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        const aDef = deficit(a.id);
-        const bDef = deficit(b.id);
-        const aOver = aDef > escalationThreshold;
-        const bOver = bDef > escalationThreshold;
-        // If one player is significantly behind their fair share, prioritise them.
-        if (aOver !== bOver) return aOver ? -1 : 1;
-        if (aOver && bOver && Math.abs(aDef - bDef) > 30) return bDef - aDef;
-        // Otherwise pure FIFO queue order — longest-waiting bench player first.
+        if (capBreached) {
+          // Override: bring on the player with the largest shortfall first.
+          const aS = shortfallsNow.get(a.id) ?? 0;
+          const bS = shortfallsNow.get(b.id) ?? 0;
+          if (Math.abs(aS - bS) > 15) return bS - aS;
+        }
+        // Default: pure FIFO queue order — longest-waiting bench player first.
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
       });
 
@@ -718,9 +775,9 @@ export function createSubPlan(
       const playerIn = benchQueue[bi];
       if (usedInIds.has(playerIn.id)) continue;
 
-      // Pitch candidates compatible with this incoming player, sorted by
-      // smallest deficit first (most-overplayed relative to target), then by
-      // longest current shift as queue tiebreaker. Min-shift + bounce-back guards apply.
+      // Pitch candidates compatible with this incoming player.
+      // When cap is breached: pull the highest projected total first.
+      // Otherwise: queue order (longest currently-on-pitch first).
       const eligibleSlots = pitchSlotsWithMeta
         .filter(({ slot, index, playerOut }) =>
           !usedSlotIndexes.has(index) &&
@@ -730,13 +787,13 @@ export function createSubPlan(
           !previousRotationPlayerInIds.has(playerOut!.id)
         )
         .sort((a, b) => {
-          const aDef = deficit(a.playerOut!.id);
-          const bDef = deficit(b.playerOut!.id);
-          const aBelow = aDef > escalationThreshold;
-          const bBelow = bDef > escalationThreshold;
-          // Don't pull a player who's still well below their target unless we have to.
-          if (aBelow !== bBelow) return aBelow ? 1 : -1;
-          // Otherwise queue order — longest currently-on-pitch first.
+          if (capBreached) {
+            // Pull off the player with the SMALLEST shortfall (most over their fair share).
+            const aS = shortfallsNow.get(a.playerOut!.id) ?? 0;
+            const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
+            if (Math.abs(aS - bS) > 15) return aS - bS;
+          }
+          // Default: queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
 
@@ -745,14 +802,16 @@ export function createSubPlan(
       const chosenSlot = eligibleSlots[0];
       const playerOut = chosenSlot.playerOut!;
 
-      // Only commit if this swap improves fairness vs target. Use deficits
-      // instead of raw played-time so GKs aren't churned in for "missing" outfield
-      // minutes that would push them above their fair total.
-      const inDeficit = deficit(playerIn.id);
-      const outDeficit = deficit(playerOut.id);
-      if (inDeficit - outDeficit < 30 && projectedFinalSeconds(playerOut.id) - projectedFinalSeconds(playerIn.id) < 30) {
+      // Only commit if the swap actually narrows the shortfall gap between
+      // these two players. (Avoids churn when shortfalls are already balanced.)
+      const inShortfall = shortfallsNow.get(playerIn.id) ?? 0;
+      const outShortfall = shortfallsNow.get(playerOut.id) ?? 0;
+      const gapBefore = inShortfall - outShortfall;
+      if (gapBefore < 30 && !capBreached) {
         continue;
       }
+      // Hard refusal: never make the spread worse (incoming player already above target).
+      if (gapBefore < 0) continue;
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(playerIn.id);
