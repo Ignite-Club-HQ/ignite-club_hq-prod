@@ -300,13 +300,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
 
-  // Keep `preferredSecondHalfGkId` in sync with the live roster: if the
-  // referenced player no longer exists, has been moved onto the pitch (i.e.
-  // the coach picked a new GK / restructured the lineup), or is the current
-  // starting GK, clear the preference so the planner re-derives a fresh
-  // 2nd-half GK from the current pitch state. Without this, the AutoSubPlan
-  // dialog keeps surfacing a stale "GK 2H" badge after the coach changes
-  // who's keeping goal.
+  // Keep `preferredSecondHalfGkId` in sync with the live roster. A nominated
+  // 2H GK is allowed to start on pitch as an outfielder, so only clear the
+  // preference when the player is gone, injured, or already the 1H GK.
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -573,9 +569,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset player minutes for a fresh game setup
     const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
     setPlayers(freshPlayers);
-    if (secondHalfGkId) {
-      setPreferredSecondHalfGkId(secondHalfGkId);
-    }
+    setPreferredSecondHalfGkId(secondHalfGkId);
     if (firstHalfGkId || secondHalfGkId) {
       console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
     }
@@ -1840,7 +1834,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   useEffect(() => {
     if (!preferredSecondHalfGkId) return;
     const target = players.find((p) => p.id === preferredSecondHalfGkId);
-    if (!target || target.position !== null || target.currentPitchPosition === "GK") {
+    if (!target || target.isInjured || target.currentPitchPosition === "GK") {
       setPreferredSecondHalfGkId(undefined);
     }
   }, [players, preferredSecondHalfGkId]);

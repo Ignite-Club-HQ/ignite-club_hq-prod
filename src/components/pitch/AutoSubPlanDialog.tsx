@@ -22,7 +22,10 @@ interface PlayerTimeForecast {
 function calculateTimeForecasts(
   players: Player[],
   plan: SubstitutionEvent[],
-  minutesPerHalf: number
+  minutesPerHalf: number,
+  preferredSecondHalfGkId?: string,
+  rotateGkAtHalftime: boolean = true,
+  currentHalf: 1 | 2 = 1
 ): PlayerTimeForecast[] {
   const totalGameMinutes = minutesPerHalf * 2;
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -47,12 +50,18 @@ function calculateTimeForecasts(
   const gkSwapSub = startingGk 
     ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
     : null;
+  const preferredSecondHalfGk = preferredSecondHalfGkId
+    ? players.find(p => p.id === preferredSecondHalfGkId && p.id !== startingGk?.id)
+    : undefined;
+  const inferredSecondHalfGk = rotateGkAtHalftime && currentHalf === 1
+    ? preferredSecondHalfGk || gkSwapSub?.playerIn
+    : undefined;
   
   const gkRoles = new Map<string, 'full' | '1h' | '2h'>();
   if (startingGk) {
-    if (gkSwapSub) {
+    if (inferredSecondHalfGk) {
       gkRoles.set(startingGk.id, '1h');
-      gkRoles.set(gkSwapSub.playerIn.id, '2h');
+      gkRoles.set(inferredSecondHalfGk.id, '2h');
     } else {
       gkRoles.set(startingGk.id, 'full');
     }
@@ -2143,8 +2152,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf);
-  }, [plan, players, minutesPerHalf]);
+    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
+  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
   
   const handleGenerate = () => {
     setIsGenerating(true);
