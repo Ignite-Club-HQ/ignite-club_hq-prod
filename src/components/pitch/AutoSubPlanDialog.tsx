@@ -1500,31 +1500,42 @@ function DialogInner({
     return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes);
   };
   
-  // Auto-generate plan on mount if no existing plan
+  // Auto-generate plan on mount AND whenever planner inputs change.
+  // Without this, changing Subs Speed / Max Spread / etc. in the settings
+  // dialog leaves the previously generated plan stale (e.g. Frequent still
+  // showed Balanced's 38 subs because the plan was only generated once).
   useEffect(() => {
-    if (plan === null && !isGenerating && !editMode) {
-      const playersOnP = players.filter(p => p.position !== null);
-      const benchP = players.filter(p => p.position === null);
-      // In mini-league mode, check per-team bench availability
-      const hasEnough = miniLeagueTeams
-        ? playersOnP.length > 0 && benchP.length > 0
-        : playersOnP.length >= teamSize && benchP.length > 0;
-      if (hasEnough) {
-        setIsGenerating(true);
-        setTimeout(() => {
-          try {
-            const generatedPlan = generatePlan(players);
-            setPlan(generatedPlan);
-          } catch (error) {
-            console.error("Error auto-generating plan:", error);
-            setPlan([]);
-          } finally {
-            setIsGenerating(false);
-          }
-        }, 10);
+    if (isGenerating || editMode) return;
+    const playersOnP = players.filter(p => p.position !== null);
+    const benchP = players.filter(p => p.position === null);
+    const hasEnough = miniLeagueTeams
+      ? playersOnP.length > 0 && benchP.length > 0
+      : playersOnP.length >= teamSize && benchP.length > 0;
+    if (!hasEnough) return;
+    setIsGenerating(true);
+    const t = setTimeout(() => {
+      try {
+        const generatedPlan = generatePlan(players);
+        setPlan(generatedPlan);
+      } catch (error) {
+        console.error("Error auto-generating plan:", error);
+        setPlan([]);
+      } finally {
+        setIsGenerating(false);
       }
-    }
-  }, []); // Run once on mount
+    }, 10);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rotationSpeed,
+    maxSpreadMinutes,
+    minutesPerHalf,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    teamSize,
+    preferredSecondHalfGkId,
+  ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
