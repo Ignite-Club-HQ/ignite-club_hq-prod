@@ -433,7 +433,7 @@ export function createSubPlan(
       const tinySquad = outfieldOnBench.length <= 2;
       const h2GkOnOffset = tinySquad ? 2 * 60 : PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h2GkOn = halfDurationSeconds + h2GkOnOffset;
-      if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
+      if (h2GkOn > startAbs) {
         baseWindowTimes.push(Math.floor(h2GkOn));
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
       }
