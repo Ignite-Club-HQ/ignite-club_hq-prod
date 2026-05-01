@@ -896,7 +896,7 @@ export function createSubPlan(
   for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
-    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount);
+    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount, currentSim.shortShiftCount);
     if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
