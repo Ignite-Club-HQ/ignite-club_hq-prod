@@ -570,7 +570,7 @@ export function createSubPlan(
   if (estimatedResidualSpread > targetSpreadSeconds) {
     cycleMultiplier = Math.min(
       6,
-      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 1)
+      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 2)
     );
   }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
