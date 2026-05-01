@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -45,6 +46,8 @@ interface ParsedFixture {
   teamName?: string;
   teamId?: string;
   existingEventId?: string;
+  existingEventTitle?: string;
+  existingEventDate?: string;
   opponent?: string;
   isHomeGame?: boolean;
 }
@@ -98,6 +101,9 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const [driblMode, setDriblMode] = useState(false);
   const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
+  // Per-team exclusion: team names the user has un-checked in the "Will be imported" list
+  const [excludedTeams, setExcludedTeams] = useState<Set<string>>(new Set());
+
   const validateAndParseRows = (rows: ParsedRow[]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
     const errors: ValidationError[] = [];
@@ -126,8 +132,10 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     const reminderIdx = header.indexOf('reminder_hours');
 
     const teamNameMap = new Map<string, string>();
+    const teamIdNameMap = new Map<string, string>();
     for (const team of teams) {
       teamNameMap.set(team.name.toLowerCase().trim(), team.id);
+      teamIdNameMap.set(team.id, team.name);
     }
 
     for (let i = 1; i < rows.length; i++) {
@@ -189,6 +197,8 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         }
       }
 
+      const resolvedTeamName = resolvedTeamId ? teamIdNameMap.get(resolvedTeamId) : undefined;
+
       fixtures.push({
         id: crypto.randomUUID(),
         title,
@@ -197,7 +207,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: addressIdx >= 0 ? values[addressIdx]?.toString().trim() : undefined,
         description: descriptionIdx >= 0 ? values[descriptionIdx]?.toString().trim() : undefined,
         reminderHours,
-        teamName: teamNameFromFile,
+        teamName: teamNameFromFile || resolvedTeamName,
         teamId: resolvedTeamId,
         opponent: opponentIdx >= 0 ? values[opponentIdx]?.toString().trim() : undefined,
       });
@@ -345,6 +355,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
             duplicates.push({
               ...fixture,
               existingEventId: existingEvent.id,
+              existingEventTitle: existingEvent.title,
+              existingEventDate: (() => {
+                const d = new Date(existingEvent.event_date);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              })(),
             });
           } else {
             newFixtures.push(fixture);
@@ -356,6 +371,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         setDuplicateFixtures(duplicates);
         setErrors(parseErrors);
         setUpdateDuplicates(false);
+        setExcludedTeams(new Set());
         return;
       }
     }
@@ -365,6 +381,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setDuplicateFixtures([]);
     setErrors(parseErrors);
     setUpdateDuplicates(false);
+    setExcludedTeams(new Set());
   };
 
   const processFile = useCallback(async (selectedFile: File) => {
@@ -478,10 +495,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     }
   }, [processFile]);
 
+  const teamKeyOf = (f: ParsedFixture) => f.teamName || 'No team assigned';
+  const fixturesAfterExclusion = parsedFixtures.filter(f => !excludedTeams.has(teamKeyOf(f)));
+
   const handleImport = async () => {
     if (!user) return;
 
-    const fixturesToInsert = parsedFixtures;
+    const fixturesToInsert = fixturesAfterExclusion;
 
     if (fixturesToInsert.length === 0) return;
 
@@ -603,6 +623,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     setUpdateDuplicates(false);
     setDriblMode(false);
     setDriblRawData(null);
+    setExcludedTeams(new Set());
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -630,10 +651,13 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   ) => {
     // Convert Dribl fixtures to ParsedFixture format with team IDs
     const mappingLookup = new Map(mappings.map(m => [m.driblTeamKey, m.igniteTeamId]));
+    const teamNameLookup = new Map(teams.map(t => [t.id, t.name]));
     
     const fixtures: ParsedFixture[] = driblFixtures
       .filter(f => mappingLookup.get(f.driblTeamKey)) // Only include fixtures with mapped teams
-      .map(f => ({
+      .map(f => {
+        const mappedTeamId = mappingLookup.get(f.driblTeamKey) || undefined;
+        return ({
         id: f.id,
         title: f.title,
         date: f.date,
@@ -641,9 +665,11 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         address: f.address,
         description: f.description,
         opponent: f.opponent,
-        teamId: mappingLookup.get(f.driblTeamKey) || undefined,
+        teamName: mappedTeamId ? teamNameLookup.get(mappedTeamId) : undefined,
+        teamId: mappedTeamId,
         isHomeGame: f.isHomeGame,
-      }));
+        });
+      });
     
     // Exit Dribl mode and process fixtures normally
     setDriblMode(false);
@@ -718,12 +744,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const totalToImport = parsedFixtures.length;
+  const totalToImport = fixturesAfterExclusion.length;
   const fileType = file?.name.endsWith('.csv') ? 'CSV' : 'Excel';
 
   // Check if all fixtures have valid mandatory fields (conflicts are skipped, not imported)
-  const allFixturesValid = parsedFixtures.every(isFixtureValid);
-  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length;
+  const allFixturesValid = fixturesAfterExclusion.every(isFixtureValid);
+  const invalidCount = fixturesAfterExclusion.filter(f => !isFixtureValid(f)).length;
 
   // If in Dribl mode, show the mapper
   if (driblMode && driblRawData) {
@@ -893,42 +919,155 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               </Alert>
             )}
 
+            {/* Summary banner — clear at-a-glance counts with per-team breakdown */}
+            {(parsedFixtures.length > 0 || duplicateFixtures.length > 0) && (() => {
+              const groupByTeam = (list: ParsedFixture[]) => {
+                const map = new Map<string, number>();
+                for (const f of list) {
+                  const name = f.teamName || 'No team assigned';
+                  map.set(name, (map.get(name) || 0) + 1);
+                }
+                return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+              };
+              const importTeams = groupByTeam(parsedFixtures);
+              const skipTeams = groupByTeam(duplicateFixtures);
+              return (
+                <div className="space-y-2">
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-2xl font-bold text-primary leading-none">{fixturesAfterExclusion.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Will be imported
+                          {excludedTeams.size > 0 && (
+                            <span className="text-muted-foreground/70"> · of {parsedFixtures.length}</span>
+                          )}
+                        </p>
+                      </div>
+                      {importTeams.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => {
+                            if (excludedTeams.size === 0) {
+                              setExcludedTeams(new Set(importTeams.map(([n]) => n)));
+                            } else {
+                              setExcludedTeams(new Set());
+                            }
+                          }}
+                        >
+                          {excludedTeams.size === 0 ? 'Deselect all' : 'Select all'}
+                        </button>
+                      )}
+                    </div>
+                    {importTeams.length > 0 && (
+                      <ul className="text-xs space-y-0.5 pt-1 border-t border-primary/20">
+                        {importTeams.map(([name, count]) => {
+                          const checked = !excludedTeams.has(name);
+                          return (
+                            <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1.5">
+                              <label className="flex items-start gap-2 min-w-0 flex-1 cursor-pointer">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => {
+                                    setExcludedTeams(prev => {
+                                      const next = new Set(prev);
+                                      if (v) next.delete(name);
+                                      else next.add(name);
+                                      return next;
+                                    });
+                                  }}
+                                  className="mt-0.5 shrink-0"
+                                />
+                                <span className={`font-medium whitespace-normal break-words ${checked ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                                  {name}
+                                </span>
+                              </label>
+                              <span className="text-muted-foreground shrink-0">{count}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  <div className={`rounded-lg border p-3 space-y-2 ${duplicateFixtures.length > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-muted bg-muted/30'}`}>
+                    <div>
+                      <p className={`text-2xl font-bold leading-none ${duplicateFixtures.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {duplicateFixtures.length}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Skipped (already exists)</p>
+                    </div>
+                    {skipTeams.length > 0 && (
+                      <ul className="text-xs space-y-0.5 pt-1 border-t border-destructive/20">
+                        {skipTeams.map(([name, count]) => (
+                           <li key={name} className="flex items-start justify-between gap-3 rounded-md bg-background/40 px-2 py-1">
+                             <span className="text-foreground font-medium whitespace-normal break-words">{name}</span>
+                            <span className="text-muted-foreground shrink-0">{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* New fixtures preview */}
             {parsedFixtures.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  {parsedFixtures.length} new fixture{parsedFixtures.length !== 1 ? 's' : ''}
-                </p>
-                <FixturePreviewEditor
-                  fixtures={parsedFixtures}
-                  onUpdate={setParsedFixtures}
-                />
-              </div>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between h-10">
+                    <span className="text-sm">View {parsedFixtures.length} fixture{parsedFixtures.length !== 1 ? 's' : ''} to import</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <FixturePreviewEditor
+                    fixtures={parsedFixtures}
+                    onUpdate={setParsedFixtures}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
-            {/* Conflicting fixtures (existing match on same day for same team) */}
+            {/* Skipped fixtures (existing match on same day for same team) */}
             {duplicateFixtures.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <p className="text-sm font-medium">
-                      {duplicateFixtures.length} fixture{duplicateFixtures.length !== 1 ? 's' : ''} skipped — a match already exists on that day for the team.
-                    </p>
-                    <p className="text-xs mt-1 opacity-80">
-                      Imports cannot overwrite existing matches. Delete or edit the existing event first if you need to replace it.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-                <ul className="text-xs text-muted-foreground space-y-1 pl-1">
-                  {duplicateFixtures.slice(0, 6).map((f, i) => (
-                    <li key={i}>• {f.date} — {f.title}</li>
-                  ))}
-                  {duplicateFixtures.length > 6 && (
-                    <li>+ {duplicateFixtures.length - 6} more</li>
-                  )}
-                </ul>
-              </div>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between h-10 border-destructive/30 text-destructive hover:text-destructive">
+                    <span className="text-sm">View {duplicateFixtures.length} skipped fixture{duplicateFixtures.length !== 1 ? 's' : ''}</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    These fixtures were skipped because a match already exists on that day for the team. Delete or edit the existing event first if you need to replace it.
+                  </p>
+                  <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {duplicateFixtures.map((f, i) => (
+                      <li key={i} className="rounded-md border border-border/50 bg-muted/30 p-3 text-xs space-y-2">
+                        <div className="pb-2 border-b border-border/40 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Team skipped</p>
+                          <p className="text-sm font-semibold text-foreground whitespace-normal break-words">
+                            {f.teamName || 'No team assigned'}
+                          </p>
+                          <p className="text-muted-foreground">{f.date}</p>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-destructive font-medium shrink-0">Skipped:</span>
+                          <span className="text-foreground">{f.title}</span>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-muted-foreground shrink-0">Existing:</span>
+                          <span className="text-muted-foreground">
+                            {f.existingEventTitle || '(existing match)'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Actions */}

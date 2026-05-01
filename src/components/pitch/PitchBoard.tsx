@@ -4271,6 +4271,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 Link
               </Button>
             )}
+            {!readOnly && !subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                onClick={handleSetupGame}
+              >
+                <Play className="h-4 w-4" />
+                Setup
+              </Button>
+            )}
             {!readOnly && (
               <>
                 <div className="w-px h-6 bg-border mx-1" />
@@ -5673,6 +5684,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               onClose={() => setShowLineupPicker(false)}
               onTeamSizeChange={(size) => setTeamSize(size)}
               onFormationChange={(index) => setSelectedFormation(index)}
+              rotationSpeed={rotationSpeed}
+              onRotationSpeedChange={setRotationSpeed}
             />
           </Suspense>
         )}
@@ -5801,6 +5814,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               >
                 <Users className="h-4 w-4" />
                 {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+              </Button>
+            )}
+            {!subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 gap-1 px-2 text-xs"
+                onClick={handleSetupGame}
+              >
+                <Play className="h-4 w-4" />
+                Setup
               </Button>
             )}
             <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
@@ -7101,6 +7125,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onClose={() => setShowLineupPicker(false)}
             onTeamSizeChange={(size) => setTeamSize(size)}
             onFormationChange={(index) => setSelectedFormation(index)}
+            rotationSpeed={rotationSpeed}
+            onRotationSpeedChange={setRotationSpeed}
           />
         </Suspense>
       )}

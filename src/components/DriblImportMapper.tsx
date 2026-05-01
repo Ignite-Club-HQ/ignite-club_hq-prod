@@ -566,10 +566,14 @@ export function DriblImportMapper({
             </p>
             
             <ScrollArea className="h-[60vh] max-h-[600px] pr-2">
-              <div className="space-y-3 pr-2">
+              <div className="space-y-2 pr-2">
                 {finalMappings.map((mapping) => (
-                  <div key={mapping.driblTeamKey} className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
+                  <div
+                    key={mapping.driblTeamKey}
+                    className="rounded-lg border bg-card p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3"
+                  >
+                    {/* Dribl team (left) */}
+                    <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs shrink-0">
                           {mapping.fixtureCount}
@@ -580,48 +584,53 @@ export function DriblImportMapper({
                           </Badge>
                         )}
                         <ColorSwatch color={mapping.driblColor} />
-                        <span className="text-sm truncate">
-                          {mapping.driblTeamDisplay}
-                        </span>
                       </div>
+                      <p className="text-sm font-medium break-words">
+                        {mapping.driblTeamDisplay}
+                      </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <Select
-                      value={mapping.igniteTeamId || "unmapped"}
-                      onValueChange={(value) => {
-                        setMappingOverrides(prev => ({
-                          ...prev,
-                          [mapping.driblTeamKey]: value === "unmapped" ? null : value,
-                        }));
-                      }}
-                    >
-                      <SelectTrigger className={`w-[200px] h-10 ${
-                        !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
-                      }`}>
-                        <SelectValue placeholder="Select team" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unmapped">
-                          <span className="text-muted-foreground">Skip (no mapping)</span>
-                        </SelectItem>
-                        {teams.map(team => {
-                          const teamColor = detectTeamColor(team.name, team.level_age);
-                          return (
-                            <SelectItem key={team.id} value={team.id}>
-                              <span className="flex items-center gap-2">
-                                {team.level_age && (
-                                  <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
-                                    {team.level_age}
-                                  </Badge>
-                                )}
-                                <ColorSwatch color={teamColor} />
-                                <span className="truncate">{team.name}</span>
-                              </span>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground hidden sm:block" />
+
+                    {/* Ignite team selector (right) */}
+                    <div className="w-full sm:w-[260px] shrink-0">
+                      <Select
+                        value={mapping.igniteTeamId || "unmapped"}
+                        onValueChange={(value) => {
+                          setMappingOverrides(prev => ({
+                            ...prev,
+                            [mapping.driblTeamKey]: value === "unmapped" ? null : value,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className={`w-full h-auto min-h-10 py-2 ${
+                          !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
+                        }`}>
+                          <SelectValue placeholder="Select team" />
+                        </SelectTrigger>
+                        <SelectContent className="max-w-[90vw]">
+                          <SelectItem value="unmapped">
+                            <span className="text-muted-foreground">Skip (no mapping)</span>
+                          </SelectItem>
+                          {teams.map(team => {
+                            const teamColor = detectTeamColor(team.name, team.level_age);
+                            return (
+                              <SelectItem key={team.id} value={team.id}>
+                                <span className="flex items-center gap-2">
+                                  {team.level_age && (
+                                    <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                      {team.level_age}
+                                    </Badge>
+                                  )}
+                                  <ColorSwatch color={teamColor} />
+                                  <span>{team.name}</span>
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Minus, Scale, Equal, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -20,6 +20,11 @@ interface PreGameLineupScreenProps {
   onClose: () => void;
   onTeamSizeChange?: (size: TeamSize) => void;
   onFormationChange?: (index: number) => void;
+  /** Auto-sub rotation speed: 1 = Minimal, 2 = Balanced, 3 = Batch.
+   *  When provided alongside onRotationSpeedChange, an inline picker is shown
+   *  so coaches can tune sub frequency without leaving the lineup screen. */
+  rotationSpeed?: number;
+  onRotationSpeedChange?: (speed: number) => void;
 }
 
 interface FormationSlot {
@@ -71,6 +76,8 @@ export default function PreGameLineupScreen({
   onClose,
   onTeamSizeChange,
   onFormationChange,
+  rotationSpeed,
+  onRotationSpeedChange,
 }: PreGameLineupScreenProps) {
   const formation = FORMATIONS[teamSize][selectedFormation];
   const hasGk = !["3", "4", "5", "6"].includes(teamSize);
@@ -94,6 +101,14 @@ export default function PreGameLineupScreen({
 
   // GK rotation toggle state - starts with the prop value
   const [rotateGk, setRotateGk] = useState(rotateGkAtHalftime);
+
+  // Collapsible setup sections — collapsed by default to maximise pitch room.
+  // Each opens independently so coaches can tweak without losing the others.
+  const [openSection, setOpenSection] = useState<null | "size" | "formation" | "subs">(null);
+  const toggleSection = useCallback((s: "size" | "formation" | "subs") => {
+    setOpenSection(prev => (prev === s ? null : s));
+  }, []);
+  const subsSpeedLabel = rotationSpeed === 1 ? "Minimal" : rotationSpeed === 3 ? "Batch" : "Balanced";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -503,50 +518,165 @@ export default function PreGameLineupScreen({
 
       {/* Main content - fully scrollable */}
       <div className="flex-1 min-h-0 overflow-y-auto" style={{ touchAction: isDragging ? 'none' : undefined }}>
-        {/* Team size & formation selectors */}
-        <div className="px-4 py-2 space-y-2 border-b border-border bg-muted/20">
-          <div className="space-y-1">
-            <Label id="team-size-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</Label>
-            <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-labelledby="team-size-label">
-              {TEAM_SIZES.map(size => (
-                <button
-                  key={size}
-                  className={cn(
-                    "flex-1 min-h-[44px] text-sm font-medium transition-colors",
-                    size === teamSize
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background hover:bg-muted text-foreground"
-                  )}
-                  aria-label={`${size} players per team`}
-                  aria-pressed={size === teamSize}
-                  onClick={() => handleTeamSizeChange(size)}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
+        {/* Setup sections — collapsed by default so the pitch dominates the
+            viewport. Tap a row to expand; only one is open at a time. */}
+        <div className="border-b border-border bg-muted/20 divide-y divide-border/60">
+          {/* Players per Team */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection("size")}
+              aria-expanded={openSection === "size"}
+              aria-controls="setup-section-size"
+              className="w-full flex items-center justify-between px-4 py-2 min-h-[40px] text-left hover:bg-muted/40 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">{teamSize}</span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  openSection === "size" && "rotate-180"
+                )}
+              />
+            </button>
+            {openSection === "size" && (
+              <div id="setup-section-size" className="px-4 pb-2">
+                <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-label="Players per team">
+                  {TEAM_SIZES.map(size => (
+                    <button
+                      key={size}
+                      className={cn(
+                        "flex-1 min-h-[44px] text-sm font-medium transition-colors",
+                        size === teamSize
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background hover:bg-muted text-foreground"
+                      )}
+                      aria-label={`${size} players per team`}
+                      aria-pressed={size === teamSize}
+                      onClick={() => handleTeamSizeChange(size)}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="space-y-1">
-            <Label id="formation-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
-            <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-labelledby="formation-label">
-              {formations.map((f, i) => (
-                <button
-                  key={i}
-                  className={cn(
-                    "flex-1 min-h-[44px] text-sm font-medium transition-colors",
-                    i === selectedFormation
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background hover:bg-muted text-foreground"
-                  )}
-                  aria-label={`Formation ${f.name}`}
-                  aria-pressed={i === selectedFormation}
-                  onClick={() => handleFormationChange(i)}
-                >
-                  {f.name}
-                </button>
-              ))}
-            </div>
+
+          {/* Formation */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection("formation")}
+              aria-expanded={openSection === "formation"}
+              aria-controls="setup-section-formation"
+              className="w-full flex items-center justify-between px-4 py-2 min-h-[40px] text-left hover:bg-muted/40 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {formations[selectedFormation]?.name ?? "—"}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  openSection === "formation" && "rotate-180"
+                )}
+              />
+            </button>
+            {openSection === "formation" && (
+              <div id="setup-section-formation" className="px-4 pb-2">
+                <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-label="Formation">
+                  {formations.map((f, i) => (
+                    <button
+                      key={i}
+                      className={cn(
+                        "flex-1 min-h-[44px] text-sm font-medium transition-colors",
+                        i === selectedFormation
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background hover:bg-muted text-foreground"
+                      )}
+                      aria-label={`Formation ${f.name}`}
+                      aria-pressed={i === selectedFormation}
+                      onClick={() => handleFormationChange(i)}
+                    >
+                      {f.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Subs Speed — coaches can tune rotation cadence without leaving this screen. */}
+          {typeof rotationSpeed === "number" && onRotationSpeedChange && (
+            <div>
+              <button
+                type="button"
+                onClick={() => toggleSection("subs")}
+                aria-expanded={openSection === "subs"}
+                aria-controls="setup-section-subs"
+                className="w-full flex items-center justify-between px-4 py-2 min-h-[40px] text-left hover:bg-muted/40 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Subs Speed</span>
+                  <span className="text-sm font-semibold text-foreground">{subsSpeedLabel}</span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    openSection === "subs" && "rotate-180"
+                  )}
+                />
+              </button>
+              {openSection === "subs" && (
+                <div id="setup-section-subs" className="px-4 pb-2">
+                  <div
+                    className="flex rounded-lg border border-border overflow-hidden"
+                    role="group"
+                    aria-label="Subs speed"
+                  >
+                    {[
+                      { value: 1, label: "Minimal", Icon: Minus, hint: "1 sub / window" },
+                      { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
+                      { value: 3, label: "Batch", Icon: Equal, hint: "3 subs / window" },
+                    ].map(({ value, label, Icon, hint }) => {
+                      const active = rotationSpeed === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className={cn(
+                            "flex-1 min-h-[44px] px-1 text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5",
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background hover:bg-muted text-foreground"
+                          )}
+                          aria-label={`${label} subs speed — ${hint}`}
+                          aria-pressed={active}
+                          onClick={() => onRotationSpeedChange(value)}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5" />
+                            {label}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] leading-none",
+                            active ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}>
+                            {hint}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Formation visual - mini pitch with color-coded slots */}

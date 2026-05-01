@@ -180,7 +180,7 @@ export function PitchSettingsDialog({
         </Button>
       )}
         <ResponsiveDialogContent 
-          className="z-[99999] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
+          className="z-[1000001] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
         >
           <ResponsiveDialogHeader className="shrink-0 pb-2">
             <ResponsiveDialogTitle className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export function PitchSettingsDialog({
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
+                    <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
                       <SelectItem value="3">3-a-side</SelectItem>
                       <SelectItem value="4">4-a-side</SelectItem>
                       <SelectItem value="5">5-a-side</SelectItem>
@@ -271,7 +271,7 @@ export function PitchSettingsDialog({
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
+                    <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
                       {formations.map((f, i) => (
                         <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
                       ))}
@@ -291,7 +291,7 @@ export function PitchSettingsDialog({
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
+                    <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
                       <SelectItem value="5">5 min</SelectItem>
                       <SelectItem value="10">10 min</SelectItem>
                       <SelectItem value="15">15 min</SelectItem>
@@ -317,7 +317,7 @@ export function PitchSettingsDialog({
                         {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Batch' : 'Balanced'}
                       </SelectValue>
                     </SelectTrigger>
-                     <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
+                     <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
                       <SelectItem value="1">
                         <div className="flex items-center gap-2">
                           <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

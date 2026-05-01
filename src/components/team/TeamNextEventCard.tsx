@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { shouldAppendOpponent } from "@/lib/eventTitle";
 
 interface TeamNextEventCardProps {
   teamId: string;
@@ -76,7 +77,7 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
             </div>
             <p className="font-semibold text-sm truncate">
               {nextEvent.title}
-              {nextEvent.opponent && (
+              {shouldAppendOpponent(nextEvent) && (
                 <span className="text-muted-foreground font-normal"> vs {nextEvent.opponent}</span>
               )}
             </p>

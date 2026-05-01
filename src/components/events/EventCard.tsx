@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
+import { detectTeamColor } from "@/lib/teamColor";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -384,17 +385,51 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
-        {/* Row 0: Team / scope chip — prominent so it's instantly scannable */}
-        {subtitle && (
-          <div className="flex items-center gap-1.5">
-            <Badge
-              variant="secondary"
-              className="text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
-            >
-              {subtitle}
-            </Badge>
-          </div>
-        )}
+        {/* Row 0: Team / scope chip — colored by detected team colour for fast visual differentiation */}
+        {subtitle && (() => {
+          const teamColor = event.teams?.name ? detectTeamColor(event.teams.name) : null;
+          // Detect very light colours (e.g. White) where coloured text would be unreadable
+          // on a white card. Fall back to foreground text but keep the colour dot.
+          const isLightColor = (hex: string) => {
+            const h = hex.replace("#", "");
+            const r = parseInt(h.substring(0, 2), 16);
+            const g = parseInt(h.substring(2, 4), 16);
+            const b = parseInt(h.substring(4, 6), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance > 0.85;
+          };
+          const lightColor = teamColor ? isLightColor(teamColor.hex) : false;
+          const chipStyle = teamColor
+            ? {
+                backgroundColor: lightColor ? undefined : `${teamColor.hex}26`, // ~15% alpha
+                color: lightColor ? undefined : teamColor.hex,
+                borderColor: lightColor ? undefined : `${teamColor.hex}66`, // ~40% alpha
+              }
+            : undefined;
+          return (
+            <div className="flex items-center gap-1.5">
+              <Badge
+                variant="secondary"
+                style={chipStyle}
+                className={
+                  teamColor
+                    ? lightColor
+                      ? "text-[11px] h-5 px-2 font-semibold bg-muted text-foreground border border-border max-w-full truncate inline-flex items-center gap-1.5"
+                      : "text-[11px] h-5 px-2 font-semibold border max-w-full truncate inline-flex items-center gap-1.5"
+                    : "text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
+                }
+              >
+                {teamColor && (
+                  <span
+                    className="inline-block h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: teamColor.hex, boxShadow: `0 0 0 1px ${teamColor.hex}99` }}
+                  />
+                )}
+                {subtitle}
+              </Badge>
+            </div>
+          );
+        })()}
 
         {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">

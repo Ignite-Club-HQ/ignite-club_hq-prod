@@ -354,18 +354,21 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm truncate">{fixture.title}</span>
+                  <div className="space-y-1">
                     {showTeamBadge && fixture.teamName && (
-                      <Badge variant="secondary" className="text-xs">
-                        {fixture.teamName}
-                      </Badge>
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Team importing</span>
+                        <p className="font-semibold text-sm text-foreground whitespace-normal break-words">{fixture.teamName}</p>
+                      </div>
                     )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm whitespace-normal break-words">{fixture.title}</span>
                     {isDuplicate && (
                       <Badge variant="outline" className="text-xs border-amber-500/30">
                         Existing
                       </Badge>
                     )}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {fixture.date} at {fixture.time}

@@ -183,15 +183,38 @@ function createSubPlan(
   const gkOnBench = preferredSecondHalfGkId
     ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
     : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
+
+  const preferredOnPitchGk = preferredSecondHalfGkId
+    ? playersOnPitch.find(p => p.id === preferredSecondHalfGkId && p.currentPitchPosition !== "GK")
+    : undefined;
+  const predictedFallbackGk = !gkOnBench && !preferredOnPitchGk && rotateGkAtHalftime && gkOnPitch
+    ? benchPlayers.find(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length) || null
+    : null;
+  const halftimeGkIn = rotateGkAtHalftime && gkOnPitch && startHalf === 1
+    ? (gkOnBench || preferredOnPitchGk || predictedFallbackGk || null)
+    : null;
   
+  // Determine whether the starting GK will be rotated out at halftime — if so,
+  // they need to be eligible for H2 outfield rotation, otherwise they sit the
+  // entire 2nd half (e.g. starting GK gets 50% while everyone else gets 67–83%).
+  const startingGkWillRotate = !!(rotateGkAtHalftime && gkOnPitch && startHalf === 1);
+  const startingGkCanPlayOutfield = !!gkOnPitch;
+  const includeStartingGkInRotation = startingGkWillRotate && startingGkCanPlayOutfield;
+
   const outfieldPlayers = playerData.filter(p => {
-    if (p.currentPitchPosition === "GK") return false;
+    if (p.currentPitchPosition === "GK") {
+      // Include the starting GK in the rotation pool so they can come on as
+      // an outfielder in the 2nd half after the halftime GK swap.
+      return includeStartingGkInRotation;
+    }
+    if (halftimeGkIn && p.id === halftimeGkIn.id) return true;
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
-  
+
   const outfieldOnPitch = playersOnPitch.filter(p => p.currentPitchPosition !== "GK");
   const outfieldOnBench = benchPlayers.filter(p => {
+    if (halftimeGkIn && p.id === halftimeGkIn.id) return true;
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
@@ -215,7 +238,7 @@ function createSubPlan(
   const remainingInCurrentHalf = halfDurationSeconds - clampedStartElapsed;
   const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
   const totalRemainingSeconds = Math.max(remainingHalves, 0);
-  const fieldPositions = teamSize - 1; // minus GK
+  const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
   
   // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
@@ -383,9 +406,435 @@ function createSubPlan(
   // Threshold: subs within this many seconds of half-end get snapped
   const END_OF_HALF_SNAP_THRESHOLD = 60;
 
+  // FAIRNESS TARGET: balance TOTAL minutes, not just outfield minutes. A player
+  // doing a half in goal already has that GK time banked, so their outfield
+  // target is the shared total target minus their GK duty. This gives GKs real
+  // field time without forcing them 5-10 minutes above everyone else.
+  const averageTotalSecondsPerPlayer = playerData.length > 0
+    ? (totalRemainingSeconds * teamSize) / playerData.length
+    : 0;
+  const isGkPlayer = (id: string) =>
+    (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+    (halftimeGkIn ? id === halftimeGkIn.id : false);
+  const gkDutySeconds = (id: string) => {
+    let duty = 0;
+    if (startingGkWillRotate && id === gkOnPitch?.id) {
+      duty += Math.max(0, halfDurationSeconds - startElapsedSeconds);
+    }
+    if (halftimeGkIn && id === halftimeGkIn.id) {
+      duty += halfDurationSeconds;
+    }
+    return duty;
+  };
+  // FAIRNESS RULE: every player's TOTAL minutes target (field + GK duty) is
+  // equal. GKs do NOT get extra total minutes — that would mean less time for
+  // outfielders. Instead, GKs get a tiebreaker priority bonus in the scheduler
+  // (see scoring below) so when needs are equal, the GK is rotated on first,
+  // landing them at "equal top" of the playing time list rather than below.
+  const fieldTargetSeconds = (id: string) =>
+    Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
+  // Adjusted time for sorting: players above their personal target are picked
+  // off first; players furthest below target are picked on first.
+  const adjustedTime = (id: string) =>
+    (playingTime.get(id) || 0) - fieldTargetSeconds(id);
+
+  const canUseInOutfield = (player: Player, position?: PitchPosition) => {
+    if (!position || position === "GK" || player.isInjured) return false;
+    // A nominated half-game GK still needs fair total minutes, so allow them
+    // to cover an outfield slot outside their goalkeeping half.
+    if (player.id === gkOnPitch?.id || player.id === halftimeGkIn?.id) return true;
+    if (player.assignedPositions?.length === 1 && player.assignedPositions.includes("GK")) return true;
+    return !player.assignedPositions?.length || player.assignedPositions.includes(position);
+  };
+
+  const playerById = new Map(playerData.map(p => [p.id, p]));
+  const fieldSlots = outfieldOnPitch.map(p => ({
+    position: p.currentPitchPosition as PitchPosition,
+    playerId: p.id,
+  }));
+
+  const currentFieldSeconds = new Map<string, number>();
+  outfieldPlayers.forEach(p => currentFieldSeconds.set(p.id, p.minutesPlayed || 0));
+
+  const totalExistingSeconds = playerData.reduce((sum, p) => sum + (p.minutesPlayed || 0), 0);
+  const sharedTotalTarget = playerData.length > 0
+    ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
+    : 0;
+  const rawFieldTargets = new Map<string, number>();
+  const gkPriorityTopBufferSeconds = Math.min(300, Math.max(180, halfDurationSeconds * 0.15));
+  outfieldPlayers.forEach(p => {
+    // GKs should finish at the equal-top of total playing time, not below the
+    // outfield group. Give them a small target buffer, then let scaling keep the
+    // whole plan inside the available team minutes.
+    const priorityTarget = sharedTotalTarget + (isGkPlayer(p.id) ? gkPriorityTopBufferSeconds : 0);
+    const base = Math.max(0, priorityTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+    rawFieldTargets.set(p.id, base);
+  });
+  const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
+  const fieldTargetScale = rawTargetTotal > 0 ? totalFieldSeconds / rawTargetTotal : 1;
+  const targetFieldSeconds = (id: string) => (rawFieldTargets.get(id) || 0) * fieldTargetScale;
+
+  const toPlanTime = (absoluteSeconds: number): { half: 1 | 2; time: number } => ({
+    half: absoluteSeconds < halfDurationSeconds ? 1 : 2,
+    time: absoluteSeconds < halfDurationSeconds ? absoluteSeconds : absoluteSeconds - halfDurationSeconds,
+  });
+
+  const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
+  const endAbsoluteSeconds = halfDurationSeconds * 2;
+  // Cap subs per window, but do NOT under-schedule windows in minimal mode.
+  // Minimal means fewer players swapped at once; it must still create enough
+  // rotation points for every rotatable player to share bench time fairly.
+  const benchSize = Math.max(1, outfieldOnBench.length);
+  const maxSubEventsPerWindow = Math.max(
+    1,
+    Math.min(disableBatchSubs ? 1 : subsAtOnce, benchSize, fieldSlots.length)
+  );
+
+  // FAIRNESS-DRIVEN WINDOW COUNT
+  // ----------------------------
+  // For perfectly equal minutes, each player spends T·B/N seconds on the bench
+  // (T = remaining time, B = bench size, N = total rotatable players). One full
+  // "cycle" rotates every player off exactly once and requires N sub-events.
+  // With `subsAtOnce` swaps per window, a full cycle = N / subsAtOnce windows.
+  //
+  // Speed controls how many cycles we run (more cycles = shorter shifts, more
+  // disruption, but identical fairness ceiling). All speeds aim for at least
+  // ONE full cycle so every bench player gets equal time off.
+  const baseCycleEvents = totalOutfieldPlayers; // one off-event per player
+  // Cycles per speed: minimal=1 (longest shifts), balanced=1, fast=2 (shorter shifts)
+  // Both minimal and balanced run a single full fairness cycle — they differ in
+  // batch size (subsAtOnce), not in window count. Fast doubles rotations.
+  const cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  // Pick the smallest window count whose total off-events (W * subsAtOnce) is
+  // a multiple of N players — this is the ONLY way to get exactly equal time.
+  const desiredOffEvents = baseCycleEvents * cycleMultiplier;
+  let targetWindowsTotal = Math.max(1, Math.ceil(desiredOffEvents / maxSubEventsPerWindow));
+  // Snap upward until W * subsAtOnce is divisible by N (fairness divisibility).
+  while ((targetWindowsTotal * maxSubEventsPerWindow) % totalOutfieldPlayers !== 0) {
+    targetWindowsTotal++;
+    // Safety: never exceed 2x the desired count
+    if (targetWindowsTotal > Math.ceil(desiredOffEvents / maxSubEventsPerWindow) * 2 + totalOutfieldPlayers) break;
+  }
+  // Floor interval prevents churn but never overrides fairness windows. We
+  // recompute as evenly-spaced windows across remaining time.
+  const minIntervalFloor = rotationSpeed === 3 ? 90 : 120;
+  const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
+  const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
+  const directEventTimes = new Set<number>();
+
+  for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
+    if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
+    if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
+    directEventTimes.add(Math.floor(t));
+  }
+  if (startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+    directEventTimes.add(halfDurationSeconds);
+  }
+
+  const sortedDirectEventTimes = Array.from(directEventTimes).sort((a, b) => a - b);
+
+  const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
+    if (player.isInjured) return false;
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
+    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd > halfDurationSeconds) return false;
+    return true;
+  };
+
+  const remainingAvailabilitySeconds = (player: Player, intervalStart: number) => {
+    const start = Math.max(intervalStart, startAbsoluteSeconds);
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id) {
+      return Math.max(1, endAbsoluteSeconds - Math.max(start, halfDurationSeconds));
+    }
+    if (halftimeGkIn && player.id === halftimeGkIn.id) {
+      return Math.max(1, halfDurationSeconds - Math.min(start, halfDurationSeconds));
+    }
+    return Math.max(1, endAbsoluteSeconds - start);
+  };
+
+  const addFieldTime = (elapsed: number) => {
+    if (elapsed <= 0) return;
+    fieldSlots.forEach(slot => {
+      if (slot.playerId) {
+        currentFieldSeconds.set(slot.playerId, (currentFieldSeconds.get(slot.playerId) || 0) + elapsed);
+      }
+    });
+  };
+
+  const choosePlayerForSlot = (
+    position: PitchPosition,
+    currentSlotPlayerId: string | null,
+    usedIds: Set<string>,
+    currentIds: Set<string>,
+    intervalStart: number,
+    intervalEnd: number
+  ) => {
+    const intervalLength = Math.max(0, intervalEnd - intervalStart);
+    const candidates = outfieldPlayers.filter(player => {
+      if (usedIds.has(player.id)) return false;
+      if (!isAvailableForInterval(player, intervalStart, intervalEnd)) return false;
+      if (!canUseInOutfield(player, position)) return false;
+      // Avoid moving players between slots in the generated plan; only keep a
+      // player in their current slot or bring someone on from the bench.
+      if (currentIds.has(player.id) && player.id !== currentSlotPlayerId) return false;
+      return true;
+    });
+
+    candidates.sort((a, b) => {
+      const aNeed = targetFieldSeconds(a.id) - (currentFieldSeconds.get(a.id) || 0);
+      const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
+      const aUrgency = aNeed / remainingAvailabilitySeconds(a, intervalStart);
+      const bUrgency = bNeed / remainingAvailabilitySeconds(b, intervalStart);
+      // Tiebreaker: when needs are similar, prefer GKs so they finish at
+      // equal-top of the playing time list rather than below outfielders.
+      const aGkBoost = isGkPlayer(a.id) ? 5 : 0;
+      const bGkBoost = isGkPlayer(b.id) ? 5 : 0;
+      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0) + aGkBoost;
+      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0) + bGkBoost;
+      return bScore - aScore;
+    });
+
+    return candidates[0] || null;
+  };
+
+  const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number, reservedSubEvents = 0) => {
+    const maxChanges = Math.max(0, maxSubEventsPerWindow - reservedSubEvents);
+    if (maxChanges === 0) return;
+
+    const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
+
+    const playerNeedScore = (id: string) => {
+      const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
+      const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
+      const gkBoost = isGkPlayer(id) ? 75 : 0;
+      return urgency * 1000 + need * 0.01 + gkBoost;
+    };
+
+    const rankedBench = outfieldPlayers
+      .filter(p => !currentIds.has(p.id))
+      .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
+      .map(p => ({ player: p, score: playerNeedScore(p.id) }))
+      .sort((a, b) => b.score - a.score);
+
+    const usedSlotIndexes = new Set<number>();
+    const selectedSubs: { slotIndex: number; playerOut: Player; playerIn: Player }[] = [];
+
+    for (const { player: playerIn } of rankedBench) {
+      if (selectedSubs.length >= maxChanges) break;
+
+      const bestSlot = fieldSlots
+        .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
+        .filter(({ slot, index, playerOut }) =>
+          !!playerOut &&
+          !usedSlotIndexes.has(index) &&
+          canUseInOutfield(playerIn, slot.position)
+        )
+        .sort((a, b) => {
+          const aNeed = targetFieldSeconds(a.playerOut!.id) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
+          const bNeed = targetFieldSeconds(b.playerOut!.id) - (currentFieldSeconds.get(b.playerOut!.id) || 0);
+          if (aNeed !== bNeed) return aNeed - bNeed;
+          return (currentFieldSeconds.get(b.playerOut!.id) || 0) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
+        })[0];
+
+      if (!bestSlot?.playerOut) continue;
+
+      const incomingNeed = targetFieldSeconds(playerIn.id) - (currentFieldSeconds.get(playerIn.id) || 0);
+      const outgoingNeed = targetFieldSeconds(bestSlot.playerOut.id) - (currentFieldSeconds.get(bestSlot.playerOut.id) || 0);
+      const incomingScore = playerNeedScore(playerIn.id);
+      const outgoingScore = playerNeedScore(bestSlot.playerOut.id);
+      if (incomingNeed <= outgoingNeed + 15 && incomingScore <= outgoingScore + 15) continue;
+
+      usedSlotIndexes.add(bestSlot.index);
+      selectedSubs.push({ slotIndex: bestSlot.index, playerOut: bestSlot.playerOut, playerIn });
+    }
+
+    selectedSubs.forEach(({ slotIndex, playerOut, playerIn }) => {
+
+      const { half, time } = toPlanTime(absoluteSeconds);
+      plan.push({
+        time,
+        half,
+        playerOut,
+        playerIn,
+        executed: false,
+      });
+
+      fieldSlots[slotIndex].playerId = playerIn.id;
+    });
+  };
+
+  let directLastTime = startAbsoluteSeconds;
+  for (let i = 0; i < sortedDirectEventTimes.length; i++) {
+    const eventTime = sortedDirectEventTimes[i];
+    addFieldTime(eventTime - directLastTime);
+    directLastTime = eventTime;
+
+    let reservedSubEvents = 0;
+    if (eventTime === halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: halftimeGkIn,
+        executed: false,
+      });
+      reservedSubEvents = 1;
+      fieldSlots.forEach(slot => {
+        if (slot.playerId === halftimeGkIn.id) slot.playerId = null;
+      });
+    }
+
+    const nextTime = sortedDirectEventTimes[i + 1] ?? endAbsoluteSeconds;
+    applyFairRotationAt(eventTime, nextTime, reservedSubEvents);
+  }
+  addFieldTime(endAbsoluteSeconds - directLastTime);
+
+  const getPlanAbsoluteSeconds = (sub: SubstitutionEvent) =>
+    sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
+  const isDirectHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
+    !!gkOnPitch && sub.half === 2 && sub.time === 0 && sub.playerOut.id === gkOnPitch.id;
+  const fairPlayerIds = playerData.filter(p => !p.isInjured).map(p => p.id);
+
+  const simulateFullPlan = (candidatePlan: SubstitutionEvent[]) => {
+    const totals = new Map<string, number>();
+    playerData.forEach(p => totals.set(p.id, p.minutesPlayed || 0));
+
+    const onPitch = new Map<string, PitchPosition>();
+    playersOnPitch.forEach(p => {
+      if (p.currentPitchPosition) onPitch.set(p.id, p.currentPitchPosition);
+    });
+
+    const ordered = candidatePlan
+      .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
+      .sort((a, b) => a.absoluteSeconds - b.absoluteSeconds);
+    const snapshots: { index: number; before: Map<string, PitchPosition>; absoluteSeconds: number; nextAbsoluteSeconds: number }[] = [];
+    let last = startAbsoluteSeconds;
+    let valid = true;
+
+    ordered.forEach((entry, orderIndex) => {
+      const elapsed = entry.absoluteSeconds - last;
+      if (elapsed < 0) valid = false;
+      if (elapsed > 0) {
+        onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + elapsed));
+      }
+
+      snapshots.push({
+        index: entry.index,
+        before: new Map(onPitch),
+        absoluteSeconds: entry.absoluteSeconds,
+        nextAbsoluteSeconds: ordered[orderIndex + 1]?.absoluteSeconds ?? endAbsoluteSeconds,
+      });
+
+      const outPosition = onPitch.get(entry.sub.playerOut.id);
+      if (!outPosition || onPitch.has(entry.sub.playerIn.id)) valid = false;
+
+      onPitch.delete(entry.sub.playerOut.id);
+      if (entry.sub.positionSwap) {
+        const swapFromPosition = onPitch.get(entry.sub.positionSwap.player.id);
+        if (!swapFromPosition) valid = false;
+        if (swapFromPosition) onPitch.set(entry.sub.playerIn.id, swapFromPosition);
+        onPitch.set(entry.sub.positionSwap.player.id, outPosition || entry.sub.positionSwap.toPosition);
+      } else if (outPosition) {
+        onPitch.set(entry.sub.playerIn.id, outPosition);
+      }
+
+      last = entry.absoluteSeconds;
+    });
+
+    const remaining = endAbsoluteSeconds - last;
+    if (remaining > 0) {
+      onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
+    }
+
+    return { totals, snapshots, valid };
+  };
+
+  const fairnessObjective = (totals: Map<string, number>) => {
+    const values = fairPlayerIds.map(id => totals.get(id) || 0);
+    if (values.length < 2) return 0;
+    const spread = Math.max(...values) - Math.min(...values);
+    const nonGkTop = Math.max(...fairPlayerIds.filter(id => !isGkPlayer(id)).map(id => totals.get(id) || 0), 0);
+    const gkShortfall = fairPlayerIds
+      .filter(id => isGkPlayer(id))
+      .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
+    return spread * 1000 + gkShortfall;
+  };
+
+  // Iterative fairness optimizer. Each pass tries every legal single-sub
+  // identity replacement at every snapshot and keeps the edit that most
+  // reduces (spread × 1000 + GK shortfall). Runs until no improvement.
+  const MAX_OPTIMIZER_ITERATIONS = 120;
+  for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
+    const currentSim = simulateFullPlan(plan);
+    if (!currentSim.valid) break;
+    const currentScore = fairnessObjective(currentSim.totals);
+    if (currentScore === 0) break;
+    let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
+
+    for (const snapshot of currentSim.snapshots) {
+      const original = plan[snapshot.index];
+      if (!original || isDirectHalftimeGkSwapSub(original)) continue;
+
+      const incomingCandidates = playerData.filter(player =>
+        !snapshot.before.has(player.id) &&
+        isAvailableForInterval(player, snapshot.absoluteSeconds, snapshot.nextAbsoluteSeconds)
+      );
+
+      for (const [outId, outPosition] of snapshot.before.entries()) {
+        if (outPosition === "GK") continue;
+        const playerOut = playerById.get(outId);
+        if (!playerOut) continue;
+
+        for (const playerIn of incomingCandidates) {
+          if (!canUseInOutfield(playerIn, outPosition)) continue;
+          if (playerOut.id === original.playerOut.id && playerIn.id === original.playerIn.id && !original.positionSwap) continue;
+
+          const replacement: SubstitutionEvent = {
+            ...original,
+            playerOut,
+            playerIn,
+            positionSwap: undefined,
+          };
+
+          plan[snapshot.index] = replacement;
+          const trial = simulateFullPlan(plan);
+          const score = trial.valid ? fairnessObjective(trial.totals) : Number.POSITIVE_INFINITY;
+          plan[snapshot.index] = original;
+
+          // Accept any strict improvement (no slack) so the optimizer can keep
+          // tightening the spread until truly optimal.
+          if (trial.valid && score < (bestEdit?.score ?? currentScore)) {
+            bestEdit = { index: snapshot.index, replacement, score };
+          }
+        }
+      }
+    }
+
+    if (!bestEdit || bestEdit.score >= currentScore) break;
+    plan[bestEdit.index] = bestEdit.replacement;
+  }
+
+  plan.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    if (a.time !== b.time) return a.time - b.time;
+    const aIsGkSwap = !!gkOnPitch && a.half === 2 && a.time === 0 && a.playerOut.id === gkOnPitch.id;
+    const bIsGkSwap = !!gkOnPitch && b.half === 2 && b.time === 0 && b.playerOut.id === gkOnPitch.id;
+    if (aIsGkSwap !== bIsGkSwap) return aIsGkSwap ? -1 : 1;
+    return 0;
+  });
+
+  return plan;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
+
+    // At the start of H2, apply the halftime GK swap to the simulation state:
+    // the incoming GK leaves the outfield pool (they're now in goal). The
+    // outgoing GK is already off the pitch and will be rotated in normally.
+    if (half === 2 && halftimeGkIn && currentOnPitch.has(halftimeGkIn.id)) {
+      currentOnPitch.delete(halftimeGkIn.id);
+    }
+
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
     const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
@@ -416,15 +865,21 @@ function createSubPlan(
       });
       lastEventTime = subTime;
       
-      // Get sorted lists
+      // Get sorted lists — use GK-adjusted time so goalkeepers are prioritised
+      // (picked first off the bench, picked last off the pitch).
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        // Starting GK is in the rotation pool but NOT actually available until
+        // they come off goal at halftime — exclude them from H1 sub windows.
+        .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
+        // Halftime GK substitute is in goal during H2, not on the bench.
+        .filter(p => !(half === 2 && halftimeGkIn && p.id === halftimeGkIn.id))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       
       if (onPitchSorted.length === 0 || benchSorted.length === 0) continue;
@@ -494,12 +949,14 @@ function createSubPlan(
     // Process deferred end-of-half subs as halftime subs (half 2, time 0)
     if (half === 1 && deferredToHalftime.length > 0) {
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        // Starting GK is still in goal at the end of H1 — not a real bench option here.
+        .filter(p => !(includeStartingGkInRotation && p.id === gkOnPitch?.id))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       const usedOutIds = new Set<string>();
       const usedInIds = new Set<string>();
@@ -536,9 +993,10 @@ function createSubPlan(
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
   if (rotateGkAtHalftime && gkOnPitch && startHalf === 1) {
-    // Use dedicated GK bench player if available, otherwise pick a GK-eligible bench player
-    // If no one is eligible for GK, keep the original GK on pitch
-    const gkReplacementPlayer = gkOnBench || (() => {
+    // Prefer the H2 GK we predicted upfront (and gave the priority bonus to)
+    // so the simulation stays consistent. Fall back to least-played GK-eligible
+    // bench player only if none was predicted.
+    const gkReplacementPlayer = halftimeGkIn || (() => {
       const benchAtHalftime = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
         .map(p => ({ player: p, time: playingTime.get(p.id) || 0 }))
@@ -570,104 +1028,160 @@ function createSubPlan(
     }
   }
   
+  const isHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
+    !!gkOnPitch && sub.half === 2 && sub.time === 0 && sub.playerOut.id === gkOnPitch.id;
+
+  const sortPlan = () => {
+    plan.sort((a, b) => {
+      if (a.half !== b.half) return a.half - b.half;
+      if (a.time !== b.time) return a.time - b.time;
+      // The GK change must happen before any other halftime subs so the H2 GK
+      // is removed from the outfield rotation before normal subs are applied.
+      if (isHalftimeGkSwapSub(a) !== isHalftimeGkSwapSub(b)) {
+        return isHalftimeGkSwapSub(a) ? -1 : 1;
+      }
+      return 0;
+    });
+  };
+
+  sortPlan();
+
+  type SimulationSnapshot = {
+    index: number;
+    sub: SubstitutionEvent;
+    before: Map<string, PitchPosition>;
+  };
+
+  const canPlayPosition = (player: Player, position?: PitchPosition) =>
+    !!position && (!player.assignedPositions?.length || player.assignedPositions.includes(position));
+
+  const simulateOutfieldPlan = (candidatePlan: SubstitutionEvent[]) => {
+    const t = new Map<string, number>();
+    outfieldPlayers.forEach(p => t.set(p.id, p.minutesPlayed || 0));
+
+    const onP = new Map<string, PitchPosition>();
+    outfieldOnPitch.forEach(p => onP.set(p.id, p.currentPitchPosition as PitchPosition));
+
+    const snapshots: SimulationSnapshot[] = [];
+    let valid = true;
+    let lt = startElapsedSeconds;
+    let lh: 1 | 2 = startHalf;
+
+    candidatePlan.forEach((sub, index) => {
+      const elapsed = sub.half === lh
+        ? sub.time - lt
+        : (halfDurationSeconds - lt) + sub.time;
+
+      if (elapsed < 0) valid = false;
+      if (elapsed > 0) {
+        onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + elapsed));
+      }
+
+      lt = sub.time;
+      lh = sub.half;
+      snapshots.push({ index, sub, before: new Map(onP) });
+
+      if (isHalftimeGkSwapSub(sub)) {
+        // This is a goalkeeping change, not an outfield substitution. If the
+        // incoming GK was playing outfield in H1, remove them from field play.
+        onP.delete(sub.playerIn.id);
+        return;
+      }
+
+      const outPos = onP.get(sub.playerOut.id);
+      if (!outPos || onP.has(sub.playerIn.id)) {
+        valid = false;
+      }
+
+      onP.delete(sub.playerOut.id);
+      if (sub.positionSwap) {
+        const swapFromPos = onP.get(sub.positionSwap.player.id);
+        if (!swapFromPos || !canPlayPosition(sub.playerIn, swapFromPos) || !canPlayPosition(sub.positionSwap.player, outPos)) {
+          valid = false;
+        }
+        if (swapFromPos) onP.set(sub.playerIn.id, swapFromPos);
+        if (outPos) onP.set(sub.positionSwap.player.id, outPos);
+      } else if (outPos) {
+        if (!canPlayPosition(sub.playerIn, outPos)) valid = false;
+        onP.set(sub.playerIn.id, outPos);
+      }
+    });
+
+    const endE = halfDurationSeconds - lt;
+    if (endE > 0) onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + endE));
+    if (lh === 1) onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + halfDurationSeconds));
+
+    return { times: t, snapshots, valid };
+  };
+
+  const totalProjectedSeconds = (times: Map<string, number>, id: string) =>
+    (times.get(id) || 0) + gkDutySeconds(id);
+
+  // ITERATIVE FAIRNESS PASS: make legal, state-aware edits only. The previous
+  // pass could miss cases where the overplayed player never appeared as a
+  // matching `playerIn`/`playerOut`. Here we inspect the actual pitch state at
+  // each sub window and replace that window with `overplayed off, underplayed on`.
+  const fairnessTargets = outfieldPlayers;
+  const FAIRNESS_TOLERANCE = 30; // avoids rounded forecasts still showing a multi-minute gap
+  const MAX_REBALANCE_ITERATIONS = 24;
+
+  const fairnessSpread = (times: Map<string, number>) => {
+    const values = fairnessTargets.map(p => totalProjectedSeconds(times, p.id));
+    if (values.length < 2) return 0;
+    return Math.max(...values) - Math.min(...values);
+  };
+
+  for (let iter = 0; iter < MAX_REBALANCE_ITERATIONS; iter++) {
+    const sim = simulateOutfieldPlan(plan);
+    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: totalProjectedSeconds(sim.times, p.id) }));
+    if (ftimes.length < 2) break;
+
+    ftimes.sort((a, b) => b.t - a.t);
+    const over = ftimes[0];
+    const under = ftimes[ftimes.length - 1];
+    const currentSpread = over.t - under.t;
+    if (currentSpread <= FAIRNESS_TOLERANCE) break;
+
+    const overPlayer = getPlayer(over.id);
+    const underPlayer = getPlayer(under.id);
+    if (!overPlayer || !underPlayer) break;
+
+    let bestEdit: { index: number; replacement: SubstitutionEvent; spread: number } | null = null;
+
+    for (const snapshot of sim.snapshots) {
+      const sub = plan[snapshot.index];
+      if (!sub || isHalftimeGkSwapSub(sub)) continue;
+      if (!snapshot.before.has(over.id) || snapshot.before.has(under.id)) continue;
+
+      const overPosition = snapshot.before.get(over.id);
+      if (!canPlayPosition(underPlayer, overPosition)) continue;
+
+      const replacement: SubstitutionEvent = {
+        ...sub,
+        playerOut: overPlayer,
+        playerIn: underPlayer,
+        positionSwap: undefined,
+      };
+
+      const original = plan[snapshot.index];
+      plan[snapshot.index] = replacement;
+      const trial = simulateOutfieldPlan(plan);
+      const spread = trial.valid ? fairnessSpread(trial.times) : currentSpread;
+      plan[snapshot.index] = original;
+
+      if (trial.valid && spread < (bestEdit?.spread ?? currentSpread)) {
+        bestEdit = { index: snapshot.index, replacement, spread };
+      }
+    }
+
+    if (!bestEdit) break;
+    plan[bestEdit.index] = bestEdit.replacement;
+  }
+
   plan.sort((a, b) => {
     if (a.half !== b.half) return a.half - b.half;
     return a.time - b.time;
   });
-  
-  // FAIRNESS SIMULATION PASS: verify max-min playing time spread
-  // If spread exceeds 20% of ideal time, add corrective subs
-  const simOnPitch = new Map<string, PitchPosition>();
-  outfieldOnPitch.forEach(p => simOnPitch.set(p.id, p.currentPitchPosition as PitchPosition));
-  const simTime = new Map<string, number>();
-  outfieldPlayers.forEach(p => simTime.set(p.id, p.minutesPlayed || 0));
-  
-  // Simulate the plan
-  let simLastTime = startHalf === 1 ? startElapsedSeconds : startElapsedSeconds;
-  let simLastHalf = startHalf;
-  for (const sub of plan) {
-    // Advance time for on-pitch players
-    let elapsed = 0;
-    if (sub.half === simLastHalf) {
-      elapsed = sub.time - simLastTime;
-    } else {
-      // Half changed: add remaining time from first half + time into second half
-      elapsed = (halfDurationSeconds - simLastTime) + sub.time;
-    }
-    if (elapsed > 0) {
-      simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + elapsed));
-    }
-    simLastTime = sub.time;
-    simLastHalf = sub.half;
-    
-    // Apply the sub — track positions through simulation, not from the main algo's final state
-    const outPos = simOnPitch.get(sub.playerOut.id);
-    simOnPitch.delete(sub.playerOut.id);
-    if (sub.positionSwap) {
-      // Incoming player takes the swap player's position
-      const swapFromPos = simOnPitch.get(sub.positionSwap.player.id);
-      if (swapFromPos) simOnPitch.set(sub.playerIn.id, swapFromPos);
-      // Swap player moves to the outgoing player's position
-      if (outPos) simOnPitch.set(sub.positionSwap.player.id, outPos);
-    } else {
-      if (outPos) simOnPitch.set(sub.playerIn.id, outPos);
-    }
-  }
-  // Add remaining game time
-  const endElapsed = halfDurationSeconds - simLastTime;
-  if (endElapsed > 0) simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + endElapsed));
-  if (simLastHalf === 1) {
-    // Add full second half
-    simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + halfDurationSeconds));
-  }
-  
-  // Check fairness spread
-  const outfieldTimes = outfieldPlayers.map(p => simTime.get(p.id) || 0);
-  const maxTime = Math.max(...outfieldTimes);
-  const minTime = Math.min(...outfieldTimes);
-  const spread = maxTime - minTime;
-  const fairnessThreshold = idealSecondsPerPlayer * 0.2;
-  
-  // If spread is too large and we have room for a corrective sub, add one
-  if (spread > fairnessThreshold && spread > 60) {
-    const overplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === maxTime)?.id;
-    const underplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === minTime)?.id;
-    
-    if (overplayedId && underplayedId) {
-      const overplayed = getPlayer(overplayedId);
-      const underplayed = getPlayer(underplayedId);
-      
-      // Only add corrective sub if overplayed is on pitch in final state
-      if (overplayed && underplayed && simOnPitch.has(overplayedId) && !simOnPitch.has(underplayedId)) {
-        // Schedule corrective sub 2 minutes before end of last half
-        const correctiveTime = Math.max(0, halfDurationSeconds - 120);
-        const correctiveHalf = 2 as 1 | 2;
-        
-        // Don't add if there's already a sub at this time for these players
-        const alreadyExists = plan.some(s => 
-          s.half === correctiveHalf && 
-          Math.abs(s.time - correctiveTime) < 30 &&
-          (s.playerOut.id === overplayedId || s.playerIn.id === underplayedId)
-        );
-        
-        if (!alreadyExists) {
-          plan.push({
-            time: correctiveTime,
-            half: correctiveHalf,
-            playerOut: overplayed,
-            playerIn: underplayed,
-            executed: false,
-          });
-          
-          // Re-sort after adding corrective sub
-          plan.sort((a, b) => {
-            if (a.half !== b.half) return a.half - b.half;
-            return a.time - b.time;
-          });
-        }
-      }
-    }
-  }
   
   return plan;
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
+import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -717,18 +719,25 @@ export default function TeamChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the (yet-to-be-defined) loader.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
+  // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
     // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
@@ -810,23 +819,17 @@ export default function TeamChatPage() {
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
       })) as Message[];
 
-      // Prepend older messages to cache (object shape)
-      queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-        const existingMessages: Message[] = old?.messages || [];
-        if (!existingMessages.length) {
-          return { ...(old || {}), messages: olderMessages };
-        }
-        return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend older messages to cache + restore scroll anchor synchronously
+      // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
+      // in the same task, so the user never sees the intermediate state.
+      anchoredPrepend(() => {
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          const existingMessages: Message[] = old?.messages || [];
+          if (!existingMessages.length) {
+            return { ...(old || {}), messages: olderMessages };
+          }
+          return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
+        });
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -834,27 +837,12 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoadingOlder && hasOlderMessages) {
-          loadOlderMessages();
-        }
-      },
-      // Pre-fetch older messages BEFORE the user reaches the very top so the next
-      // page is already in the DOM, eliminating the scroll-then-wait stutter.
-      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -1299,7 +1287,7 @@ export default function TeamChatPage() {
     const base = !searchQuery.trim()
       ? localMessages
       : localMessages.filter((msg) =>
-          msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+          fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -1459,12 +1447,13 @@ export default function TeamChatPage() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
             data-chat-scroll-lock="true"
             ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y', overflowAnchor: 'auto' }}
           >
             <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-              {/* Invisible trigger for infinite scroll */}
+              {/* Invisible trigger for infinite scroll. overflow-anchor:none so
+                  the browser's scroll-anchoring never picks the sentinel itself. */}
               {hasOlderMessages && !searchQuery && (
-                <div ref={loadTriggerRef} className="h-1" />
+                <div ref={loadTriggerRef} className="h-1" style={{ overflowAnchor: 'none' }} />
               )}
               {(filteredMessages || []).map((msg, index, arr) => {
                 const currentDate = new Date(msg.created_at);

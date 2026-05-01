@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
@@ -1549,7 +1550,7 @@ export default function GroupChatPage() {
     const base = !searchQuery.trim()
       ? localMessages
       : localMessages.filter((m) =>
-          m.text.toLowerCase().includes(searchQuery.toLowerCase())
+          fuzzyMatchesQuery(m.text, searchQuery)
         );
     return [...base].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()

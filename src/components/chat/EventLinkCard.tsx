@@ -5,6 +5,7 @@ import { Calendar, Clock, MapPin } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { memo, useCallback } from "react";
 
 interface EventLinkCardProps {
@@ -76,7 +77,7 @@ export const EventLinkCard = memo(function EventLinkCard({ eventId }: EventLinkC
         </span>
         <p className="text-sm font-semibold truncate leading-tight">
           {event.title}
-          {event.opponent && (
+          {shouldAppendOpponent(event) && (
             <span className="text-muted-foreground font-normal"> vs {event.opponent}</span>
           )}
         </p>
