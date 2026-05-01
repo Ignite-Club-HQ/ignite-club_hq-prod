@@ -1396,26 +1396,9 @@ export function createSubPlan(
       ) {
         continue;
       }
-      // GK PROTECTION: never bring a non-GK on if their banked total is
-      // already at/above the floor of the spread band AND a GK-protected
-      // player is still below ceiling. The bench-time stays available for
-      // the GK in a later window.
-      const nonGkFloor = sharedTotalTarget - spreadHalfSec;
-      // Only block non-GK subs-in when a GK-protected player is currently
-      // available for outfield duty in this window — otherwise we'd starve
-      // the rotation entirely (e.g. H1 GK can't take outfield until H2).
-      const anyGkAvailableBelowCeiling = outfieldPlayers.some(
-        p => isGkProtectedFreq(p.id)
-          && bankedTotal(p.id) < gkCeilingTotal - 30
-          && isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds),
-      );
-      if (
-        !inIsProtected &&
-        anyGkAvailableBelowCeiling &&
-        bankedTotal(playerIn.id) >= nonGkFloor - 30
-      ) {
-        continue;
-      }
+      // (Non-GK ceiling gate intentionally omitted — too aggressive in tiny
+      // squads where GKs cannot climb above ceiling regardless. The OUT-side
+      // gate above + bench-priority sort handle the lift sufficiently.)
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(playerIn.id);
