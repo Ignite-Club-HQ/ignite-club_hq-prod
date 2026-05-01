@@ -426,18 +426,13 @@ function createSubPlan(
     }
     return duty;
   };
-  // GK field-time priority bonus: goalkeepers spend a half locked in goal,
-  // which is less rewarding than running outfield. To compensate, we treat
-  // their field target as if they need MORE outfield minutes than a regular
-  // player, so the scheduler rotates them onto the pitch ahead of others
-  // when their non-GK half comes around. This sits on top of the equal-total
-  // minutes baseline — we are not punishing outfielders, we are nudging GKs
-  // up the priority queue so the rebalancer favours them.
-  const GK_FIELD_PRIORITY_BONUS_SECONDS = 180; // ~3 minutes of extra urgency
-  const fieldTargetSeconds = (id: string) => {
-    const base = Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
-    return isGkPlayer(id) ? base + GK_FIELD_PRIORITY_BONUS_SECONDS : base;
-  };
+  // FAIRNESS RULE: every player's TOTAL minutes target (field + GK duty) is
+  // equal. GKs do NOT get extra total minutes — that would mean less time for
+  // outfielders. Instead, GKs get a tiebreaker priority bonus in the scheduler
+  // (see scoring below) so when needs are equal, the GK is rotated on first,
+  // landing them at "equal top" of the playing time list rather than below.
+  const fieldTargetSeconds = (id: string) =>
+    Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
   // Adjusted time for sorting: players above their personal target are picked
   // off first; players furthest below target are picked on first.
   const adjustedTime = (id: string) =>
