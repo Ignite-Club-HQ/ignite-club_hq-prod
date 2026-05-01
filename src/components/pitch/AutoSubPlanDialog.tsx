@@ -501,12 +501,16 @@ export function createSubPlan(
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
+        const forcedOutId = forcedOutByWindow.get(t);
         const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
-          t < halfTimeAbs &&
-          t >= halfTimeAbs - intervalSec - 30 &&
+          (halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs) &&
           !windowIns.has(halftimeGkIn.id) &&
           onPitchOrder.includes(halftimeGkIn.id);
-        if (h2GkNeedsBenchForHalftime) {
+        if (forcedOutId && onPitchOrder.includes(forcedOutId) && !windowIns.has(forcedOutId)) {
+          outId = forcedOutId;
+          const idx = onPitchOrder.indexOf(outId);
+          if (idx >= 0) onPitchOrder.splice(idx, 1);
+        } else if (h2GkNeedsBenchForHalftime) {
           outId = halftimeGkIn!.id;
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
@@ -551,13 +555,19 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          // Mostly FIFO, but allow an urgent low-minute player with limited
-          // availability (notably the nominated 2H GK) to jump the queue.
-          const fifoIdx = benchOrder
-            .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+          // Mostly FIFO. Only jump the queue for a genuinely low-minute player
+          // (or a forced GK window); otherwise bench order stays predictable.
+          const fifoCandidates = benchOrder
+            .map((id, index) => ({ id, index, score: needScore(id, t, index), projected: projected.get(id) || 0 }))
             .filter(item => !windowOuts.has(item.id))
-            .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
-            .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
+            .filter(item => item.projected <= maxThresholdSec);
+          const fifoFirst = fifoCandidates[0];
+          const urgent = fifoCandidates
+            .filter(item => item.projected < targetSecPerPlayer)
+            .sort((a, b) => b.score - a.score)[0];
+          const fifoIdx = (urgent && (!fifoFirst || urgent.score > fifoFirst.score + 500))
+            ? urgent.index
+            : fifoFirst?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
