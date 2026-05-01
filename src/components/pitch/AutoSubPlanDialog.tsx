@@ -421,13 +421,6 @@ export function createSubPlan(
       if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
         baseWindowTimes.push(h2R);
       }
-      // Because we now keep the 2H GK on outfield until ~HT-2 in tiny squads,
-      // the player they replaced needs a return window pre-halftime to avoid
-      // being benched for the entire half. Insert a mid-1H rescue window.
-      const h1R = Math.floor(halfDurationSeconds * 0.55);
-      if (h1R > startAbs && !isInBlackout(h1R)) {
-        baseWindowTimes.push(h1R);
-      }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
