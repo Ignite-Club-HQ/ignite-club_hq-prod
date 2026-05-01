@@ -766,21 +766,21 @@ workflows:
           LATEST_APP_STORE_GLOBAL=$(latest_build_for_version "App Store" \
             app-store-connect get-latest-app-store-build-number \
               --platform IOS \
-              "$APP_STORE_APPLE_ID")
+              "$APP_ID")
           LATEST_TESTFLIGHT_GLOBAL=$(latest_build_for_version "TestFlight" \
             app-store-connect get-latest-testflight-build-number \
               --platform IOS \
-              "$APP_STORE_APPLE_ID")
+              "$APP_ID")
           LATEST_APP_STORE_VERSION=$(latest_build_for_version "App Store $APP_VERSION" \
             app-store-connect get-latest-app-store-build-number \
               --version-string "$APP_VERSION" \
               --platform IOS \
-              "$APP_STORE_APPLE_ID")
+              "$APP_ID")
           LATEST_TESTFLIGHT_VERSION=$(latest_build_for_version "TestFlight $APP_VERSION" \
             app-store-connect get-latest-testflight-build-number \
               --pre-release-version "$APP_VERSION" \
               --platform IOS \
-              "$APP_STORE_APPLE_ID")
+              "$APP_ID")
 
           LATEST=$LATEST_APP_STORE_GLOBAL
           for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
