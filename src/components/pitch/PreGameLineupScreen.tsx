@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Minus, Scale, Equal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -20,6 +20,11 @@ interface PreGameLineupScreenProps {
   onClose: () => void;
   onTeamSizeChange?: (size: TeamSize) => void;
   onFormationChange?: (index: number) => void;
+  /** Auto-sub rotation speed: 1 = Minimal, 2 = Balanced, 3 = Batch.
+   *  When provided alongside onRotationSpeedChange, an inline picker is shown
+   *  so coaches can tune sub frequency without leaving the lineup screen. */
+  rotationSpeed?: number;
+  onRotationSpeedChange?: (speed: number) => void;
 }
 
 interface FormationSlot {
@@ -71,6 +76,8 @@ export default function PreGameLineupScreen({
   onClose,
   onTeamSizeChange,
   onFormationChange,
+  rotationSpeed,
+  onRotationSpeedChange,
 }: PreGameLineupScreenProps) {
   const formation = FORMATIONS[teamSize][selectedFormation];
   const hasGk = !["3", "4", "5", "6"].includes(teamSize);
@@ -547,6 +554,55 @@ export default function PreGameLineupScreen({
               ))}
             </div>
           </div>
+
+          {/* Subs Speed — coaches can tune rotation cadence without leaving this screen.
+              Mirrors the options in PitchSettingsDialog so the two stay in sync. */}
+          {typeof rotationSpeed === "number" && onRotationSpeedChange && (
+            <div className="space-y-1">
+              <Label id="subs-speed-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Subs Speed
+              </Label>
+              <div
+                className="flex rounded-lg border border-border overflow-hidden"
+                role="group"
+                aria-labelledby="subs-speed-label"
+              >
+                {[
+                  { value: 1, label: "Minimal", Icon: Minus, hint: "1 sub / window" },
+                  { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
+                  { value: 3, label: "Batch", Icon: Equal, hint: "3 subs / window" },
+                ].map(({ value, label, Icon, hint }) => {
+                  const active = rotationSpeed === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className={cn(
+                        "flex-1 min-h-[44px] px-1 text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background hover:bg-muted text-foreground"
+                      )}
+                      aria-label={`${label} subs speed — ${hint}`}
+                      aria-pressed={active}
+                      onClick={() => onRotationSpeedChange(value)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5" />
+                        {label}
+                      </span>
+                      <span className={cn(
+                        "text-[10px] leading-none",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground"
+                      )}>
+                        {hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Formation visual - mini pitch with color-coded slots */}
