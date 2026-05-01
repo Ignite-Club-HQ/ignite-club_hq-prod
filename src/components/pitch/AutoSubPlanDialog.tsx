@@ -416,9 +416,14 @@ export function createSubPlan(
         // -------- Pick playerOut --------
         // Priority: (1) the nominated 2H GK must be back on the bench before
         // halftime, (2) the highest-minute player, especially if over cap.
+        // Over-cap pull: prefer subbing off players who are above the cap, OR
+        // when a bench player is below their effective floor. Keepers should
+        // generally NOT be pulled off via over-cap logic — they need their
+        // outfield run to land in the top half of total minutes.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
+          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id) + targetSecPerPlayer * 0.05)
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec + (isKeeperRotationPlayer(benchId) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
@@ -426,6 +431,7 @@ export function createSubPlan(
         const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
           t < halfTimeAbs &&
           t >= halfTimeAbs - intervalSec - 30 &&
+          !windowIns.has(halftimeGkIn.id) &&
           onPitchOrder.includes(halftimeGkIn.id);
         if (h2GkNeedsBenchForHalftime) {
           outId = halftimeGkIn!.id;
@@ -440,6 +446,8 @@ export function createSubPlan(
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
+            // Don't pull keepers off via plain FIFO unless they're above floor.
+            if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
             outId = candidate;
             onPitchOrder.splice(j, 1);
             break;
