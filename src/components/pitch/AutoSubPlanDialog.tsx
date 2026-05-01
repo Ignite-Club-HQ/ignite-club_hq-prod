@@ -686,14 +686,24 @@ export function createSubPlan(
       return deficit(p.id) / Math.max(1, remain);
     };
 
+    // QUEUE-FIRST with max-spread override.
+    // Default ordering = queue (FIFO). Only escalate by urgency when a player's
+    // projected end-of-game deficit exceeds half the user-configured max spread.
+    const maxSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
+    const escalationThreshold = maxSpreadSeconds / 2;
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        const aU = urgency(a);
-        const bU = urgency(b);
-        if (Math.abs(aU - bU) > 0.001) return bU - aU; // higher urgency first
-        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0); // queue tiebreak
+        const aDef = deficit(a.id);
+        const bDef = deficit(b.id);
+        const aOver = aDef > escalationThreshold;
+        const bOver = bDef > escalationThreshold;
+        // If one player is significantly behind their fair share, prioritise them.
+        if (aOver !== bOver) return aOver ? -1 : 1;
+        if (aOver && bOver && Math.abs(aDef - bDef) > 30) return bDef - aDef;
+        // Otherwise pure FIFO queue order — longest-waiting bench player first.
+        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
       });
 
     const pitchSlotsWithMeta = fieldSlots
@@ -722,7 +732,11 @@ export function createSubPlan(
         .sort((a, b) => {
           const aDef = deficit(a.playerOut!.id);
           const bDef = deficit(b.playerOut!.id);
-          if (Math.abs(aDef - bDef) > 1) return aDef - bDef; // smaller deficit (more "done") first
+          const aBelow = aDef > escalationThreshold;
+          const bBelow = bDef > escalationThreshold;
+          // Don't pull a player who's still well below their target unless we have to.
+          if (aBelow !== bBelow) return aBelow ? 1 : -1;
+          // Otherwise queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
 
