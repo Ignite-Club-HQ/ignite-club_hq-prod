@@ -848,10 +848,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }), [members, teamPlayerPositions, miniLeagueTeams]);
 
   const savedPlayers = savedState?.players || [];
+  const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
+  const strictMatchRosterPlayerIds = useMemo(
+    () => new Set(realPlayers.map((player) => player.id)),
+    [realPlayers]
+  );
   const savedRosterMissingCurrentPlayers =
     savedPlayers.length > 0 && realPlayers.some((player) => !savedPlayers.some((savedPlayer) => savedPlayer.id === player.id));
+  const savedRosterHasPlayersOutsideCurrentRoster =
+    isStrictMatchEventRoster &&
+    savedPlayers.length > 0 &&
+    realPlayers.length > 0 &&
+    savedPlayers.some((player) => !strictMatchRosterPlayerIds.has(player.id));
   const savedRosterHasNoPlayersOnPitch =
     savedPlayers.length > 0 && savedPlayers.every((player) => player.position === null);
+  const applyStrictMatchRoster = useCallback((sourcePlayers: Player[]): Player[] => {
+    if (!isStrictMatchEventRoster || realPlayers.length === 0) return sourcePlayers;
+
+    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id));
+    const filteredIds = new Set(filteredPlayers.map((player) => player.id));
+    const missingCurrentPlayers = realPlayers
+      .filter((player) => !filteredIds.has(player.id))
+      .map((player) => ({ ...player, position: null, currentPitchPosition: undefined }));
+
+    return [...filteredPlayers, ...missingCurrentPlayers];
+  }, [isStrictMatchEventRoster, realPlayers, strictMatchRosterPlayerIds]);
   const shouldRebuildFromRealRoster =
     !!savedState &&
     !savedState.mockMode &&
