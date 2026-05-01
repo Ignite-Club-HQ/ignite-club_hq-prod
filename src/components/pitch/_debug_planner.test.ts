@@ -2,13 +2,11 @@ import { describe, it } from "vitest";
 import { createSubPlan } from "./AutoSubPlanDialog";
 type PitchPosition = "GK" | "DEF" | "MID" | "FWD";
 
-const makePlayer = (name: string, pos: PitchPosition | null = null, x = 50, y = 50, mins = 0): any => ({
+const makePlayer = (name: string, pos: PitchPosition | null = null, x = 50, y = 50): any => ({
   id: name, name,
-  currentPitchPosition: pos,
-  assignedPositions: pos ? [pos] : [],
-  isInjured: false,
-  minutesPlayed: mins,
-  position: { x, y },
+  position: pos ? { x, y } : null,
+  currentPitchPosition: pos || undefined,
+  assignedPositions: pos ? [pos] : ["DEF","MID","FWD"],
 });
 
 describe("debug-planner", () => {
