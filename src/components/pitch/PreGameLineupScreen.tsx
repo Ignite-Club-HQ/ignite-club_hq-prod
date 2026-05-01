@@ -20,6 +20,11 @@ interface PreGameLineupScreenProps {
   onClose: () => void;
   onTeamSizeChange?: (size: TeamSize) => void;
   onFormationChange?: (index: number) => void;
+  /** Auto-sub rotation speed: 1 = Minimal, 2 = Balanced, 3 = Batch.
+   *  When provided alongside onRotationSpeedChange, an inline picker is shown
+   *  so coaches can tune sub frequency without leaving the lineup screen. */
+  rotationSpeed?: number;
+  onRotationSpeedChange?: (speed: number) => void;
 }
 
 interface FormationSlot {
