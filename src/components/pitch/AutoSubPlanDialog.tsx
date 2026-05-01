@@ -646,64 +646,95 @@ export function createSubPlan(
     }
 
     const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
-    const protectedPlayerOutIds = benchSize > 1 ? previousRotationPlayerInIds : new Set<string>();
 
-    const playerNeedScore = (id: string) => {
-      const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
-      const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
-      const gkBoost = isGkPlayer(id) ? 75 : 0;
-      return urgency * 1000 + need * 0.01 + gkBoost;
-    };
-
-    const rankedBench = outfieldPlayers
+    // QUEUE-FIRST SELECTION
+    // ---------------------
+    // 1. Bench queue: order by lastOffAt ASC (longest waiting first).
+    // 2. Pitch queue: order by lastOnAt ASC (longest on first).
+    // 3. For each bench player in order, find the longest-on pitch player at a
+    //    position they can play, subject to MIN_SHIFT_SECONDS protection.
+    // 4. After picking by queue, check fairness: if the swap would leave the
+    //    incoming player still under-target by more than FAIRNESS_TOLERANCE_SECONDS
+    //    vs. another bench candidate, prefer the more-needy one.
+    const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
-      .map(p => ({ player: p, score: playerNeedScore(p.id) }))
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0));
+
+    const pitchSlotsWithMeta = fieldSlots
+      .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
+      .filter(({ playerOut }) => !!playerOut);
 
     const usedSlotIndexes = new Set<number>();
+    const usedInIds = new Set<string>();
     const selectedSubs: { slotIndex: number; playerOut: Player; playerIn: Player }[] = [];
 
-    for (const { player: playerIn } of rankedBench) {
-      if (selectedSubs.length >= maxChanges) break;
+    // How under-target is this player at end-of-game if we don't bring them on now?
+    const endOfGameDeficit = (id: string) => {
+      const projected = (currentFieldSeconds.get(id) || 0); // assume no further time
+      return targetFieldSeconds(id) - projected;
+    };
 
-      const candidateSlots = fieldSlots
-        .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
+    for (let bi = 0; bi < benchQueue.length && selectedSubs.length < maxChanges; bi++) {
+      const playerIn = benchQueue[bi];
+      if (usedInIds.has(playerIn.id)) continue;
+
+      // Pitch candidates compatible with this incoming player, ordered by tenure (oldest first).
+      const tenureSorted = pitchSlotsWithMeta
         .filter(({ slot, index, playerOut }) =>
-          !!playerOut &&
           !usedSlotIndexes.has(index) &&
+          !!playerOut &&
           canUseInOutfield(playerIn, slot.position)
-        );
-      const unprotectedSlots = candidateSlots.filter(({ playerOut }) =>
-        playerOut && !protectedPlayerOutIds.has(playerOut.id)
-      );
+        )
+        .sort((a, b) => (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0));
 
-      // If other bench options exist, skip this incoming player rather than
-      // bouncing a just-introduced player straight back off.
-      if (candidateSlots.length === 0 || (benchSize > 1 && unprotectedSlots.length === 0)) continue;
+      if (tenureSorted.length === 0) continue;
 
-      const bestSlot = (unprotectedSlots.length > 0 ? unprotectedSlots : candidateSlots)
-        .sort((a, b) => {
-          const aNeed = targetFieldSeconds(a.playerOut!.id) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
-          const bNeed = targetFieldSeconds(b.playerOut!.id) - (currentFieldSeconds.get(b.playerOut!.id) || 0);
-          if (aNeed !== bNeed) return aNeed - bNeed;
-          return (currentFieldSeconds.get(b.playerOut!.id) || 0) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
-        })[0];
+      // Apply MIN_SHIFT protection: skip pitch players who haven't been on long enough.
+      // GK halftime swap is exempt (handled separately).
+      const eligibleByShift = tenureSorted.filter(({ playerOut }) => {
+        const onSince = lastOnAt.get(playerOut!.id) ?? 0;
+        return absoluteSeconds - onSince >= MIN_SHIFT_SECONDS;
+      });
 
-      if (!bestSlot?.playerOut) continue;
+      const candidatePool = eligibleByShift.length > 0 ? eligibleByShift : [];
+      if (candidatePool.length === 0) {
+        // No one has been on long enough — skip this incoming player; another
+        // bench player may pair with a different (longer-on) pitch player.
+        continue;
+      }
 
-      const incomingNeed = targetFieldSeconds(playerIn.id) - (currentFieldSeconds.get(playerIn.id) || 0);
-      const outgoingNeed = targetFieldSeconds(bestSlot.playerOut.id) - (currentFieldSeconds.get(bestSlot.playerOut.id) || 0);
-      const incomingScore = playerNeedScore(playerIn.id);
-      const outgoingScore = playerNeedScore(bestSlot.playerOut.id);
-      if (incomingNeed <= outgoingNeed + 15 && incomingScore <= outgoingScore + 15) continue;
+      // Fairness override: if a later bench player is significantly more under-target
+      // than this one, defer to them. We only override if the gap exceeds tolerance.
+      const myDeficit = endOfGameDeficit(playerIn.id);
+      const moreNeedy = benchQueue
+        .slice(bi + 1)
+        .filter(p => !usedInIds.has(p.id))
+        .find(p => endOfGameDeficit(p.id) > myDeficit + FAIRNESS_TOLERANCE_SECONDS &&
+          tenureSorted.some(({ slot }) => canUseInOutfield(p, slot.position)));
 
-      usedSlotIndexes.add(bestSlot.index);
-      selectedSubs.push({ slotIndex: bestSlot.index, playerOut: bestSlot.playerOut, playerIn });
+      const incoming = moreNeedy || playerIn;
+
+      // Re-sort tenure list for the chosen incoming (position constraints may differ).
+      const tenureForIncoming = pitchSlotsWithMeta
+        .filter(({ slot, index, playerOut }) =>
+          !usedSlotIndexes.has(index) &&
+          !!playerOut &&
+          canUseInOutfield(incoming, slot.position) &&
+          absoluteSeconds - (lastOnAt.get(playerOut!.id) ?? 0) >= MIN_SHIFT_SECONDS
+        )
+        .sort((a, b) => (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0));
+
+      if (tenureForIncoming.length === 0) continue;
+
+      const chosenSlot = tenureForIncoming[0];
+
+      usedSlotIndexes.add(chosenSlot.index);
+      usedInIds.add(incoming.id);
+      selectedSubs.push({ slotIndex: chosenSlot.index, playerOut: chosenSlot.playerOut!, playerIn: incoming });
     }
 
     selectedSubs.forEach(({ slotIndex, playerOut, playerIn }) => {
-
       const { half, time } = toPlanTime(absoluteSeconds);
       plan.push({
         time,
@@ -714,6 +745,10 @@ export function createSubPlan(
       });
 
       fieldSlots[slotIndex].playerId = playerIn.id;
+      // Update queue trackers: outgoing player joins bench wait queue,
+      // incoming player starts a fresh on-pitch shift.
+      lastOffAt.set(playerOut.id, absoluteSeconds);
+      lastOnAt.set(playerIn.id, absoluteSeconds);
     });
 
     previousRotationPlayerInIds = new Set(selectedSubs.map(sub => sub.playerIn.id));
