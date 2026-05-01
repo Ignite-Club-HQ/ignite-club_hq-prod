@@ -183,16 +183,22 @@ function createSubPlan(
   const gkOnBench = preferredSecondHalfGkId
     ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
     : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
+
+  const preferredOnPitchGk = preferredSecondHalfGkId
+    ? playersOnPitch.find(p => p.id === preferredSecondHalfGkId && p.currentPitchPosition !== "GK")
+    : undefined;
+  const predictedFallbackGk = !gkOnBench && !preferredOnPitchGk && rotateGkAtHalftime && gkOnPitch
+    ? benchPlayers.find(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length) || null
+    : null;
+  const halftimeGkIn = rotateGkAtHalftime && gkOnPitch && startHalf === 1
+    ? (gkOnBench || preferredOnPitchGk || predictedFallbackGk || null)
+    : null;
   
   // Determine whether the starting GK will be rotated out at halftime — if so,
   // they need to be eligible for H2 outfield rotation, otherwise they sit the
   // entire 2nd half (e.g. starting GK gets 50% while everyone else gets 67–83%).
   const startingGkWillRotate = !!(rotateGkAtHalftime && gkOnPitch && startHalf === 1);
-  const startingGkCanPlayOutfield = !!(
-    gkOnPitch &&
-    (!gkOnPitch.assignedPositions?.length ||
-      gkOnPitch.assignedPositions.some(pos => pos !== "GK"))
-  );
+  const startingGkCanPlayOutfield = !!gkOnPitch;
   const includeStartingGkInRotation = startingGkWillRotate && startingGkCanPlayOutfield;
 
   const outfieldPlayers = playerData.filter(p => {
@@ -201,12 +207,14 @@ function createSubPlan(
       // an outfielder in the 2nd half after the halftime GK swap.
       return includeStartingGkInRotation;
     }
+    if (halftimeGkIn && p.id === halftimeGkIn.id) return true;
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
 
   const outfieldOnPitch = playersOnPitch.filter(p => p.currentPitchPosition !== "GK");
   const outfieldOnBench = benchPlayers.filter(p => {
+    if (halftimeGkIn && p.id === halftimeGkIn.id) return true;
     if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
     return true;
   });
@@ -230,7 +238,7 @@ function createSubPlan(
   const remainingInCurrentHalf = halfDurationSeconds - clampedStartElapsed;
   const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
   const totalRemainingSeconds = Math.max(remainingHalves, 0);
-  const fieldPositions = teamSize - 1; // minus GK
+  const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
   
   // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
@@ -398,27 +406,6 @@ function createSubPlan(
   // Threshold: subs within this many seconds of half-end get snapped
   const END_OF_HALF_SNAP_THRESHOLD = 60;
 
-  // Pre-compute who will become GK at halftime so we can correctly model the
-  // outfield rotation pool in the 2nd half (the new GK is no longer an outfielder).
-  // The H2 GK can be: (a) the explicit `gkOnBench` candidate, (b) a starter on
-  // pitch who was selected as `preferredSecondHalfGkId`, or (c) the fallback
-  // pick at halftime — any GK-eligible bench player least played at that point.
-  // We must commit to a single H2 GK upfront so the bonus protects them
-  // consistently across both halves.
-  const preferredOnPitchGk = preferredSecondHalfGkId
-    ? playersOnPitch.find(p => p.id === preferredSecondHalfGkId && p.currentPitchPosition !== "GK")
-    : undefined;
-  // Predict the fallback halftime GK (least-played GK-eligible bench player).
-  // At plan-generation time, all bench players have equal accumulated minutes,
-  // so this picks the first GK-eligible bench player (or any bench player if
-  // none have positions assigned).
-  const predictedFallbackGk = !gkOnBench && !preferredOnPitchGk && rotateGkAtHalftime && gkOnPitch
-    ? benchPlayers.find(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length) || null
-    : null;
-  const halftimeGkIn = startingGkWillRotate
-    ? (gkOnBench || preferredOnPitchGk || predictedFallbackGk || null)
-    : null;
-
   // FAIRNESS TARGET: balance TOTAL minutes, not just outfield minutes. A player
   // doing a half in goal already has that GK time banked, so their outfield
   // target is the shared total target minus their GK duty. This gives GKs real
@@ -445,6 +432,193 @@ function createSubPlan(
   // off first; players furthest below target are picked on first.
   const adjustedTime = (id: string) =>
     (playingTime.get(id) || 0) - fieldTargetSeconds(id);
+
+  const canUseInOutfield = (player: Player, position?: PitchPosition) => {
+    if (!position || position === "GK" || player.isInjured) return false;
+    // A nominated half-game GK still needs fair total minutes, so allow them
+    // to cover an outfield slot outside their goalkeeping half.
+    if (player.id === gkOnPitch?.id || player.id === halftimeGkIn?.id) return true;
+    if (player.assignedPositions?.length === 1 && player.assignedPositions.includes("GK")) return true;
+    return !player.assignedPositions?.length || player.assignedPositions.includes(position);
+  };
+
+  const playerById = new Map(playerData.map(p => [p.id, p]));
+  const fieldSlots = outfieldOnPitch.map(p => ({
+    position: p.currentPitchPosition as PitchPosition,
+    playerId: p.id,
+  }));
+
+  const currentFieldSeconds = new Map<string, number>();
+  outfieldPlayers.forEach(p => currentFieldSeconds.set(p.id, p.minutesPlayed || 0));
+
+  const totalExistingSeconds = playerData.reduce((sum, p) => sum + (p.minutesPlayed || 0), 0);
+  const sharedTotalTarget = playerData.length > 0
+    ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
+    : 0;
+  const rawFieldTargets = new Map<string, number>();
+  outfieldPlayers.forEach(p => {
+    rawFieldTargets.set(
+      p.id,
+      Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id))
+    );
+  });
+  const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
+  const fieldTargetScale = rawTargetTotal > 0 ? totalFieldSeconds / rawTargetTotal : 1;
+  const targetFieldSeconds = (id: string) => (rawFieldTargets.get(id) || 0) * fieldTargetScale;
+
+  const toPlanTime = (absoluteSeconds: number): { half: 1 | 2; time: number } => ({
+    half: absoluteSeconds < halfDurationSeconds ? 1 : 2,
+    time: absoluteSeconds < halfDurationSeconds ? absoluteSeconds : absoluteSeconds - halfDurationSeconds,
+  });
+
+  const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
+  const endAbsoluteSeconds = halfDurationSeconds * 2;
+  const maxIntervalSeconds = rotationSpeed === 3 ? 90 : rotationSpeed === 1 ? 180 : 120;
+  const directEventTimes = new Set<number>();
+
+  for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
+    if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
+    if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
+    directEventTimes.add(Math.floor(t));
+  }
+  if (startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+    directEventTimes.add(halfDurationSeconds);
+  }
+
+  const sortedDirectEventTimes = Array.from(directEventTimes).sort((a, b) => a - b);
+
+  const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
+    if (player.isInjured) return false;
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
+    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd >= halfDurationSeconds) return false;
+    return true;
+  };
+
+  const remainingAvailabilitySeconds = (player: Player, intervalStart: number) => {
+    const start = Math.max(intervalStart, startAbsoluteSeconds);
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id) {
+      return Math.max(1, endAbsoluteSeconds - Math.max(start, halfDurationSeconds));
+    }
+    if (halftimeGkIn && player.id === halftimeGkIn.id) {
+      return Math.max(1, halfDurationSeconds - Math.min(start, halfDurationSeconds));
+    }
+    return Math.max(1, endAbsoluteSeconds - start);
+  };
+
+  const addFieldTime = (elapsed: number) => {
+    if (elapsed <= 0) return;
+    fieldSlots.forEach(slot => {
+      if (slot.playerId) {
+        currentFieldSeconds.set(slot.playerId, (currentFieldSeconds.get(slot.playerId) || 0) + elapsed);
+      }
+    });
+  };
+
+  const choosePlayerForSlot = (
+    position: PitchPosition,
+    currentSlotPlayerId: string | null,
+    usedIds: Set<string>,
+    currentIds: Set<string>,
+    intervalStart: number,
+    intervalEnd: number
+  ) => {
+    const intervalLength = Math.max(0, intervalEnd - intervalStart);
+    const candidates = outfieldPlayers.filter(player => {
+      if (usedIds.has(player.id)) return false;
+      if (!isAvailableForInterval(player, intervalStart, intervalEnd)) return false;
+      if (!canUseInOutfield(player, position)) return false;
+      // Avoid moving players between slots in the generated plan; only keep a
+      // player in their current slot or bring someone on from the bench.
+      if (currentIds.has(player.id) && player.id !== currentSlotPlayerId) return false;
+      return true;
+    });
+
+    candidates.sort((a, b) => {
+      const aNeed = targetFieldSeconds(a.id) - (currentFieldSeconds.get(a.id) || 0);
+      const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
+      const aUrgency = aNeed / remainingAvailabilitySeconds(a, intervalStart);
+      const bUrgency = bNeed / remainingAvailabilitySeconds(b, intervalStart);
+      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
+      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
+      return bScore - aScore;
+    });
+
+    return candidates[0] || null;
+  };
+
+  const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number) => {
+    const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
+    const usedIds = new Set<string>();
+    const desired = fieldSlots.map(slot => {
+      const player = choosePlayerForSlot(
+        slot.position,
+        slot.playerId,
+        usedIds,
+        currentIds,
+        absoluteSeconds,
+        nextAbsoluteSeconds
+      );
+      if (player) usedIds.add(player.id);
+      return player?.id || slot.playerId;
+    });
+
+    fieldSlots.forEach((slot, index) => {
+      const nextPlayerId = desired[index];
+      if (!slot.playerId || !nextPlayerId || slot.playerId === nextPlayerId) return;
+
+      const playerOut = playerById.get(slot.playerId);
+      const playerIn = playerById.get(nextPlayerId);
+      if (!playerOut || !playerIn || currentIds.has(nextPlayerId)) return;
+
+      const { half, time } = toPlanTime(absoluteSeconds);
+      plan.push({
+        time,
+        half,
+        playerOut,
+        playerIn,
+        executed: false,
+      });
+
+      currentIds.delete(slot.playerId);
+      currentIds.add(nextPlayerId);
+      slot.playerId = nextPlayerId;
+    });
+  };
+
+  let directLastTime = startAbsoluteSeconds;
+  for (let i = 0; i < sortedDirectEventTimes.length; i++) {
+    const eventTime = sortedDirectEventTimes[i];
+    addFieldTime(eventTime - directLastTime);
+    directLastTime = eventTime;
+
+    if (eventTime === halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: halftimeGkIn,
+        executed: false,
+      });
+      fieldSlots.forEach(slot => {
+        if (slot.playerId === halftimeGkIn.id) slot.playerId = null;
+      });
+    }
+
+    const nextTime = sortedDirectEventTimes[i + 1] ?? endAbsoluteSeconds;
+    applyFairRotationAt(eventTime, nextTime);
+  }
+  addFieldTime(endAbsoluteSeconds - directLastTime);
+
+  plan.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    if (a.time !== b.time) return a.time - b.time;
+    const aIsGkSwap = !!gkOnPitch && a.half === 2 && a.time === 0 && a.playerOut.id === gkOnPitch.id;
+    const bIsGkSwap = !!gkOnPitch && b.half === 2 && b.time === 0 && b.playerOut.id === gkOnPitch.id;
+    if (aIsGkSwap !== bIsGkSwap) return aIsGkSwap ? -1 : 1;
+    return 0;
+  });
+
+  return plan;
 
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
