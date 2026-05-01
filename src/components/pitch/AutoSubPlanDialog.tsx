@@ -408,7 +408,7 @@ export function createSubPlan(
     }
     const protectedGkWindows = [...forcedInByWindow.keys(), ...forcedOutByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
-      .filter(t => forcedInByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
+      .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
       .sort((a, b) => a - b);
     baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
     baseWindowTimes.sort((a, b) => a - b);
