@@ -405,10 +405,12 @@ export function createSubPlan(
       // on as long as possible (sub off ~2 min before HT). This pushes them
       // toward the top of the allowed spread without breaching it.
       const tinySquad = outfieldOnBench.length <= 2;
+      // GK-protected players are exempt from the bench-once rule and should
+      // sit at the top of the spread. Push the 2H GK's 1H outfield run as
+      // close to halftime as possible (HT-2 for tiny squads, HT-3 otherwise).
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOff = tinySquad
-        ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
-        : Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60);
+      const h1GkOffOffset = tinySquad ? 2 * 60 : 3 * 60;
+      const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
