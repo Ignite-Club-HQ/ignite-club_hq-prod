@@ -727,7 +727,17 @@ export function createSubPlan(
 
       if (tenureForIncoming.length === 0) continue;
 
-      const chosenSlot = tenureForIncoming[0];
+      // Hard anti-bounce-back: prefer pitch players NOT introduced in the
+      // immediately previous rotation window. Only fall back to them when no
+      // other option exists.
+      const nonBouncePool = tenureForIncoming.filter(({ playerOut }) =>
+        !previousRotationPlayerInIds.has(playerOut!.id)
+      );
+      const chosenSlot = (nonBouncePool.length > 0 ? nonBouncePool : tenureForIncoming)[0];
+
+      // If we'd be forced to bounce back the player and there are other bench
+      // players still to consider, skip this incoming and let someone else try.
+      if (nonBouncePool.length === 0 && benchQueue.length - bi > 1) continue;
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(incoming.id);
