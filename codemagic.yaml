@@ -783,6 +783,7 @@ workflows:
               "$APP_ID")
 
           LOCAL_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_FILE" 2>/dev/null || echo "0")
+          TIMESTAMP_BUILD_NUMBER=$(date -u +%Y%m%d%H%M%S)
 
           LATEST=$LATEST_APP_STORE_GLOBAL
           for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
@@ -795,9 +796,13 @@ workflows:
           if echo "$LOCAL_BUILD_NUMBER" | grep -Eq '^[0-9]+$' && [ "$LOCAL_BUILD_NUMBER" -gt "$NEXT_BUILD_NUMBER" ]; then
             NEXT_BUILD_NUMBER="$LOCAL_BUILD_NUMBER"
           fi
+          if [ "$TIMESTAMP_BUILD_NUMBER" -gt "$NEXT_BUILD_NUMBER" ]; then
+            NEXT_BUILD_NUMBER="$TIMESTAMP_BUILD_NUMBER"
+          fi
 
           echo "=== iOS marketing version: $APP_VERSION ==="
           echo "=== Local committed build number: $LOCAL_BUILD_NUMBER ==="
+          echo "=== Timestamp-safe build floor: $TIMESTAMP_BUILD_NUMBER ==="
           echo "=== Latest App Store build overall: $LATEST_APP_STORE_GLOBAL ==="
           echo "=== Latest TestFlight build overall: $LATEST_TESTFLIGHT_GLOBAL ==="
           echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE_VERSION ==="
