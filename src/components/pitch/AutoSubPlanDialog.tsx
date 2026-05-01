@@ -458,11 +458,6 @@ export function createSubPlan(
         // -------- Pick playerIn --------
         // Priority: lowest adjusted minutes first. This preserves simple
         // windows but makes Practical genuinely fair instead of queue-only.
-        // Effective threshold respects each player's priority bonus, so the 2H
-        // keeper (with their outfield bonus) keeps qualifying as "under" until
-        // they bank enough field time to land in the top half of total minutes.
-        const effectiveMinSec = (id: string) =>
-          minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
         const under = benchOrder
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => !windowOuts.has(b.id))
