@@ -394,18 +394,20 @@ export function createSubPlan(
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
     }
-    // Tiny squads (≤2 bench): forced GK windows already eat 2–3 of the regular
-    // sub slots, leaving the FIFO queue unable to reach the last outfield
-    // starters. Add an extra rescue in each half so high-minute outfielders
-    // (typically forwards last in FIFO order) get pulled off at least once.
+    // Tiny squads (≤2 bench): GKs can ONLY swap at halftime, so no forced GK
+    // windows in 1H. Add TWO extra rescue windows per half (~33% and ~66%) so
+    // high-minute outfielders (typically forwards last in FIFO order) get
+    // pulled off — prevents any starter from playing a full 40'.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
-      const h1Rescue = Math.floor(halfDurationSeconds * 0.55);
-      if (h1Rescue > startAbs && h1Rescue < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1Rescue)) {
-        baseWindowTimes.push(h1Rescue);
-      }
-      const h2Rescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.55);
-      if (h2Rescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2Rescue)) {
-        baseWindowTimes.push(h2Rescue);
+      for (const ratio of [0.33, 0.66]) {
+        const h1R = Math.floor(halfDurationSeconds * ratio);
+        if (h1R > startAbs && h1R < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1R)) {
+          baseWindowTimes.push(h1R);
+        }
+        const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * ratio);
+        if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
+          baseWindowTimes.push(h2R);
+        }
       }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
@@ -523,19 +525,28 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
+          // Build the eligible candidate list, then choose. For tiny squads
+          // (≤2 bench), pick the HIGHEST-MINUTE eligible player so forwards
+          // (last in positional FIFO) actually get rotated. For larger
+          // squads, retain strict positional FIFO order.
+          const eligible: string[] = [];
           for (let j = 0; j < onPitchOrder.length; j++) {
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
             if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
-            // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
-            // Protect recently-subbed-on players (<4 min on field).
             const onAt = lastSubbedOnAbs.get(candidate);
             if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
-            outId = candidate;
-            onPitchOrder.splice(j, 1);
-            break;
+            eligible.push(candidate);
+          }
+          if (eligible.length > 0) {
+            if (outfieldOnBench.length <= 2) {
+              eligible.sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
+            }
+            outId = eligible[0];
+            const idx = onPitchOrder.indexOf(outId);
+            if (idx >= 0) onPitchOrder.splice(idx, 1);
           }
         }
         if (!outId) break;
