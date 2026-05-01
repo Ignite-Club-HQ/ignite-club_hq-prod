@@ -103,6 +103,21 @@ describe("createSubPlan", () => {
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(15);
 
+    // Practical fairness floor: no outfield player below 75% of target.
+    const practicalTotals = simulateTotals(players, practical, halfSec);
+    const fieldPositions = players.filter(p => p.position && p.currentPitchPosition !== "GK").length;
+    const outfield = players.filter(
+      p => !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK"),
+    );
+    const targetSec = (halfSec * 2 * fieldPositions) / outfield.length;
+    const minSec = targetSec * 0.75;
+    // Exclude pure GKs from the check (they don't rotate outfield here).
+    const outfieldIds = new Set(outfield.map(p => p.id));
+    const lows = [...practicalTotals.entries()]
+      .filter(([id]) => outfieldIds.has(id))
+      .filter(([, sec]) => sec < minSec);
+    expect(lows, `players below 75% floor: ${lows.map(([id, s]) => `${id}=${(s/60).toFixed(1)}'`).join(", ")}`).toEqual([]);
+
     // Frequent honours tight spread.
     const plan = createSubPlan(players as any, 7, halfSec, 2, false, false, true, 0, 1, "Maximus", 5);
     const totals = simulateTotals(players, plan, halfSec);
