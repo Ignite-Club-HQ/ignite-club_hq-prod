@@ -462,7 +462,13 @@ export function createSubPlan(
 
     // RULE: every outfield starter must be benched at least once. Track who
     // has yet to be subbed off; bias selection toward never-benched players.
-    const neverBenched = new Set<string>(outfieldOnPitch.map(p => p.id));
+    // GK-PROTECTED EXEMPTION: players assigned as GK in either half are
+    // exempt from the bench-once rule. They should be allowed to play their
+    // full outfield run before/after their GK shift to reach the top of the
+    // allowed spread (equal-highest minutes).
+    const neverBenched = new Set<string>(
+      outfieldOnPitch.filter(p => !isGkProtected(p.id)).map(p => p.id),
+    );
 
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
