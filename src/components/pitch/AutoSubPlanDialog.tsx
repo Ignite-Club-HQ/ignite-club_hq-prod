@@ -432,6 +432,10 @@ export function createSubPlan(
     // protect recent subs from being immediately pulled off.
     const lastSubbedOnAbs = new Map<string, number>();
 
+    // RULE: every outfield starter must be benched at least once. Track who
+    // has yet to be subbed off; bias selection toward never-benched players.
+    const neverBenched = new Set<string>(outfieldOnPitch.map(p => p.id));
+
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
