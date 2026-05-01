@@ -346,10 +346,14 @@ export function createSubPlan(
     };
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
-    const effectiveMinSec = (id: string) =>
-      minThresholdSec + (isKeeperRotationPlayer(id) ? gkPriorityBonusSec : 0);
-    const effectiveTargetSec = (id: string) =>
-      targetSecPerPlayer + (isKeeperRotationPlayer(id) ? gkPriorityBonusSec : 0);
+    // GKs already get a guaranteed 20 min in goal — that's the priority. Do
+    // NOT add an additional outfield bonus on top, or their total minutes
+    // balloon past the cap and starve bench players (creating large spreads).
+    // The "priority" for GKs is realised purely by being shielded from being
+    // pulled off too early (see overCap/FIFO filters below) and by the forced
+    // outfield window for the 2H GK before halftime.
+    const effectiveMinSec = (_id: string) => minThresholdSec;
+    const effectiveTargetSec = (_id: string) => targetSecPerPlayer;
     const shortfall = (id: string) => effectiveTargetSec(id) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
@@ -485,7 +489,9 @@ export function createSubPlan(
             const onAt = lastSubbedOnAbs.get(id);
             return onAt === undefined || (t - onAt) >= PRACTICAL_RECENT_SUB_PROTECTION_SECONDS;
           })
-          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id) + targetSecPerPlayer * 0.05)
+          // Keepers may be subbed off via over-cap once they've cleared the
+          // fairness floor — their 20 min in goal already puts them well above.
+          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
@@ -508,7 +514,7 @@ export function createSubPlan(
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
-            // Don't pull keepers off via plain FIFO unless they're above floor.
+            // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
             // Protect recently-subbed-on players (<4 min on field).
             const onAt = lastSubbedOnAbs.get(candidate);
