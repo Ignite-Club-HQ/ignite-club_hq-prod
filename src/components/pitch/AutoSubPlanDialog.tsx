@@ -408,6 +408,20 @@ export function createSubPlan(
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
     }
+    // Tiny squads (≤2 bench): forced GK windows already eat 2–3 of the regular
+    // sub slots, leaving the FIFO queue unable to reach the last outfield
+    // starters. Add an extra rescue in each half so high-minute outfielders
+    // (typically forwards last in FIFO order) get pulled off at least once.
+    if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
+      const h1Rescue = Math.floor(halfDurationSeconds * 0.55);
+      if (h1Rescue > startAbs && h1Rescue < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1Rescue)) {
+        baseWindowTimes.push(h1Rescue);
+      }
+      const h2Rescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.55);
+      if (h2Rescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2Rescue)) {
+        baseWindowTimes.push(h2Rescue);
+      }
+    }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
       .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
