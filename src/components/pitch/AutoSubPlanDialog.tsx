@@ -663,14 +663,25 @@ export function createSubPlan(
       return accumulated + (onPitchNow ? remaining : 0);
     };
 
+    // Each player's TOTAL minutes target = field + GK duty already received.
+    // Sorting by deficit-against-target (rather than raw field minutes) means
+    // GKs — who have minutes banked from goalkeeping — naturally rank lower in
+    // the bench queue, ensuring everyone finishes at equal TOTAL minutes.
+    const totalTarget = (id: string) => {
+      const p = playerById.get(id);
+      const baseMinutes = p?.minutesPlayed || 0;
+      return Math.max(0, sharedTotalTarget - baseMinutes - gkDutySeconds(id));
+    };
+    const deficit = (id: string) => totalTarget(id) - (currentFieldSeconds.get(id) || 0);
+
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        const aPlayed = currentFieldSeconds.get(a.id) || 0;
-        const bPlayed = currentFieldSeconds.get(b.id) || 0;
-        if (aPlayed !== bPlayed) return aPlayed - bPlayed;
-        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
+        const aDef = deficit(a.id);
+        const bDef = deficit(b.id);
+        if (Math.abs(aDef - bDef) > 1) return bDef - aDef; // larger deficit first
+        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0); // queue tiebreak
       });
 
     const pitchSlotsWithMeta = fieldSlots
@@ -686,8 +697,8 @@ export function createSubPlan(
       if (usedInIds.has(playerIn.id)) continue;
 
       // Pitch candidates compatible with this incoming player, sorted by
-      // most-played first (with tenure as tiebreaker), filtered by min-shift
-      // and bounce-back guards.
+      // smallest deficit first (most-overplayed relative to target), then by
+      // longest current shift as queue tiebreaker. Min-shift + bounce-back guards apply.
       const eligibleSlots = pitchSlotsWithMeta
         .filter(({ slot, index, playerOut }) =>
           !usedSlotIndexes.has(index) &&
@@ -697,9 +708,9 @@ export function createSubPlan(
           !previousRotationPlayerInIds.has(playerOut!.id)
         )
         .sort((a, b) => {
-          const aPlayed = currentFieldSeconds.get(a.playerOut!.id) || 0;
-          const bPlayed = currentFieldSeconds.get(b.playerOut!.id) || 0;
-          if (aPlayed !== bPlayed) return bPlayed - aPlayed;
+          const aDef = deficit(a.playerOut!.id);
+          const bDef = deficit(b.playerOut!.id);
+          if (Math.abs(aDef - bDef) > 1) return aDef - bDef; // smaller deficit (more "done") first
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
 
@@ -708,12 +719,12 @@ export function createSubPlan(
       const chosenSlot = eligibleSlots[0];
       const playerOut = chosenSlot.playerOut!;
 
-      // Only commit if this swap improves fairness — i.e. the bench player is
-      // currently behind the pitch player in playing time. This stops churn
-      // when minutes are already balanced.
-      const inPlayed = currentFieldSeconds.get(playerIn.id) || 0;
-      const outPlayed = currentFieldSeconds.get(playerOut.id) || 0;
-      if (outPlayed - inPlayed < 30 && projectedFinalSeconds(playerOut.id) - projectedFinalSeconds(playerIn.id) < 30) {
+      // Only commit if this swap improves fairness vs target. Use deficits
+      // instead of raw played-time so GKs aren't churned in for "missing" outfield
+      // minutes that would push them above their fair total.
+      const inDeficit = deficit(playerIn.id);
+      const outDeficit = deficit(playerOut.id);
+      if (inDeficit - outDeficit < 30 && projectedFinalSeconds(playerOut.id) - projectedFinalSeconds(playerIn.id) < 30) {
         continue;
       }
 
