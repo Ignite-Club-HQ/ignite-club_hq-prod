@@ -461,13 +461,12 @@ export function createSubPlan(
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
   const rawFieldTargets = new Map<string, number>();
-  const gkPriorityTopBufferSeconds = Math.min(300, Math.max(180, halfDurationSeconds * 0.15));
   outfieldPlayers.forEach(p => {
-    // GKs should finish at the equal-top of total playing time, not below the
-    // outfield group. Give them a small target buffer, then let scaling keep the
-    // whole plan inside the available team minutes.
-    const priorityTarget = sharedTotalTarget + (isGkPlayer(p.id) ? gkPriorityTopBufferSeconds : 0);
-    const base = Math.max(0, priorityTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+    // FAIRNESS: every player aims for the SAME total minutes (field + GK duty).
+    // GKs already have GK time banked, so their outfield target is the shared
+    // total minus their GK duty. They naturally play LESS outfield, not more —
+    // landing them at equal total minutes alongside everyone else.
+    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
