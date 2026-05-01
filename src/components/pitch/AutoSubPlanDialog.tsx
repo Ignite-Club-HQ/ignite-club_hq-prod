@@ -356,9 +356,7 @@ export function createSubPlan(
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
-    // Accrue projected time as we walk through the schedule.
-    // GK time is NOT accrued here — it's pre-credited above so the over-cap
-    // rule can sub the GK off in the field before they exceed their target.
+    // Accrue projected outfield time as we walk through the schedule.
     let lastTickAbs = startAbs;
     const accrueUntil = (absT: number) => {
       const dt = Math.max(0, absT - lastTickAbs);
@@ -413,10 +411,10 @@ export function createSubPlan(
 
         // -------- Pick playerOut --------
         // Priority: (1) the nominated 2H GK must be back on the bench before
-        // halftime, (2) anyone over the soft cap, (3) otherwise FIFO.
+        // halftime, (2) the highest-minute player, especially if over cap.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec)
+          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
@@ -444,10 +442,8 @@ export function createSubPlan(
         if (!outId) break;
 
         // -------- Pick playerIn --------
-        // Priority: (1) any bench player below the floor — lowest minutes first.
-        //           (2) otherwise FIFO from bench, but skip anyone already
-        //               above the soft cap (prevents re-subbing high-minute
-        //               players onto the field).
+        // Priority: lowest adjusted minutes first. This preserves simple
+        // windows but makes Practical genuinely fair instead of queue-only.
         const under = benchOrder
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => b.proj < minThresholdSec)
