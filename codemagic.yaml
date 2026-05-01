@@ -719,11 +719,22 @@ workflows:
           set -euo pipefail
           ROOT_DIR="$(pwd)"
           APP_VERSION=$(node -p "require('./package.json').version")
+          BUNDLE_ID="app.lovable.igniteteamhub"
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
           PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
 
-          if ! echo "${APP_STORE_APPLE_ID:-}" | grep -Eq '^[0-9]+$'; then
-            echo "ERROR: APP_STORE_APPLE_ID must be the numeric Apple ID from App Store Connect; got '${APP_STORE_APPLE_ID:-unset}'."
+          APP_ID="${APP_STORE_APPLE_ID:-}"
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "=== APP_STORE_APPLE_ID is not set to a numeric value; resolving by bundle id $BUNDLE_ID ==="
+            APPS_JSON=$(app-store-connect apps list \
+              --bundle-id-identifier "$BUNDLE_ID" \
+              --strict-match-identifier \
+              --json)
+            APP_ID=$(echo "$APPS_JSON" | node -e "const fs=require('fs'); const input=fs.readFileSync(0,'utf8'); const json=JSON.parse(input); const apps=Array.isArray(json) ? json : (json.data || json.apps || []); const app=apps[0] || {}; const id=app.id || app.appStoreId || (app.attributes && (app.attributes.appleId || app.attributes.appleID)) || ''; process.stdout.write(String(id));")
+          fi
+
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "ERROR: Could not resolve numeric Apple ID for $BUNDLE_ID. Set APP_STORE_APPLE_ID in Codemagic to the App Store Connect Apple ID."
             exit 1
           fi
 
