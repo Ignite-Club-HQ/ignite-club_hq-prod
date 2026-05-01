@@ -1193,7 +1193,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // source of truth for minute tracking. The catchup here was adding minutes
       // that handleTimerUpdate would ALSO add via its delta calculation, causing
       // double-counted player minutes (e.g. showing 15 min at 7 min game time).
-      return savedState.players;
+      return applyStrictMatchRoster(savedState.players);
     }
     if (savedState && !savedState.mockMode && realPlayers.length > 0) {
       console.log("[PitchState] useState init - ignoring stale empty saved state and using real players");
@@ -1401,7 +1401,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
         : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
     );
-  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasNoPlayersOnPitch]);
+  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasPlayersOutsideCurrentRoster, savedRosterHasNoPlayersOnPitch]);
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
@@ -1495,10 +1495,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // We have saved state with real players - check if we need to merge new real players
       const savedPlayerIds = new Set(savedState.players.map(p => p.id));
       const newPlayers = realPlayers.filter(p => !savedPlayerIds.has(p.id));
+      if (isStrictMatchEventRoster && savedRosterHasPlayersOutsideCurrentRoster) {
+        setPlayers(prev => applyStrictMatchRoster(prev));
+      }
       
       // If there are new players not in saved state, add them
       if (newPlayers.length > 0) {
-        setPlayers(prev => [...prev, ...newPlayers]);
+        setPlayers(prev => applyStrictMatchRoster([...prev, ...newPlayers]));
       }
       
       hasLoadedRef.current = true;
@@ -1515,7 +1518,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setHasInitialized(true);
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
-  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
+  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation, isStrictMatchEventRoster, savedRosterHasPlayersOutsideCurrentRoster, applyStrictMatchRoster]);
 
   // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
   const handleLineupSkip = useCallback(() => {
