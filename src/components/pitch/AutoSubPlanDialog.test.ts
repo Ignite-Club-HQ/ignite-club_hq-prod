@@ -110,7 +110,7 @@ describe("createSubPlan", () => {
       p => !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK"),
     );
     const targetSec = (halfSec * 2 * fieldPositions) / outfield.length;
-    const minSec = targetSec * 0.75;
+    const minSec = targetSec * 0.88;
     // Exclude pure GKs from the check (they don't rotate outfield here).
     const outfieldIds = new Set(outfield.map(p => p.id));
     const lows = [...practicalTotals.entries()]
