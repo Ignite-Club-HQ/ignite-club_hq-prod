@@ -299,6 +299,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
+
+  // Keep `preferredSecondHalfGkId` in sync with the live roster: if the
+  // referenced player no longer exists, has been moved onto the pitch (i.e.
+  // the coach picked a new GK / restructured the lineup), or is the current
+  // starting GK, clear the preference so the planner re-derives a fresh
+  // 2nd-half GK from the current pitch state. Without this, the AutoSubPlan
+  // dialog keeps surfacing a stale "GK 2H" badge after the coach changes
+  // who's keeping goal.
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -1823,6 +1831,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
   }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, toolbarCollapsed, drawingTool]);
+
+  // Drop a stale `preferredSecondHalfGkId` whenever the live roster makes it
+  // invalid — the player no longer exists, has been moved onto the pitch, or
+  // is now serving as the starting GK. Letting it linger would cause the
+  // AutoSubPlan dialog to lock in the wrong "GK 2H" badge after the coach
+  // changes who is keeping goal.
+  useEffect(() => {
+    if (!preferredSecondHalfGkId) return;
+    const target = players.find((p) => p.id === preferredSecondHalfGkId);
+    if (!target || target.position !== null || target.currentPitchPosition === "GK") {
+      setPreferredSecondHalfGkId(undefined);
+    }
+  }, [players, preferredSecondHalfGkId]);
 
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
@@ -5542,6 +5563,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
           miniLeagueTeams={miniLeagueTeams}
+          preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
 
         {/* Sub Confirm Dialog */}
@@ -7063,6 +7085,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
         miniLeagueTeams={miniLeagueTeams}
+        preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
 
       {/* Auto-Sub Control Panel */}
