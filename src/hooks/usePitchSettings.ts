@@ -22,6 +22,10 @@ export interface PitchSettingsState {
   selectedFormation: number;
   showMatchHeader: boolean;
   showLineupPickerSetting: boolean;
+  /** Max acceptable playing-time spread in minutes between most & least played
+   *  outfielders. Planner keeps queue (FIFO) order while projected spread is
+   *  within this cap; once projected to exceed it, fairness overrides queue. */
+  maxSpreadMinutes: number;
 }
 
 interface UsePitchSettingsOptions {
@@ -45,6 +49,7 @@ const buildPayload = (
   disable_batch_subs: settings.disableBatchSubs,
   rotate_gk_at_halftime: settings.rotateGkAtHalftime,
   minutes_per_half: settings.minutesPerHalf,
+  max_spread_minutes: settings.maxSpreadMinutes,
   team_size: parseInt(settings.teamSize),
   formation: FORMATIONS[settings.teamSize][settings.selectedFormation]?.name || null,
   ...overrides,
@@ -62,6 +67,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     disablePositionSwaps: boolean;
     disableBatchSubs: boolean;
     rotateGkAtHalftime: boolean;
+    maxSpreadMinutes: number;
     teamSize: TeamSize;
     formation: string | null;
   }>({
@@ -70,6 +76,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     disablePositionSwaps: settingsRef.current.disablePositionSwaps,
     disableBatchSubs: settingsRef.current.disableBatchSubs,
     rotateGkAtHalftime: settingsRef.current.rotateGkAtHalftime,
+    maxSpreadMinutes: settingsRef.current.maxSpreadMinutes,
     teamSize: settingsRef.current.teamSize,
     formation: null,
   });
@@ -153,6 +160,14 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     [persistSetting]
   );
 
+  /** Persist max playing-time spread (minutes). */
+  const persistMaxSpreadMinutes = useCallback(
+    async (minutes: number) => {
+      await persistSetting({ max_spread_minutes: minutes });
+    },
+    [persistSetting]
+  );
+
   /** Persist show lineup picker setting. */
   const persistShowLineupPicker = useCallback(
     async (enabled: boolean) => {
@@ -187,6 +202,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
         disablePositionSwaps: settings.disablePositionSwaps,
         disableBatchSubs: settings.disableBatchSubs,
         rotateGkAtHalftime: settings.rotateGkAtHalftime,
+        maxSpreadMinutes: settings.maxSpreadMinutes,
         teamSize: settings.teamSize,
         formation:
           FORMATIONS[settings.teamSize][settings.selectedFormation]?.name || null,
@@ -224,6 +240,7 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     persistDisableBatchSubs,
     persistRotateGkAtHalftime,
     persistMinutesPerHalf,
+    persistMaxSpreadMinutes,
     persistShowLineupPicker,
     handleSaveSettings,
   };
