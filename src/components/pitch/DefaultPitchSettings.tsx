@@ -58,9 +58,8 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
 const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "6", "7", "8", "9", "10", "11"];
 const MINUTES_OPTIONS = [5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45];
 const ROTATION_SPEEDS = [
-  { value: "1", label: "Minimal", desc: "1 sub at a time, fewer windows — less disruption" },
-  { value: "2", label: "Balanced", desc: "2 subs at a time — good mix of flow & fairness" },
-  { value: "3", label: "Equal Time", desc: "Up to 3 subs at a time, more windows — max fairness" },
+  { value: "1", label: "Practical", desc: "Fewer subs, simple FIFO rotation, fair for everyone" },
+  { value: "2", label: "Frequent", desc: "2 subs per window — tighter time balance" },
 ];
 
 interface DefaultPitchSettingsProps {
@@ -184,7 +183,7 @@ export function DefaultPitchSettings({
           <div className="space-y-2">
             <Label>Rotation Speed</Label>
             <Select 
-              value={rotationSpeed.toString()} 
+              value={(rotationSpeed >= 2 ? 2 : 1).toString()} 
               onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
             >
               <SelectTrigger>

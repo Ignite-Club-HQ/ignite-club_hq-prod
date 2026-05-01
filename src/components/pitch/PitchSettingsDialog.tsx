@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -50,6 +50,10 @@ interface PitchSettingsDialogProps {
   // Rotate GK at halftime
   rotateGkAtHalftime?: boolean;
   onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+
+  // Max acceptable playing-time spread (minutes). Used by auto-sub planner.
+  maxSpreadMinutes?: number;
+  onMaxSpreadMinutesChange?: (minutes: number) => void;
   
   // Player position preference
   onOpenPositionEditor: () => void;
@@ -130,6 +134,8 @@ export function PitchSettingsDialog({
   onDisableBatchSubsChange,
   rotateGkAtHalftime = true,
   onRotateGkAtHalftimeChange,
+  maxSpreadMinutes = 5,
+  onMaxSpreadMinutesChange,
   onOpenPositionEditor,
   mockMode,
   onMockModeChange,
@@ -308,22 +314,22 @@ export function PitchSettingsDialog({
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Subs Speed</Label>
                   <Select 
-                    value={rotationSpeed.toString()} 
+                    value={(rotationSpeed >= 2 ? 2 : 1).toString()} 
                     onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue>
-                        {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Batch' : 'Balanced'}
+                        {rotationSpeed >= 2 ? 'Frequent' : 'Practical'}
                       </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
                       <SelectItem value="1">
                         <div className="flex items-center gap-2">
-                          <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <List className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
-                            <span>Minimal</span>
-                            <p className="text-[10px] text-muted-foreground">1 sub per window, more frequent</p>
+                            <span>Practical</span>
+                            <p className="text-[10px] text-muted-foreground">Fewer subs, simple rotation, fair for everyone</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -331,17 +337,8 @@ export function PitchSettingsDialog({
                         <div className="flex items-center gap-2">
                           <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
-                            <span>Balanced</span>
-                            <p className="text-[10px] text-muted-foreground">2 subs per window, moderate</p>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="3">
-                        <div className="flex items-center gap-2">
-                          <Equal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <div>
-                            <span>Batch</span>
-                            <p className="text-[10px] text-muted-foreground">3 subs per window, fewer stops</p>
+                            <span>Frequent</span>
+                            <p className="text-[10px] text-muted-foreground">2 subs per window — tighter time balance</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -350,8 +347,34 @@ export function PitchSettingsDialog({
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Subs every ~{rotationSpeed === 1 ? Math.round(minutesPerHalf / 2) : rotationSpeed === 2 ? Math.round(minutesPerHalf / 3) : Math.round(minutesPerHalf / 4)} min
+                {rotationSpeed === 1
+                  ? `Subs roughly every 7 min — minimal disruption`
+                  : `Subs every ~${Math.round(minutesPerHalf / 3)} min`}
               </p>
+
+              {onMaxSpreadMinutesChange && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs text-muted-foreground">Max Playing-Time Spread</Label>
+                  <Select
+                    value={maxSpreadMinutes.toString()}
+                    onValueChange={(v) => onMaxSpreadMinutesChange(parseInt(v))}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
+                      <SelectValue>{maxSpreadMinutes} min</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
+                      <SelectItem value="3">3 min — strict fairness</SelectItem>
+                      <SelectItem value="5">5 min — recommended</SelectItem>
+                      <SelectItem value="7">7 min — relaxed</SelectItem>
+                      <SelectItem value="10">10 min — queue-first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Subs follow queue order; fairness only overrides queue once the projected gap between most & least played would exceed this cap.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Advanced Options - collapsed by default */}

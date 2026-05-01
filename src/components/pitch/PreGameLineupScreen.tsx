@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Minus, Scale, Equal, ChevronDown } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Scale, Equal, ChevronDown, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -20,9 +20,9 @@ interface PreGameLineupScreenProps {
   onClose: () => void;
   onTeamSizeChange?: (size: TeamSize) => void;
   onFormationChange?: (index: number) => void;
-  /** Auto-sub rotation speed: 1 = Minimal, 2 = Balanced, 3 = Batch.
-   *  When provided alongside onRotationSpeedChange, an inline picker is shown
-   *  so coaches can tune sub frequency without leaving the lineup screen. */
+  /** Auto-sub rotation speed: 2 = Balanced (default), 3 = Frequent.
+   *  Legacy value 1 ("Minimal") is migrated to 2 by the planner; the picker
+   *  shows only the two supported modes. */
   rotationSpeed?: number;
   onRotationSpeedChange?: (speed: number) => void;
 }
@@ -108,7 +108,8 @@ export default function PreGameLineupScreen({
   const toggleSection = useCallback((s: "size" | "formation" | "subs") => {
     setOpenSection(prev => (prev === s ? null : s));
   }, []);
-  const subsSpeedLabel = rotationSpeed === 1 ? "Minimal" : rotationSpeed === 3 ? "Batch" : "Balanced";
+  const _rs = rotationSpeed ?? 1;
+  const subsSpeedLabel = _rs >= 2 ? "Frequent" : "Practical";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -640,11 +641,12 @@ export default function PreGameLineupScreen({
                     aria-label="Subs speed"
                   >
                     {[
-                      { value: 1, label: "Minimal", Icon: Minus, hint: "1 sub / window" },
-                      { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
-                      { value: 3, label: "Batch", Icon: Equal, hint: "3 subs / window" },
+                      { value: 1, label: "Practical", Icon: List, hint: "Few subs, simple" },
+                      { value: 2, label: "Frequent", Icon: Scale, hint: "2 subs / window" },
                     ].map(({ value, label, Icon, hint }) => {
-                      const active = rotationSpeed === value;
+                      const rs = rotationSpeed ?? 1;
+                      const normalised = rs >= 2 ? 2 : 1;
+                      const active = normalised === value;
                       return (
                         <button
                           key={value}

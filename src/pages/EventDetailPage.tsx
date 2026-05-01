@@ -2990,11 +2990,12 @@ export default function EventDetailPage() {
             }))}
             onClose={() => setShowPitchBoard(false)}
             disableAutoSubs={teamSubscription?.disable_auto_subs || false}
-            initialRotationSpeed={teamSubscription?.rotation_speed || 2}
+            initialRotationSpeed={teamSubscription?.rotation_speed || 1}
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
             initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
             initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
             initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+            initialMaxSpreadMinutes={(teamSubscription as any)?.max_spread_minutes ?? 5}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
             initialLinkedEventId={id}
