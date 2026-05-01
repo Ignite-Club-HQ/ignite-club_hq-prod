@@ -747,7 +747,9 @@ workflows:
               return "$status"
             fi
 
-            echo "$output" | tr -d '\r' | grep -Eo '[0-9]+' | tail -1
+            local parsed
+            parsed=$(echo "$output" | tr -d '\r' | grep -Eo '[0-9]+' | tail -1 || true)
+            echo "${parsed:-0}"
           }
 
           LATEST_APP_STORE_GLOBAL=$(latest_build_for_version "App Store" \
