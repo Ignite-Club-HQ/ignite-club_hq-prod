@@ -50,6 +50,10 @@ interface PitchSettingsDialogProps {
   // Rotate GK at halftime
   rotateGkAtHalftime?: boolean;
   onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+
+  // Max acceptable playing-time spread (minutes). Used by auto-sub planner.
+  maxSpreadMinutes?: number;
+  onMaxSpreadMinutesChange?: (minutes: number) => void;
   
   // Player position preference
   onOpenPositionEditor: () => void;
@@ -130,6 +134,8 @@ export function PitchSettingsDialog({
   onDisableBatchSubsChange,
   rotateGkAtHalftime = true,
   onRotateGkAtHalftimeChange,
+  maxSpreadMinutes = 5,
+  onMaxSpreadMinutesChange,
   onOpenPositionEditor,
   mockMode,
   onMockModeChange,
