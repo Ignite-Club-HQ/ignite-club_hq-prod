@@ -410,15 +410,23 @@ export function createSubPlan(
           (halftimeGkIn && id === halftimeGkIn.id && t >= halfTimeAbs);
 
         // -------- Pick playerOut --------
-        // Priority: (1) anyone over the soft cap (highest minutes first).
-        //           (2) otherwise FIFO (front of pitch queue).
+        // Priority: (1) the nominated 2H GK must be back on the bench before
+        // halftime, (2) anyone over the soft cap, (3) otherwise FIFO.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec)
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
-        if (overCap.length > 0) {
+        const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
+          t < halfTimeAbs &&
+          t >= halfTimeAbs - intervalSec - 30 &&
+          onPitchOrder.includes(halftimeGkIn.id);
+        if (h2GkNeedsBenchForHalftime) {
+          outId = halftimeGkIn!.id;
+          const idx = onPitchOrder.indexOf(outId);
+          if (idx >= 0) onPitchOrder.splice(idx, 1);
+        } else if (overCap.length > 0) {
           outId = overCap[0];
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
@@ -439,9 +447,9 @@ export function createSubPlan(
         //               above the soft cap (prevents re-subbing high-minute
         //               players onto the field).
         const under = benchOrder
-          .map(id => ({ id, proj: projected.get(id) || 0 }))
+          .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => b.proj < minThresholdSec)
-          .sort((a, b) => a.proj - b.proj);
+          .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
         if (under.length > 0) {
@@ -449,10 +457,12 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          // FIFO but skip over-cap players first.
-          const fifoIdx = benchOrder.findIndex(
-            id => (projected.get(id) || 0) <= maxThresholdSec
-          );
+          // Mostly FIFO, but allow an urgent low-minute player with limited
+          // availability (notably the nominated 2H GK) to jump the queue.
+          const fifoIdx = benchOrder
+            .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+            .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
+            .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
