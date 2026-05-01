@@ -432,6 +432,10 @@ export function createSubPlan(
     // protect recent subs from being immediately pulled off.
     const lastSubbedOnAbs = new Map<string, number>();
 
+    // RULE: every outfield starter must be benched at least once. Track who
+    // has yet to be subbed off; bias selection toward never-benched players.
+    const neverBenched = new Set<string>(outfieldOnPitch.map(p => p.id));
+
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
@@ -512,7 +516,13 @@ export function createSubPlan(
           // fairness floor — their 20 min in goal already puts them well above.
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
-          .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
+          .sort((a, b) => {
+            // Bench-everyone rule: prefer pulling never-benched players first.
+            const aNB = neverBenched.has(a) ? 1 : 0;
+            const bNB = neverBenched.has(b) ? 1 : 0;
+            if (aNB !== bNB) return bNB - aNB;
+            return (projected.get(b) || 0) - (projected.get(a) || 0);
+          });
 
         let outId: string | null = null;
         const forcedOutId = forcedOutByWindow.get(t);
@@ -533,25 +543,56 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
-          // Build the eligible candidate list, then choose. For tiny squads
-          // (≤2 bench), pick the HIGHEST-MINUTE eligible player so forwards
-          // (last in positional FIFO) actually get rotated. For larger
-          // squads, retain strict positional FIFO order.
-          const eligible: string[] = [];
-          for (let j = 0; j < onPitchOrder.length; j++) {
-            const candidate = onPitchOrder[j];
-            if (isActiveGk(candidate)) continue;
-            if (windowIns.has(candidate)) continue;
-            if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
-            if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
-            const onAt = lastSubbedOnAbs.get(candidate);
-            if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
-            eligible.push(candidate);
-          }
-          if (eligible.length > 0) {
-            if (outfieldOnBench.length <= 2) {
-              eligible.sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
+          // Build the eligible candidate list, then choose.
+          const buildEligible = (allowRecentSub: boolean) => {
+            const out: string[] = [];
+            for (let j = 0; j < onPitchOrder.length; j++) {
+              const candidate = onPitchOrder[j];
+              if (isActiveGk(candidate)) continue;
+              if (windowIns.has(candidate)) continue;
+              if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
+              if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
+              if (!allowRecentSub) {
+                const onAt = lastSubbedOnAbs.get(candidate);
+                if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
+              }
+              out.push(candidate);
             }
+            return out;
+          };
+
+          // BENCH-EVERYONE GUARANTEE: if remaining sub windows are scarce
+          // relative to never-benched starters still on the pitch, force one
+          // of them off NOW — even if it costs a recently-subbed player a
+          // shorter shift. Threshold: windows-left ≤ never-benched-on-pitch.
+          const neverBenchedOnPitch = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGk(id) && !windowIns.has(id));
+          const windowsLeft = pendingWindows.length + 1;
+          const mustForceNeverBenched = neverBenchedOnPitch.length > 0 && windowsLeft <= neverBenchedOnPitch.length + 1;
+
+          let eligible = buildEligible(false);
+          // If we must force a never-benched player but none are eligible
+          // under the recent-sub-protection rule, drop that protection.
+          if (mustForceNeverBenched && !eligible.some(id => neverBenched.has(id))) {
+            eligible = buildEligible(true);
+          }
+
+          if (eligible.length > 0) {
+            // Bench-everyone rule: always prefer never-benched players first.
+            // Tiebreak: positionally LAST (forwards tend to last in FIFO and
+            // would otherwise never come off). Among already-benched: tiny-squad
+            // highest-minutes / large-squad positional order.
+            eligible.sort((a, b) => {
+              const aNB = neverBenched.has(a) ? 1 : 0;
+              const bNB = neverBenched.has(b) ? 1 : 0;
+              if (aNB !== bNB) return bNB - aNB;
+              if (aNB === 1 && bNB === 1) {
+                return onPitchOrder.indexOf(b) - onPitchOrder.indexOf(a);
+              }
+              if (outfieldOnBench.length <= 2) {
+                return (projected.get(b) || 0) - (projected.get(a) || 0);
+              }
+              return onPitchOrder.indexOf(a) - onPitchOrder.indexOf(b);
+            });
             outId = eligible[0];
             const idx = onPitchOrder.indexOf(outId);
             if (idx >= 0) onPitchOrder.splice(idx, 1);
@@ -622,6 +663,30 @@ export function createSubPlan(
         windowOuts.add(outId);
         benchOrder.push(outId);
         lastSubbedOnAbs.set(inId, t);
+        neverBenched.delete(outId);
+      }
+
+      // BENCH-EVERYONE GUARANTEE: if there are still never-benched starters
+      // on the pitch and we don't have enough remaining windows to bench them
+      // all, inject extra synthetic windows ~2 min apart before end of game.
+      const tNext = pendingWindows[0] ?? endAbs;
+      const isActiveGkAt = (id: string, absT: number) =>
+        (gkOnPitch && id === gkOnPitch.id && absT < halfTimeAbs) ||
+        (halftimeGkIn && id === halftimeGkIn.id && absT >= halfTimeAbs);
+      const stillNB = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGkAt(id, tNext));
+      if (stillNB.length > pendingWindows.length) {
+        const deficit = stillNB.length - pendingWindows.length;
+        const lastScheduled = pendingWindows.length > 0 ? pendingWindows[pendingWindows.length - 1] : t;
+        for (let k = 1; k <= deficit; k++) {
+          const extra = Math.min(
+            lastScheduled + k * 2 * 60,
+            endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS,
+          );
+          if (extra > t && !pendingWindows.includes(extra)) {
+            pendingWindows.push(extra);
+          }
+        }
+        pendingWindows.sort((a, b) => a - b);
       }
     }
 
