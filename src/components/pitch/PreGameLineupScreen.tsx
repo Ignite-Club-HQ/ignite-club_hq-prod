@@ -641,10 +641,12 @@ export default function PreGameLineupScreen({
                     aria-label="Subs speed"
                   >
                     {[
+                      { value: 1, label: "Practical", Icon: List, hint: "Few subs, simple" },
                       { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
                       { value: 3, label: "Frequent", Icon: Equal, hint: "3 subs / window" },
                     ].map(({ value, label, Icon, hint }) => {
-                      const normalised = (rotationSpeed ?? 2) >= 3 ? 3 : 2;
+                      const rs = rotationSpeed ?? 1;
+                      const normalised = rs >= 3 ? 3 : rs === 2 ? 2 : 1;
                       const active = normalised === value;
                       return (
                         <button
