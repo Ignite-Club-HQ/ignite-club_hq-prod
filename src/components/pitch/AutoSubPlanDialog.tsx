@@ -446,7 +446,7 @@ export function createSubPlan(
 
       // Rescue check: if any bench player is currently below the floor and
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
-      const isForcedGkWindow = forcedInByWindow.has(t);
+      const isForcedGkWindow = forcedInByWindow.has(t) || forcedOutByWindow.has(t);
       const benchUnder = benchOrder.filter(
         id => (projected.get(id) || 0) < minThresholdSec
       );
