@@ -154,7 +154,7 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
-function createSubPlan(
+export function createSubPlan(
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
@@ -489,6 +489,10 @@ function createSubPlan(
     1,
     Math.min(disableBatchSubs ? 1 : subsAtOnce, benchSize, fieldSlots.length)
   );
+  // Rotation continuity: with multiple bench players, someone who has just been
+  // brought on should not be the player removed at the very next rotation.
+  // They re-enter the normal off-order after one further window has passed.
+  let previousRotationPlayerInIds = new Set<string>();
 
   // FAIRNESS-DRIVEN WINDOW COUNT
   // ----------------------------
@@ -598,9 +602,13 @@ function createSubPlan(
 
   const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number, reservedSubEvents = 0) => {
     const maxChanges = Math.max(0, maxSubEventsPerWindow - reservedSubEvents);
-    if (maxChanges === 0) return;
+    if (maxChanges === 0) {
+      previousRotationPlayerInIds = new Set<string>();
+      return;
+    }
 
     const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
+    const protectedPlayerOutIds = benchSize > 1 ? previousRotationPlayerInIds : new Set<string>();
 
     const playerNeedScore = (id: string) => {
       const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
@@ -621,13 +629,22 @@ function createSubPlan(
     for (const { player: playerIn } of rankedBench) {
       if (selectedSubs.length >= maxChanges) break;
 
-      const bestSlot = fieldSlots
+      const candidateSlots = fieldSlots
         .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
         .filter(({ slot, index, playerOut }) =>
           !!playerOut &&
           !usedSlotIndexes.has(index) &&
           canUseInOutfield(playerIn, slot.position)
-        )
+        );
+      const unprotectedSlots = candidateSlots.filter(({ playerOut }) =>
+        playerOut && !protectedPlayerOutIds.has(playerOut.id)
+      );
+
+      // If other bench options exist, skip this incoming player rather than
+      // bouncing a just-introduced player straight back off.
+      if (candidateSlots.length === 0 || (benchSize > 1 && unprotectedSlots.length === 0)) continue;
+
+      const bestSlot = (unprotectedSlots.length > 0 ? unprotectedSlots : candidateSlots)
         .sort((a, b) => {
           const aNeed = targetFieldSeconds(a.playerOut!.id) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
           const bNeed = targetFieldSeconds(b.playerOut!.id) - (currentFieldSeconds.get(b.playerOut!.id) || 0);
@@ -660,6 +677,8 @@ function createSubPlan(
 
       fieldSlots[slotIndex].playerId = playerIn.id;
     });
+
+    previousRotationPlayerInIds = new Set(selectedSubs.map(sub => sub.playerIn.id));
   };
 
   let directLastTime = startAbsoluteSeconds;
@@ -709,12 +728,26 @@ function createSubPlan(
     const snapshots: { index: number; before: Map<string, PitchPosition>; absoluteSeconds: number; nextAbsoluteSeconds: number }[] = [];
     let last = startAbsoluteSeconds;
     let valid = true;
+    let bounceBackCount = 0;
+    let currentWindowTime: number | null = null;
+    let previousWindowPlayerIns = new Set<string>();
+    let currentWindowPlayerIns = new Set<string>();
 
     ordered.forEach((entry, orderIndex) => {
       const elapsed = entry.absoluteSeconds - last;
       if (elapsed < 0) valid = false;
       if (elapsed > 0) {
         onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + elapsed));
+      }
+
+      if (currentWindowTime !== entry.absoluteSeconds) {
+        previousWindowPlayerIns = currentWindowPlayerIns;
+        currentWindowPlayerIns = new Set<string>();
+        currentWindowTime = entry.absoluteSeconds;
+      }
+
+      if (benchSize > 1 && previousWindowPlayerIns.has(entry.sub.playerOut.id) && !isDirectHalftimeGkSwapSub(entry.sub)) {
+        bounceBackCount++;
       }
 
       snapshots.push({
@@ -737,6 +770,8 @@ function createSubPlan(
         onPitch.set(entry.sub.playerIn.id, outPosition);
       }
 
+      currentWindowPlayerIns.add(entry.sub.playerIn.id);
+
       last = entry.absoluteSeconds;
     });
 
@@ -745,10 +780,10 @@ function createSubPlan(
       onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
     }
 
-    return { totals, snapshots, valid };
+    return { totals, snapshots, valid, bounceBackCount };
   };
 
-  const fairnessObjective = (totals: Map<string, number>) => {
+  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0) => {
     const values = fairPlayerIds.map(id => totals.get(id) || 0);
     if (values.length < 2) return 0;
     const spread = Math.max(...values) - Math.min(...values);
@@ -756,7 +791,7 @@ function createSubPlan(
     const gkShortfall = fairPlayerIds
       .filter(id => isGkPlayer(id))
       .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
-    return spread * 1000 + gkShortfall;
+    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000;
   };
 
   // Iterative fairness optimizer. Each pass tries every legal single-sub
@@ -766,7 +801,7 @@ function createSubPlan(
   for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
-    const currentScore = fairnessObjective(currentSim.totals);
+    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount);
     if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
@@ -797,7 +832,7 @@ function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals) : Number.POSITIVE_INFINITY;
+          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
           // Accept any strict improvement (no slack) so the optimizer can keep
