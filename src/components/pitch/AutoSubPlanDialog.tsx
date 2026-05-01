@@ -1100,9 +1100,14 @@ export function createSubPlan(
     ? Math.min(maxGkLockoutSeconds, halfDurationSeconds * 0.4)
     : 0;
   if (estimatedResidualSpread > targetSpreadSeconds) {
+    // LIGHT FREQUENT: cap escalation tighter so we don't pile on extra cycles.
+    // Frequent (speed=2) tops out at +1 cycle; Fast (speed=3) keeps the higher
+    // ceiling for tight-spread scenarios.
+    const escalationCeiling = rotationSpeed === 3 ? 6 : 3;
+    const escalationBoost = rotationSpeed === 3 ? 2 : 1;
     cycleMultiplier = Math.min(
-      6,
-      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 2)
+      escalationCeiling,
+      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + escalationBoost)
     );
   }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
