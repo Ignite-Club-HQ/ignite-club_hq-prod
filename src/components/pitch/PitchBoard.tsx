@@ -5501,6 +5501,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           disablePositionSwaps={disablePositionSwaps}
           disableBatchSubs={disableBatchSubs}
           rotateGkAtHalftime={rotateGkAtHalftime}
+          maxSpreadMinutes={maxSpreadMinutes}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
@@ -7021,6 +7022,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
+        maxSpreadMinutes={maxSpreadMinutes}
         currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
