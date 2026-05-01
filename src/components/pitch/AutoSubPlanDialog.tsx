@@ -716,7 +716,7 @@ export function createSubPlan(
       // when minutes are already balanced.
       const inPlayed = currentFieldSeconds.get(playerIn.id) || 0;
       const outPlayed = currentFieldSeconds.get(playerOut.id) || 0;
-      if (outPlayed - inPlayed < 30 && projectedFinalSeconds(playerOut) - projectedFinalSeconds(playerIn) < 30) {
+      if (outPlayed - inPlayed < 30 && projectedFinalSeconds(playerOut.id) - projectedFinalSeconds(playerIn.id) < 30) {
         continue;
       }
 
