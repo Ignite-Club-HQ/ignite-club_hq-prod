@@ -298,9 +298,11 @@ export function createSubPlan(
 
     // ---- Fairness model ------------------------------------------------------
     // Track REAL total minutes for every player. Keeper duty counts as time on
-    // pitch; we only add a small outfield priority bonus separately so keepers
-    // still get a decent run without destroying the fair-time calculation.
-    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 4 * 60;
+    // pitch; we add a sizeable outfield priority bonus so keepers still get a
+    // good run of outfield minutes and finish in the top half of total time.
+    // The bonus is large enough that the 2H keeper (who only has 1H available
+    // for outfield play) is prioritised onto the pitch early in the 1st half.
+    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 5 * 60;
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
@@ -329,6 +331,8 @@ export function createSubPlan(
     };
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
+    const effectiveMinSec = (id: string) =>
+      minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
     const shortfall = (id: string) =>
       targetSecPerPlayer + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
@@ -399,6 +403,7 @@ export function createSubPlan(
       const swaps = Math.min(subsPerWindow, onPitchOrder.length, benchOrder.length);
       if (swaps === 0) continue;
       const windowIns = new Set<string>();
+      const windowOuts = new Set<string>();
 
       const { half, time } = (() => ({
         half: (t < halfDurationSeconds ? 1 : 2) as 1 | 2,
@@ -413,16 +418,22 @@ export function createSubPlan(
         // -------- Pick playerOut --------
         // Priority: (1) the nominated 2H GK must be back on the bench before
         // halftime, (2) the highest-minute player, especially if over cap.
+        // Over-cap pull: prefer subbing off players who are above the cap, OR
+        // when a bench player is below their effective floor. Keepers should
+        // generally NOT be pulled off via over-cap logic — they need their
+        // outfield run to land in the top half of total minutes.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec))
+          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id) + targetSecPerPlayer * 0.05)
+          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec + (isKeeperRotationPlayer(benchId) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
         const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
           t < halfTimeAbs &&
           t >= halfTimeAbs - intervalSec - 30 &&
+          !windowIns.has(halftimeGkIn.id) &&
           onPitchOrder.includes(halftimeGkIn.id);
         if (h2GkNeedsBenchForHalftime) {
           outId = halftimeGkIn!.id;
@@ -437,6 +448,8 @@ export function createSubPlan(
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
+            // Don't pull keepers off via plain FIFO unless they're above floor.
+            if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
             outId = candidate;
             onPitchOrder.splice(j, 1);
             break;
@@ -449,7 +462,8 @@ export function createSubPlan(
         // windows but makes Practical genuinely fair instead of queue-only.
         const under = benchOrder
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
-          .filter(b => b.proj < minThresholdSec)
+          .filter(b => !windowOuts.has(b.id))
+          .filter(b => b.proj < effectiveMinSec(b.id))
           .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
@@ -462,12 +476,14 @@ export function createSubPlan(
           // availability (notably the nominated 2H GK) to jump the queue.
           const fifoIdx = benchOrder
             .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+            .filter(item => !windowOuts.has(item.id))
             .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
             .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
-            inId = benchOrder.shift();
+            const fallbackIdx = benchOrder.findIndex(id => !windowOuts.has(id));
+            inId = fallbackIdx >= 0 ? benchOrder.splice(fallbackIdx, 1)[0] : undefined;
           }
         }
 
@@ -490,6 +506,7 @@ export function createSubPlan(
 
         onPitchOrder.push(inId);
         windowIns.add(inId);
+        windowOuts.add(outId);
         benchOrder.push(outId);
       }
     }
