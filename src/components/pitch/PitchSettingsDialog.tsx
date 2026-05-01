@@ -50,6 +50,10 @@ interface PitchSettingsDialogProps {
   // Rotate GK at halftime
   rotateGkAtHalftime?: boolean;
   onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+
+  // Max acceptable playing-time spread (minutes). Used by auto-sub planner.
+  maxSpreadMinutes?: number;
+  onMaxSpreadMinutesChange?: (minutes: number) => void;
   
   // Player position preference
   onOpenPositionEditor: () => void;
@@ -130,6 +134,8 @@ export function PitchSettingsDialog({
   onDisableBatchSubsChange,
   rotateGkAtHalftime = true,
   onRotateGkAtHalftimeChange,
+  maxSpreadMinutes = 5,
+  onMaxSpreadMinutesChange,
   onOpenPositionEditor,
   mockMode,
   onMockModeChange,
@@ -352,6 +358,30 @@ export function PitchSettingsDialog({
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 Subs every ~{rotationSpeed === 1 ? Math.round(minutesPerHalf / 2) : rotationSpeed === 2 ? Math.round(minutesPerHalf / 3) : Math.round(minutesPerHalf / 4)} min
               </p>
+
+              {onMaxSpreadMinutesChange && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs text-muted-foreground">Max Playing-Time Spread</Label>
+                  <Select
+                    value={maxSpreadMinutes.toString()}
+                    onValueChange={(v) => onMaxSpreadMinutesChange(parseInt(v))}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
+                      <SelectValue>{maxSpreadMinutes} min</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
+                      <SelectItem value="3">3 min — strict fairness</SelectItem>
+                      <SelectItem value="5">5 min — recommended</SelectItem>
+                      <SelectItem value="7">7 min — relaxed</SelectItem>
+                      <SelectItem value="10">10 min — queue-first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Subs follow queue order; fairness only overrides queue once the projected gap between most & least played would exceed this cap.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Advanced Options - collapsed by default */}

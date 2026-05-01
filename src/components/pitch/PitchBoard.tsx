@@ -109,6 +109,7 @@ interface PitchBoardProps {
   initialDisableBatchSubs?: boolean;
   initialRotateGkAtHalftime?: boolean;
   initialMinutesPerHalf?: number;
+  initialMaxSpreadMinutes?: number;
   initialTeamSize?: number;
   initialFormation?: string;
   readOnly?: boolean;
@@ -144,7 +145,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -385,6 +386,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [disablePositionSwaps, setDisablePositionSwaps] = useState(() => initialDisablePositionSwaps); // Disable position swaps in auto sub generation
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
+  const [maxSpreadMinutes, setMaxSpreadMinutes] = useState(() => initialMaxSpreadMinutes); // Max acceptable playing-time spread (minutes)
   const [showLineupPicker, setShowLineupPicker] = useState(() => {
     // Show lineup picker on mount if setting enabled AND linked to a game event AND no saved state (fresh game)
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
@@ -397,6 +399,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     disableBatchSubs,
     rotateGkAtHalftime,
     minutesPerHalf,
+    maxSpreadMinutes,
     teamSize,
     selectedFormation,
     showMatchHeader,
@@ -409,6 +412,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     disableBatchSubs,
     rotateGkAtHalftime,
     minutesPerHalf,
+    maxSpreadMinutes,
     teamSize,
     selectedFormation,
     showMatchHeader,
@@ -425,6 +429,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     persistDisableBatchSubs,
     persistRotateGkAtHalftime,
     persistMinutesPerHalf,
+    persistMaxSpreadMinutes,
     persistShowLineupPicker,
     handleSaveSettings,
   } = usePitchSettings({
@@ -441,6 +446,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       disablePositionSwaps: initialDisablePositionSwaps,
       disableBatchSubs: initialDisableBatchSubs,
       rotateGkAtHalftime: initialRotateGkAtHalftime,
+      maxSpreadMinutes: initialMaxSpreadMinutes,
       teamSize: getInitialTeamSize(),
       formation: initialFormation || null,
     };
@@ -479,7 +485,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   useEffect(() => {
     setMinutesPerHalf(initialMinutesPerHalf);
   }, [initialMinutesPerHalf]);
-  
+
+  useEffect(() => {
+    setMaxSpreadMinutes(initialMaxSpreadMinutes);
+  }, [initialMaxSpreadMinutes]);
+
   // Sync team size and formation from props if no saved state - runs on mount and when props change
   useEffect(() => {
     // Keep local reset defaults in sync with backend defaults
@@ -491,6 +501,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       disablePositionSwaps: initialDisablePositionSwaps,
       disableBatchSubs: initialDisableBatchSubs,
       rotateGkAtHalftime: initialRotateGkAtHalftime,
+      maxSpreadMinutes: initialMaxSpreadMinutes,
       teamSize: nextDefaultSize,
       formation: initialFormation || null,
     };
@@ -539,6 +550,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setMinutesPerHalf(minutes);
     await persistMinutesPerHalf(minutes);
   }, [persistMinutesPerHalf]);
+
+  const handleMaxSpreadMinutesChange = useCallback(async (minutes: number) => {
+    setMaxSpreadMinutes(minutes);
+    await persistMaxSpreadMinutes(minutes);
+  }, [persistMaxSpreadMinutes]);
 
   const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
     setShowLineupPickerSetting(enabled);
@@ -3160,6 +3176,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
     setDisableBatchSubs(savedDefaults.disableBatchSubs);
     setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
+    setMaxSpreadMinutes(savedDefaults.maxSpreadMinutes);
     
     // Reset team size to saved default value
     const defaultTeamSize: TeamSize = savedDefaults.teamSize;
@@ -4359,6 +4376,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onDisableBatchSubsChange={setDisableBatchSubs}
                   rotateGkAtHalftime={rotateGkAtHalftime}
                   onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                  maxSpreadMinutes={maxSpreadMinutes}
+                  onMaxSpreadMinutesChange={handleMaxSpreadMinutesChange}
                   onOpenPositionEditor={() => setPositionEditorOpen(true)}
                   mockMode={mockMode}
                   onMockModeChange={handleMockModeChange}
@@ -5482,6 +5501,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           disablePositionSwaps={disablePositionSwaps}
           disableBatchSubs={disableBatchSubs}
           rotateGkAtHalftime={rotateGkAtHalftime}
+          maxSpreadMinutes={maxSpreadMinutes}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
@@ -5915,6 +5935,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onDisableBatchSubsChange={setDisableBatchSubs}
                 rotateGkAtHalftime={rotateGkAtHalftime}
                 onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                maxSpreadMinutes={maxSpreadMinutes}
+                onMaxSpreadMinutesChange={handleMaxSpreadMinutesChange}
                 onOpenPositionEditor={() => setPositionEditorOpen(true)}
                 mockMode={mockMode}
                 onMockModeChange={handleMockModeChange}
@@ -7000,6 +7022,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
+        maxSpreadMinutes={maxSpreadMinutes}
         currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}

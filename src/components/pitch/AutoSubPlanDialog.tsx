@@ -141,6 +141,10 @@ interface AutoSubPlanDialogProps {
   disablePositionSwaps?: boolean; // When true, skip position swaps in auto generation
   disableBatchSubs?: boolean; // When true, only do one sub at a time
   rotateGkAtHalftime?: boolean; // When true, swap GK at halftime
+  /** Max acceptable playing-time spread (minutes). Planner stays in queue
+   *  (FIFO) order while projected spread is within this cap; once projected
+   *  to exceed it, fairness overrides queue. Defaults to 5 minutes. */
+  maxSpreadMinutes?: number;
   currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
@@ -164,7 +168,8 @@ export function createSubPlan(
   rotateGkAtHalftime: boolean = true,
   startElapsedSeconds: number = 0,
   startHalf: 1 | 2 = 1,
-  preferredSecondHalfGkId?: string
+  preferredSecondHalfGkId?: string,
+  maxSpreadMinutes: number = 5
 ): SubstitutionEvent[] {
   const plan: SubstitutionEvent[] = [];
   
@@ -681,14 +686,24 @@ export function createSubPlan(
       return deficit(p.id) / Math.max(1, remain);
     };
 
+    // QUEUE-FIRST with max-spread override.
+    // Default ordering = queue (FIFO). Only escalate by urgency when a player's
+    // projected end-of-game deficit exceeds half the user-configured max spread.
+    const maxSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
+    const escalationThreshold = maxSpreadSeconds / 2;
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        const aU = urgency(a);
-        const bU = urgency(b);
-        if (Math.abs(aU - bU) > 0.001) return bU - aU; // higher urgency first
-        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0); // queue tiebreak
+        const aDef = deficit(a.id);
+        const bDef = deficit(b.id);
+        const aOver = aDef > escalationThreshold;
+        const bOver = bDef > escalationThreshold;
+        // If one player is significantly behind their fair share, prioritise them.
+        if (aOver !== bOver) return aOver ? -1 : 1;
+        if (aOver && bOver && Math.abs(aDef - bDef) > 30) return bDef - aDef;
+        // Otherwise pure FIFO queue order — longest-waiting bench player first.
+        return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
       });
 
     const pitchSlotsWithMeta = fieldSlots
@@ -717,7 +732,11 @@ export function createSubPlan(
         .sort((a, b) => {
           const aDef = deficit(a.playerOut!.id);
           const bDef = deficit(b.playerOut!.id);
-          if (Math.abs(aDef - bDef) > 1) return aDef - bDef; // smaller deficit (more "done") first
+          const aBelow = aDef > escalationThreshold;
+          const bBelow = bDef > escalationThreshold;
+          // Don't pull a player who's still well below their target unless we have to.
+          if (aBelow !== bBelow) return aBelow ? 1 : -1;
+          // Otherwise queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
 
@@ -1330,17 +1349,18 @@ function createMiniLeagueSubPlan(
   startElapsedSeconds: number,
   startHalf: 1 | 2,
   miniLeagueTeams: MiniLeagueTeams,
-  preferredSecondHalfGkId?: string
+  preferredSecondHalfGkId?: string,
+  maxSpreadMinutes: number = 5
 ): SubstitutionEvent[] {
   const teamAPlayers = players.filter(p => p.teamSide === "a");
   const teamBPlayers = players.filter(p => p.teamSide === "b");
   
   const planA = teamAPlayers.length > 0
-    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId)
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes)
     : [];
   
   const planB = teamBPlayers.length > 0
-    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf)
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes)
     : [];
   
   // Merge and sort by half then time
@@ -1366,6 +1386,7 @@ function DialogInner({
   disablePositionSwaps = false,
   disableBatchSubs = false,
   rotateGkAtHalftime = true,
+  maxSpreadMinutes = 5,
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
@@ -1383,6 +1404,7 @@ function DialogInner({
   disablePositionSwaps?: boolean;
   disableBatchSubs?: boolean;
   rotateGkAtHalftime?: boolean;
+  maxSpreadMinutes?: number;
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
@@ -1398,9 +1420,9 @@ function DialogInner({
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes);
   };
   
   // Auto-generate plan on mount if no existing plan
@@ -1639,6 +1661,7 @@ export default function AutoSubPlanDialog({
   disablePositionSwaps = false,
   disableBatchSubs = false,
   rotateGkAtHalftime = true,
+  maxSpreadMinutes = 5,
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
@@ -1703,6 +1726,7 @@ export default function AutoSubPlanDialog({
                 disablePositionSwaps={disablePositionSwaps}
                 disableBatchSubs={disableBatchSubs}
                 rotateGkAtHalftime={rotateGkAtHalftime}
+                maxSpreadMinutes={maxSpreadMinutes}
                 currentElapsedSeconds={currentElapsedSeconds}
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}

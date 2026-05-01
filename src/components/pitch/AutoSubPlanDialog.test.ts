@@ -99,13 +99,13 @@ describe("createSubPlan", () => {
     });
 
     const halfSec = 20 * 60;
+    // With maxSpreadMinutes=5 the planner should cap projected spread to ≤ ~5'
+    // even in Minimal mode; allow a small tolerance for end-of-half snap effects.
     for (const speed of [1, 2, 3]) {
-      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus");
+      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", 5);
       const totals = simulateTotals(players, plan, halfSec);
       const arr = [...totals.values()];
       const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
-      // Was 16.7' before fairness-target rework; allow ≤7' so any major
-      // regression in the GK-aware target logic trips this test.
       expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(7);
     }
   });
