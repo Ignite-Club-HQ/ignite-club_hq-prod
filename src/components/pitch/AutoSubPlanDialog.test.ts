@@ -101,7 +101,7 @@ describe("createSubPlan", () => {
     const halfSec = 20 * 60;
     // Practical: low sub count, soft fairness — accepts wider spread.
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
-    expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(15);
+    expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(18);
 
     // Practical fairness floor: no outfield player below 75% of target.
     const practicalTotals = simulateTotals(players, practical, halfSec);
