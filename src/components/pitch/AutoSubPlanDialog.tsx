@@ -381,11 +381,7 @@ export function createSubPlan(
     const forcedInByWindow = new Map<number, string>();
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
-    // Tiny squads (≤2 bench): the forced GK outfield-rotation windows consume
-    // most of the schedule and starve outfield FIFO. Skip them and let the
-    // 2H GK get their outfield minutes purely via the natural FIFO queue.
-    const tinySquad = outfieldOnBench.length <= 2;
-    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60 && !tinySquad) {
+    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
@@ -399,7 +395,7 @@ export function createSubPlan(
         forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
       }
     }
-    if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60 && !tinySquad) {
+    if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
       const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
       if (h2GkOn < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2GkOn)) {
         baseWindowTimes.push(Math.floor(h2GkOn));
