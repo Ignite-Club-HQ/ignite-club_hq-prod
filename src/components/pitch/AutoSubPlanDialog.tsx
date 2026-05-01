@@ -177,6 +177,15 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
 const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
+/** Fairness floor: players projected below this fraction of target minutes
+ *  jump to the front of the bench queue (priority-aware FIFO). */
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
+/** Soft cap: players projected above this fraction of target minutes are
+ *  prioritised to come OFF next. */
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
+/** How early (seconds) we may pull a sub forward to rescue a player who would
+ *  otherwise breach the minimum threshold. */
+const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 2 * 60;
 
 export function createSubPlan(
   playerData: Player[],
