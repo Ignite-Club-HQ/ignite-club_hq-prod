@@ -1216,6 +1216,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep playersRef in sync with players state (for use in effects with stale closures)
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
+
+  useEffect(() => {
+    if (!isStrictMatchEventRoster || mockMode || realPlayers.length === 0) return;
+
+    setPlayers(prev => {
+      const filtered = applyStrictMatchRoster(prev);
+      return hasSamePlayerOrder(prev, filtered) ? prev : filtered;
+    });
+  }, [isStrictMatchEventRoster, mockMode, realPlayers.length, applyStrictMatchRoster, hasSamePlayerOrder]);
   
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
