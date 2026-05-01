@@ -388,10 +388,11 @@ export function createSubPlan(
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
-      // Bring the 2H GK on outfield early in 1H, take them off ~4 min before
-      // halftime so they're rested when they go in goal.
+      // Bring the 2H GK on outfield early in 1H, take them off ~2 min before
+      // halftime so they get a longer outfield run while still being rested
+      // when they go in goal at the start of 2H.
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOff = Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
+      const h1GkOff = Math.max(h1GkOn + 10 * 60, halfDurationSeconds - 2 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
