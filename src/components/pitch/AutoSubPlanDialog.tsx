@@ -412,13 +412,15 @@ export function createSubPlan(
       const h1GkOffOffset = tinySquad ? 2 * 60 : 3 * 60;
       const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
+      // Forced GK windows bypass blackout: GK-protected runs take priority
+      // over normal blackout windows so they can land at the top of the spread.
       [h1GkOn, h1GkOff].forEach(gkTime => {
-        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+        if (gkTime > startAbs) baseWindowTimes.push(Math.floor(gkTime));
       });
-      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
+      if (h1GkOn > startAbs) {
         forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
       }
-      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
+      if (h1GkOff > startAbs) {
         forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
       }
     }
