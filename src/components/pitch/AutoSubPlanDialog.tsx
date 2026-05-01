@@ -550,7 +550,20 @@ export function createSubPlan(
   // Cycles per speed: minimal=1 (longest shifts), balanced=1, fast=2 (shorter shifts)
   // Both minimal and balanced run a single full fairness cycle — they differ in
   // batch size (subsAtOnce), not in window count. Fast doubles rotations.
-  const cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  let cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  // SPREAD CAP ESCALATION: when the user has set a tight max-spread, a single
+  // cycle may not give bench players enough on-pitch time to converge. Estimate
+  // the worst-case "stuck" deficit (a player who joins/leaves rotation midway,
+  // e.g. a half-game GK) and add cycles until it fits within the cap.
+  // Worst-case extra deficit ≈ time the GK player is locked out (= half length).
+  const estimatedWorstCycleSpreadSeconds = halfDurationSeconds / Math.max(1, baseCycleEvents);
+  const targetSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
+  if (estimatedWorstCycleSpreadSeconds * cycleMultiplier > targetSpreadSeconds) {
+    cycleMultiplier = Math.min(
+      6,
+      Math.max(cycleMultiplier, Math.ceil(estimatedWorstCycleSpreadSeconds / targetSpreadSeconds))
+    );
+  }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
   // a multiple of N players — this is the ONLY way to get exactly equal time.
   const desiredOffEvents = baseCycleEvents * cycleMultiplier;
