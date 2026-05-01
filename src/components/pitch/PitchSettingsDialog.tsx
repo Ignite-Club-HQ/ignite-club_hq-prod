@@ -314,22 +314,31 @@ export function PitchSettingsDialog({
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Subs Speed</Label>
                   <Select 
-                    value={(rotationSpeed >= 3 ? 3 : 2).toString()} 
+                    value={(rotationSpeed >= 3 ? 3 : rotationSpeed === 2 ? 2 : 1).toString()} 
                     onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue>
-                        {rotationSpeed >= 3 ? 'Frequent' : 'Balanced'}
+                        {rotationSpeed >= 3 ? 'Frequent' : rotationSpeed === 2 ? 'Balanced' : 'Practical'}
                       </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
+                      <SelectItem value="1">
+                        <div className="flex items-center gap-2">
+                          <List className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <span>Practical</span>
+                            <p className="text-[10px] text-muted-foreground">Fewer subs, simple rotation, fair for everyone</p>
+                          </div>
+                        </div>
+                      </SelectItem>
                       <SelectItem value="2">
                         <div className="flex items-center gap-2">
                           <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span>Balanced</span>
-                            <p className="text-[10px] text-muted-foreground">2 subs per window — best fairness</p>
+                            <p className="text-[10px] text-muted-foreground">2 subs per window — tighter time balance</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -338,7 +347,7 @@ export function PitchSettingsDialog({
                           <Equal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span>Frequent</span>
-                            <p className="text-[10px] text-muted-foreground">3 subs per window — shorter shifts</p>
+                            <p className="text-[10px] text-muted-foreground">3 subs per window — shortest shifts</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -347,7 +356,9 @@ export function PitchSettingsDialog({
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Subs every ~{rotationSpeed >= 3 ? Math.round(minutesPerHalf / 4) : Math.round(minutesPerHalf / 3)} min
+                {rotationSpeed === 1
+                  ? `Subs roughly every 7 min — minimal disruption`
+                  : `Subs every ~${rotationSpeed >= 3 ? Math.round(minutesPerHalf / 4) : Math.round(minutesPerHalf / 3)} min`}
               </p>
 
               {onMaxSpreadMinutesChange && (
