@@ -666,7 +666,7 @@ function createSubPlan(
 
   const getPlanAbsoluteSeconds = (sub: SubstitutionEvent) =>
     sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
-  const isHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
+  const isDirectHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
     !!gkOnPitch && sub.half === 2 && sub.time === 0 && sub.playerOut.id === gkOnPitch.id;
   const fairPlayerIds = playerData.filter(p => !p.isInjured).map(p => p.id);
 
@@ -743,7 +743,7 @@ function createSubPlan(
 
     for (const snapshot of currentSim.snapshots) {
       const original = plan[snapshot.index];
-      if (!original || isHalftimeGkSwapSub(original)) continue;
+      if (!original || isDirectHalftimeGkSwapSub(original)) continue;
 
       const incomingCandidates = playerData.filter(player =>
         !snapshot.before.has(player.id) &&
