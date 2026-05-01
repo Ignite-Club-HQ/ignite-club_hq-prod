@@ -76,8 +76,10 @@ describe("createSubPlan", () => {
     }
   });
 
-  it("U8 minimal-rotation: spread between most & least played stays under 5 min", () => {
+  it("U8 2-mode rotation: spread between most & least played stays within tolerance", () => {
     // U8: 11 players, 7 a side, 40-min game (two 20-min halves), GK rotates at HT.
+    // We removed the broken "Minimal" mode; only Balanced (2) and Frequent (3) exist.
+    // Legacy speed=1 should be normalised to 2 by the planner.
     const players = [
       makePlayer("Archer", "GK"),         // GK 1H
       makePlayer("Ezra", "DEF", 30, 80),
@@ -99,16 +101,14 @@ describe("createSubPlan", () => {
     });
 
     const halfSec = 20 * 60;
-    // With maxSpreadMinutes=5 the planner should cap projected spread to ≤ ~5'
-    // even in Minimal mode; allow a small tolerance for end-of-half snap effects.
+    // Half-game GK rosters have an irreducible spread floor (~8') because the
+    // locked-out GK can only make up minutes through limited outfield turns.
+    // Both supported modes (incl. legacy 1 → migrated to 2) must respect this.
     for (const speed of [1, 2, 3]) {
       const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", 5);
       const totals = simulateTotals(players, plan, halfSec);
       const arr = [...totals.values()];
       const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
-      // Half-game GK rosters have an irreducible spread floor (~8') because
-      // the locked-out GK can only make up minutes through limited outfield
-      // turns. Tighter caps still help by escalating cycle count.
       expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
     }
   });
