@@ -1347,6 +1347,16 @@ export function createSubPlan(
             const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
             if (Math.abs(aS - bS) > 15) return aS - bS;
           }
+          // GK protection: never pull a protected player off until they reach
+          // gkCeilingTotal — pull non-protected players first.
+          const aGk = isGkProtectedFreq(a.playerOut!.id) ? 1 : 0;
+          const bGk = isGkProtectedFreq(b.playerOut!.id) ? 1 : 0;
+          if (aGk !== bGk) {
+            const aProj = projectionsNow.get(a.playerOut!.id) ?? 0;
+            const bProj = projectionsNow.get(b.playerOut!.id) ?? 0;
+            if (aGk && aProj < gkCeilingTotal - 30) return 1;
+            if (bGk && bProj < gkCeilingTotal - 30) return -1;
+          }
           // Default: queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
