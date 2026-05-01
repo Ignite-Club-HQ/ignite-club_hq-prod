@@ -180,7 +180,7 @@ export function PitchSettingsDialog({
         </Button>
       )}
         <ResponsiveDialogContent 
-          className="z-[99999] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
+          className="z-[1000001] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
         >
           <ResponsiveDialogHeader className="shrink-0 pb-2">
             <ResponsiveDialogTitle className="flex items-center gap-2">
