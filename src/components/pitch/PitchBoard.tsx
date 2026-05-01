@@ -5542,6 +5542,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
           miniLeagueTeams={miniLeagueTeams}
+          preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
 
         {/* Sub Confirm Dialog */}
@@ -7063,6 +7064,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
         miniLeagueTeams={miniLeagueTeams}
+        preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
 
       {/* Auto-Sub Control Panel */}
