@@ -156,6 +156,8 @@ describe("createSubPlan", () => {
     const totals = simulateTotals(players, plan, halfSec);
     const arr = [...totals.values()];
     const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
-    expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
+    // Light Frequent: longer shifts (~3 min floor) widen the spread vs the
+    // old 2-min cadence, but stay tighter than Practical (which allows ~10').
+    expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(9.5);
   });
 });
