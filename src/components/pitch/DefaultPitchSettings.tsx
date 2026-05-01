@@ -184,7 +184,7 @@ export function DefaultPitchSettings({
           <div className="space-y-2">
             <Label>Rotation Speed</Label>
             <Select 
-              value={(rotationSpeed >= 3 ? 3 : 2).toString()} 
+              value={(rotationSpeed >= 3 ? 3 : rotationSpeed === 2 ? 2 : 1).toString()} 
               onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
             >
               <SelectTrigger>
