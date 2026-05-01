@@ -174,16 +174,16 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
 };
 
 /** Target gap between Practical-mode sub windows (seconds). Tightened so
- *  spread stays within ~5 min on short (≤40 min) games. */
-const PRACTICAL_SUB_INTERVAL_SECONDS = 4 * 60;
+ *  spread stays within ~4 min on short (≤40 min) games. */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 3 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
  *  jump to the front of the bench queue (priority-aware FIFO). */
-const PRACTICAL_MIN_THRESHOLD_RATIO = 0.9;
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.95;
 /** Soft cap: players projected above this fraction of target minutes are
- *  prioritised to come OFF next. */
-const PRACTICAL_MAX_THRESHOLD_RATIO = 1.08;
+ *  prioritised to come OFF next AND blocked from coming ON. */
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.05;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
 const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 3 * 60;
