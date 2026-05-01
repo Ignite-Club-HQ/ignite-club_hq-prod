@@ -242,8 +242,7 @@ async function isBuildTaken(appId, version, build, jwt) {
           b.relationships.preReleaseVersion &&
           b.relationships.preReleaseVersion.data &&
           b.relationships.preReleaseVersion.data.id;
-        const marketingVer = prvId ? prvById.get(prvId) : null;
-        if (buildVer === build && (!marketingVer || marketingVer === version)) {
+        if (buildVer === build) {
           return true;
         }
       }
