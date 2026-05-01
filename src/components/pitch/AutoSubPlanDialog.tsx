@@ -459,9 +459,10 @@ function createSubPlan(
       });
       lastEventTime = subTime;
       
-      // Get sorted lists
+      // Get sorted lists — use GK-adjusted time so goalkeepers are prioritised
+      // (picked first off the bench, picked last off the pitch).
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       
@@ -472,7 +473,7 @@ function createSubPlan(
         .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
         // Halftime GK substitute is in goal during H2, not on the bench.
         .filter(p => !(half === 2 && halftimeGkIn && p.id === halftimeGkIn.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       
       if (onPitchSorted.length === 0 || benchSorted.length === 0) continue;
