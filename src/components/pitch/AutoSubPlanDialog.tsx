@@ -1349,17 +1349,18 @@ function createMiniLeagueSubPlan(
   startElapsedSeconds: number,
   startHalf: 1 | 2,
   miniLeagueTeams: MiniLeagueTeams,
-  preferredSecondHalfGkId?: string
+  preferredSecondHalfGkId?: string,
+  maxSpreadMinutes: number = 5
 ): SubstitutionEvent[] {
   const teamAPlayers = players.filter(p => p.teamSide === "a");
   const teamBPlayers = players.filter(p => p.teamSide === "b");
   
   const planA = teamAPlayers.length > 0
-    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId)
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes)
     : [];
   
   const planB = teamBPlayers.length > 0
-    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf)
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes)
     : [];
   
   // Merge and sort by half then time
@@ -1385,6 +1386,7 @@ function DialogInner({
   disablePositionSwaps = false,
   disableBatchSubs = false,
   rotateGkAtHalftime = true,
+  maxSpreadMinutes = 5,
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
@@ -1402,6 +1404,7 @@ function DialogInner({
   disablePositionSwaps?: boolean;
   disableBatchSubs?: boolean;
   rotateGkAtHalftime?: boolean;
+  maxSpreadMinutes?: number;
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
@@ -1417,9 +1420,9 @@ function DialogInner({
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes);
   };
   
   // Auto-generate plan on mount if no existing plan
@@ -1658,6 +1661,7 @@ export default function AutoSubPlanDialog({
   disablePositionSwaps = false,
   disableBatchSubs = false,
   rotateGkAtHalftime = true,
+  maxSpreadMinutes = 5,
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
@@ -1722,6 +1726,7 @@ export default function AutoSubPlanDialog({
                 disablePositionSwaps={disablePositionSwaps}
                 disableBatchSubs={disableBatchSubs}
                 rotateGkAtHalftime={rotateGkAtHalftime}
+                maxSpreadMinutes={maxSpreadMinutes}
                 currentElapsedSeconds={currentElapsedSeconds}
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
