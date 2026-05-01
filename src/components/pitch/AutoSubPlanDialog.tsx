@@ -384,7 +384,6 @@ export function createSubPlan(
     // protect recent subs from being immediately pulled off.
     const lastSubbedOnAbs = new Map<string, number>();
 
-    const halfTimeAbs = halfDurationSeconds;
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
