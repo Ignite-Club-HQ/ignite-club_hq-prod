@@ -166,7 +166,7 @@ describe("debug", () => {
     ];
     players.forEach(p => { if (p.currentPitchPosition && p.currentPitchPosition !== "GK") p.assignedPositions = ["DEF","MID","FWD"]; });
     const halfSec = 20*60;
-    const { createSubPlan } = require("./AutoSubPlanDialog");
+    
     const plan = createSubPlan(players, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     const onPitch = new Set(players.filter(p=>p.position).map(p=>p.id));
     const totals = new Map(players.map(p=>[p.id, 0]));
