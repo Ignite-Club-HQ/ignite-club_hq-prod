@@ -1379,28 +1379,36 @@ export function createSubPlan(
       if (gapBefore < 0) continue;
 
       // GK PROTECTION (Frequent): never pull a protected player off the pitch
-      // until they reach the spread ceiling — even if they're the only eligible
-      // pitch player at this window. Skip the swap entirely instead.
+      // until their CURRENT (banked) total reaches the spread ceiling. We
+      // compare against banked totals (not projected end totals) because the
+      // projection assumes "stays on for the rest", which is always above
+      // ceiling for a GK-protected player who's just come on.
       const outIsProtected = isGkProtectedFreq(playerOut.id);
       const inIsProtected = isGkProtectedFreq(playerIn.id);
+      const bankedTotal = (id: string) => {
+        const p = playerById.get(id);
+        return (p?.minutesPlayed || 0) + gkDutySeconds(id) + (currentFieldSeconds.get(id) || 0);
+      };
       if (
         outIsProtected &&
-        (projectionsNow.get(playerOut.id) ?? 0) < gkCeilingTotal - 30 &&
+        bankedTotal(playerOut.id) < gkCeilingTotal - 30 &&
         !inIsProtected
       ) {
         continue;
       }
-      // GK PROTECTION: never bring a non-GK on if doing so would push them
-      // above the GK ceiling — that would mean a non-GK finishes higher than
-      // a still-below-ceiling GK. Skip swap so the bench-time stays available
-      // for the GK in a later window.
-      const inProjAfter = (projectionsNow.get(playerIn.id) ?? 0)
-        + Math.max(0, nextAbsoluteSeconds - absoluteSeconds);
+      // GK PROTECTION: never bring a non-GK on if their banked total is
+      // already at/above the floor of the spread band AND a GK-protected
+      // player is still below ceiling. The bench-time stays available for
+      // the GK in a later window.
+      const nonGkFloor = sharedTotalTarget - spreadHalfSec;
       const anyGkBelowCeiling = outfieldPlayers.some(
-        p => isGkProtectedFreq(p.id)
-          && (projectionsNow.get(p.id) ?? 0) < gkCeilingTotal - 30,
+        p => isGkProtectedFreq(p.id) && bankedTotal(p.id) < gkCeilingTotal - 30,
       );
-      if (!inIsProtected && anyGkBelowCeiling && inProjAfter > gkCeilingTotal - 30) {
+      if (
+        !inIsProtected &&
+        anyGkBelowCeiling &&
+        bankedTotal(playerIn.id) >= nonGkFloor - 30
+      ) {
         continue;
       }
 
