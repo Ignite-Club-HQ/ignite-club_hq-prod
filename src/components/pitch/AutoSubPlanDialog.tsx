@@ -160,7 +160,7 @@ const formatTime = (seconds: number) => {
 
 /**
  * Rotation modes (rotation_speed integer):
- * - 1 = Practical (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
+ * - 1 = Standard (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
  *   window, soft fairness (no spread escalation). Designed for real-world
  *   junior coaching: minimal interruptions, predictable order, "fair enough".
  * - 2 = Frequent — 2 subs / window, near-perfect fairness with full cycle.
@@ -173,10 +173,10 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
   return 1;
 };
 
-/** Target gap between Practical-mode sub windows (seconds). 7 min sits in the
+/** Target gap between Standard-mode sub windows (seconds). 7 min sits in the
  *  spec'd 6–8 min window: low disruption, predictable cadence. */
 const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
-/** Maximum players swapped in a single Practical-mode window. */
+/** Maximum players swapped in a single Standard-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
  *  override the FIFO queue and are prioritised ON. */
@@ -193,7 +193,7 @@ const PRACTICAL_RECENT_SUB_PROTECTION_SECONDS = 4 * 60;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
 const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
-/** Keep normal Practical windows from landing immediately beside forced GK
+/** Keep normal Standard windows from landing immediately beside forced GK
  *  participation windows. */
 const PRACTICAL_GK_WINDOW_BUFFER_SECONDS = 3 * 60;
 
@@ -667,7 +667,7 @@ export function createSubPlan(
 
         // -------- Pick playerIn --------
         // Priority: lowest adjusted minutes first. This preserves simple
-        // windows but makes Practical genuinely fair instead of queue-only.
+        // windows but makes Standard genuinely fair instead of queue-only.
         const under = benchOrder
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => !windowOuts.has(b.id))
@@ -1124,7 +1124,7 @@ export function createSubPlan(
   // recompute as evenly-spaced windows across remaining time.
   // LIGHT FREQUENT: raise the floor for speed=2 from 120s to 180s so shifts
   // are noticeably longer than current Frequent (~3 min vs ~2 min) while
-  // still rotating much more often than Practical (~5 min).
+  // still rotating much more often than Standard (~5 min).
   const minIntervalFloor = rotationSpeed === 3 ? 90 : 180;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));

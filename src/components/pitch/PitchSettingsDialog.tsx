@@ -320,7 +320,7 @@ export function PitchSettingsDialog({
                   >
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue>
-                        {rotationSpeed >= 2 ? 'Frequent' : 'Practical'}
+                        {rotationSpeed >= 2 ? 'Frequent' : 'Standard'}
                       </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
@@ -328,7 +328,7 @@ export function PitchSettingsDialog({
                         <div className="flex items-center gap-2">
                           <List className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
-                            <span>Practical</span>
+                            <span>Standard</span>
                             <p className="text-[10px] text-muted-foreground">Fewer subs, simple rotation, fair for everyone</p>
                           </div>
                         </div>
