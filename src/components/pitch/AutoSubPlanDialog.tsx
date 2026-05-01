@@ -461,8 +461,13 @@ function createSubPlan(
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
   const rawFieldTargets = new Map<string, number>();
+  const gkPriorityTopBufferSeconds = Math.min(300, Math.max(180, halfDurationSeconds * 0.15));
   outfieldPlayers.forEach(p => {
-    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+    // GKs should finish at the equal-top of total playing time, not below the
+    // outfield group. Give them a small target buffer, then let scaling keep the
+    // whole plan inside the available team minutes.
+    const priorityTarget = sharedTotalTarget + (isGkPlayer(p.id) ? gkPriorityTopBufferSeconds : 0);
+    const base = Math.max(0, priorityTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
@@ -507,7 +512,7 @@ function createSubPlan(
   const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
     if (player.isInjured) return false;
     if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
-    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd >= halfDurationSeconds) return false;
+    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd > halfDurationSeconds) return false;
     return true;
   };
 
@@ -576,7 +581,7 @@ function createSubPlan(
     const playerNeedScore = (id: string) => {
       const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
       const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
-      const gkBoost = isGkPlayer(id) ? 5 : 0;
+      const gkBoost = isGkPlayer(id) ? 75 : 0;
       return urgency * 1000 + need * 0.01 + gkBoost;
     };
 
@@ -610,7 +615,9 @@ function createSubPlan(
 
       const incomingNeed = targetFieldSeconds(playerIn.id) - (currentFieldSeconds.get(playerIn.id) || 0);
       const outgoingNeed = targetFieldSeconds(bestSlot.playerOut.id) - (currentFieldSeconds.get(bestSlot.playerOut.id) || 0);
-      if (incomingNeed <= outgoingNeed + 15) continue;
+      const incomingScore = playerNeedScore(playerIn.id);
+      const outgoingScore = playerNeedScore(bestSlot.playerOut.id);
+      if (incomingNeed <= outgoingNeed + 15 && incomingScore <= outgoingScore + 15) continue;
 
       usedSlotIndexes.add(bestSlot.index);
       selectedSubs.push({ slotIndex: bestSlot.index, playerOut: bestSlot.playerOut, playerIn });
@@ -656,6 +663,124 @@ function createSubPlan(
     applyFairRotationAt(eventTime, nextTime, reservedSubEvents);
   }
   addFieldTime(endAbsoluteSeconds - directLastTime);
+
+  const getPlanAbsoluteSeconds = (sub: SubstitutionEvent) =>
+    sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
+  const isDirectHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
+    !!gkOnPitch && sub.half === 2 && sub.time === 0 && sub.playerOut.id === gkOnPitch.id;
+  const fairPlayerIds = playerData.filter(p => !p.isInjured).map(p => p.id);
+
+  const simulateFullPlan = (candidatePlan: SubstitutionEvent[]) => {
+    const totals = new Map<string, number>();
+    playerData.forEach(p => totals.set(p.id, p.minutesPlayed || 0));
+
+    const onPitch = new Map<string, PitchPosition>();
+    playersOnPitch.forEach(p => {
+      if (p.currentPitchPosition) onPitch.set(p.id, p.currentPitchPosition);
+    });
+
+    const ordered = candidatePlan
+      .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
+      .sort((a, b) => a.absoluteSeconds - b.absoluteSeconds);
+    const snapshots: { index: number; before: Map<string, PitchPosition>; absoluteSeconds: number; nextAbsoluteSeconds: number }[] = [];
+    let last = startAbsoluteSeconds;
+    let valid = true;
+
+    ordered.forEach((entry, orderIndex) => {
+      const elapsed = entry.absoluteSeconds - last;
+      if (elapsed < 0) valid = false;
+      if (elapsed > 0) {
+        onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + elapsed));
+      }
+
+      snapshots.push({
+        index: entry.index,
+        before: new Map(onPitch),
+        absoluteSeconds: entry.absoluteSeconds,
+        nextAbsoluteSeconds: ordered[orderIndex + 1]?.absoluteSeconds ?? endAbsoluteSeconds,
+      });
+
+      const outPosition = onPitch.get(entry.sub.playerOut.id);
+      if (!outPosition || onPitch.has(entry.sub.playerIn.id)) valid = false;
+
+      onPitch.delete(entry.sub.playerOut.id);
+      if (entry.sub.positionSwap) {
+        const swapFromPosition = onPitch.get(entry.sub.positionSwap.player.id);
+        if (!swapFromPosition) valid = false;
+        if (swapFromPosition) onPitch.set(entry.sub.playerIn.id, swapFromPosition);
+        onPitch.set(entry.sub.positionSwap.player.id, outPosition || entry.sub.positionSwap.toPosition);
+      } else if (outPosition) {
+        onPitch.set(entry.sub.playerIn.id, outPosition);
+      }
+
+      last = entry.absoluteSeconds;
+    });
+
+    const remaining = endAbsoluteSeconds - last;
+    if (remaining > 0) {
+      onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
+    }
+
+    return { totals, snapshots, valid };
+  };
+
+  const fairnessObjective = (totals: Map<string, number>) => {
+    const values = fairPlayerIds.map(id => totals.get(id) || 0);
+    if (values.length < 2) return 0;
+    const spread = Math.max(...values) - Math.min(...values);
+    const nonGkTop = Math.max(...fairPlayerIds.filter(id => !isGkPlayer(id)).map(id => totals.get(id) || 0), 0);
+    const gkShortfall = fairPlayerIds
+      .filter(id => isGkPlayer(id))
+      .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
+    return spread * 1000 + gkShortfall;
+  };
+
+  for (let iter = 0; iter < 40; iter++) {
+    const currentSim = simulateFullPlan(plan);
+    if (!currentSim.valid) break;
+    const currentScore = fairnessObjective(currentSim.totals);
+    let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
+
+    for (const snapshot of currentSim.snapshots) {
+      const original = plan[snapshot.index];
+      if (!original || isDirectHalftimeGkSwapSub(original)) continue;
+
+      const incomingCandidates = playerData.filter(player =>
+        !snapshot.before.has(player.id) &&
+        isAvailableForInterval(player, snapshot.absoluteSeconds, snapshot.nextAbsoluteSeconds)
+      );
+
+      for (const [outId, outPosition] of snapshot.before.entries()) {
+        if (outPosition === "GK") continue;
+        const playerOut = playerById.get(outId);
+        if (!playerOut) continue;
+
+        for (const playerIn of incomingCandidates) {
+          if (!canUseInOutfield(playerIn, outPosition)) continue;
+          if (playerOut.id === original.playerOut.id && playerIn.id === original.playerIn.id && !original.positionSwap) continue;
+
+          const replacement: SubstitutionEvent = {
+            ...original,
+            playerOut,
+            playerIn,
+            positionSwap: undefined,
+          };
+
+          plan[snapshot.index] = replacement;
+          const trial = simulateFullPlan(plan);
+          const score = trial.valid ? fairnessObjective(trial.totals) : currentScore;
+          plan[snapshot.index] = original;
+
+          if (trial.valid && score < (bestEdit?.score ?? currentScore) - 1) {
+            bestEdit = { index: snapshot.index, replacement, score };
+          }
+        }
+      }
+    }
+
+    if (!bestEdit) break;
+    plan[bestEdit.index] = bestEdit.replacement;
+  }
 
   plan.sort((a, b) => {
     if (a.half !== b.half) return a.half - b.half;
