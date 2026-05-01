@@ -298,9 +298,11 @@ export function createSubPlan(
 
     // ---- Fairness model ------------------------------------------------------
     // Track REAL total minutes for every player. Keeper duty counts as time on
-    // pitch; we only add a small outfield priority bonus separately so keepers
-    // still get a decent run without destroying the fair-time calculation.
-    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 4 * 60;
+    // pitch; we add a sizeable outfield priority bonus so keepers still get a
+    // good run of outfield minutes and finish in the top half of total time.
+    // The bonus is large enough that the 2H keeper (who only has 1H available
+    // for outfield play) is prioritised onto the pitch early in the 1st half.
+    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 8 * 60;
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
