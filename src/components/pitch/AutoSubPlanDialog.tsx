@@ -283,7 +283,7 @@ export function createSubPlan(
   // No spread escalation. Designed to mirror how a real junior coach manages
   // a game: predictable order, few interruptions, "fair enough" distribution.
   // ===========================================================================
-  if (rotationSpeed === 1 && totalOutfieldPlayers < 0) {
+  if (rotationSpeed === 1) {
     const startAbs = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
     const endAbs = halfDurationSeconds * 2;
     const intervalSec = Math.max(120, PRACTICAL_SUB_INTERVAL_SECONDS);
@@ -305,10 +305,8 @@ export function createSubPlan(
     // outfield minutes low (they already get GK time) and free up outfield
     // minutes for non-GK players — narrowing the spread.
     const fullGameSec = halfDurationSeconds * 2;
-    const totalFieldSec = fullGameSec * fieldPositions;
-    // Total minutes "available" across all players = field time + GK time.
-    const totalAvailableSec = totalFieldSec + fullGameSec; // +GK seat across whole game
-    const targetSecPerPlayer = totalAvailableSec / Math.max(totalOutfieldPlayers + (gkOnPitch && !includeStartingGkInRotation ? 1 : 0), 1);
+    const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
+    const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
 
@@ -325,6 +323,22 @@ export function createSubPlan(
     if (halftimeGkIn) {
       projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
     }
+
+    const remainingOutfieldAvailability = (id: string, absT: number) => {
+      if (includeStartingGkInRotation && id === gkOnPitch?.id) {
+        return Math.max(1, endAbs - Math.max(absT, halfTimeAbs));
+      }
+      if (halftimeGkIn && id === halftimeGkIn.id) {
+        return absT < halfTimeAbs ? Math.max(1, halfTimeAbs - absT) : 1;
+      }
+      return Math.max(1, endAbs - absT);
+    };
+
+    const shortfall = (id: string) => targetSecPerPlayer - (projected.get(id) || 0);
+    const needScore = (id: string, absT: number, queueIndex = 0) => {
+      const need = shortfall(id);
+      return (need / remainingOutfieldAvailability(id, absT)) * 10000 + need * 0.05 - queueIndex * 0.01;
+    };
 
     // Build candidate sub-window times.
     const baseWindowTimes: number[] = [];
