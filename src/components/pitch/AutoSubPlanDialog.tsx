@@ -1378,11 +1378,8 @@ export function createSubPlan(
       // Hard refusal: never make the spread worse (incoming player already above target).
       if (gapBefore < 0) continue;
 
-      // GK PROTECTION (Frequent): never pull a protected player off the pitch
-      // until their CURRENT (banked) total reaches the spread ceiling. We
-      // compare against banked totals (not projected end totals) because the
-      // projection assumes "stays on for the rest", which is always above
-      // ceiling for a GK-protected player who's just come on.
+      // GK PROTECTION (Frequent): never pull a GK-protected player off the
+      // pitch until their banked total reaches the spread ceiling.
       const outIsProtected = isGkProtectedFreq(playerOut.id);
       const inIsProtected = isGkProtectedFreq(playerIn.id);
       const bankedTotal = (id: string) => {
@@ -1394,11 +1391,19 @@ export function createSubPlan(
         bankedTotal(playerOut.id) < gkCeilingTotal - 30 &&
         !inIsProtected
       ) {
-        continue;
+        // Try the next eligible pitch slot — keep the playerIn, swap a
+        // non-GK out instead. If no non-GK slot is eligible, fall through
+        // and accept the original swap (the alternative is no rotation).
+        const altSlot = eligibleSlots.find(s =>
+          s !== chosenSlot && !isGkProtectedFreq(s.playerOut!.id),
+        );
+        if (altSlot) {
+          (chosenSlot as any).index = altSlot.index;
+          (chosenSlot as any).slot = altSlot.slot;
+          (chosenSlot as any).playerOut = altSlot.playerOut;
+          (playerOut as any) = altSlot.playerOut!;
+        }
       }
-      // (Non-GK ceiling gate intentionally omitted — too aggressive in tiny
-      // squads where GKs cannot climb above ceiling regardless. The OUT-side
-      // gate above + bench-priority sort handle the lift sufficiently.)
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(playerIn.id);
