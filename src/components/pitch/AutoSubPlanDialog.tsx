@@ -421,7 +421,9 @@ export function createSubPlan(
 
         // -------- Pick playerIn --------
         // Priority: (1) any bench player below the floor — lowest minutes first.
-        //           (2) otherwise FIFO (front of bench queue).
+        //           (2) otherwise FIFO from bench, but skip anyone already
+        //               above the soft cap (prevents re-subbing high-minute
+        //               players onto the field).
         const under = benchOrder
           .map(id => ({ id, proj: projected.get(id) || 0 }))
           .filter(b => b.proj < minThresholdSec)
@@ -433,7 +435,15 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          inId = benchOrder.shift();
+          // FIFO but skip over-cap players first.
+          const fifoIdx = benchOrder.findIndex(
+            id => (projected.get(id) || 0) <= maxThresholdSec
+          );
+          if (fifoIdx >= 0) {
+            inId = benchOrder.splice(fifoIdx, 1)[0];
+          } else {
+            inId = benchOrder.shift();
+          }
         }
 
         if (!inId) {
