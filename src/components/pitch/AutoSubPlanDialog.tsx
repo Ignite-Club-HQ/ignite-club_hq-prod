@@ -238,7 +238,7 @@ function createSubPlan(
   const remainingInCurrentHalf = halfDurationSeconds - clampedStartElapsed;
   const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
   const totalRemainingSeconds = Math.max(remainingHalves, 0);
-  const fieldPositions = teamSize - 1; // minus GK
+  const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
   
   // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
