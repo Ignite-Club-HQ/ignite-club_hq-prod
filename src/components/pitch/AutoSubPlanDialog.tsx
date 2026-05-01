@@ -224,14 +224,24 @@ export function createSubPlan(
   
   // Separate GK from outfield players
   const gkOnPitch = playersOnPitch.find(p => p.currentPitchPosition === "GK");
-  // If a preferred 2nd half GK was selected, use that player; otherwise fall back to finding a GK-only bench player
-  const gkOnBench = preferredSecondHalfGkId
-    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
-    : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
-
-  const preferredOnPitchGk = preferredSecondHalfGkId
+  // Resolve the 2H GK. If the coach explicitly picked one in the lineup
+  // screen, honour it absolutely — whether they're currently on the bench
+  // OR already on the pitch in an outfield role. Only fall back to the
+  // sole-GK bench player when no explicit preference was provided.
+  const explicitGkOnBench = preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId)
+    : undefined;
+  const explicitGkOnPitch = preferredSecondHalfGkId
     ? playersOnPitch.find(p => p.id === preferredSecondHalfGkId && p.currentPitchPosition !== "GK")
     : undefined;
+  const fallbackGkOnBench = !preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
+    : undefined;
+
+  // `gkOnBench` represents a 2H GK that needs to come ON from the bench at HT.
+  // If the explicit pick is already on the pitch, there's no bench-incoming GK.
+  const gkOnBench = explicitGkOnBench || (preferredSecondHalfGkId ? undefined : fallbackGkOnBench);
+  const preferredOnPitchGk = explicitGkOnPitch;
   const predictedFallbackGk = !gkOnBench && !preferredOnPitchGk && rotateGkAtHalftime && gkOnPitch
     ? benchPlayers.find(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length) || null
     : null;
