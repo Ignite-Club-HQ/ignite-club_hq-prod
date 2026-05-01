@@ -334,22 +334,13 @@ export function createSubPlan(
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
     // Accrue projected time as we walk through the schedule.
+    // GK time is NOT accrued here — it's pre-credited above so the over-cap
+    // rule can sub the GK off in the field before they exceed their target.
     let lastTickAbs = startAbs;
     const accrueUntil = (absT: number) => {
       const dt = Math.max(0, absT - lastTickAbs);
       if (dt === 0) return;
       onPitchOrder.forEach(id => projected.set(id, (projected.get(id) || 0) + dt));
-      // GK accrual (they're not in onPitchOrder).
-      if (gkOnPitch && lastTickAbs < halfTimeAbs) {
-        const sliceEnd = Math.min(absT, halfTimeAbs);
-        const gkDt = Math.max(0, sliceEnd - lastTickAbs);
-        if (gkDt > 0) projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + gkDt);
-      }
-      if (halftimeGkIn && absT > halfTimeAbs) {
-        const sliceStart = Math.max(lastTickAbs, halfTimeAbs);
-        const gkDt = Math.max(0, absT - sliceStart);
-        if (gkDt > 0) projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + gkDt);
-      }
       lastTickAbs = absT;
     };
 
