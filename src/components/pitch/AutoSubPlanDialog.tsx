@@ -482,6 +482,9 @@ export function createSubPlan(
             if (windowIns.has(candidate)) continue;
             // Don't pull keepers off via plain FIFO unless they're above floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
+            // Protect recently-subbed-on players (<4 min on field).
+            const onAt = lastSubbedOnAbs.get(candidate);
+            if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
             outId = candidate;
             onPitchOrder.splice(j, 1);
             break;
