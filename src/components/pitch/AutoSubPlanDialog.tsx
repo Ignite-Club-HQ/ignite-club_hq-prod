@@ -626,6 +626,7 @@ export function createSubPlan(
         windowOuts.add(outId);
         benchOrder.push(outId);
         lastSubbedOnAbs.set(inId, t);
+        neverBenched.delete(outId);
       }
     }
 
