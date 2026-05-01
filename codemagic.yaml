@@ -453,9 +453,9 @@ workflows:
         bundle_identifier: app.lovable.igniteteamhub
       vars:
         # Numeric App Store ID for this app — used to ask ASC for the latest
-        # build number via the Codemagic-managed integration. Public value;
+        # build number for this exact marketing version via the Codemagic-managed integration. Public value;
         # safe to commit. Find it in App Store Connect → My Apps → App
-        # Information → "Apple ID". REPLACE with your real numeric ID.
+        # Information → "Apple ID". This may also be supplied as a Codemagic env var.
         APP_STORE_APPLE_ID: "REPLACE_WITH_NUMERIC_APP_ID"
       xcode: latest
       node: 22
@@ -719,20 +719,83 @@ workflows:
           set -euo pipefail
           ROOT_DIR="$(pwd)"
           APP_VERSION=$(node -p "require('./package.json').version")
+          BUNDLE_ID="app.lovable.igniteteamhub"
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
           PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
 
-          # Ask App Store Connect (via the Codemagic integration) for the
-          # latest build number used for THIS app, then add 1. No API keys
-          # to manage — auth comes from the `app_store_connect: Codemagic`
-          # integration declared at the top of the workflow.
-          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null \
-            || app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null \
-            || echo "0")
+          APP_ID="${APP_STORE_APPLE_ID:-}"
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "=== APP_STORE_APPLE_ID is not set to a numeric value; resolving by bundle id $BUNDLE_ID ==="
+            APPS_JSON=$(app-store-connect apps list \
+              --bundle-id-identifier "$BUNDLE_ID" \
+              --strict-match-identifier \
+              --json)
+            APP_ID=$(echo "$APPS_JSON" | node -e "const fs=require('fs'); const input=fs.readFileSync(0,'utf8'); const json=JSON.parse(input); const apps=Array.isArray(json) ? json : (json.data || json.apps || []); const app=apps[0] || {}; const id=app.id || app.appStoreId || (app.attributes && (app.attributes.appleId || app.attributes.appleID)) || ''; process.stdout.write(String(id));")
+          fi
+
+          if ! echo "$APP_ID" | grep -Eq '^[0-9]+$'; then
+            echo "ERROR: Could not resolve numeric Apple ID for $BUNDLE_ID. Set APP_STORE_APPLE_ID in Codemagic to the App Store Connect Apple ID."
+            exit 1
+          fi
+
+          latest_build_for_version() {
+            local label="$1"
+            shift
+            local output
+            local status
+            set +e
+            output=$("$@" 2>&1)
+            status=$?
+            set -e
+
+            if [ "$status" -ne 0 ]; then
+              if echo "$output" | grep -Eiq 'not[[:space:]-]?found|no[[:space:]]+(build|version|resource|data)|does not exist|404'; then
+                echo "0"
+                return 0
+              fi
+              echo "ERROR: Could not read latest $label build number from App Store Connect." >&2
+              echo "$output" >&2
+              return "$status"
+            fi
+
+            local parsed
+            parsed=$(echo "$output" | tr -d '\r' | grep -Eo '[0-9]+' | tail -1 || true)
+            echo "${parsed:-0}"
+          }
+
+          LATEST_APP_STORE_GLOBAL=$(latest_build_for_version "App Store" \
+            app-store-connect get-latest-app-store-build-number \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_TESTFLIGHT_GLOBAL=$(latest_build_for_version "TestFlight" \
+            app-store-connect get-latest-testflight-build-number \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_APP_STORE_VERSION=$(latest_build_for_version "App Store $APP_VERSION" \
+            app-store-connect get-latest-app-store-build-number \
+              --version-string "$APP_VERSION" \
+              --platform IOS \
+              "$APP_ID")
+          LATEST_TESTFLIGHT_VERSION=$(latest_build_for_version "TestFlight $APP_VERSION" \
+            app-store-connect get-latest-testflight-build-number \
+              --pre-release-version "$APP_VERSION" \
+              --platform IOS \
+              "$APP_ID")
+
+          LATEST=$LATEST_APP_STORE_GLOBAL
+          for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
+            if [ "$candidate" -gt "$LATEST" ]; then
+              LATEST="$candidate"
+            fi
+          done
           NEXT_BUILD_NUMBER=$((LATEST + 1))
 
           echo "=== iOS marketing version: $APP_VERSION ==="
-          echo "=== Latest build on ASC: $LATEST → using build $NEXT_BUILD_NUMBER ==="
+          echo "=== Latest App Store build overall: $LATEST_APP_STORE_GLOBAL ==="
+          echo "=== Latest TestFlight build overall: $LATEST_TESTFLIGHT_GLOBAL ==="
+          echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE_VERSION ==="
+          echo "=== Latest TestFlight build for $APP_VERSION: $LATEST_TESTFLIGHT_VERSION ==="
+          echo "=== Using next ASC-safe build number: $NEXT_BUILD_NUMBER ==="
 
           sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
           sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEXT_BUILD_NUMBER;/g" "$PROJECT_FILE"
