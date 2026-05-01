@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -314,31 +314,22 @@ export function PitchSettingsDialog({
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Subs Speed</Label>
                   <Select 
-                    value={rotationSpeed.toString()} 
+                    value={(rotationSpeed >= 3 ? 3 : 2).toString()} 
                     onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue>
-                        {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Batch' : 'Balanced'}
+                        {rotationSpeed >= 3 ? 'Frequent' : 'Balanced'}
                       </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[1000010] bg-popover" data-vaul-no-drag>
-                      <SelectItem value="1">
-                        <div className="flex items-center gap-2">
-                          <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <div>
-                            <span>Minimal</span>
-                            <p className="text-[10px] text-muted-foreground">1 sub per window, more frequent</p>
-                          </div>
-                        </div>
-                      </SelectItem>
                       <SelectItem value="2">
                         <div className="flex items-center gap-2">
                           <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span>Balanced</span>
-                            <p className="text-[10px] text-muted-foreground">2 subs per window, moderate</p>
+                            <p className="text-[10px] text-muted-foreground">2 subs per window — best fairness</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -346,8 +337,8 @@ export function PitchSettingsDialog({
                         <div className="flex items-center gap-2">
                           <Equal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
-                            <span>Batch</span>
-                            <p className="text-[10px] text-muted-foreground">3 subs per window, fewer stops</p>
+                            <span>Frequent</span>
+                            <p className="text-[10px] text-muted-foreground">3 subs per window — shorter shifts</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -356,7 +347,7 @@ export function PitchSettingsDialog({
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                Subs every ~{rotationSpeed === 1 ? Math.round(minutesPerHalf / 2) : rotationSpeed === 2 ? Math.round(minutesPerHalf / 3) : Math.round(minutesPerHalf / 4)} min
+                Subs every ~{rotationSpeed >= 3 ? Math.round(minutesPerHalf / 4) : Math.round(minutesPerHalf / 3)} min
               </p>
 
               {onMaxSpreadMinutesChange && (
