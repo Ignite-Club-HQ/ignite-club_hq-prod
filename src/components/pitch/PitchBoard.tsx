@@ -4376,6 +4376,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onDisableBatchSubsChange={setDisableBatchSubs}
                   rotateGkAtHalftime={rotateGkAtHalftime}
                   onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                  maxSpreadMinutes={maxSpreadMinutes}
+                  onMaxSpreadMinutesChange={handleMaxSpreadMinutesChange}
                   onOpenPositionEditor={() => setPositionEditorOpen(true)}
                   mockMode={mockMode}
                   onMockModeChange={handleMockModeChange}
@@ -5932,6 +5934,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onDisableBatchSubsChange={setDisableBatchSubs}
                 rotateGkAtHalftime={rotateGkAtHalftime}
                 onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                maxSpreadMinutes={maxSpreadMinutes}
+                onMaxSpreadMinutesChange={handleMaxSpreadMinutesChange}
                 onOpenPositionEditor={() => setPositionEditorOpen(true)}
                 mockMode={mockMode}
                 onMockModeChange={handleMockModeChange}
