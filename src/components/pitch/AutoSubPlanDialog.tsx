@@ -421,13 +421,6 @@ export function createSubPlan(
       if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
         baseWindowTimes.push(h2R);
       }
-      // Tiny squads now hold the 2H GK on outfield until ~HT-2, so we add a
-      // mid-1H window (~55%) to give the player they replaced a return shift
-      // before halftime — keeps the outfield spread tight.
-      const h1R = Math.floor(halfDurationSeconds * 0.55);
-      if (h1R > startAbs && h1R < halfDurationSeconds - 4 * 60 && !isInBlackout(h1R)) {
-        baseWindowTimes.push(h1R);
-      }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
