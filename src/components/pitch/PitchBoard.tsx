@@ -1832,6 +1832,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, toolbarCollapsed, drawingTool]);
 
+  // Drop a stale `preferredSecondHalfGkId` whenever the live roster makes it
+  // invalid — the player no longer exists, has been moved onto the pitch, or
+  // is now serving as the starting GK. Letting it linger would cause the
+  // AutoSubPlan dialog to lock in the wrong "GK 2H" badge after the coach
+  // changes who is keeping goal.
+  useEffect(() => {
+    if (!preferredSecondHalfGkId) return;
+    const target = players.find((p) => p.id === preferredSecondHalfGkId);
+    if (!target || target.position !== null || target.currentPitchPosition === "GK") {
+      setPreferredSecondHalfGkId(undefined);
+    }
+  }, [players, preferredSecondHalfGkId]);
+
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
     if (!fabricModule) return null;
