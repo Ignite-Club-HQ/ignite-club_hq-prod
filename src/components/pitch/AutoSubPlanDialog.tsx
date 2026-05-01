@@ -481,21 +481,23 @@ function createSubPlan(
 
   const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
   const endAbsoluteSeconds = halfDurationSeconds * 2;
-  // Cap rotation windows based on bench size — small benches don't need many
-  // rotations to achieve fair time. Aim for each bench player to get roughly
-  // 1 (slow) / 1.5 (balanced) / 2 (fast) turns on per half.
+  // Cap subs per window, but do NOT under-schedule windows in minimal mode.
+  // Minimal means fewer players swapped at once; it must still create enough
+  // rotation points for every rotatable player to share bench time fairly.
   const benchSize = Math.max(1, outfieldOnBench.length);
-  const turnsPerBenchPlayerPerHalf = rotationSpeed === 3 ? 2 : rotationSpeed === 1 ? 1 : 1.5;
-  const targetWindowsPerHalf = Math.max(1, Math.round(benchSize * turnsPerBenchPlayerPerHalf));
-  // Hard floor on interval so we never sub more often than every ~2 minutes
-  // even with fast rotation, and at least 3 minutes for balanced/slow.
-  const minIntervalFloor = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
-  const intervalFromWindows = halfDurationSeconds / (targetWindowsPerHalf + 1);
-  const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const maxSubEventsPerWindow = Math.max(
     1,
     Math.min(disableBatchSubs ? 1 : subsAtOnce, benchSize, fieldSlots.length)
   );
+  const fairSubActionsNeeded = Math.max(totalOutfieldPlayers, fieldSlots.length + benchSize);
+  const baseFairWindows = Math.ceil(fairSubActionsNeeded / maxSubEventsPerWindow);
+  const extraControlWindows = rotationSpeed === 3 ? benchSize : rotationSpeed === 2 ? Math.ceil(benchSize / 2) : 0;
+  const targetWindowsTotal = Math.max(1, baseFairWindows + extraControlWindows);
+  // Hard floor on interval so we never create disruptive churn, while the fair
+  // window target prevents minimal mode from leaving starters on for 40 minutes.
+  const minIntervalFloor = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
+  const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
+  const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
 
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
