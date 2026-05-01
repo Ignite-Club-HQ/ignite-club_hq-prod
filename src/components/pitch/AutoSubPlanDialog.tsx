@@ -414,7 +414,22 @@ export function createSubPlan(
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
       .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
       .sort((a, b) => a - b);
-    baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
+    // Collapse windows that are too close together (<2.5 min apart) — keeps
+    // forced/protected windows, drops the redundant neighbour.
+    const MIN_WINDOW_GAP = 2.5 * 60;
+    const collapsed: number[] = [];
+    for (const t of deDuplicatedWindowTimes) {
+      const prev = collapsed[collapsed.length - 1];
+      if (prev !== undefined && t - prev < MIN_WINDOW_GAP) {
+        // Prefer the forced/protected one if either is forced; otherwise keep prev.
+        if (forcedInByWindow.has(t) || forcedOutByWindow.has(t)) {
+          collapsed[collapsed.length - 1] = t;
+        }
+        continue;
+      }
+      collapsed.push(t);
+    }
+    baseWindowTimes.splice(0, baseWindowTimes.length, ...collapsed);
     baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
