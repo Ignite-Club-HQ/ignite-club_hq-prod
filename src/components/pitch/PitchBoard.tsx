@@ -299,6 +299,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
+
+  // Keep `preferredSecondHalfGkId` in sync with the live roster. A nominated
+  // 2H GK is allowed to start on pitch as an outfielder, so only clear the
+  // preference when the player is gone, injured, or already the 1H GK.
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -565,9 +569,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset player minutes for a fresh game setup
     const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
     setPlayers(freshPlayers);
-    if (secondHalfGkId) {
-      setPreferredSecondHalfGkId(secondHalfGkId);
-    }
+    setPreferredSecondHalfGkId(secondHalfGkId);
     if (firstHalfGkId || secondHalfGkId) {
       console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
     }
@@ -1823,6 +1825,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
   }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, toolbarCollapsed, drawingTool]);
+
+  // Drop a stale `preferredSecondHalfGkId` whenever the live roster makes it
+  // invalid — the player no longer exists, has been moved onto the pitch, or
+  // is now serving as the starting GK. Letting it linger would cause the
+  // AutoSubPlan dialog to lock in the wrong "GK 2H" badge after the coach
+  // changes who is keeping goal.
+  useEffect(() => {
+    if (!preferredSecondHalfGkId) return;
+    const target = players.find((p) => p.id === preferredSecondHalfGkId);
+    if (!target || target.isInjured || target.currentPitchPosition === "GK") {
+      setPreferredSecondHalfGkId(undefined);
+    }
+  }, [players, preferredSecondHalfGkId]);
 
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
@@ -5542,6 +5557,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
           miniLeagueTeams={miniLeagueTeams}
+          preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
 
         {/* Sub Confirm Dialog */}
@@ -7063,6 +7079,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
         miniLeagueTeams={miniLeagueTeams}
+        preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
 
       {/* Auto-Sub Control Panel */}

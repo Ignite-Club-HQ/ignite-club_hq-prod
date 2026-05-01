@@ -22,7 +22,10 @@ interface PlayerTimeForecast {
 function calculateTimeForecasts(
   players: Player[],
   plan: SubstitutionEvent[],
-  minutesPerHalf: number
+  minutesPerHalf: number,
+  preferredSecondHalfGkId?: string,
+  rotateGkAtHalftime: boolean = true,
+  currentHalf: 1 | 2 = 1
 ): PlayerTimeForecast[] {
   const totalGameMinutes = minutesPerHalf * 2;
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -47,12 +50,18 @@ function calculateTimeForecasts(
   const gkSwapSub = startingGk 
     ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
     : null;
+  const preferredSecondHalfGk = preferredSecondHalfGkId
+    ? players.find(p => p.id === preferredSecondHalfGkId && p.id !== startingGk?.id)
+    : undefined;
+  const inferredSecondHalfGk = rotateGkAtHalftime && currentHalf === 1
+    ? preferredSecondHalfGk || gkSwapSub?.playerIn
+    : undefined;
   
   const gkRoles = new Map<string, 'full' | '1h' | '2h'>();
   if (startingGk) {
-    if (gkSwapSub) {
+    if (inferredSecondHalfGk) {
       gkRoles.set(startingGk.id, '1h');
-      gkRoles.set(gkSwapSub.playerIn.id, '2h');
+      gkRoles.set(inferredSecondHalfGk.id, '2h');
     } else {
       gkRoles.set(startingGk.id, 'full');
     }
@@ -224,14 +233,24 @@ export function createSubPlan(
   
   // Separate GK from outfield players
   const gkOnPitch = playersOnPitch.find(p => p.currentPitchPosition === "GK");
-  // If a preferred 2nd half GK was selected, use that player; otherwise fall back to finding a GK-only bench player
-  const gkOnBench = preferredSecondHalfGkId
-    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
-    : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
-
-  const preferredOnPitchGk = preferredSecondHalfGkId
+  // Resolve the 2H GK. If the coach explicitly picked one in the lineup
+  // screen, honour it absolutely — whether they're currently on the bench
+  // OR already on the pitch in an outfield role. Only fall back to the
+  // sole-GK bench player when no explicit preference was provided.
+  const explicitGkOnBench = preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId)
+    : undefined;
+  const explicitGkOnPitch = preferredSecondHalfGkId
     ? playersOnPitch.find(p => p.id === preferredSecondHalfGkId && p.currentPitchPosition !== "GK")
     : undefined;
+  const fallbackGkOnBench = !preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
+    : undefined;
+
+  // `gkOnBench` represents a 2H GK that needs to come ON from the bench at HT.
+  // If the explicit pick is already on the pitch, there's no bench-incoming GK.
+  const gkOnBench = explicitGkOnBench || (preferredSecondHalfGkId ? undefined : fallbackGkOnBench);
+  const preferredOnPitchGk = explicitGkOnPitch;
   const predictedFallbackGk = !gkOnBench && !preferredOnPitchGk && rotateGkAtHalftime && gkOnPitch
     ? benchPlayers.find(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length) || null
     : null;
@@ -2084,13 +2103,16 @@ function DialogInner({
   // dialog leaves the previously generated plan stale (e.g. Frequent still
   // showed Balanced's 38 subs because the plan was only generated once).
   useEffect(() => {
-    if (isGenerating || editMode) return;
+    if (editMode) return;
     const playersOnP = players.filter(p => p.position !== null);
     const benchP = players.filter(p => p.position === null);
     const hasEnough = miniLeagueTeams
       ? playersOnP.length > 0 && benchP.length > 0
       : playersOnP.length >= teamSize && benchP.length > 0;
-    if (!hasEnough) return;
+    if (!hasEnough) {
+      setIsGenerating(false);
+      return;
+    }
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
@@ -2114,6 +2136,11 @@ function DialogInner({
     rotateGkAtHalftime,
     teamSize,
     preferredSecondHalfGkId,
+    // Regenerate when the live roster / on-pitch assignments change so that
+    // swapping the GK (or any starter) before opening the planner refreshes
+    // the "GK 1H / GK 2H" badges and minute forecasts. We key on a compact
+    // signature to avoid loops from referential identity changes.
+    players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -2125,8 +2152,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf);
-  }, [plan, players, minutesPerHalf]);
+    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
+  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
   
   const handleGenerate = () => {
     setIsGenerating(true);

@@ -160,4 +160,30 @@ describe("createSubPlan", () => {
     // old 2-min cadence, but stay tighter than Standard (which allows ~10').
     expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(9.5);
   });
+
+  it("honours an explicit 2H GK even when they start on pitch as an outfielder", () => {
+    const players = [
+      makePlayer("Archer", "GK"),
+      makePlayer("Ezra", "DEF", 30, 80),
+      makePlayer("Maximus", "DEF", 70, 80),
+      makePlayer("Jett", "MID", 30, 50),
+      makePlayer("Louie", "MID", 70, 50),
+      makePlayer("Hugo", "FWD", 30, 20),
+      makePlayer("James", "FWD", 70, 20),
+      makePlayer("Tom", null),
+      makePlayer("Bench2", null),
+    ];
+    players.forEach(p => {
+      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
+        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+      }
+    });
+
+    const halfSec = 20 * 60;
+    const plan = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Tom", 5);
+    const halftimeSwap = plan.find(sub => sub.half === 2 && sub.time === 0 && sub.playerOut.id === "Archer");
+
+    expect(halftimeSwap?.playerIn.id).toBe("Tom");
+    expect(halftimeSwap?.playerIn.id).not.toBe("Maximus");
+  });
 });
