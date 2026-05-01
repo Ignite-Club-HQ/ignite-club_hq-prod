@@ -489,6 +489,10 @@ function createSubPlan(
     1,
     Math.min(disableBatchSubs ? 1 : subsAtOnce, benchSize, fieldSlots.length)
   );
+  // Rotation continuity: with multiple bench players, someone who has just been
+  // brought on should not be the player removed at the very next rotation.
+  // They re-enter the normal off-order after one further window has passed.
+  let previousRotationPlayerInIds = new Set<string>();
 
   // FAIRNESS-DRIVEN WINDOW COUNT
   // ----------------------------
@@ -598,9 +602,13 @@ function createSubPlan(
 
   const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number, reservedSubEvents = 0) => {
     const maxChanges = Math.max(0, maxSubEventsPerWindow - reservedSubEvents);
-    if (maxChanges === 0) return;
+    if (maxChanges === 0) {
+      previousRotationPlayerInIds = new Set<string>();
+      return;
+    }
 
     const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
+    const protectedPlayerOutIds = benchSize > 1 ? previousRotationPlayerInIds : new Set<string>();
 
     const playerNeedScore = (id: string) => {
       const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
@@ -621,13 +629,22 @@ function createSubPlan(
     for (const { player: playerIn } of rankedBench) {
       if (selectedSubs.length >= maxChanges) break;
 
-      const bestSlot = fieldSlots
+      const candidateSlots = fieldSlots
         .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
         .filter(({ slot, index, playerOut }) =>
           !!playerOut &&
           !usedSlotIndexes.has(index) &&
           canUseInOutfield(playerIn, slot.position)
-        )
+        );
+      const unprotectedSlots = candidateSlots.filter(({ playerOut }) =>
+        playerOut && !protectedPlayerOutIds.has(playerOut.id)
+      );
+
+      // If other bench options exist, skip this incoming player rather than
+      // bouncing a just-introduced player straight back off.
+      if (candidateSlots.length === 0 || (benchSize > 1 && unprotectedSlots.length === 0)) continue;
+
+      const bestSlot = (unprotectedSlots.length > 0 ? unprotectedSlots : candidateSlots)
         .sort((a, b) => {
           const aNeed = targetFieldSeconds(a.playerOut!.id) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
           const bNeed = targetFieldSeconds(b.playerOut!.id) - (currentFieldSeconds.get(b.playerOut!.id) || 0);
@@ -660,6 +677,8 @@ function createSubPlan(
 
       fieldSlots[slotIndex].playerId = playerIn.id;
     });
+
+    previousRotationPlayerInIds = new Set(selectedSubs.map(sub => sub.playerIn.id));
   };
 
   let directLastTime = startAbsoluteSeconds;
