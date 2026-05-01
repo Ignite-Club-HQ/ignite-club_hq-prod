@@ -456,7 +456,7 @@ workflows:
         # build number for this exact marketing version via the Codemagic-managed integration. Public value;
         # safe to commit. Find it in App Store Connect → My Apps → App
         # Information → "Apple ID". This may also be supplied as a Codemagic env var.
-        APP_STORE_APPLE_ID: "REPLACE_WITH_NUMERIC_APP_ID"
+        APP_STORE_APPLE_ID: "6758928691"
       xcode: latest
       node: 22
     scripts:
@@ -782,6 +782,8 @@ workflows:
               --platform IOS \
               "$APP_ID")
 
+          LOCAL_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_FILE" 2>/dev/null || echo "0")
+
           LATEST=$LATEST_APP_STORE_GLOBAL
           for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
             if [ "$candidate" -gt "$LATEST" ]; then
@@ -790,7 +792,12 @@ workflows:
           done
           NEXT_BUILD_NUMBER=$((LATEST + 1))
 
+          if echo "$LOCAL_BUILD_NUMBER" | grep -Eq '^[0-9]+$' && [ "$LOCAL_BUILD_NUMBER" -gt "$NEXT_BUILD_NUMBER" ]; then
+            NEXT_BUILD_NUMBER="$LOCAL_BUILD_NUMBER"
+          fi
+
           echo "=== iOS marketing version: $APP_VERSION ==="
+          echo "=== Local committed build number: $LOCAL_BUILD_NUMBER ==="
           echo "=== Latest App Store build overall: $LATEST_APP_STORE_GLOBAL ==="
           echo "=== Latest TestFlight build overall: $LATEST_TESTFLIGHT_GLOBAL ==="
           echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE_VERSION ==="
