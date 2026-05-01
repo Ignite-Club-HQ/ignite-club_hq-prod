@@ -1122,7 +1122,10 @@ export function createSubPlan(
   }
   // Floor interval prevents churn but never overrides fairness windows. We
   // recompute as evenly-spaced windows across remaining time.
-  const minIntervalFloor = rotationSpeed === 3 ? 90 : 120;
+  // LIGHT FREQUENT: raise the floor for speed=2 from 120s to 180s so shifts
+  // are noticeably longer than current Frequent (~3 min vs ~2 min) while
+  // still rotating much more often than Practical (~5 min).
+  const minIntervalFloor = rotationSpeed === 3 ? 90 : 180;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
