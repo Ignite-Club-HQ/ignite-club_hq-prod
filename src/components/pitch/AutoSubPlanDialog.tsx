@@ -393,8 +393,11 @@ export function createSubPlan(
       // time; otherwise we keep them off ~4 min before halftime to rest.
       const tinySquad = outfieldOnBench.length <= 2;
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      // Tiny squads: extend the 2H GK's 1H outfield shift to ~HT-2 so they
+      // bank ~17' outfield + 20' in goal ≈ 37'. Keepers end up at the TOP
+      // of the minutes table while the outfield spread stays tight.
       const h1GkOff = tinySquad
-        ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
+        ? halfDurationSeconds - 2 * 60
         : Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
