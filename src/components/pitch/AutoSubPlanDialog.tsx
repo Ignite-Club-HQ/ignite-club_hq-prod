@@ -669,7 +669,11 @@ export function createSubPlan(
       // BENCH-EVERYONE GUARANTEE: if there are still never-benched starters
       // on the pitch and we don't have enough remaining windows to bench them
       // all, inject extra synthetic windows ~2 min apart before end of game.
-      const stillNB = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGk(id));
+      const tNext = pendingWindows[0] ?? endAbs;
+      const isActiveGkAt = (id: string, absT: number) =>
+        (gkOnPitch && id === gkOnPitch.id && absT < halfTimeAbs) ||
+        (halftimeGkIn && id === halftimeGkIn.id && absT >= halfTimeAbs);
+      const stillNB = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGkAt(id, tNext));
       if (stillNB.length > pendingWindows.length) {
         const deficit = stillNB.length - pendingWindows.length;
         const lastScheduled = pendingWindows.length > 0 ? pendingWindows[pendingWindows.length - 1] : t;
