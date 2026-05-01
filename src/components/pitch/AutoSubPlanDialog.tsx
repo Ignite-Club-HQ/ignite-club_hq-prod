@@ -1381,11 +1381,26 @@ export function createSubPlan(
       // GK PROTECTION (Frequent): never pull a protected player off the pitch
       // until they reach the spread ceiling — even if they're the only eligible
       // pitch player at this window. Skip the swap entirely instead.
+      const outIsProtected = isGkProtectedFreq(playerOut.id);
+      const inIsProtected = isGkProtectedFreq(playerIn.id);
       if (
-        isGkProtectedFreq(playerOut.id) &&
+        outIsProtected &&
         (projectionsNow.get(playerOut.id) ?? 0) < gkCeilingTotal - 30 &&
-        !isGkProtectedFreq(playerIn.id)
+        !inIsProtected
       ) {
+        continue;
+      }
+      // GK PROTECTION: never bring a non-GK on if doing so would push them
+      // above the GK ceiling — that would mean a non-GK finishes higher than
+      // a still-below-ceiling GK. Skip swap so the bench-time stays available
+      // for the GK in a later window.
+      const inProjAfter = (projectionsNow.get(playerIn.id) ?? 0)
+        + Math.max(0, nextAbsoluteSeconds - absoluteSeconds);
+      const anyGkBelowCeiling = outfieldPlayers.some(
+        p => isGkProtectedFreq(p.id)
+          && (projectionsNow.get(p.id) ?? 0) < gkCeilingTotal - 30,
+      );
+      if (!inIsProtected && anyGkBelowCeiling && inProjAfter > gkCeilingTotal - 30) {
         continue;
       }
 
