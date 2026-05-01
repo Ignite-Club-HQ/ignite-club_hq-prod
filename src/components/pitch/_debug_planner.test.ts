@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import { createSubPlan } from "./AutoSubPlanDialog";
-import type { PitchPosition } from "./types";
+type PitchPosition = "GK" | "DEF" | "MID" | "FWD";
 
 const makePlayer = (name: string, pos: PitchPosition | null = null, x = 50, y = 50, mins = 0): any => ({
   id: name, name,
