@@ -405,18 +405,22 @@ export function createSubPlan(
       // on as long as possible (sub off ~2 min before HT). This pushes them
       // toward the top of the allowed spread without breaching it.
       const tinySquad = outfieldOnBench.length <= 2;
+      // GK-protected players are exempt from the bench-once rule and should
+      // sit at the top of the spread. Push the 2H GK's 1H outfield run as
+      // close to halftime as possible (HT-2 for tiny squads, HT-3 otherwise).
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOff = tinySquad
-        ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
-        : Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60);
+      const h1GkOffOffset = tinySquad ? 2 * 60 : 3 * 60;
+      const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
+      // Forced GK windows bypass blackout: GK-protected runs take priority
+      // over normal blackout windows so they can land at the top of the spread.
       [h1GkOn, h1GkOff].forEach(gkTime => {
-        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+        if (gkTime > startAbs) baseWindowTimes.push(Math.floor(gkTime));
       });
-      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
+      if (h1GkOn > startAbs) {
         forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
       }
-      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
+      if (h1GkOff > startAbs) {
         forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
       }
     }
@@ -425,8 +429,13 @@ export function createSubPlan(
     // normal scheduler decide when they come off (no forced-out) so other
     // outfielders still get adequate rotation in H2.
     if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
-      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
+      // GK-protected: bring 1H GK on outfield as soon as the post-HT blackout
+      // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
+      // banks more outfield minutes and finishes near the top of the spread.
+      const tinySquad = outfieldOnBench.length <= 2;
+      const h2GkOnOffset = tinySquad ? 2 * 60 : PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h2GkOn = halfDurationSeconds + h2GkOnOffset;
+      if (h2GkOn > startAbs) {
         baseWindowTimes.push(Math.floor(h2GkOn));
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
       }
@@ -462,7 +471,13 @@ export function createSubPlan(
 
     // RULE: every outfield starter must be benched at least once. Track who
     // has yet to be subbed off; bias selection toward never-benched players.
-    const neverBenched = new Set<string>(outfieldOnPitch.map(p => p.id));
+    // GK-PROTECTED EXEMPTION: players assigned as GK in either half are
+    // exempt from the bench-once rule. They should be allowed to play their
+    // full outfield run before/after their GK shift to reach the top of the
+    // allowed spread (equal-highest minutes).
+    const neverBenched = new Set<string>(
+      outfieldOnPitch.filter(p => !isGkProtected(p.id)).map(p => p.id),
+    );
 
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
