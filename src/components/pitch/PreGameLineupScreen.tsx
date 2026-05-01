@@ -102,6 +102,14 @@ export default function PreGameLineupScreen({
   // GK rotation toggle state - starts with the prop value
   const [rotateGk, setRotateGk] = useState(rotateGkAtHalftime);
 
+  // Collapsible setup sections — collapsed by default to maximise pitch room.
+  // Each opens independently so coaches can tweak without losing the others.
+  const [openSection, setOpenSection] = useState<null | "size" | "formation" | "subs">(null);
+  const toggleSection = useCallback((s: "size" | "formation" | "subs") => {
+    setOpenSection(prev => (prev === s ? null : s));
+  }, []);
+  const subsSpeedLabel = rotationSpeed === 1 ? "Minimal" : rotationSpeed === 3 ? "Batch" : "Balanced";
+
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     const newFormation = FORMATIONS[newSize][0];
