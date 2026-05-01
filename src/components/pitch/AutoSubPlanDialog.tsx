@@ -297,11 +297,18 @@ export function createSubPlan(
     );
 
     // ---- Fairness model ------------------------------------------------------
-    // Target minutes per player across the WHOLE game (so existing minutes from
-    // mid-game starts are accounted for naturally).
+    // Each player gets a personal TOTAL-time target (outfield + guaranteed GK).
+    // Players with guaranteed GK shifts (starting GK in H1, halftimeGkIn in H2)
+    // already accumulate ~halfDurationSeconds of locked time, so we DON'T want
+    // their outfield share to push them well above an even split. By using
+    // total-time-per-player as the target, the over-cap rule will keep their
+    // outfield minutes low (they already get GK time) and free up outfield
+    // minutes for non-GK players — narrowing the spread.
     const fullGameSec = halfDurationSeconds * 2;
     const totalFieldSec = fullGameSec * fieldPositions;
-    const targetSecPerPlayer = totalFieldSec / Math.max(totalOutfieldPlayers, 1);
+    // Total minutes "available" across all players = field time + GK time.
+    const totalAvailableSec = totalFieldSec + fullGameSec; // +GK seat across whole game
+    const targetSecPerPlayer = totalAvailableSec / Math.max(totalOutfieldPlayers + (gkOnPitch && !includeStartingGkInRotation ? 1 : 0), 1);
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
 
