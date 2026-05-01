@@ -394,18 +394,20 @@ export function createSubPlan(
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
     }
-    // Tiny squads (≤2 bench): forced GK windows already eat 2–3 of the regular
-    // sub slots, leaving the FIFO queue unable to reach the last outfield
-    // starters. Add an extra rescue in each half so high-minute outfielders
-    // (typically forwards last in FIFO order) get pulled off at least once.
+    // Tiny squads (≤2 bench): GKs can ONLY swap at halftime, so no forced GK
+    // windows in 1H. Add TWO extra rescue windows per half (~33% and ~66%) so
+    // high-minute outfielders (typically forwards last in FIFO order) get
+    // pulled off — prevents any starter from playing a full 40'.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
-      const h1Rescue = Math.floor(halfDurationSeconds * 0.55);
-      if (h1Rescue > startAbs && h1Rescue < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1Rescue)) {
-        baseWindowTimes.push(h1Rescue);
-      }
-      const h2Rescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.55);
-      if (h2Rescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2Rescue)) {
-        baseWindowTimes.push(h2Rescue);
+      for (const ratio of [0.33, 0.66]) {
+        const h1R = Math.floor(halfDurationSeconds * ratio);
+        if (h1R > startAbs && h1R < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1R)) {
+          baseWindowTimes.push(h1R);
+        }
+        const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * ratio);
+        if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
+          baseWindowTimes.push(h2R);
+        }
       }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
