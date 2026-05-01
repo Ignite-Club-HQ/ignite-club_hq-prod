@@ -2990,7 +2990,7 @@ export default function EventDetailPage() {
             }))}
             onClose={() => setShowPitchBoard(false)}
             disableAutoSubs={teamSubscription?.disable_auto_subs || false}
-            initialRotationSpeed={teamSubscription?.rotation_speed || 2}
+            initialRotationSpeed={teamSubscription?.rotation_speed || 1}
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
             initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
             initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}

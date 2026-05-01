@@ -159,25 +159,32 @@ const formatTime = (seconds: number) => {
 };
 
 /**
- * Normalise the legacy 3-mode rotation speed to the supported 2-mode set:
- * - 1 ("Minimal") was mathematically broken — it could not honour the spread
- *   cap with a single sub per window plus a half-game GK lockout. We migrate
- *   any persisted value of 1 to 2 ("Balanced") at every read site.
- * - 2 = Balanced (default) — 2 subs / window, near-perfect fairness.
- * - 3 = Frequent — 3 subs / window, more rotation windows.
+ * Rotation modes (rotation_speed integer):
+ * - 1 = Practical (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
+ *   window, soft fairness (no spread escalation). Designed for real-world
+ *   junior coaching: minimal interruptions, predictable order, "fair enough".
+ * - 2 = Balanced — 2 subs / window, near-perfect fairness with full cycle.
+ * - 3 = Frequent — 3 subs / window, more windows for tightest spread.
+ *
+ * Anything outside 1–3 (including legacy/null) defaults to Practical.
  */
 export const normalizeRotationSpeed = (speed: number | null | undefined): number => {
-  const s = typeof speed === "number" ? speed : 2;
-  if (s <= 1) return 2;
+  const s = typeof speed === "number" ? speed : 1;
   if (s >= 3) return 3;
-  return 2;
+  if (s === 2) return 2;
+  return 1;
 };
+
+/** Target gap between Practical-mode sub windows (seconds). */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
+/** Maximum players swapped in a single Practical-mode window. */
+const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 
 export function createSubPlan(
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
-  rotationSpeedInput: number = 2,
+  rotationSpeedInput: number = 1,
   disablePositionSwaps: boolean = false,
   disableBatchSubs: boolean = false,
   rotateGkAtHalftime: boolean = true,
@@ -261,6 +268,135 @@ export function createSubPlan(
   const totalRemainingSeconds = Math.max(remainingHalves, 0);
   const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
+
+  // ===========================================================================
+  // PRACTICAL MODE (rotationSpeed === 1) — early return.
+  // FIFO queue rotation, ~7 min between sub windows, max 2 swaps per window.
+  // No spread escalation. Designed to mirror how a real junior coach manages
+  // a game: predictable order, few interruptions, "fair enough" distribution.
+  // ===========================================================================
+  if (rotationSpeed === 1) {
+    const startAbs = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
+    const endAbs = halfDurationSeconds * 2;
+    const intervalSec = Math.max(120, PRACTICAL_SUB_INTERVAL_SECONDS);
+    const subsPerWindow = Math.max(
+      1,
+      Math.min(
+        disableBatchSubs ? 1 : PRACTICAL_MAX_SUBS_PER_WINDOW,
+        outfieldOnBench.length,
+        outfieldOnPitch.length
+      )
+    );
+
+    // Build sub-window times. Avoid scheduling within 90s of half-time so the
+    // GK swap (if enabled) lands cleanly there without nearby field churn.
+    const windowTimes: number[] = [];
+    for (let t = startAbs + intervalSec; t < endAbs - 60; t += intervalSec) {
+      // Skip windows that fall right next to half-time (the GK swap covers it).
+      if (Math.abs(t - halfDurationSeconds) < 90) continue;
+      windowTimes.push(Math.floor(t));
+    }
+
+    // Rolling FIFO queues seeded from current state.
+    // benchQueue: index 0 = next on. pitchQueue: index 0 = next off.
+    const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
+    // The H2 GK starts on the outfield bench in H1 and is eligible for outfield
+    // turns until half-time. We strip them only at HT (see gkSwapApplied below).
+    const benchOrder: string[] = outfieldOnBench.map(p => p.id);
+
+    const halfTimeAbs = halfDurationSeconds;
+    const willGkSwapAtHt =
+      rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
+
+    let gkSwapApplied = false;
+    for (const t of windowTimes) {
+      // At the first window after half-time, apply the GK swap to the queues:
+      // remove the starting GK from pitch (becomes a bench-eligible outfielder
+      // for H2), remove the H2 GK from outfield rotation (they're now in goal),
+      // and add the starting GK to the bench queue.
+      if (willGkSwapAtHt && !gkSwapApplied && t > halfTimeAbs) {
+        const startingGkId = gkOnPitch!.id;
+        const h2GkId = halftimeGkIn!.id;
+        // Remove H2 GK from any outfield queue position — they're in goal now.
+        const ip = onPitchOrder.indexOf(h2GkId);
+        if (ip >= 0) onPitchOrder.splice(ip, 1);
+        const ib = benchOrder.indexOf(h2GkId);
+        if (ib >= 0) benchOrder.splice(ib, 1);
+        // Starting GK joins the front of the bench queue (longest-waiting).
+        if (!benchOrder.includes(startingGkId)) benchOrder.unshift(startingGkId);
+        gkSwapApplied = true;
+      }
+
+      const swaps = Math.min(subsPerWindow, onPitchOrder.length, benchOrder.length);
+      if (swaps === 0) continue;
+
+      const { half, time } = (() => ({
+        half: (t < halfDurationSeconds ? 1 : 2) as 1 | 2,
+        time: t < halfDurationSeconds ? t : t - halfDurationSeconds,
+      }))();
+
+      for (let i = 0; i < swaps; i++) {
+        // Take the player who has been on longest (front of pitch queue) but
+        // never the GK — guarded by exclusion below.
+        let outId: string | null = null;
+        for (let j = 0; j < onPitchOrder.length; j++) {
+          const candidate = onPitchOrder[j];
+          // Don't pull the active GK during play.
+          if (gkOnPitch && candidate === gkOnPitch.id && t < halfTimeAbs) continue;
+          if (halftimeGkIn && candidate === halftimeGkIn.id && t >= halfTimeAbs) continue;
+          outId = candidate;
+          onPitchOrder.splice(j, 1);
+          break;
+        }
+        if (!outId) break;
+        const inId = benchOrder.shift();
+        if (!inId) {
+          // Put outId back if no bench partner.
+          onPitchOrder.unshift(outId);
+          break;
+        }
+
+        const playerOut = playerData.find(p => p.id === outId)!;
+        const playerIn = playerData.find(p => p.id === inId)!;
+        // Inherit position from the player going off.
+        const pos = (playerOut.currentPitchPosition || "MID") as PitchPosition;
+        // Mutate the in-player's currentPitchPosition for any later GK logic
+        // checks downstream (we operate on copies via playerData spread is not
+        // available here, so we fake it by keeping it on the local plan only).
+        plan.push({
+          time,
+          half,
+          playerOut,
+          playerIn: { ...playerIn, currentPitchPosition: pos },
+          executed: false,
+        });
+
+        // Update queues.
+        onPitchOrder.push(inId);
+        benchOrder.push(outId);
+      }
+    }
+
+    // Halftime GK swap (if enabled and applicable).
+    if (willGkSwapAtHt && startHalf === 1) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch!,
+        playerIn: halftimeGkIn!,
+        executed: false,
+      });
+    }
+
+    return plan.sort((a, b) =>
+      (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
+      (b.half === 1 ? b.time : halfDurationSeconds + b.time)
+    );
+  }
+  // ===========================================================================
+  // BALANCED / FREQUENT MODES — fairness-driven planner below.
+  // ===========================================================================
+
   
   // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
   // Use remaining time for calculations

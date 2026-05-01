@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Scale, Equal, ChevronDown } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw, Scale, Equal, ChevronDown, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -108,7 +108,8 @@ export default function PreGameLineupScreen({
   const toggleSection = useCallback((s: "size" | "formation" | "subs") => {
     setOpenSection(prev => (prev === s ? null : s));
   }, []);
-  const subsSpeedLabel = (rotationSpeed ?? 2) >= 3 ? "Frequent" : "Balanced";
+  const _rs = rotationSpeed ?? 1;
+  const subsSpeedLabel = _rs >= 3 ? "Frequent" : _rs === 2 ? "Balanced" : "Practical";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -640,10 +641,12 @@ export default function PreGameLineupScreen({
                     aria-label="Subs speed"
                   >
                     {[
+                      { value: 1, label: "Practical", Icon: List, hint: "Few subs, simple" },
                       { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
                       { value: 3, label: "Frequent", Icon: Equal, hint: "3 subs / window" },
                     ].map(({ value, label, Icon, hint }) => {
-                      const normalised = (rotationSpeed ?? 2) >= 3 ? 3 : 2;
+                      const rs = rotationSpeed ?? 1;
+                      const normalised = rs >= 3 ? 3 : rs === 2 ? 2 : 1;
                       const active = normalised === value;
                       return (
                         <button
