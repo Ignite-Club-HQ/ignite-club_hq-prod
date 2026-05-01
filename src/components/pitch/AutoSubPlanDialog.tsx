@@ -452,8 +452,13 @@ export function createSubPlan(
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
+          // Protect recently-subbed-on players (<4 min on field).
+          .filter(id => {
+            const onAt = lastSubbedOnAbs.get(id);
+            return onAt === undefined || (t - onAt) >= PRACTICAL_RECENT_SUB_PROTECTION_SECONDS;
+          })
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id) + targetSecPerPlayer * 0.05)
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec + (isKeeperRotationPlayer(benchId) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0)))
+          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
