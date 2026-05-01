@@ -173,20 +173,20 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
   return 1;
 };
 
-/** Target gap between Practical-mode sub windows (seconds). Tightened so
- *  spread stays within ~4 min on short (≤40 min) games. */
-const PRACTICAL_SUB_INTERVAL_SECONDS = 3 * 60;
+/** Target gap between Practical-mode sub windows (seconds). Keeps the schedule
+ *  coach-friendly while still giving two-bench squads enough turns to share time. */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 5 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
  *  jump to the front of the bench queue (priority-aware FIFO). */
-const PRACTICAL_MIN_THRESHOLD_RATIO = 0.95;
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.9;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next AND blocked from coming ON. */
-const PRACTICAL_MAX_THRESHOLD_RATIO = 1.05;
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.1;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
-const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 3 * 60;
+const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
 
 export function createSubPlan(
   playerData: Player[],
@@ -305,10 +305,8 @@ export function createSubPlan(
     // outfield minutes low (they already get GK time) and free up outfield
     // minutes for non-GK players — narrowing the spread.
     const fullGameSec = halfDurationSeconds * 2;
-    const totalFieldSec = fullGameSec * fieldPositions;
-    // Total minutes "available" across all players = field time + GK time.
-    const totalAvailableSec = totalFieldSec + fullGameSec; // +GK seat across whole game
-    const targetSecPerPlayer = totalAvailableSec / Math.max(totalOutfieldPlayers + (gkOnPitch && !includeStartingGkInRotation ? 1 : 0), 1);
+    const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
+    const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
 
@@ -326,12 +324,34 @@ export function createSubPlan(
       projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
     }
 
+    const remainingOutfieldAvailability = (id: string, absT: number) => {
+      if (includeStartingGkInRotation && id === gkOnPitch?.id) {
+        return Math.max(1, endAbs - Math.max(absT, halfTimeAbs));
+      }
+      if (halftimeGkIn && id === halftimeGkIn.id) {
+        return absT < halfTimeAbs ? Math.max(1, halfTimeAbs - absT) : 1;
+      }
+      return Math.max(1, endAbs - absT);
+    };
+
+    const shortfall = (id: string) => targetSecPerPlayer - (projected.get(id) || 0);
+    const needScore = (id: string, absT: number, queueIndex = 0) => {
+      const need = shortfall(id);
+      return (need / remainingOutfieldAvailability(id, absT)) * 10000 + need * 0.05 - queueIndex * 0.01;
+    };
+
     // Build candidate sub-window times.
     const baseWindowTimes: number[] = [];
     for (let t = startAbs + intervalSec; t < endAbs - 60; t += intervalSec) {
       if (Math.abs(t - halfDurationSeconds) < 90) continue;
       baseWindowTimes.push(Math.floor(t));
     }
+    [halfDurationSeconds - 120, endAbs - 120].forEach(t => {
+      if (t > startAbs + 60 && t < endAbs - 60 && !baseWindowTimes.some(existing => Math.abs(existing - t) < 90)) {
+        baseWindowTimes.push(Math.floor(t));
+      }
+    });
+    baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
     const benchOrder: string[] = outfieldOnBench.map(p => p.id);
@@ -396,15 +416,23 @@ export function createSubPlan(
           (halftimeGkIn && id === halftimeGkIn.id && t >= halfTimeAbs);
 
         // -------- Pick playerOut --------
-        // Priority: (1) anyone over the soft cap (highest minutes first).
-        //           (2) otherwise FIFO (front of pitch queue).
+        // Priority: (1) the nominated 2H GK must be back on the bench before
+        // halftime, (2) anyone over the soft cap, (3) otherwise FIFO.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec)
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
-        if (overCap.length > 0) {
+        const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
+          t < halfTimeAbs &&
+          t >= halfTimeAbs - intervalSec - 30 &&
+          onPitchOrder.includes(halftimeGkIn.id);
+        if (h2GkNeedsBenchForHalftime) {
+          outId = halftimeGkIn!.id;
+          const idx = onPitchOrder.indexOf(outId);
+          if (idx >= 0) onPitchOrder.splice(idx, 1);
+        } else if (overCap.length > 0) {
           outId = overCap[0];
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
@@ -425,9 +453,9 @@ export function createSubPlan(
         //               above the soft cap (prevents re-subbing high-minute
         //               players onto the field).
         const under = benchOrder
-          .map(id => ({ id, proj: projected.get(id) || 0 }))
+          .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => b.proj < minThresholdSec)
-          .sort((a, b) => a.proj - b.proj);
+          .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
         if (under.length > 0) {
@@ -435,10 +463,12 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          // FIFO but skip over-cap players first.
-          const fifoIdx = benchOrder.findIndex(
-            id => (projected.get(id) || 0) <= maxThresholdSec
-          );
+          // Mostly FIFO, but allow an urgent low-minute player with limited
+          // availability (notably the nominated 2H GK) to jump the queue.
+          const fifoIdx = benchOrder
+            .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+            .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
+            .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
