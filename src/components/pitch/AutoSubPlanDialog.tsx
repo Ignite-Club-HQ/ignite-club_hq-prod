@@ -298,12 +298,12 @@ export function createSubPlan(
 
     // ---- Fairness model ------------------------------------------------------
     // Each player gets a personal TOTAL-time target (outfield + guaranteed GK).
-    // Players with guaranteed GK shifts (starting GK in H1, halftimeGkIn in H2)
-    // already accumulate ~halfDurationSeconds of locked time, so we DON'T want
-    // their outfield share to push them well above an even split. By using
-    // total-time-per-player as the target, the over-cap rule will keep their
-    // outfield minutes low (they already get GK time) and free up outfield
-    // minutes for non-GK players — narrowing the spread.
+    // GKs stand still in goal — that's not real "playing time" the way running
+    // around the field is. To compensate, GKs only get PARTIAL credit for their
+    // GK shift in the fairness budget, which pushes them to RECEIVE more
+    // outfield minutes. Result: GKs land in the TOP HALF of total-minutes,
+    // so they get decent field time too, not just stuck in goal.
+    const GK_TIME_CREDIT_RATIO = 0.4; // count GK shift as 40% of an outfield shift
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
@@ -314,14 +314,15 @@ export function createSubPlan(
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
     outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
-    // Pre-credit the starting GK with their H1 GK shift, and the designated
-    // 2H GK with their H2 GK shift, so the fairness cap accounts for that
-    // "guaranteed" goalkeeper time when picking who to sub off in the field.
+    // Pre-credit GKs with only a FRACTION of their guaranteed GK shift. This
+    // intentionally leaves headroom under the over-cap so GKs are kept on the
+    // field longer when playing outfield, lifting their total minutes into
+    // the top half of the squad.
     if (gkOnPitch && startHalf === 1) {
-      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
+      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds * GK_TIME_CREDIT_RATIO);
     }
     if (halftimeGkIn) {
-      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
+      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds * GK_TIME_CREDIT_RATIO);
     }
 
     const remainingOutfieldAvailability = (id: string, absT: number) => {
