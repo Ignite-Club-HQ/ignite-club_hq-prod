@@ -388,11 +388,22 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
         {/* Row 0: Team / scope chip — colored by detected team colour for fast visual differentiation */}
         {subtitle && (() => {
           const teamColor = event.teams?.name ? detectTeamColor(event.teams.name) : null;
+          // Detect very light colours (e.g. White) where coloured text would be unreadable
+          // on a white card. Fall back to foreground text but keep the colour dot.
+          const isLightColor = (hex: string) => {
+            const h = hex.replace("#", "");
+            const r = parseInt(h.substring(0, 2), 16);
+            const g = parseInt(h.substring(2, 4), 16);
+            const b = parseInt(h.substring(4, 6), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance > 0.85;
+          };
+          const lightColor = teamColor ? isLightColor(teamColor.hex) : false;
           const chipStyle = teamColor
             ? {
-                backgroundColor: `${teamColor.hex}26`, // ~15% alpha
-                color: teamColor.hex,
-                borderColor: `${teamColor.hex}66`, // ~40% alpha
+                backgroundColor: lightColor ? undefined : `${teamColor.hex}26`, // ~15% alpha
+                color: lightColor ? undefined : teamColor.hex,
+                borderColor: lightColor ? undefined : `${teamColor.hex}66`, // ~40% alpha
               }
             : undefined;
           return (
@@ -402,7 +413,9 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
                 style={chipStyle}
                 className={
                   teamColor
-                    ? "text-[11px] h-5 px-2 font-semibold border max-w-full truncate inline-flex items-center gap-1.5"
+                    ? lightColor
+                      ? "text-[11px] h-5 px-2 font-semibold bg-muted text-foreground border border-border max-w-full truncate inline-flex items-center gap-1.5"
+                      : "text-[11px] h-5 px-2 font-semibold border max-w-full truncate inline-flex items-center gap-1.5"
                     : "text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
                 }
               >
