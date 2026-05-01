@@ -76,11 +76,42 @@ describe("createSubPlan", () => {
     }
   });
 
-  it("U8 2-mode rotation: spread between most & least played stays within tolerance", () => {
-    // U8: 11 players, 7 a side, 40-min game (two 20-min halves), GK rotates at HT.
-    // We removed the broken "Minimal" mode; only Balanced (2) and Frequent (3) exist.
-    // Legacy speed=1 should be normalised to 2 by the planner.
+  it("U8 3-mode rotation: Balanced/Frequent honour spread; Practical keeps subs low", () => {
+    // Practical (1) prioritises low disruption — wider spread is acceptable.
+    // Balanced (2) and Frequent (3) honour the spread cap tightly.
     const players = [
+      makePlayer("Archer", "GK"),
+      makePlayer("Ezra", "DEF", 30, 80),
+      makePlayer("Augustine", "DEF", 70, 80),
+      makePlayer("Jett", "MID", 30, 50),
+      makePlayer("Louie", "MID", 70, 50),
+      makePlayer("Hugo", "FWD", 30, 20),
+      makePlayer("James", "FWD", 70, 20),
+      makePlayer("Maximus", null),
+      makePlayer("Tom", null),
+      makePlayer("Bench3", null),
+      makePlayer("Bench4", null),
+    ];
+    players.forEach(p => {
+      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
+        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+      }
+    });
+
+    const halfSec = 20 * 60;
+    // Practical: low sub count, soft fairness — accepts wider spread.
+    const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
+    expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(15);
+
+    // Balanced & Frequent honour tight spread.
+    for (const speed of [2, 3]) {
+      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", 5);
+      const totals = simulateTotals(players, plan, halfSec);
+      const arr = [...totals.values()];
+      const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
+      expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
+    }
+  });
       makePlayer("Archer", "GK"),         // GK 1H
       makePlayer("Ezra", "DEF", 30, 80),
       makePlayer("Augustine", "DEF", 70, 80),
