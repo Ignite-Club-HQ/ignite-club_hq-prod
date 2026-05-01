@@ -421,24 +421,14 @@ export function createSubPlan(
       }
     }
     // Mirror window in H2 for the 1H GK so they get outfield time toward the
-    // top of the allowed spread. Bring them on shortly after HT and keep on
-    // until ~2 min before full time.
-    let h2StartingGkOnByAbs: number | null = null;
+    // top of the allowed spread. Bring them on shortly after HT; let the
+    // normal scheduler decide when they come off (no forced-out) so other
+    // outfielders still get adequate rotation in H2.
     if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
-      const tinySquad = outfieldOnBench.length <= 2;
       const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h2GkOff = tinySquad
-        ? Math.min(h2GkOn + 9 * 60, endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS)
-        : Math.min(h2GkOn + 12 * 60, endAbs - 2 * 60);
-      h2StartingGkOnByAbs = Math.floor(h2GkOn);
-      [h2GkOn, h2GkOff].forEach(gkTime => {
-        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
-      });
       if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
+        baseWindowTimes.push(Math.floor(h2GkOn));
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
-      }
-      if (h2GkOff > startAbs && !isInBlackout(h2GkOff)) {
-        forcedOutByWindow.set(Math.floor(h2GkOff), gkOnPitch.id);
       }
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
