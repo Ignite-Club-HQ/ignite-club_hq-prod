@@ -141,6 +141,10 @@ interface AutoSubPlanDialogProps {
   disablePositionSwaps?: boolean; // When true, skip position swaps in auto generation
   disableBatchSubs?: boolean; // When true, only do one sub at a time
   rotateGkAtHalftime?: boolean; // When true, swap GK at halftime
+  /** Max acceptable playing-time spread (minutes). Planner stays in queue
+   *  (FIFO) order while projected spread is within this cap; once projected
+   *  to exceed it, fairness overrides queue. Defaults to 5 minutes. */
+  maxSpreadMinutes?: number;
   currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
@@ -164,7 +168,8 @@ export function createSubPlan(
   rotateGkAtHalftime: boolean = true,
   startElapsedSeconds: number = 0,
   startHalf: 1 | 2 = 1,
-  preferredSecondHalfGkId?: string
+  preferredSecondHalfGkId?: string,
+  maxSpreadMinutes: number = 5
 ): SubstitutionEvent[] {
   const plan: SubstitutionEvent[] = [];
   
