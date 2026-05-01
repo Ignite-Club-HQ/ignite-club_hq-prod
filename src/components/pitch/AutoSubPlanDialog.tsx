@@ -2084,13 +2084,16 @@ function DialogInner({
   // dialog leaves the previously generated plan stale (e.g. Frequent still
   // showed Balanced's 38 subs because the plan was only generated once).
   useEffect(() => {
-    if (isGenerating || editMode) return;
+    if (editMode) return;
     const playersOnP = players.filter(p => p.position !== null);
     const benchP = players.filter(p => p.position === null);
     const hasEnough = miniLeagueTeams
       ? playersOnP.length > 0 && benchP.length > 0
       : playersOnP.length >= teamSize && benchP.length > 0;
-    if (!hasEnough) return;
+    if (!hasEnough) {
+      setIsGenerating(false);
+      return;
+    }
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
