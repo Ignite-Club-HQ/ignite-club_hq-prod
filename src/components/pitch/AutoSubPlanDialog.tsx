@@ -297,13 +297,10 @@ export function createSubPlan(
     );
 
     // ---- Fairness model ------------------------------------------------------
-    // Each player gets a personal TOTAL-time target (outfield + guaranteed GK).
-    // GKs stand still in goal — that's not real "playing time" the way running
-    // around the field is. To compensate, GKs only get PARTIAL credit for their
-    // GK shift in the fairness budget, which pushes them to RECEIVE more
-    // outfield minutes. Result: GKs land in the TOP HALF of total-minutes,
-    // so they get decent field time too, not just stuck in goal.
-    const GK_TIME_CREDIT_RATIO = 0.4; // count GK shift as 40% of an outfield shift
+    // Track REAL total minutes for every player. Keeper duty counts as time on
+    // pitch; we only add a small outfield priority bonus separately so keepers
+    // still get a decent run without destroying the fair-time calculation.
+    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 4 * 60;
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
@@ -314,15 +311,11 @@ export function createSubPlan(
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
     outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
-    // Pre-credit GKs with only a FRACTION of their guaranteed GK shift. This
-    // intentionally leaves headroom under the over-cap so GKs are kept on the
-    // field longer when playing outfield, lifting their total minutes into
-    // the top half of the squad.
     if (gkOnPitch && startHalf === 1) {
-      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds * GK_TIME_CREDIT_RATIO);
+      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
     }
     if (halftimeGkIn) {
-      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds * GK_TIME_CREDIT_RATIO);
+      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
     }
 
     const remainingOutfieldAvailability = (id: string, absT: number) => {
@@ -335,7 +328,9 @@ export function createSubPlan(
       return Math.max(1, endAbs - absT);
     };
 
-    const shortfall = (id: string) => targetSecPerPlayer - (projected.get(id) || 0);
+    const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
+    const shortfall = (id: string) =>
+      targetSecPerPlayer + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
       return (need / remainingOutfieldAvailability(id, absT)) * 10000 + need * 0.05 - queueIndex * 0.01;
