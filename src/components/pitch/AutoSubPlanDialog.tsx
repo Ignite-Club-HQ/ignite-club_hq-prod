@@ -184,10 +184,6 @@ const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next AND blocked from coming ON. */
 const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
-/** GK priority weighting (~+4 min on a 40 min / 7-a-side / 11-player match).
- *  Keeps keepers at or slightly above the squad average without starving
- *  outfield players. */
-const PRACTICAL_GK_PRIORITY_RATIO = 0.16;
 /** No subs before this minute mark from kickoff (settling-in window). */
 const PRACTICAL_NO_SUB_BEFORE_SECONDS = 5 * 60;
 /** No subs in this trailing window of each half. */
