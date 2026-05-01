@@ -76,6 +76,8 @@ export default function PreGameLineupScreen({
   onClose,
   onTeamSizeChange,
   onFormationChange,
+  rotationSpeed,
+  onRotationSpeedChange,
 }: PreGameLineupScreenProps) {
   const formation = FORMATIONS[teamSize][selectedFormation];
   const hasGk = !["3", "4", "5", "6"].includes(teamSize);
