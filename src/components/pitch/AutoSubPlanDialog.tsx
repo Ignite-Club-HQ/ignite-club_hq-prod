@@ -751,10 +751,15 @@ function createSubPlan(
     return spread * 1000 + gkShortfall;
   };
 
-  for (let iter = 0; iter < 40; iter++) {
+  // Iterative fairness optimizer. Each pass tries every legal single-sub
+  // identity replacement at every snapshot and keeps the edit that most
+  // reduces (spread × 1000 + GK shortfall). Runs until no improvement.
+  const MAX_OPTIMIZER_ITERATIONS = 120;
+  for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
     const currentScore = fairnessObjective(currentSim.totals);
+    if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
     for (const snapshot of currentSim.snapshots) {
@@ -784,17 +789,19 @@ function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals) : currentScore;
+          const score = trial.valid ? fairnessObjective(trial.totals) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
-          if (trial.valid && score < (bestEdit?.score ?? currentScore) - 1) {
+          // Accept any strict improvement (no slack) so the optimizer can keep
+          // tightening the spread until truly optimal.
+          if (trial.valid && score < (bestEdit?.score ?? currentScore)) {
             bestEdit = { index: snapshot.index, replacement, score };
           }
         }
       }
     }
 
-    if (!bestEdit) break;
+    if (!bestEdit || bestEdit.score >= currentScore) break;
     plan[bestEdit.index] = bestEdit.replacement;
   }
 
