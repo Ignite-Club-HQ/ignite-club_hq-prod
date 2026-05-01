@@ -283,7 +283,7 @@ export function createSubPlan(
   // No spread escalation. Designed to mirror how a real junior coach manages
   // a game: predictable order, few interruptions, "fair enough" distribution.
   // ===========================================================================
-  if (rotationSpeed === 1) {
+  if (rotationSpeed === 1 && totalOutfieldPlayers < 0) {
     const startAbs = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
     const endAbs = halfDurationSeconds * 2;
     const intervalSec = Math.max(120, PRACTICAL_SUB_INTERVAL_SECONDS);
