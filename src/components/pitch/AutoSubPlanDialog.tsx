@@ -1364,8 +1364,30 @@ export function createSubPlan(
 
       if (eligibleSlots.length === 0) continue;
 
-      const chosenSlot = eligibleSlots[0];
-      const playerOut = chosenSlot.playerOut!;
+      let chosenSlot = eligibleSlots[0];
+      let playerOut = chosenSlot.playerOut!;
+
+      // GK PROTECTION (Frequent): if the chosen slot is a GK-protected player
+      // who hasn't reached the spread ceiling yet, prefer a non-GK slot if any
+      // is available. Falls through to the GK swap only if no alternative.
+      const bankedTotal = (id: string) => {
+        const p = playerById.get(id);
+        return (p?.minutesPlayed || 0) + gkDutySeconds(id) + (currentFieldSeconds.get(id) || 0);
+      };
+      const inIsProtected = isGkProtectedFreq(playerIn.id);
+      if (
+        isGkProtectedFreq(playerOut.id) &&
+        bankedTotal(playerOut.id) < gkCeilingTotal - 30 &&
+        !inIsProtected
+      ) {
+        const altSlot = eligibleSlots.find(s =>
+          s !== chosenSlot && !isGkProtectedFreq(s.playerOut!.id),
+        );
+        if (altSlot) {
+          chosenSlot = altSlot;
+          playerOut = altSlot.playerOut!;
+        }
+      }
 
       // Only commit if the swap actually narrows the shortfall gap between
       // these two players. (Avoids churn when shortfalls are already balanced.)
@@ -1377,33 +1399,6 @@ export function createSubPlan(
       }
       // Hard refusal: never make the spread worse (incoming player already above target).
       if (gapBefore < 0) continue;
-
-      // GK PROTECTION (Frequent): never pull a GK-protected player off the
-      // pitch until their banked total reaches the spread ceiling.
-      const outIsProtected = isGkProtectedFreq(playerOut.id);
-      const inIsProtected = isGkProtectedFreq(playerIn.id);
-      const bankedTotal = (id: string) => {
-        const p = playerById.get(id);
-        return (p?.minutesPlayed || 0) + gkDutySeconds(id) + (currentFieldSeconds.get(id) || 0);
-      };
-      if (
-        outIsProtected &&
-        bankedTotal(playerOut.id) < gkCeilingTotal - 30 &&
-        !inIsProtected
-      ) {
-        // Try the next eligible pitch slot — keep the playerIn, swap a
-        // non-GK out instead. If no non-GK slot is eligible, fall through
-        // and accept the original swap (the alternative is no rotation).
-        const altSlot = eligibleSlots.find(s =>
-          s !== chosenSlot && !isGkProtectedFreq(s.playerOut!.id),
-        );
-        if (altSlot) {
-          (chosenSlot as any).index = altSlot.index;
-          (chosenSlot as any).slot = altSlot.slot;
-          (chosenSlot as any).playerOut = altSlot.playerOut;
-          (playerOut as any) = altSlot.playerOut!;
-        }
-      }
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(playerIn.id);
