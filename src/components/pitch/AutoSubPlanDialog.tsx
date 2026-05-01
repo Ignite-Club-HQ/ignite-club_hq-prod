@@ -665,6 +665,25 @@ export function createSubPlan(
         lastSubbedOnAbs.set(inId, t);
         neverBenched.delete(outId);
       }
+
+      // BENCH-EVERYONE GUARANTEE: if there are still never-benched starters
+      // on the pitch and we don't have enough remaining windows to bench them
+      // all, inject extra synthetic windows ~2 min apart before end of game.
+      const stillNB = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGk(id));
+      if (stillNB.length > pendingWindows.length) {
+        const deficit = stillNB.length - pendingWindows.length;
+        const lastScheduled = pendingWindows.length > 0 ? pendingWindows[pendingWindows.length - 1] : t;
+        for (let k = 1; k <= deficit; k++) {
+          const extra = Math.min(
+            lastScheduled + k * 2 * 60,
+            endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS,
+          );
+          if (extra > t && !pendingWindows.includes(extra)) {
+            pendingWindows.push(extra);
+          }
+        }
+        pendingWindows.sort((a, b) => a - b);
+      }
     }
 
     // Final accrual to end of game.
