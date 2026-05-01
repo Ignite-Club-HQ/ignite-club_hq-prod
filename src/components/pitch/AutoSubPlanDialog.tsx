@@ -489,13 +489,35 @@ function createSubPlan(
     1,
     Math.min(disableBatchSubs ? 1 : subsAtOnce, benchSize, fieldSlots.length)
   );
-  const fairSubActionsNeeded = Math.max(totalOutfieldPlayers, fieldSlots.length + benchSize);
-  const baseFairWindows = Math.ceil(fairSubActionsNeeded / maxSubEventsPerWindow);
-  const extraControlWindows = rotationSpeed === 3 ? benchSize : rotationSpeed === 2 ? Math.ceil(benchSize / 2) : 0;
-  const targetWindowsTotal = Math.max(1, baseFairWindows + extraControlWindows);
-  // Hard floor on interval so we never create disruptive churn, while the fair
-  // window target prevents minimal mode from leaving starters on for 40 minutes.
-  const minIntervalFloor = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
+
+  // FAIRNESS-DRIVEN WINDOW COUNT
+  // ----------------------------
+  // For perfectly equal minutes, each player spends T·B/N seconds on the bench
+  // (T = remaining time, B = bench size, N = total rotatable players). One full
+  // "cycle" rotates every player off exactly once and requires N sub-events.
+  // With `subsAtOnce` swaps per window, a full cycle = N / subsAtOnce windows.
+  //
+  // Speed controls how many cycles we run (more cycles = shorter shifts, more
+  // disruption, but identical fairness ceiling). All speeds aim for at least
+  // ONE full cycle so every bench player gets equal time off.
+  const baseCycleEvents = totalOutfieldPlayers; // one off-event per player
+  // Cycles per speed: minimal=1 (longest shifts), balanced=1, fast=2 (shorter shifts)
+  // Both minimal and balanced run a single full fairness cycle — they differ in
+  // batch size (subsAtOnce), not in window count. Fast doubles rotations.
+  const cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
+  // Pick the smallest window count whose total off-events (W * subsAtOnce) is
+  // a multiple of N players — this is the ONLY way to get exactly equal time.
+  const desiredOffEvents = baseCycleEvents * cycleMultiplier;
+  let targetWindowsTotal = Math.max(1, Math.ceil(desiredOffEvents / maxSubEventsPerWindow));
+  // Snap upward until W * subsAtOnce is divisible by N (fairness divisibility).
+  while ((targetWindowsTotal * maxSubEventsPerWindow) % totalOutfieldPlayers !== 0) {
+    targetWindowsTotal++;
+    // Safety: never exceed 2x the desired count
+    if (targetWindowsTotal > Math.ceil(desiredOffEvents / maxSubEventsPerWindow) * 2 + totalOutfieldPlayers) break;
+  }
+  // Floor interval prevents churn but never overrides fairness windows. We
+  // recompute as evenly-spaced windows across remaining time.
+  const minIntervalFloor = rotationSpeed === 3 ? 90 : 120;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
@@ -737,10 +759,15 @@ function createSubPlan(
     return spread * 1000 + gkShortfall;
   };
 
-  for (let iter = 0; iter < 40; iter++) {
+  // Iterative fairness optimizer. Each pass tries every legal single-sub
+  // identity replacement at every snapshot and keeps the edit that most
+  // reduces (spread × 1000 + GK shortfall). Runs until no improvement.
+  const MAX_OPTIMIZER_ITERATIONS = 120;
+  for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
     const currentScore = fairnessObjective(currentSim.totals);
+    if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
     for (const snapshot of currentSim.snapshots) {
@@ -770,17 +797,19 @@ function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals) : currentScore;
+          const score = trial.valid ? fairnessObjective(trial.totals) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
-          if (trial.valid && score < (bestEdit?.score ?? currentScore) - 1) {
+          // Accept any strict improvement (no slack) so the optimizer can keep
+          // tightening the spread until truly optimal.
+          if (trial.valid && score < (bestEdit?.score ?? currentScore)) {
             bestEdit = { index: snapshot.index, replacement, score };
           }
         }
       }
     }
 
-    if (!bestEdit) break;
+    if (!bestEdit || bestEdit.score >= currentScore) break;
     plan[bestEdit.index] = bestEdit.replacement;
   }
 
