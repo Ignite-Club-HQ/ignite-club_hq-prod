@@ -606,9 +606,10 @@ function createSubPlan(
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
   if (rotateGkAtHalftime && gkOnPitch && startHalf === 1) {
-    // Use dedicated GK bench player if available, otherwise pick a GK-eligible bench player
-    // If no one is eligible for GK, keep the original GK on pitch
-    const gkReplacementPlayer = gkOnBench || (() => {
+    // Prefer the H2 GK we predicted upfront (and gave the priority bonus to)
+    // so the simulation stays consistent. Fall back to least-played GK-eligible
+    // bench player only if none was predicted.
+    const gkReplacementPlayer = halftimeGkIn || (() => {
       const benchAtHalftime = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
         .map(p => ({ player: p, time: playingTime.get(p.id) || 0 }))
