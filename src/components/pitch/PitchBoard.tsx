@@ -3172,6 +3172,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
     setDisableBatchSubs(savedDefaults.disableBatchSubs);
     setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
+    setMaxSpreadMinutes(savedDefaults.maxSpreadMinutes);
     
     // Reset team size to saved default value
     const defaultTeamSize: TeamSize = savedDefaults.teamSize;
