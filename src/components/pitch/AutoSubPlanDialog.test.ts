@@ -118,6 +118,23 @@ describe("createSubPlan", () => {
       .filter(([id]) => outfieldIds.has(id) && id !== "Maximus")
       .filter(([, sec]) => sec < minSec);
     expect(lows, `players below 75% floor: ${lows.map(([id, s]) => `${id}=${(s/60).toFixed(1)}'`).join(", ")}`).toEqual([]);
+    const practicalSpread = (Math.max(...practicalTotals.values()) - Math.min(...practicalTotals.values())) / 60;
+    expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(6);
+
+    const practicalWindows = practical.reduce<Array<{ time: number; ins: Set<string>; outs: Set<string> }>>((acc, sub) => {
+      const time = sub.half === 1 ? sub.time : halfSec + sub.time;
+      const last = acc[acc.length - 1];
+      const window = last?.time === time ? last : { time, ins: new Set<string>(), outs: new Set<string>() };
+      window.ins.add(sub.playerIn.id);
+      window.outs.add(sub.playerOut.id);
+      if (window !== last) acc.push(window);
+      return acc;
+    }, []);
+    practicalWindows.forEach(window => {
+      window.ins.forEach(playerId => {
+        expect(window.outs.has(playerId), `${playerId} was subbed on and off in the same Practical window`).toBe(false);
+      });
+    });
 
     // Frequent honours tight spread.
     const plan = createSubPlan(players as any, 7, halfSec, 2, false, false, true, 0, 1, "Maximus", 5);
