@@ -401,6 +401,7 @@ export function createSubPlan(
       const swaps = Math.min(subsPerWindow, onPitchOrder.length, benchOrder.length);
       if (swaps === 0) continue;
       const windowIns = new Set<string>();
+      const windowOuts = new Set<string>();
 
       const { half, time } = (() => ({
         half: (t < halfDurationSeconds ? 1 : 2) as 1 | 2,
