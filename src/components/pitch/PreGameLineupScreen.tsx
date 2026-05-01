@@ -554,6 +554,55 @@ export default function PreGameLineupScreen({
               ))}
             </div>
           </div>
+
+          {/* Subs Speed — coaches can tune rotation cadence without leaving this screen.
+              Mirrors the options in PitchSettingsDialog so the two stay in sync. */}
+          {typeof rotationSpeed === "number" && onRotationSpeedChange && (
+            <div className="space-y-1">
+              <Label id="subs-speed-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Subs Speed
+              </Label>
+              <div
+                className="flex rounded-lg border border-border overflow-hidden"
+                role="group"
+                aria-labelledby="subs-speed-label"
+              >
+                {[
+                  { value: 1, label: "Minimal", Icon: Minus, hint: "1 sub / window" },
+                  { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
+                  { value: 3, label: "Batch", Icon: Equal, hint: "3 subs / window" },
+                ].map(({ value, label, Icon, hint }) => {
+                  const active = rotationSpeed === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className={cn(
+                        "flex-1 min-h-[44px] px-1 text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background hover:bg-muted text-foreground"
+                      )}
+                      aria-label={`${label} subs speed — ${hint}`}
+                      aria-pressed={active}
+                      onClick={() => onRotationSpeedChange(value)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5" />
+                        {label}
+                      </span>
+                      <span className={cn(
+                        "text-[10px] leading-none",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground"
+                      )}>
+                        {hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Formation visual - mini pitch with color-coded slots */}
