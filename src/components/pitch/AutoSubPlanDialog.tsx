@@ -402,6 +402,22 @@ function createSubPlan(
   // outfield rotation pool in the 2nd half (the new GK is no longer an outfielder).
   const halftimeGkIn = startingGkWillRotate ? (gkOnBench || null) : null;
 
+  // GK FAIRNESS: anyone who plays GK in either half only has ~half the game
+  // available for outfield time. To ensure they end up with at least as many
+  // total minutes as full-game outfielders, give them a strong priority bonus
+  // when sorting the bench (so they're always picked first to come on) and
+  // when sorting on-pitch players (so they're never picked to come off until
+  // they've caught up). The bonus is huge so it dominates normal time-diff
+  // sorting but doesn't affect actual accumulated minutes used for fairness.
+  const GK_PRIORITY_BONUS = halfDurationSeconds * 10;
+  const isGkPlayer = (id: string) =>
+    (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+    (halftimeGkIn ? id === halftimeGkIn.id : false);
+  // Adjusted time for sorting: GKs appear "less played" everywhere so they
+  // jump to top of bench (picked first ON) and bottom of pitch (picked last OFF).
+  const adjustedTime = (id: string) =>
+    (playingTime.get(id) || 0) - (isGkPlayer(id) ? GK_PRIORITY_BONUS : 0);
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
