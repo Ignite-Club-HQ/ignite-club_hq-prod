@@ -299,6 +299,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
+
+  // Keep `preferredSecondHalfGkId` in sync with the live roster: if the
+  // referenced player no longer exists, has been moved onto the pitch (i.e.
+  // the coach picked a new GK / restructured the lineup), or is the current
+  // starting GK, clear the preference so the planner re-derives a fresh
+  // 2nd-half GK from the current pitch state. Without this, the AutoSubPlan
+  // dialog keeps surfacing a stale "GK 2H" badge after the coach changes
+  // who's keeping goal.
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
