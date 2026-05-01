@@ -158,11 +158,26 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+/**
+ * Normalise the legacy 3-mode rotation speed to the supported 2-mode set:
+ * - 1 ("Minimal") was mathematically broken — it could not honour the spread
+ *   cap with a single sub per window plus a half-game GK lockout. We migrate
+ *   any persisted value of 1 to 2 ("Balanced") at every read site.
+ * - 2 = Balanced (default) — 2 subs / window, near-perfect fairness.
+ * - 3 = Frequent — 3 subs / window, more rotation windows.
+ */
+export const normalizeRotationSpeed = (speed: number | null | undefined): number => {
+  const s = typeof speed === "number" ? speed : 2;
+  if (s <= 1) return 2;
+  if (s >= 3) return 3;
+  return 2;
+};
+
 export function createSubPlan(
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
-  rotationSpeed: number = 2,
+  rotationSpeedInput: number = 2,
   disablePositionSwaps: boolean = false,
   disableBatchSubs: boolean = false,
   rotateGkAtHalftime: boolean = true,
@@ -171,6 +186,7 @@ export function createSubPlan(
   preferredSecondHalfGkId?: string,
   maxSpreadMinutes: number = 5
 ): SubstitutionEvent[] {
+  const rotationSpeed = normalizeRotationSpeed(rotationSpeedInput);
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
