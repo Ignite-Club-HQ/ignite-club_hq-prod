@@ -76,8 +76,8 @@ describe("createSubPlan", () => {
     }
   });
 
-  it("U8 2-mode rotation: Frequent honours spread; Practical keeps subs low", () => {
-    // Practical (1) prioritises low disruption — wider spread is acceptable.
+  it("U8 2-mode rotation: Frequent honours spread; Standard keeps subs low", () => {
+    // Standard (1) prioritises low disruption — wider spread is acceptable.
     // Frequent (2) honours the spread cap tightly.
     const players = [
       makePlayer("Archer", "GK"),
@@ -99,11 +99,11 @@ describe("createSubPlan", () => {
     });
 
     const halfSec = 20 * 60;
-    // Practical: low sub count, soft fairness — accepts wider spread.
+    // Standard: low sub count, soft fairness — accepts wider spread.
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(25);
 
-    // Practical fairness floor (OUTFIELD-ONLY): no outfield-eligible player
+    // Standard fairness floor (OUTFIELD-ONLY): no outfield-eligible player
     // below 75% of target. GKs are EXCLUDED from this check because they
     // can ONLY swap at halftime — they don't take outfield shifts mid-half.
     const practicalTotals = simulateTotals(players, practical, halfSec);
@@ -127,11 +127,11 @@ describe("createSubPlan", () => {
     expect(outfieldSpread, `outfield-only spread = ${outfieldSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
 
     // Regression for the 9-player mobile case.
-    const ninePlayerPractical = createSubPlan(players.slice(0, 9) as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
-    const nineTotals = simulateTotals(players.slice(0, 9), ninePlayerPractical, halfSec);
+    const ninePlayerStandard = createSubPlan(players.slice(0, 9) as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
+    const nineTotals = simulateTotals(players.slice(0, 9), ninePlayerStandard, halfSec);
     const nineOutfield = [...nineTotals.entries()].filter(([id]) => !gkIds.has(id)).map(([, s]) => s);
     const nineSpread = (Math.max(...nineOutfield) - Math.min(...nineOutfield)) / 60;
-    expect(nineSpread, `9-player Practical outfield spread = ${nineSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
+    expect(nineSpread, `9-player Standard outfield spread = ${nineSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
     // GKs play their full half = 20'.
     expect(nineTotals.get("Archer")! / 60, "1H GK plays 1H").toBeGreaterThanOrEqual(20);
     expect(nineTotals.get("Maximus")! / 60, "2H GK plays 2H").toBeGreaterThanOrEqual(20);
@@ -147,7 +147,7 @@ describe("createSubPlan", () => {
     }, []);
     practicalWindows.forEach(window => {
       window.ins.forEach(playerId => {
-        expect(window.outs.has(playerId), `${playerId} was subbed on and off in the same Practical window`).toBe(false);
+        expect(window.outs.has(playerId), `${playerId} was subbed on and off in the same Standard window`).toBe(false);
       });
     });
 
@@ -157,7 +157,7 @@ describe("createSubPlan", () => {
     const arr = [...totals.values()];
     const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
     // Light Frequent: longer shifts (~3 min floor) widen the spread vs the
-    // old 2-min cadence, but stay tighter than Practical (which allows ~10').
+    // old 2-min cadence, but stay tighter than Standard (which allows ~10').
     expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(9.5);
   });
 });
