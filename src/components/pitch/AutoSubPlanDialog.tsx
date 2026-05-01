@@ -302,7 +302,7 @@ export function createSubPlan(
     // good run of outfield minutes and finish in the top half of total time.
     // The bonus is large enough that the 2H keeper (who only has 1H available
     // for outfield play) is prioritised onto the pitch early in the 1st half.
-    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 6 * 60;
+    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 12 * 60;
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
