@@ -173,19 +173,20 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
   return 1;
 };
 
-/** Target gap between Practical-mode sub windows (seconds). */
-const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
+/** Target gap between Practical-mode sub windows (seconds). Tightened so
+ *  spread stays within ~5 min on short (≤40 min) games. */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 4 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
  *  jump to the front of the bench queue (priority-aware FIFO). */
-const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.9;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next. */
-const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.08;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
-const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 2 * 60;
+const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 3 * 60;
 
 export function createSubPlan(
   playerData: Player[],
@@ -308,6 +309,15 @@ export function createSubPlan(
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
     outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
+    // Pre-credit the starting GK with their H1 GK shift, and the designated
+    // 2H GK with their H2 GK shift, so the fairness cap accounts for that
+    // "guaranteed" goalkeeper time when picking who to sub off in the field.
+    if (gkOnPitch && startHalf === 1) {
+      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
+    }
+    if (halftimeGkIn) {
+      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
+    }
 
     // Build candidate sub-window times.
     const baseWindowTimes: number[] = [];
@@ -324,22 +334,13 @@ export function createSubPlan(
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
     // Accrue projected time as we walk through the schedule.
+    // GK time is NOT accrued here — it's pre-credited above so the over-cap
+    // rule can sub the GK off in the field before they exceed their target.
     let lastTickAbs = startAbs;
     const accrueUntil = (absT: number) => {
       const dt = Math.max(0, absT - lastTickAbs);
       if (dt === 0) return;
       onPitchOrder.forEach(id => projected.set(id, (projected.get(id) || 0) + dt));
-      // GK accrual (they're not in onPitchOrder).
-      if (gkOnPitch && lastTickAbs < halfTimeAbs) {
-        const sliceEnd = Math.min(absT, halfTimeAbs);
-        const gkDt = Math.max(0, sliceEnd - lastTickAbs);
-        if (gkDt > 0) projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + gkDt);
-      }
-      if (halftimeGkIn && absT > halfTimeAbs) {
-        const sliceStart = Math.max(lastTickAbs, halfTimeAbs);
-        const gkDt = Math.max(0, absT - sliceStart);
-        if (gkDt > 0) projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + gkDt);
-      }
       lastTickAbs = absT;
     };
 
