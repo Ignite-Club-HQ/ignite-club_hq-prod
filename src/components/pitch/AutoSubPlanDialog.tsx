@@ -457,6 +457,7 @@ export function createSubPlan(
           minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
         const under = benchOrder
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
+          .filter(b => !windowOuts.has(b.id))
           .filter(b => b.proj < effectiveMinSec(b.id))
           .sort((a, b) => b.score - a.score);
 
@@ -470,12 +471,14 @@ export function createSubPlan(
           // availability (notably the nominated 2H GK) to jump the queue.
           const fifoIdx = benchOrder
             .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+            .filter(item => !windowOuts.has(item.id))
             .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
             .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
-            inId = benchOrder.shift();
+            const fallbackIdx = benchOrder.findIndex(id => !windowOuts.has(id));
+            inId = fallbackIdx >= 0 ? benchOrder.splice(fallbackIdx, 1)[0] : undefined;
           }
         }
 
