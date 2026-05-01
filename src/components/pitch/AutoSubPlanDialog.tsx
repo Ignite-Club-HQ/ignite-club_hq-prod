@@ -516,7 +516,13 @@ export function createSubPlan(
           // fairness floor — their 20 min in goal already puts them well above.
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
-          .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
+          .sort((a, b) => {
+            // Bench-everyone rule: prefer pulling never-benched players first.
+            const aNB = neverBenched.has(a) ? 1 : 0;
+            const bNB = neverBenched.has(b) ? 1 : 0;
+            if (aNB !== bNB) return bNB - aNB;
+            return (projected.get(b) || 0) - (projected.get(a) || 0);
+          });
 
         let outId: string | null = null;
         const forcedOutId = forcedOutByWindow.get(t);
