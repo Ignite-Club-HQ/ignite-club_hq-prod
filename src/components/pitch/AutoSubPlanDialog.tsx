@@ -309,6 +309,15 @@ export function createSubPlan(
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
     outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
+    // Pre-credit the starting GK with their H1 GK shift, and the designated
+    // 2H GK with their H2 GK shift, so the fairness cap accounts for that
+    // "guaranteed" goalkeeper time when picking who to sub off in the field.
+    if (gkOnPitch && startHalf === 1) {
+      projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
+    }
+    if (halftimeGkIn) {
+      projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
+    }
 
     // Build candidate sub-window times.
     const baseWindowTimes: number[] = [];
