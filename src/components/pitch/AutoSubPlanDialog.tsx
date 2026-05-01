@@ -398,6 +398,7 @@ export function createSubPlan(
 
       const swaps = Math.min(subsPerWindow, onPitchOrder.length, benchOrder.length);
       if (swaps === 0) continue;
+      const windowIns = new Set<string>();
 
       const { half, time } = (() => ({
         half: (t < halfDurationSeconds ? 1 : 2) as 1 | 2,
@@ -414,6 +415,7 @@ export function createSubPlan(
         // halftime, (2) the highest-minute player, especially if over cap.
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
+          .filter(id => !windowIns.has(id))
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
@@ -434,6 +436,7 @@ export function createSubPlan(
           for (let j = 0; j < onPitchOrder.length; j++) {
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
+            if (windowIns.has(candidate)) continue;
             outId = candidate;
             onPitchOrder.splice(j, 1);
             break;
@@ -486,6 +489,7 @@ export function createSubPlan(
         });
 
         onPitchOrder.push(inId);
+        windowIns.add(inId);
         benchOrder.push(outId);
       }
     }
