@@ -317,6 +317,19 @@ export function createSubPlan(
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
 
+    // GK-PROTECTED players: anyone assigned as GK in any half. They must finish
+    // at or near the top of the allowed spread (target + spread/2) without
+    // exceeding the spread cap. We don't widen the spread to favour them — we
+    // bias OUT/IN selection so they sit at the top of the existing range.
+    const gkProtectedIds = new Set<string>();
+    if (gkOnPitch) gkProtectedIds.add(gkOnPitch.id);
+    if (halftimeGkIn) gkProtectedIds.add(halftimeGkIn.id);
+    const isGkProtected = (id: string) => gkProtectedIds.has(id);
+    // Top of the allowed spread — GK-protected players aim for this.
+    const gkCeilingSec = targetSecPerPlayer + (maxSpreadMinutes / 2) * 60;
+    // Floor for non-GK so they don't dip too low while we lift the GKs.
+    const nonGkFloorSec = Math.max(minThresholdSec, targetSecPerPlayer - (maxSpreadMinutes / 2) * 60);
+
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
@@ -388,14 +401,14 @@ export function createSubPlan(
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
-      // Bring the 2H GK on outfield early in 1H. For tiny squads (≤2 outfield
-      // bench) we extend the outfield run so the 2H GK gets meaningful pitch
-      // time; otherwise we keep them off ~4 min before halftime to rest.
+      // Bring the 2H GK on outfield as early as possible in 1H and keep them
+      // on as long as possible (sub off ~2 min before HT). This pushes them
+      // toward the top of the allowed spread without breaching it.
       const tinySquad = outfieldOnBench.length <= 2;
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = tinySquad
         ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
-        : Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
+        : Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
@@ -405,6 +418,17 @@ export function createSubPlan(
       }
       if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
         forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
+      }
+    }
+    // Mirror window in H2 for the 1H GK so they get outfield time toward the
+    // top of the allowed spread. Bring them on shortly after HT; let the
+    // normal scheduler decide when they come off (no forced-out) so other
+    // outfielders still get adequate rotation in H2.
+    if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
+      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
+        baseWindowTimes.push(Math.floor(h2GkOn));
+        forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
       }
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
@@ -506,6 +530,15 @@ export function createSubPlan(
         // when a bench player is below their effective floor. Keepers should
         // generally NOT be pulled off via over-cap logic — they need their
         // outfield run to land in the top half of total minutes.
+        // GK-PROTECTED PROMOTION (OUT): if any GK-protected player on the
+        // pitch is below their target ceiling AND a non-GK-protected player
+        // on the pitch is at/above the non-GK floor, prefer pulling the
+        // non-GK-protected player off so the GK-protected one keeps banking
+        // outfield minutes toward the top of the spread.
+        const gkProtectedOnPitchBelowCeiling = onPitchOrder.some(
+          id => isGkProtected(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
+        );
+
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
@@ -516,11 +549,19 @@ export function createSubPlan(
           })
           // Keep the nominated 2H GK on until their planned pre-halftime bench window.
           .filter(id => id !== halftimeGkIn?.id || halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs)
-          // Keepers may be subbed off via over-cap once they've cleared the
-          // fairness floor — their 20 min in goal already puts them well above.
-          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
+          // Don't pull a GK-protected player off via over-cap until they've
+          // reached the top of the allowed spread (gkCeilingSec). Their
+          // outfield run should land them at equal-highest minutes.
+          .filter(id => !isGkProtected(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
+            // GK-protected promotion: prefer pulling non-GK-protected first
+            // when a GK-protected on-pitch is still below ceiling.
+            if (gkProtectedOnPitchBelowCeiling) {
+              const aGk = isGkProtected(a) ? 1 : 0;
+              const bGk = isGkProtected(b) ? 1 : 0;
+              if (aGk !== bGk) return aGk - bGk;
+            }
             // Bench-everyone rule: prefer pulling never-benched players first.
             const aNB = neverBenched.has(a) ? 1 : 0;
             const bNB = neverBenched.has(b) ? 1 : 0;
@@ -555,6 +596,9 @@ export function createSubPlan(
               if (isActiveGk(candidate)) continue;
               if (windowIns.has(candidate)) continue;
               if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
+              // Don't sub off a GK-protected player while they're still below
+              // their ceiling — they need to finish at the top of the spread.
+              if (isGkProtected(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
               if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
               if (!allowRecentSub) {
                 const onAt = lastSubbedOnAbs.get(candidate);
@@ -581,11 +625,13 @@ export function createSubPlan(
           }
 
           if (eligible.length > 0) {
-            // Bench-everyone rule: always prefer never-benched players first.
-            // Tiebreak: positionally LAST (forwards tend to last in FIFO and
-            // would otherwise never come off). Among already-benched: tiny-squad
-            // highest-minutes / large-squad positional order.
+            // GK-protected first; never-benched next; then existing tiebreaks.
             eligible.sort((a, b) => {
+              if (gkProtectedOnPitchBelowCeiling) {
+                const aGk = isGkProtected(a) ? 1 : 0;
+                const bGk = isGkProtected(b) ? 1 : 0;
+                if (aGk !== bGk) return aGk - bGk;
+              }
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
