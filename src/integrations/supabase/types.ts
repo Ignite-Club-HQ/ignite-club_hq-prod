@@ -6808,6 +6808,7 @@ export type Database = {
           is_pro: boolean
           is_pro_football: boolean
           is_trial: boolean | null
+          max_spread_minutes: number
           minutes_per_half: number | null
           rotate_gk_at_halftime: boolean | null
           rotation_speed: number | null
@@ -6838,6 +6839,7 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          max_spread_minutes?: number
           minutes_per_half?: number | null
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
@@ -6868,6 +6870,7 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          max_spread_minutes?: number
           minutes_per_half?: number | null
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
