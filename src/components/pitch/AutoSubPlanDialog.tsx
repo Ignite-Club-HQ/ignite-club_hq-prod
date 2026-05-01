@@ -1263,10 +1263,19 @@ export function createSubPlan(
       const baseMinutes = (p?.minutesPlayed || 0);
       return baseMinutes + gkDutySeconds(id) + projectedFinalSeconds(id);
     };
+    // GK PROTECTION (Frequent mode): players assigned as GK in either half
+    // should finish at the TOP of the allowed spread band — not the floor.
+    // We lift their total target by the spread cap so the fairness scheduler
+    // treats them as still "owed" minutes until they reach gkCeilingSec.
+    const gkCeilingTotal = sharedTotalTarget + Math.max(0, maxSpreadMinutes * 60) / 2;
     const playerTotalTarget = (id: string) => {
       const p = playerById.get(id);
       const baseMinutes = (p?.minutesPlayed || 0);
-      return Math.max(baseMinutes + gkDutySeconds(id), sharedTotalTarget);
+      const isProtected =
+        (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+        (halftimeGkIn ? id === halftimeGkIn.id : false);
+      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
 
