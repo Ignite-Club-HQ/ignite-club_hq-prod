@@ -501,6 +501,7 @@ export function createSubPlan(
 
         onPitchOrder.push(inId);
         windowIns.add(inId);
+        windowOuts.add(outId);
         benchOrder.push(outId);
       }
     }
