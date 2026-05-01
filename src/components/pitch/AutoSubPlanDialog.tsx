@@ -427,7 +427,12 @@ export function createSubPlan(
     // normal scheduler decide when they come off (no forced-out) so other
     // outfielders still get adequate rotation in H2.
     if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
-      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      // GK-protected: bring 1H GK on outfield as soon as the post-HT blackout
+      // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
+      // banks more outfield minutes and finishes near the top of the spread.
+      const tinySquad = outfieldOnBench.length <= 2;
+      const h2GkOnOffset = tinySquad ? 2 * 60 : PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h2GkOn = halfDurationSeconds + h2GkOnOffset;
       if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
         baseWindowTimes.push(Math.floor(h2GkOn));
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
