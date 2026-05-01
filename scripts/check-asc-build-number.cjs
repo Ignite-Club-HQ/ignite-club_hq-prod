@@ -220,7 +220,7 @@ async function resolveAppId(jwt) {
  * marketing version, because Transporter rejects duplicate CFBundleVersion values before
  * the post-upload TestFlight assignment step can recover.
  */
-async function isBuildTaken(appId, version, build, jwt) {
+async function isBuildTaken(appId, _version, build, jwt) {
   let url =
     `/v1/builds?filter[app]=${appId}` +
     `&filter[version]=${encodeURIComponent(build)}` +
@@ -229,19 +229,8 @@ async function isBuildTaken(appId, version, build, jwt) {
   while (url) {
     const data = await ascFetch(url, jwt);
     if (Array.isArray(data.data) && data.data.length > 0) {
-      // Confirm the marketing version matches via included preReleaseVersion
-      const prvById = new Map(
-        (data.included || [])
-          .filter((i) => i.type === 'preReleaseVersions')
-          .map((i) => [i.id, i.attributes && i.attributes.version])
-      );
       for (const b of data.data) {
         const buildVer = b.attributes && b.attributes.version;
-        const prvId =
-          b.relationships &&
-          b.relationships.preReleaseVersion &&
-          b.relationships.preReleaseVersion.data &&
-          b.relationships.preReleaseVersion.data.id;
         if (buildVer === build) {
           return true;
         }
