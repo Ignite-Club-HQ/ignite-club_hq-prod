@@ -27,6 +27,7 @@ const simulate = (players: any[], plan: any[], halfSec: number) => {
 
 describe("probe", () => {
   it("8 player practical", () => {
+    (globalThis as any).__SUB_DEBUG = true;
     const players = [
       makePlayer("Archer", "GK"),
       makePlayer("Ezra", "DEF", 30, 80),
