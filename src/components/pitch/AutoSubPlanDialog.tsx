@@ -346,6 +346,12 @@ export function createSubPlan(
       if (Math.abs(t - halfDurationSeconds) < 90) continue;
       baseWindowTimes.push(Math.floor(t));
     }
+    [halfDurationSeconds - 120, endAbs - 120].forEach(t => {
+      if (t > startAbs + 60 && t < endAbs - 60 && !baseWindowTimes.some(existing => Math.abs(existing - t) < 90)) {
+        baseWindowTimes.push(Math.floor(t));
+      }
+    });
+    baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
     const benchOrder: string[] = outfieldOnBench.map(p => p.id);
