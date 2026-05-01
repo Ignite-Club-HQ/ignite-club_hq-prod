@@ -494,6 +494,44 @@ export function createSubPlan(
   // They re-enter the normal off-order after one further window has passed.
   let previousRotationPlayerInIds = new Set<string>();
 
+  // QUEUE TRACKING (queue-first rotation with fairness override)
+  // ------------------------------------------------------------
+  // Players go on/off in FIFO order: oldest-waiting bench player goes on,
+  // longest-on-pitch player goes off. Fairness only overrides queue order
+  // when the projected end-of-game gap exceeds FAIRNESS_TOLERANCE_SECONDS.
+  // A MIN_SHIFT_SECONDS guarantees no player is pulled too soon after coming on.
+  const FAIRNESS_TOLERANCE_SECONDS = 60;
+  const MIN_SHIFT_SECONDS = 180;
+  // Position weight for ordering starters into the off-queue:
+  // GK never rotates off via queue; defenders go first, then mids, then forwards.
+  const positionRotationOrder = (pos: PitchPosition | undefined): number => {
+    switch (pos) {
+      case "GK": return 99;
+      case "DEF": return 0;
+      case "MID": return 1;
+      case "FWD": return 2;
+      default: return 3;
+    }
+  };
+  // lastOnAt = absolute seconds when the player most recently entered the pitch.
+  // Starters are seeded with offsets based on position so DEF rotate first.
+  // Lower lastOnAt = been on longer = next off.
+  const lastOnAt = new Map<string, number>();
+  outfieldOnPitch.forEach(p => {
+    const offset = positionRotationOrder(p.currentPitchPosition as PitchPosition);
+    // Sub-second offsets keep starters ordered by position without affecting
+    // shift-length math (which works in whole seconds).
+    lastOnAt.set(p.id, startAbsoluteSeconds - 1000 + offset);
+  });
+  // lastOffAt = absolute seconds when the player most recently came off the pitch.
+  // Bench players at start are all "waiting" since startAbsoluteSeconds.
+  // Lower lastOffAt = been waiting longer = next on.
+  const lastOffAt = new Map<string, number>();
+  outfieldOnBench.forEach((p, idx) => {
+    // Slight stagger by bench order so the first bench player goes on first.
+    lastOffAt.set(p.id, startAbsoluteSeconds - 1000 + idx);
+  });
+
   // FAIRNESS-DRIVEN WINDOW COUNT
   // ----------------------------
   // For perfectly equal minutes, each player spends T·B/N seconds on the bench
@@ -608,64 +646,106 @@ export function createSubPlan(
     }
 
     const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
-    const protectedPlayerOutIds = benchSize > 1 ? previousRotationPlayerInIds : new Set<string>();
 
-    const playerNeedScore = (id: string) => {
-      const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
-      const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
-      const gkBoost = isGkPlayer(id) ? 75 : 0;
-      return urgency * 1000 + need * 0.01 + gkBoost;
-    };
-
-    const rankedBench = outfieldPlayers
+    // QUEUE-FIRST SELECTION
+    // ---------------------
+    // 1. Bench queue: order by lastOffAt ASC (longest waiting first).
+    // 2. Pitch queue: order by lastOnAt ASC (longest on first).
+    // 3. For each bench player in order, find the longest-on pitch player at a
+    //    position they can play, subject to MIN_SHIFT_SECONDS protection.
+    // 4. After picking by queue, check fairness: if the swap would leave the
+    //    incoming player still under-target by more than FAIRNESS_TOLERANCE_SECONDS
+    //    vs. another bench candidate, prefer the more-needy one.
+    const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
-      .map(p => ({ player: p, score: playerNeedScore(p.id) }))
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0));
+
+    const pitchSlotsWithMeta = fieldSlots
+      .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
+      .filter(({ playerOut }) => !!playerOut);
 
     const usedSlotIndexes = new Set<number>();
+    const usedInIds = new Set<string>();
     const selectedSubs: { slotIndex: number; playerOut: Player; playerIn: Player }[] = [];
 
-    for (const { player: playerIn } of rankedBench) {
-      if (selectedSubs.length >= maxChanges) break;
+    // How under-target is this player at end-of-game if we don't bring them on now?
+    const endOfGameDeficit = (id: string) => {
+      const projected = (currentFieldSeconds.get(id) || 0); // assume no further time
+      return targetFieldSeconds(id) - projected;
+    };
 
-      const candidateSlots = fieldSlots
-        .map((slot, index) => ({ slot, index, playerOut: slot.playerId ? playerById.get(slot.playerId) : undefined }))
+    for (let bi = 0; bi < benchQueue.length && selectedSubs.length < maxChanges; bi++) {
+      const playerIn = benchQueue[bi];
+      if (usedInIds.has(playerIn.id)) continue;
+
+      // Pitch candidates compatible with this incoming player, ordered by tenure (oldest first).
+      const tenureSorted = pitchSlotsWithMeta
         .filter(({ slot, index, playerOut }) =>
-          !!playerOut &&
           !usedSlotIndexes.has(index) &&
+          !!playerOut &&
           canUseInOutfield(playerIn, slot.position)
-        );
-      const unprotectedSlots = candidateSlots.filter(({ playerOut }) =>
-        playerOut && !protectedPlayerOutIds.has(playerOut.id)
+        )
+        .sort((a, b) => (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0));
+
+      if (tenureSorted.length === 0) continue;
+
+      // Apply MIN_SHIFT protection: skip pitch players who haven't been on long enough.
+      // GK halftime swap is exempt (handled separately).
+      const eligibleByShift = tenureSorted.filter(({ playerOut }) => {
+        const onSince = lastOnAt.get(playerOut!.id) ?? 0;
+        return absoluteSeconds - onSince >= MIN_SHIFT_SECONDS;
+      });
+
+      const candidatePool = eligibleByShift.length > 0 ? eligibleByShift : [];
+      if (candidatePool.length === 0) {
+        // No one has been on long enough — skip this incoming player; another
+        // bench player may pair with a different (longer-on) pitch player.
+        continue;
+      }
+
+      // Fairness override: if a later bench player is significantly more under-target
+      // than this one, defer to them. We only override if the gap exceeds tolerance.
+      const myDeficit = endOfGameDeficit(playerIn.id);
+      const moreNeedy = benchQueue
+        .slice(bi + 1)
+        .filter(p => !usedInIds.has(p.id))
+        .find(p => endOfGameDeficit(p.id) > myDeficit + FAIRNESS_TOLERANCE_SECONDS &&
+          tenureSorted.some(({ slot }) => canUseInOutfield(p, slot.position)));
+
+      const incoming = moreNeedy || playerIn;
+
+      // Re-sort tenure list for the chosen incoming (position constraints may differ).
+      const tenureForIncoming = pitchSlotsWithMeta
+        .filter(({ slot, index, playerOut }) =>
+          !usedSlotIndexes.has(index) &&
+          !!playerOut &&
+          canUseInOutfield(incoming, slot.position) &&
+          absoluteSeconds - (lastOnAt.get(playerOut!.id) ?? 0) >= MIN_SHIFT_SECONDS
+        )
+        .sort((a, b) => (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0));
+
+      if (tenureForIncoming.length === 0) continue;
+
+      // Hard anti-bounce-back: prefer pitch players NOT introduced in the
+      // immediately previous rotation window. Only fall back to them when no
+      // other option exists.
+      const nonBouncePool = tenureForIncoming.filter(({ playerOut }) =>
+        !previousRotationPlayerInIds.has(playerOut!.id)
       );
+      const chosenSlot = (nonBouncePool.length > 0 ? nonBouncePool : tenureForIncoming)[0];
 
-      // If other bench options exist, skip this incoming player rather than
-      // bouncing a just-introduced player straight back off.
-      if (candidateSlots.length === 0 || (benchSize > 1 && unprotectedSlots.length === 0)) continue;
+      // Strict anti-bounce-back: never sub a player off in the rotation
+      // immediately after they came on. Better to leave the slot unchanged
+      // this window than disrupt a player who just entered.
+      if (nonBouncePool.length === 0) continue;
 
-      const bestSlot = (unprotectedSlots.length > 0 ? unprotectedSlots : candidateSlots)
-        .sort((a, b) => {
-          const aNeed = targetFieldSeconds(a.playerOut!.id) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
-          const bNeed = targetFieldSeconds(b.playerOut!.id) - (currentFieldSeconds.get(b.playerOut!.id) || 0);
-          if (aNeed !== bNeed) return aNeed - bNeed;
-          return (currentFieldSeconds.get(b.playerOut!.id) || 0) - (currentFieldSeconds.get(a.playerOut!.id) || 0);
-        })[0];
-
-      if (!bestSlot?.playerOut) continue;
-
-      const incomingNeed = targetFieldSeconds(playerIn.id) - (currentFieldSeconds.get(playerIn.id) || 0);
-      const outgoingNeed = targetFieldSeconds(bestSlot.playerOut.id) - (currentFieldSeconds.get(bestSlot.playerOut.id) || 0);
-      const incomingScore = playerNeedScore(playerIn.id);
-      const outgoingScore = playerNeedScore(bestSlot.playerOut.id);
-      if (incomingNeed <= outgoingNeed + 15 && incomingScore <= outgoingScore + 15) continue;
-
-      usedSlotIndexes.add(bestSlot.index);
-      selectedSubs.push({ slotIndex: bestSlot.index, playerOut: bestSlot.playerOut, playerIn });
+      usedSlotIndexes.add(chosenSlot.index);
+      usedInIds.add(incoming.id);
+      selectedSubs.push({ slotIndex: chosenSlot.index, playerOut: chosenSlot.playerOut!, playerIn: incoming });
     }
 
     selectedSubs.forEach(({ slotIndex, playerOut, playerIn }) => {
-
       const { half, time } = toPlanTime(absoluteSeconds);
       plan.push({
         time,
@@ -676,6 +756,10 @@ export function createSubPlan(
       });
 
       fieldSlots[slotIndex].playerId = playerIn.id;
+      // Update queue trackers: outgoing player joins bench wait queue,
+      // incoming player starts a fresh on-pitch shift.
+      lastOffAt.set(playerOut.id, absoluteSeconds);
+      lastOnAt.set(playerIn.id, absoluteSeconds);
     });
 
     previousRotationPlayerInIds = new Set(selectedSubs.map(sub => sub.playerIn.id));
@@ -700,6 +784,10 @@ export function createSubPlan(
       fieldSlots.forEach(slot => {
         if (slot.playerId === halftimeGkIn.id) slot.playerId = null;
       });
+      // Queue updates for the GK swap: starting GK becomes available for the
+      // outfield bench queue (H2 onward), halftime GK is now on pitch as GK.
+      lastOffAt.set(gkOnPitch.id, eventTime);
+      lastOnAt.set(halftimeGkIn.id, eventTime);
     }
 
     const nextTime = sortedDirectEventTimes[i + 1] ?? endAbsoluteSeconds;
@@ -722,6 +810,13 @@ export function createSubPlan(
       if (p.currentPitchPosition) onPitch.set(p.id, p.currentPitchPosition);
     });
 
+    // Track when each player most recently came onto the pitch (in absolute seconds).
+    // Starters are seeded at startAbsoluteSeconds. Used to penalise short shifts
+    // (a player taken off less than MIN_SHIFT_SECONDS_PENALTY after coming on).
+    const cameOnAt = new Map<string, number>();
+    playersOnPitch.forEach(p => cameOnAt.set(p.id, startAbsoluteSeconds));
+    const MIN_SHIFT_SECONDS_PENALTY = 180;
+
     const ordered = candidatePlan
       .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
       .sort((a, b) => a.absoluteSeconds - b.absoluteSeconds);
@@ -729,6 +824,7 @@ export function createSubPlan(
     let last = startAbsoluteSeconds;
     let valid = true;
     let bounceBackCount = 0;
+    let shortShiftCount = 0;
     let currentWindowTime: number | null = null;
     let previousWindowPlayerIns = new Set<string>();
     let currentWindowPlayerIns = new Set<string>();
@@ -750,6 +846,14 @@ export function createSubPlan(
         bounceBackCount++;
       }
 
+      // Short-shift penalty: catches bounce-backs across more than one window.
+      if (benchSize > 1 && !isDirectHalftimeGkSwapSub(entry.sub)) {
+        const onSince = cameOnAt.get(entry.sub.playerOut.id);
+        if (onSince !== undefined && entry.absoluteSeconds - onSince < MIN_SHIFT_SECONDS_PENALTY) {
+          shortShiftCount++;
+        }
+      }
+
       snapshots.push({
         index: entry.index,
         before: new Map(onPitch),
@@ -761,6 +865,7 @@ export function createSubPlan(
       if (!outPosition || onPitch.has(entry.sub.playerIn.id)) valid = false;
 
       onPitch.delete(entry.sub.playerOut.id);
+      cameOnAt.delete(entry.sub.playerOut.id);
       if (entry.sub.positionSwap) {
         const swapFromPosition = onPitch.get(entry.sub.positionSwap.player.id);
         if (!swapFromPosition) valid = false;
@@ -769,6 +874,7 @@ export function createSubPlan(
       } else if (outPosition) {
         onPitch.set(entry.sub.playerIn.id, outPosition);
       }
+      cameOnAt.set(entry.sub.playerIn.id, entry.absoluteSeconds);
 
       currentWindowPlayerIns.add(entry.sub.playerIn.id);
 
@@ -780,10 +886,10 @@ export function createSubPlan(
       onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
     }
 
-    return { totals, snapshots, valid, bounceBackCount };
+    return { totals, snapshots, valid, bounceBackCount, shortShiftCount };
   };
 
-  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0) => {
+  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0, shortShiftCount = 0) => {
     const values = fairPlayerIds.map(id => totals.get(id) || 0);
     if (values.length < 2) return 0;
     const spread = Math.max(...values) - Math.min(...values);
@@ -791,7 +897,7 @@ export function createSubPlan(
     const gkShortfall = fairPlayerIds
       .filter(id => isGkPlayer(id))
       .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
-    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000;
+    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000 + shortShiftCount * 5_000_000;
   };
 
   // Iterative fairness optimizer. Each pass tries every legal single-sub
@@ -801,7 +907,7 @@ export function createSubPlan(
   for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
-    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount);
+    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount, currentSim.shortShiftCount);
     if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
@@ -832,7 +938,7 @@ export function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount) : Number.POSITIVE_INFINITY;
+          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount, trial.shortShiftCount) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
           // Accept any strict improvement (no slack) so the optimizer can keep
