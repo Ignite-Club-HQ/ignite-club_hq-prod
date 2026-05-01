@@ -426,18 +426,13 @@ function createSubPlan(
     }
     return duty;
   };
-  // GK field-time priority bonus: goalkeepers spend a half locked in goal,
-  // which is less rewarding than running outfield. To compensate, we treat
-  // their field target as if they need MORE outfield minutes than a regular
-  // player, so the scheduler rotates them onto the pitch ahead of others
-  // when their non-GK half comes around. This sits on top of the equal-total
-  // minutes baseline — we are not punishing outfielders, we are nudging GKs
-  // up the priority queue so the rebalancer favours them.
-  const GK_FIELD_PRIORITY_BONUS_SECONDS = 180; // ~3 minutes of extra urgency
-  const fieldTargetSeconds = (id: string) => {
-    const base = Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
-    return isGkPlayer(id) ? base + GK_FIELD_PRIORITY_BONUS_SECONDS : base;
-  };
+  // FAIRNESS RULE: every player's TOTAL minutes target (field + GK duty) is
+  // equal. GKs do NOT get extra total minutes — that would mean less time for
+  // outfielders. Instead, GKs get a tiebreaker priority bonus in the scheduler
+  // (see scoring below) so when needs are equal, the GK is rotated on first,
+  // landing them at "equal top" of the playing time list rather than below.
+  const fieldTargetSeconds = (id: string) =>
+    Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
   // Adjusted time for sorting: players above their personal target are picked
   // off first; players furthest below target are picked on first.
   const adjustedTime = (id: string) =>
@@ -468,10 +463,7 @@ function createSubPlan(
   const rawFieldTargets = new Map<string, number>();
   outfieldPlayers.forEach(p => {
     const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
-    // Give GKs a slightly larger raw field target so the proportional
-    // scheduler hands them more outfield minutes during their non-GK half.
-    const boosted = isGkPlayer(p.id) ? base + GK_FIELD_PRIORITY_BONUS_SECONDS : base;
-    rawFieldTargets.set(p.id, boosted);
+    rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
   const fieldTargetScale = rawTargetTotal > 0 ? totalFieldSeconds / rawTargetTotal : 1;
@@ -549,8 +541,12 @@ function createSubPlan(
       const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
       const aUrgency = aNeed / remainingAvailabilitySeconds(a, intervalStart);
       const bUrgency = bNeed / remainingAvailabilitySeconds(b, intervalStart);
-      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
-      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
+      // Tiebreaker: when needs are similar, prefer GKs so they finish at
+      // equal-top of the playing time list rather than below outfielders.
+      const aGkBoost = isGkPlayer(a.id) ? 5 : 0;
+      const bGkBoost = isGkPlayer(b.id) ? 5 : 0;
+      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0) + aGkBoost;
+      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0) + bGkBoost;
       return bScore - aScore;
     });
 
