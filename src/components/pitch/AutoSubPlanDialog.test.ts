@@ -131,6 +131,15 @@ describe("createSubPlan", () => {
     const practicalSpread = (Math.max(...practicalTotals.values()) - Math.min(...practicalTotals.values())) / 60;
     expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
 
+    // Regression for the 9-player mobile case from the preview: the protected
+    // 2H-GK run must not leave the final FIFO player stranded at ~21'.
+    const ninePlayerPractical = createSubPlan(players.slice(0, 9) as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
+    const nineTotals = simulateTotals(players.slice(0, 9), ninePlayerPractical, halfSec);
+    const nineSpread = (Math.max(...nineTotals.values()) - Math.min(...nineTotals.values())) / 60;
+    expect(nineSpread, `9-player Practical spread = ${nineSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
+    expect(nineTotals.get("Archer")! / 60, "1H GK should stay above fair floor").toBeGreaterThanOrEqual(30);
+    expect(nineTotals.get("Maximus")! / 60, "2H GK should be prioritised").toBeGreaterThanOrEqual(30);
+
     const practicalWindows = practical.reduce<Array<{ time: number; ins: Set<string>; outs: Set<string> }>>((acc, sub) => {
       const time = sub.half === 1 ? sub.time : halfSec + sub.time;
       const last = acc[acc.length - 1];
