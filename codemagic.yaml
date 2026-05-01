@@ -750,23 +750,38 @@ workflows:
             echo "$output" | tr -d '\r' | grep -Eo '[0-9]+' | tail -1
           }
 
-          LATEST_APP_STORE=$(latest_build_for_version "App Store" \
+          LATEST_APP_STORE_GLOBAL=$(latest_build_for_version "App Store" \
+            app-store-connect get-latest-app-store-build-number \
+              --platform IOS \
+              "$APP_STORE_APPLE_ID")
+          LATEST_TESTFLIGHT_GLOBAL=$(latest_build_for_version "TestFlight" \
+            app-store-connect get-latest-testflight-build-number \
+              --platform IOS \
+              "$APP_STORE_APPLE_ID")
+          LATEST_APP_STORE_VERSION=$(latest_build_for_version "App Store $APP_VERSION" \
             app-store-connect get-latest-app-store-build-number \
               --version-string "$APP_VERSION" \
               --platform IOS \
               "$APP_STORE_APPLE_ID")
-          LATEST_TESTFLIGHT=$(latest_build_for_version "TestFlight" \
+          LATEST_TESTFLIGHT_VERSION=$(latest_build_for_version "TestFlight $APP_VERSION" \
             app-store-connect get-latest-testflight-build-number \
               --pre-release-version "$APP_VERSION" \
               --platform IOS \
               "$APP_STORE_APPLE_ID")
 
-          LATEST=$(( LATEST_APP_STORE > LATEST_TESTFLIGHT ? LATEST_APP_STORE : LATEST_TESTFLIGHT ))
+          LATEST=$LATEST_APP_STORE_GLOBAL
+          for candidate in "$LATEST_TESTFLIGHT_GLOBAL" "$LATEST_APP_STORE_VERSION" "$LATEST_TESTFLIGHT_VERSION"; do
+            if [ "$candidate" -gt "$LATEST" ]; then
+              LATEST="$candidate"
+            fi
+          done
           NEXT_BUILD_NUMBER=$((LATEST + 1))
 
           echo "=== iOS marketing version: $APP_VERSION ==="
-          echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE ==="
-          echo "=== Latest TestFlight build for $APP_VERSION: $LATEST_TESTFLIGHT ==="
+          echo "=== Latest App Store build overall: $LATEST_APP_STORE_GLOBAL ==="
+          echo "=== Latest TestFlight build overall: $LATEST_TESTFLIGHT_GLOBAL ==="
+          echo "=== Latest App Store build for $APP_VERSION: $LATEST_APP_STORE_VERSION ==="
+          echo "=== Latest TestFlight build for $APP_VERSION: $LATEST_TESTFLIGHT_VERSION ==="
           echo "=== Using next ASC-safe build number: $NEXT_BUILD_NUMBER ==="
 
           sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
