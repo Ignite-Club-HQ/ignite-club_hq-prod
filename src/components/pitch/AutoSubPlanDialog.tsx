@@ -398,7 +398,7 @@ export function createSubPlan(
       // minutes table while the outfield spread holds steady.
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = tinySquad
-        ? halfDurationSeconds - 60
+        ? halfDurationSeconds - 2 * 60
         : Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
