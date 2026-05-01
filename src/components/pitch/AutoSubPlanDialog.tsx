@@ -773,6 +773,10 @@ export function createSubPlan(
       fieldSlots.forEach(slot => {
         if (slot.playerId === halftimeGkIn.id) slot.playerId = null;
       });
+      // Queue updates for the GK swap: starting GK becomes available for the
+      // outfield bench queue (H2 onward), halftime GK is now on pitch as GK.
+      lastOffAt.set(gkOnPitch.id, eventTime);
+      lastOnAt.set(halftimeGkIn.id, eventTime);
     }
 
     const nextTime = sortedDirectEventTimes[i + 1] ?? endAbsoluteSeconds;
