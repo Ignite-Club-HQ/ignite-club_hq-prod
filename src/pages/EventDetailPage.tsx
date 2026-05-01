@@ -533,10 +533,13 @@ export default function EventDetailPage() {
   const canViewPitchBoardReadOnly = !!isTeamMember && !canAccessPitchBoard && !!activeGameSummary;
 
   // Fetch team members for pitch board (adults + children)
+  // STRICT: Only includes players whose RSVP status is "going" for this event.
+  // Players with status "maybe", "not_going", or no response are excluded.
+  // Adults (coaches/admins) are always included so they can run the board.
   const { data: teamMembers } = useQuery({
-    queryKey: ["team-members-for-pitch", event?.team_id],
+    queryKey: ["team-members-for-pitch", event?.team_id, event?.id],
     queryFn: async () => {
-      const [rolesResult, childrenResult] = await Promise.all([
+      const [rolesResult, childrenResult, goingRsvpsResult] = await Promise.all([
         supabase
           .from("user_roles")
           .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
@@ -544,29 +547,55 @@ export default function EventDetailPage() {
         supabase.rpc("get_team_children_for_pitch_board", {
           p_team_id: event!.team_id!,
         }),
+        supabase
+          .from("rsvps")
+          .select("user_id, child_id, status")
+          .eq("event_id", event!.id)
+          .eq("status", "going"),
       ]);
 
       if (rolesResult.error) throw rolesResult.error;
+      if (goingRsvpsResult.error) throw goingRsvpsResult.error;
 
-      const adultMembers = (rolesResult.data || []).map(m => ({
-        user_id: m.user_id,
-        role: m.role,
-        profiles: m.profiles,
-      }));
+      const goingChildIds = new Set(
+        (goingRsvpsResult.data || [])
+          .map(r => r.child_id)
+          .filter((id): id is string => !!id)
+      );
+      const goingAdultIds = new Set(
+        (goingRsvpsResult.data || [])
+          .map(r => r.user_id)
+          .filter((id): id is string => !!id)
+      );
 
-      const childMembers = (childrenResult.data || []).map(child => ({
-        user_id: child.child_id,
-        role: "player" as string,
-        profiles: {
-          id: child.child_id,
-          display_name: child.child_name,
-          avatar_url: null,
-        },
-      }));
+      // Adults: include coaches/admins always (they may run the board even if
+      // not personally RSVP'd as players); include other roles (e.g. "player")
+      // only when they have a "going" RSVP.
+      const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
+      const adultMembers = (rolesResult.data || [])
+        .filter(m => STAFF_ROLES.has(m.role) || goingAdultIds.has(m.user_id))
+        .map(m => ({
+          user_id: m.user_id,
+          role: m.role,
+          profiles: m.profiles,
+        }));
+
+      // Children: only include those with a "going" RSVP.
+      const childMembers = (childrenResult.data || [])
+        .filter(child => goingChildIds.has(child.child_id))
+        .map(child => ({
+          user_id: child.child_id,
+          role: "player" as string,
+          profiles: {
+            id: child.child_id,
+            display_name: child.child_name,
+            avatar_url: null,
+          },
+        }));
 
       return [...adultMembers, ...childMembers];
     },
-    enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
+    enabled: !!event?.team_id && !!event?.id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
   // Fetch team subscription for pitch board settings
