@@ -278,7 +278,9 @@ export function createSubPlan(
   if (rotationSpeed === 1) {
     const startAbs = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
     const endAbs = halfDurationSeconds * 2;
-    const intervalSec = Math.max(120, PRACTICAL_SUB_INTERVAL_SECONDS);
+    // Choose interval so each bench player gets roughly two turns over the game
+    // when feasible (clamped to 5–10 min to keep disruption low).
+    const totalRemaining = Math.max(60, endAbs - startAbs);
     const subsPerWindow = Math.max(
       1,
       Math.min(
@@ -286,6 +288,16 @@ export function createSubPlan(
         outfieldOnBench.length,
         outfieldOnPitch.length
       )
+    );
+    // Aim for ~2 turns per bench player: targetWindows = (bench × 2) / subsPerWindow
+    const targetWindows = Math.max(
+      2,
+      Math.ceil((outfieldOnBench.length * 2) / subsPerWindow)
+    );
+    const adaptiveInterval = Math.floor(totalRemaining / (targetWindows + 1));
+    const intervalSec = Math.min(
+      10 * 60,
+      Math.max(5 * 60, adaptiveInterval || PRACTICAL_SUB_INTERVAL_SECONDS)
     );
 
     // Build sub-window times. Avoid scheduling within 90s of half-time so the
