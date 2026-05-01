@@ -461,8 +461,13 @@ function createSubPlan(
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
   const rawFieldTargets = new Map<string, number>();
+  const gkPriorityTopBufferSeconds = Math.min(300, Math.max(180, halfDurationSeconds * 0.15));
   outfieldPlayers.forEach(p => {
-    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+    // GKs should finish at the equal-top of total playing time, not below the
+    // outfield group. Give them a small target buffer, then let scaling keep the
+    // whole plan inside the available team minutes.
+    const priorityTarget = sharedTotalTarget + (isGkPlayer(p.id) ? gkPriorityTopBufferSeconds : 0);
+    const base = Math.max(0, priorityTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
@@ -507,7 +512,7 @@ function createSubPlan(
   const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
     if (player.isInjured) return false;
     if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
-    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd >= halfDurationSeconds) return false;
+    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd > halfDurationSeconds) return false;
     return true;
   };
 
@@ -576,7 +581,7 @@ function createSubPlan(
     const playerNeedScore = (id: string) => {
       const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
       const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
-      const gkBoost = isGkPlayer(id) ? 5 : 0;
+      const gkBoost = isGkPlayer(id) ? 75 : 0;
       return urgency * 1000 + need * 0.01 + gkBoost;
     };
 
@@ -610,7 +615,9 @@ function createSubPlan(
 
       const incomingNeed = targetFieldSeconds(playerIn.id) - (currentFieldSeconds.get(playerIn.id) || 0);
       const outgoingNeed = targetFieldSeconds(bestSlot.playerOut.id) - (currentFieldSeconds.get(bestSlot.playerOut.id) || 0);
-      if (incomingNeed <= outgoingNeed + 15) continue;
+      const incomingScore = playerNeedScore(playerIn.id);
+      const outgoingScore = playerNeedScore(bestSlot.playerOut.id);
+      if (incomingNeed <= outgoingNeed + 15 && incomingScore <= outgoingScore + 15) continue;
 
       usedSlotIndexes.add(bestSlot.index);
       selectedSubs.push({ slotIndex: bestSlot.index, playerOut: bestSlot.playerOut, playerIn });
