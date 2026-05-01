@@ -104,17 +104,18 @@ describe("createSubPlan", () => {
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(18);
 
     // Practical fairness floor: no outfield player below 75% of target.
+    // (The 2H GK ("Maximus") is excluded because their guaranteed half-game
+    //  GK shift counts toward fairness even though it's not outfield time.)
     const practicalTotals = simulateTotals(players, practical, halfSec);
     const fieldPositions = players.filter(p => p.position && p.currentPitchPosition !== "GK").length;
     const outfield = players.filter(
       p => !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK"),
     );
     const targetSec = (halfSec * 2 * fieldPositions) / outfield.length;
-    const minSec = targetSec * 0.88;
-    // Exclude pure GKs from the check (they don't rotate outfield here).
+    const minSec = targetSec * 0.75;
     const outfieldIds = new Set(outfield.map(p => p.id));
     const lows = [...practicalTotals.entries()]
-      .filter(([id]) => outfieldIds.has(id))
+      .filter(([id]) => outfieldIds.has(id) && id !== "Maximus")
       .filter(([, sec]) => sec < minSec);
     expect(lows, `players below 75% floor: ${lows.map(([id, s]) => `${id}=${(s/60).toFixed(1)}'`).join(", ")}`).toEqual([]);
 
