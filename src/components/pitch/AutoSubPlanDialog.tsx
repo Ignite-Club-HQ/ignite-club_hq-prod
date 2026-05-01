@@ -1267,7 +1267,8 @@ export function createSubPlan(
     // should finish at the TOP of the allowed spread band — not the floor.
     // We lift their total target by the spread cap so the fairness scheduler
     // treats them as still "owed" minutes until they reach gkCeilingSec.
-    const gkCeilingTotal = sharedTotalTarget + Math.max(0, maxSpreadMinutes * 60) / 2;
+    const spreadHalfSec = Math.max(0, maxSpreadMinutes * 60) / 2;
+    const gkCeilingTotal = sharedTotalTarget + spreadHalfSec;
     const playerTotalTarget = (id: string) => {
       const p = playerById.get(id);
       const baseMinutes = (p?.minutesPlayed || 0);
@@ -1363,8 +1364,30 @@ export function createSubPlan(
 
       if (eligibleSlots.length === 0) continue;
 
-      const chosenSlot = eligibleSlots[0];
-      const playerOut = chosenSlot.playerOut!;
+      let chosenSlot = eligibleSlots[0];
+      let playerOut = chosenSlot.playerOut!;
+
+      // GK PROTECTION (Frequent): if the chosen slot is a GK-protected player
+      // who hasn't reached the spread ceiling yet, prefer a non-GK slot if any
+      // is available. Falls through to the GK swap only if no alternative.
+      const bankedTotal = (id: string) => {
+        const p = playerById.get(id);
+        return (p?.minutesPlayed || 0) + gkDutySeconds(id) + (currentFieldSeconds.get(id) || 0);
+      };
+      const inIsProtected = isGkProtectedFreq(playerIn.id);
+      if (
+        isGkProtectedFreq(playerOut.id) &&
+        bankedTotal(playerOut.id) < gkCeilingTotal - 30 &&
+        !inIsProtected
+      ) {
+        const altSlot = eligibleSlots.find(s =>
+          s !== chosenSlot && !isGkProtectedFreq(s.playerOut!.id),
+        );
+        if (altSlot) {
+          chosenSlot = altSlot;
+          playerOut = altSlot.playerOut!;
+        }
+      }
 
       // Only commit if the swap actually narrows the shortfall gap between
       // these two players. (Avoids churn when shortfalls are already balanced.)
