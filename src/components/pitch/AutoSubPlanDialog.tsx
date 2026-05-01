@@ -331,6 +331,8 @@ export function createSubPlan(
     };
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
+    const effectiveMinSec = (id: string) =>
+      minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
     const shortfall = (id: string) =>
       targetSecPerPlayer + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
