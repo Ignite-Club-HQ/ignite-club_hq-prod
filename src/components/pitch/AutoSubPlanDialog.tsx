@@ -163,15 +163,13 @@ const formatTime = (seconds: number) => {
  * - 1 = Practical (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
  *   window, soft fairness (no spread escalation). Designed for real-world
  *   junior coaching: minimal interruptions, predictable order, "fair enough".
- * - 2 = Balanced — 2 subs / window, near-perfect fairness with full cycle.
- * - 3 = Frequent — 3 subs / window, more windows for tightest spread.
+ * - 2 = Frequent — 2 subs / window, near-perfect fairness with full cycle.
  *
- * Anything outside 1–3 (including legacy/null) defaults to Practical.
+ * Anything outside 1–2 (including legacy 3 / null) collapses to the nearest mode.
  */
 export const normalizeRotationSpeed = (speed: number | null | undefined): number => {
   const s = typeof speed === "number" ? speed : 1;
-  if (s >= 3) return 3;
-  if (s === 2) return 2;
+  if (s >= 2) return 2;
   return 1;
 };
 
