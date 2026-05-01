@@ -507,7 +507,8 @@ export function createSubPlan(
           // Keepers may be subbed off via over-cap once they've cleared the
           // fairness floor — their 20 min in goal already puts them well above.
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
+          // Pull off if over the soft target OR any bench player is below their fairness floor.
+          .filter(id => (projected.get(id) || 0) > targetSecPerPlayer || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
