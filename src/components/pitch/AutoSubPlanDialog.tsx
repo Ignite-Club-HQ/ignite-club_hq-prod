@@ -559,13 +559,18 @@ export function createSubPlan(
             eligible.push(candidate);
           }
           if (eligible.length > 0) {
-            // Bench-everyone rule: always prefer never-benched players first,
-            // regardless of squad size. Tiebreak: highest minutes (tiny squads)
-            // or original positional FIFO (larger squads).
+            // Bench-everyone rule: always prefer never-benched players first.
+            // Among never-benched, pick the one positionally LAST (forwards
+            // tend to be last in onPitchOrder and would otherwise never come
+            // off via positional FIFO). Among already-benched, fall back to
+            // tiny-squad highest-minutes / large-squad positional order.
             eligible.sort((a, b) => {
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
+              if (aNB === 1 && bNB === 1) {
+                return onPitchOrder.indexOf(b) - onPitchOrder.indexOf(a);
+              }
               if (outfieldOnBench.length <= 2) {
                 return (projected.get(b) || 0) - (projected.get(a) || 0);
               }
