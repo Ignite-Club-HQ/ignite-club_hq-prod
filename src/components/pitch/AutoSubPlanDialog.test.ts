@@ -181,6 +181,11 @@ describe("debug", () => {
     }
     onPitch.forEach(id => totals.set(id, (totals.get(id) as number) + (halfSec*2-last)));
     console.log("PLAN COUNT:", plan.length);
+    console.log("EVENTS:");
+    events.forEach((e: any) => {
+      const t = e.half===1?e.time:halfSec+e.time;
+      console.log(`  t=${(t/60).toFixed(1)}' OUT=${e.playerOut.id} IN=${e.playerIn.id}`);
+    });
     console.log("TOTALS:");
     [...totals.entries()].sort((a,b)=>(b[1] as number)-(a[1] as number)).forEach(([id,s]) => console.log(`  ${id}: ${((s as number)/60).toFixed(1)}'`));
   });
