@@ -318,12 +318,7 @@ export function createSubPlan(
     }
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
-    // In Practical mode, the designated 2H GK should sit out H1 (not rotate
-    // as an outfielder) so they don't end up massively over their target
-    // once their full-half GK shift is added on top.
-    const benchOrder: string[] = outfieldOnBench
-      .filter(p => !(halftimeGkIn && p.id === halftimeGkIn.id))
-      .map(p => p.id);
+    const benchOrder: string[] = outfieldOnBench.map(p => p.id);
 
     const halfTimeAbs = halfDurationSeconds;
     const willGkSwapAtHt =
