@@ -728,12 +728,26 @@ function createSubPlan(
     const snapshots: { index: number; before: Map<string, PitchPosition>; absoluteSeconds: number; nextAbsoluteSeconds: number }[] = [];
     let last = startAbsoluteSeconds;
     let valid = true;
+    let bounceBackCount = 0;
+    let currentWindowTime: number | null = null;
+    let previousWindowPlayerIns = new Set<string>();
+    let currentWindowPlayerIns = new Set<string>();
 
     ordered.forEach((entry, orderIndex) => {
       const elapsed = entry.absoluteSeconds - last;
       if (elapsed < 0) valid = false;
       if (elapsed > 0) {
         onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + elapsed));
+      }
+
+      if (currentWindowTime !== entry.absoluteSeconds) {
+        previousWindowPlayerIns = currentWindowPlayerIns;
+        currentWindowPlayerIns = new Set<string>();
+        currentWindowTime = entry.absoluteSeconds;
+      }
+
+      if (benchSize > 1 && previousWindowPlayerIns.has(entry.sub.playerOut.id) && !isDirectHalftimeGkSwapSub(entry.sub)) {
+        bounceBackCount++;
       }
 
       snapshots.push({
@@ -756,6 +770,8 @@ function createSubPlan(
         onPitch.set(entry.sub.playerIn.id, outPosition);
       }
 
+      currentWindowPlayerIns.add(entry.sub.playerIn.id);
+
       last = entry.absoluteSeconds;
     });
 
@@ -764,10 +780,10 @@ function createSubPlan(
       onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
     }
 
-    return { totals, snapshots, valid };
+    return { totals, snapshots, valid, bounceBackCount };
   };
 
-  const fairnessObjective = (totals: Map<string, number>) => {
+  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0) => {
     const values = fairPlayerIds.map(id => totals.get(id) || 0);
     if (values.length < 2) return 0;
     const spread = Math.max(...values) - Math.min(...values);
@@ -775,7 +791,7 @@ function createSubPlan(
     const gkShortfall = fairPlayerIds
       .filter(id => isGkPlayer(id))
       .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
-    return spread * 1000 + gkShortfall;
+    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000;
   };
 
   // Iterative fairness optimizer. Each pass tries every legal single-sub
@@ -785,7 +801,7 @@ function createSubPlan(
   for (let iter = 0; iter < MAX_OPTIMIZER_ITERATIONS; iter++) {
     const currentSim = simulateFullPlan(plan);
     if (!currentSim.valid) break;
-    const currentScore = fairnessObjective(currentSim.totals);
+    const currentScore = fairnessObjective(currentSim.totals, currentSim.bounceBackCount);
     if (currentScore === 0) break;
     let bestEdit: { index: number; replacement: SubstitutionEvent; score: number } | null = null;
 
@@ -816,7 +832,7 @@ function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals) : Number.POSITIVE_INFINITY;
+          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
           // Accept any strict improvement (no slack) so the optimizer can keep
