@@ -1267,14 +1267,23 @@ export function createSubPlan(
     // should finish at the TOP of the allowed spread band — not the floor.
     // We lift their total target by the spread cap so the fairness scheduler
     // treats them as still "owed" minutes until they reach gkCeilingSec.
-    const gkCeilingTotal = sharedTotalTarget + Math.max(0, maxSpreadMinutes * 60) / 2;
+    const spreadHalfSec = Math.max(0, maxSpreadMinutes * 60) / 2;
+    const gkCeilingTotal = sharedTotalTarget + spreadHalfSec;
+    const nonGkFloorTotal = Math.max(0, sharedTotalTarget - spreadHalfSec);
+    const anyGkProtected =
+      (includeStartingGkInRotation && !!gkOnPitch) || !!halftimeGkIn;
     const playerTotalTarget = (id: string) => {
       const p = playerById.get(id);
       const baseMinutes = (p?.minutesPlayed || 0);
       const isProtected =
         (includeStartingGkInRotation && id === gkOnPitch?.id) ||
         (halftimeGkIn ? id === halftimeGkIn.id : false);
-      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      // GK-protected players target TOP of band; non-GK target the FLOOR so
+      // they stop accumulating minutes once at floor — leaving the remaining
+      // bench-time savings available for GKs to climb to the top.
+      const target = isProtected
+        ? gkCeilingTotal
+        : (anyGkProtected ? nonGkFloorTotal : sharedTotalTarget);
       return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
