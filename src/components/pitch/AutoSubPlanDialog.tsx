@@ -673,14 +673,21 @@ export function createSubPlan(
       return Math.max(0, sharedTotalTarget - baseMinutes - gkDutySeconds(id));
     };
     const deficit = (id: string) => totalTarget(id) - (currentFieldSeconds.get(id) || 0);
+    // Urgency = deficit / time remaining where the player is still available.
+    // This makes a player with limited availability (e.g. 2H-GK only available
+    // in H1 for outfield duty) escalate their priority as their window closes.
+    const urgency = (p: Player) => {
+      const remain = remainingAvailabilitySeconds(p, absoluteSeconds);
+      return deficit(p.id) / Math.max(1, remain);
+    };
 
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        const aDef = deficit(a.id);
-        const bDef = deficit(b.id);
-        if (Math.abs(aDef - bDef) > 1) return bDef - aDef; // larger deficit first
+        const aU = urgency(a);
+        const bU = urgency(b);
+        if (Math.abs(aU - bU) > 0.001) return bU - aU; // higher urgency first
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0); // queue tiebreak
       });
 
