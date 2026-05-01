@@ -184,7 +184,7 @@ export function createSubPlan(
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
-  rotationSpeedInput: number = 2,
+  rotationSpeedInput: number = 1,
   disablePositionSwaps: boolean = false,
   disableBatchSubs: boolean = false,
   rotateGkAtHalftime: boolean = true,
