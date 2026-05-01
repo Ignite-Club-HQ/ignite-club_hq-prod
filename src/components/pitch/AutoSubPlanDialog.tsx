@@ -173,17 +173,26 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
   return 1;
 };
 
-/** Target gap between Practical-mode sub windows (seconds). Keeps the schedule
- *  coach-friendly while giving the planner enough chances to correct outliers. */
-const PRACTICAL_SUB_INTERVAL_SECONDS = 4 * 60;
+/** Target gap between Practical-mode sub windows (seconds). 7 min sits in the
+ *  spec'd 6–8 min window: low disruption, predictable cadence. */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
- *  jump to the front of the bench queue (priority-aware FIFO). */
-const PRACTICAL_MIN_THRESHOLD_RATIO = 0.9;
+ *  override the FIFO queue and are prioritised ON. */
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next AND blocked from coming ON. */
-const PRACTICAL_MAX_THRESHOLD_RATIO = 1.08;
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
+/** GK priority weighting (+12% of target). Keeps keepers at or slightly above
+ *  the squad average without starving outfield players. */
+const PRACTICAL_GK_PRIORITY_RATIO = 0.12;
+/** No subs before this minute mark from kickoff (settling-in window). */
+const PRACTICAL_NO_SUB_BEFORE_SECONDS = 5 * 60;
+/** No subs in this trailing window of each half. */
+const PRACTICAL_NO_SUB_AFTER_SECONDS = 150; // 2.5 min
+/** Players just subbed on are protected from being pulled off for this long. */
+const PRACTICAL_RECENT_SUB_PROTECTION_SECONDS = 4 * 60;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
 const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
