@@ -542,12 +542,22 @@ export function createSubPlan(
           }
           if (eligible.length > 0) {
             const fifoFirst = eligible[0];
-            // If anyone on pitch is materially ahead of FIFO head (>60s),
-            // prefer pulling the highest-minutes player. This prevents
-            // never-subbed players (e.g. forwards last in the queue) from
-            // riding out the whole game on tiny squads.
-            const highest = [...eligible].sort((a, b) => b.proj - a.proj)[0];
-            const pick = (highest.proj - fifoFirst.proj > 60) ? highest : fifoFirst;
+            // Sort by projected DESC; for near-ties (within 30s), prefer
+            // the player who has been on pitch longest WITHOUT being subbed
+            // off (tracked via sub-off count from completedSubs).
+            const subOffCount = new Map<string, number>();
+            completedSubs.forEach(s => {
+              subOffCount.set(s.playerOut.id, (subOffCount.get(s.playerOut.id) || 0) + 1);
+            });
+            const highest = [...eligible].sort((a, b) => {
+              const projDiff = b.proj - a.proj;
+              if (Math.abs(projDiff) > 30) return projDiff;
+              // Tiebreak: fewer sub-offs first (this player has been on most).
+              return (subOffCount.get(a.id) || 0) - (subOffCount.get(b.id) || 0);
+            })[0];
+            const pick = (highest.proj - fifoFirst.proj > 30 || (subOffCount.get(highest.id) || 0) < (subOffCount.get(fifoFirst.id) || 0))
+              ? highest
+              : fifoFirst;
             outId = pick.id;
             onPitchOrder.splice(pick.idx, 1);
           }
