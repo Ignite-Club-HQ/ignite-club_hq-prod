@@ -735,9 +735,10 @@ export function createSubPlan(
       );
       const chosenSlot = (nonBouncePool.length > 0 ? nonBouncePool : tenureForIncoming)[0];
 
-      // If we'd be forced to bounce back the player and there are other bench
-      // players still to consider, skip this incoming and let someone else try.
-      if (nonBouncePool.length === 0 && benchQueue.length - bi > 1) continue;
+      // Strict anti-bounce-back: never sub a player off in the rotation
+      // immediately after they came on. Better to leave the slot unchanged
+      // this window than disrupt a player who just entered.
+      if (nonBouncePool.length === 0) continue;
 
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(incoming.id);
