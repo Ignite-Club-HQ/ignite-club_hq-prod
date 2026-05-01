@@ -76,9 +76,9 @@ describe("createSubPlan", () => {
     }
   });
 
-  it("U8 3-mode rotation: Balanced/Frequent honour spread; Practical keeps subs low", () => {
+  it("U8 2-mode rotation: Frequent honours spread; Practical keeps subs low", () => {
     // Practical (1) prioritises low disruption — wider spread is acceptable.
-    // Balanced (2) and Frequent (3) honour the spread cap tightly.
+    // Frequent (2) honours the spread cap tightly.
     const players = [
       makePlayer("Archer", "GK"),
       makePlayer("Ezra", "DEF", 30, 80),
@@ -103,14 +103,12 @@ describe("createSubPlan", () => {
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(15);
 
-    // Balanced & Frequent honour tight spread.
-    for (const speed of [2, 3]) {
-      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", 5);
-      const totals = simulateTotals(players, plan, halfSec);
-      const arr = [...totals.values()];
-      const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
-      expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
-    }
+    // Frequent honours tight spread.
+    const plan = createSubPlan(players as any, 7, halfSec, 2, false, false, true, 0, 1, "Maximus", 5);
+    const totals = simulateTotals(players, plan, halfSec);
+    const arr = [...totals.values()];
+    const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
+    expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
   });
 });
 
