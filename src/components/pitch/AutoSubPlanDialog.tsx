@@ -554,28 +554,70 @@ function createSubPlan(
   };
 
   const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number) => {
+    const intervalLength = Math.max(0, nextAbsoluteSeconds - absoluteSeconds);
     const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
-    const usedIds = new Set<string>();
-    const desired = fieldSlots.map(slot => {
-      const player = choosePlayerForSlot(
-        slot.position,
-        slot.playerId,
-        usedIds,
-        currentIds,
-        absoluteSeconds,
-        nextAbsoluteSeconds
+
+    // FAIR ASSIGNMENT: Rank ALL eligible players by how much they NEED time,
+    // then greedily assign the neediest to a slot they're allowed to play.
+    // This prevents specific players from being repeatedly skipped because of
+    // slot iteration order or position-compatibility quirks.
+    const eligible = outfieldPlayers.filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds));
+
+    const playerNeed = (id: string) => {
+      const need = targetFieldSeconds(id) - (currentFieldSeconds.get(id) || 0);
+      const urgency = need / remainingAvailabilitySeconds(playerById.get(id)!, absoluteSeconds);
+      const onPitchBoost = currentIds.has(id) ? intervalLength * 0.5 : 0; // mild stickiness only
+      const gkBoost = isGkPlayer(id) ? 5 : 0;
+      return urgency * 1000 + need * 0.01 + onPitchBoost + gkBoost;
+    };
+
+    const ranked = eligible
+      .map(p => ({ player: p, score: playerNeed(p.id) }))
+      .sort((a, b) => b.score - a.score);
+
+    // Assign neediest players to compatible slots first.
+    const assigned = new Map<number, string>(); // slotIndex -> playerId
+    const usedPlayerIds = new Set<string>();
+
+    for (const { player } of ranked) {
+      if (assigned.size >= fieldSlots.length) break;
+      if (usedPlayerIds.has(player.id)) continue;
+
+      // Prefer the slot they're already in (avoid unnecessary swaps)
+      const currentSlotIdx = fieldSlots.findIndex((s, i) => s.playerId === player.id && !assigned.has(i));
+      if (currentSlotIdx >= 0 && canUseInOutfield(player, fieldSlots[currentSlotIdx].position)) {
+        assigned.set(currentSlotIdx, player.id);
+        usedPlayerIds.add(player.id);
+        continue;
+      }
+
+      // Otherwise find any compatible empty slot
+      const targetSlotIdx = fieldSlots.findIndex(
+        (s, i) => !assigned.has(i) && canUseInOutfield(player, s.position)
       );
-      if (player) usedIds.add(player.id);
-      return player?.id || slot.playerId;
+      if (targetSlotIdx >= 0) {
+        assigned.set(targetSlotIdx, player.id);
+        usedPlayerIds.add(player.id);
+      }
+    }
+
+    // Fill any remaining empty slots with current occupants (if still eligible)
+    fieldSlots.forEach((slot, i) => {
+      if (assigned.has(i)) return;
+      if (slot.playerId && !usedPlayerIds.has(slot.playerId)) {
+        assigned.set(i, slot.playerId);
+        usedPlayerIds.add(slot.playerId);
+      }
     });
 
+    // Emit substitution events for slots that changed.
     fieldSlots.forEach((slot, index) => {
-      const nextPlayerId = desired[index];
+      const nextPlayerId = assigned.get(index) || slot.playerId;
       if (!slot.playerId || !nextPlayerId || slot.playerId === nextPlayerId) return;
 
       const playerOut = playerById.get(slot.playerId);
       const playerIn = playerById.get(nextPlayerId);
-      if (!playerOut || !playerIn || currentIds.has(nextPlayerId)) return;
+      if (!playerOut || !playerIn) return;
 
       const { half, time } = toPlanTime(absoluteSeconds);
       plan.push({
@@ -586,8 +628,6 @@ function createSubPlan(
         executed: false,
       });
 
-      currentIds.delete(slot.playerId);
-      currentIds.add(nextPlayerId);
       slot.playerId = nextPlayerId;
     });
   };
