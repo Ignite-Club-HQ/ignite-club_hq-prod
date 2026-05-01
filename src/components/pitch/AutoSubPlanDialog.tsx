@@ -543,14 +543,14 @@ function createSubPlan(
     // Process deferred end-of-half subs as halftime subs (half 2, time 0)
     if (half === 1 && deferredToHalftime.length > 0) {
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
         // Starting GK is still in goal at the end of H1 — not a real bench option here.
         .filter(p => !(includeStartingGkInRotation && p.id === gkOnPitch?.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       const usedOutIds = new Set<string>();
       const usedInIds = new Set<string>();
