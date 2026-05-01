@@ -546,7 +546,7 @@ export function createSubPlan(
             // the player who has been on pitch longest WITHOUT being subbed
             // off (tracked via sub-off count from completedSubs).
             const subOffCount = new Map<string, number>();
-            completedSubs.forEach(s => {
+            plan.forEach(s => {
               subOffCount.set(s.playerOut.id, (subOffCount.get(s.playerOut.id) || 0) + 1);
             });
             const highest = [...eligible].sort((a, b) => {
