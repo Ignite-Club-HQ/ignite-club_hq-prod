@@ -736,23 +736,26 @@ function createSubPlan(
     return { times: t, snapshots, valid };
   };
 
+  const totalProjectedSeconds = (times: Map<string, number>, id: string) =>
+    (times.get(id) || 0) + gkDutySeconds(id);
+
   // ITERATIVE FAIRNESS PASS: make legal, state-aware edits only. The previous
   // pass could miss cases where the overplayed player never appeared as a
   // matching `playerIn`/`playerOut`. Here we inspect the actual pitch state at
   // each sub window and replace that window with `overplayed off, underplayed on`.
-  const fairnessTargets = outfieldPlayers.filter(p => !isGkPlayer(p.id));
+  const fairnessTargets = outfieldPlayers;
   const FAIRNESS_TOLERANCE = 30; // avoids rounded forecasts still showing a multi-minute gap
   const MAX_REBALANCE_ITERATIONS = 24;
 
   const fairnessSpread = (times: Map<string, number>) => {
-    const values = fairnessTargets.map(p => times.get(p.id) || 0);
+    const values = fairnessTargets.map(p => totalProjectedSeconds(times, p.id));
     if (values.length < 2) return 0;
     return Math.max(...values) - Math.min(...values);
   };
 
   for (let iter = 0; iter < MAX_REBALANCE_ITERATIONS; iter++) {
     const sim = simulateOutfieldPlan(plan);
-    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: sim.times.get(p.id) || 0 }));
+    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: totalProjectedSeconds(sim.times, p.id) }));
     if (ftimes.length < 2) break;
 
     ftimes.sort((a, b) => b.t - a.t);
