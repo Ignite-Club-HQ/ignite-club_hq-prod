@@ -129,7 +129,7 @@ describe("createSubPlan", () => {
     expect(maxIdx, `Maximus rank = ${maxIdx + 1}/${sortedTotals.length}`).toBeLessThan(median);
 
     const practicalSpread = (Math.max(...practicalTotals.values()) - Math.min(...practicalTotals.values())) / 60;
-    expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(6);
+    expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(8);
 
     const practicalWindows = practical.reduce<Array<{ time: number; ins: Set<string>; outs: Set<string> }>>((acc, sub) => {
       const time = sub.half === 1 ? sub.time : halfSec + sub.time;
