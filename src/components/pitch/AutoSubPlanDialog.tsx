@@ -697,7 +697,8 @@ export function createSubPlan(
     const maxSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
     // Escalation kicks in earlier than the hard cap so we have time to correct
     // before we'd actually breach it.
-    const escalationThreshold = Math.max(30, maxSpreadSeconds * 0.6);
+    // Use 40% of the cap so corrections start well before the breach.
+    const escalationThreshold = Math.max(30, maxSpreadSeconds * 0.4);
 
     const totalProjected = (id: string) => {
       const p = playerById.get(id);
