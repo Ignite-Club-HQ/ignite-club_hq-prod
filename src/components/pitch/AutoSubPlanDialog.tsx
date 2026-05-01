@@ -419,23 +419,32 @@ function createSubPlan(
     ? (gkOnBench || preferredOnPitchGk || predictedFallbackGk || null)
     : null;
 
-  // GK FAIRNESS: anyone who plays GK in either half only has ~half the game
-  // available for outfield time. To ensure they end up with at least as many
-  // total minutes as full-game outfielders, give them a strong priority bonus
-  // when sorting the bench (so they're always picked first to come on) and
-  // when sorting on-pitch players (so they're never picked to come off until
-  // they've caught up). The bonus is huge so it dominates normal time-diff
-  // sorting but doesn't affect actual accumulated minutes used for fairness.
-  const GK_PRIORITY_BONUS = halfDurationSeconds * 10;
+  // FAIRNESS TARGET: balance TOTAL minutes, not just outfield minutes. A player
+  // doing a half in goal already has that GK time banked, so their outfield
+  // target is the shared total target minus their GK duty. This gives GKs real
+  // field time without forcing them 5-10 minutes above everyone else.
+  const averageTotalSecondsPerPlayer = playerData.length > 0
+    ? (totalRemainingSeconds * teamSize) / playerData.length
+    : 0;
   const isGkPlayer = (id: string) =>
     (includeStartingGkInRotation && id === gkOnPitch?.id) ||
     (halftimeGkIn ? id === halftimeGkIn.id : false);
-  // Adjusted time for sorting: GKs appear "less played" everywhere so they
-  // jump to top of bench (picked first ON) and bottom of pitch (picked last OFF).
-  // While on pitch in H1, this also makes them last to be picked off, so a
-  // future-GK starter accumulates max outfield time before going in goal.
+  const gkDutySeconds = (id: string) => {
+    let duty = 0;
+    if (startingGkWillRotate && id === gkOnPitch?.id) {
+      duty += Math.max(0, halfDurationSeconds - startElapsedSeconds);
+    }
+    if (halftimeGkIn && id === halftimeGkIn.id) {
+      duty += halfDurationSeconds;
+    }
+    return duty;
+  };
+  const fieldTargetSeconds = (id: string) =>
+    Math.max(0, averageTotalSecondsPerPlayer - gkDutySeconds(id));
+  // Adjusted time for sorting: players above their personal target are picked
+  // off first; players furthest below target are picked on first.
   const adjustedTime = (id: string) =>
-    (playingTime.get(id) || 0) - (isGkPlayer(id) ? GK_PRIORITY_BONUS : 0);
+    (playingTime.get(id) || 0) - fieldTargetSeconds(id);
 
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
