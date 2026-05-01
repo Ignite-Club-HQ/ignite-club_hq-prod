@@ -713,31 +713,42 @@ export function createSubPlan(
     // Use 40% of the cap so corrections start well before the breach.
     const escalationThreshold = Math.max(30, maxSpreadSeconds * 0.4);
 
+    // Each player has a TARGET total (field + GK duty already received) equal
+    // to the average across the squad. The "shortfall" we want to close is
+    // (target − projected total). When the spread between shortfalls breaches
+    // the cap, override queue order to prioritise the most-shortfall players.
     const totalProjected = (id: string) => {
       const p = playerById.get(id);
       const baseMinutes = (p?.minutesPlayed || 0);
-      // Projected total = banked outfield + GK duty already received +
-      //                   still-to-come outfield if we keep state.
       return baseMinutes + gkDutySeconds(id) + projectedFinalSeconds(id);
     };
+    const playerTotalTarget = (id: string) => {
+      const p = playerById.get(id);
+      const baseMinutes = (p?.minutesPlayed || 0);
+      return Math.max(baseMinutes + gkDutySeconds(id), sharedTotalTarget);
+    };
+    const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
 
-    // Snapshot current projection so we can detect cap breaches.
+    // Snapshot now so we can detect cap breaches.
     const projectionsNow = new Map<string, number>();
-    outfieldPlayers.forEach(p => projectionsNow.set(p.id, totalProjected(p.id)));
-    const projectedMax = Math.max(...Array.from(projectionsNow.values()));
-    const projectedMin = Math.min(...Array.from(projectionsNow.values()));
-    const projectedSpread = projectedMax - projectedMin;
-    const capBreached = projectedSpread > escalationThreshold;
+    const shortfallsNow = new Map<string, number>();
+    outfieldPlayers.forEach(p => {
+      projectionsNow.set(p.id, totalProjected(p.id));
+      shortfallsNow.set(p.id, shortfall(p.id));
+    });
+    const shortfallVals = Array.from(shortfallsNow.values());
+    const shortfallSpread = Math.max(...shortfallVals) - Math.min(...shortfallVals);
+    const capBreached = shortfallSpread > escalationThreshold;
 
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
         if (capBreached) {
-          // Override: bring on the player whose projected total is lowest.
-          const aProj = projectionsNow.get(a.id) ?? 0;
-          const bProj = projectionsNow.get(b.id) ?? 0;
-          if (Math.abs(aProj - bProj) > 15) return aProj - bProj;
+          // Override: bring on the player with the largest shortfall first.
+          const aS = shortfallsNow.get(a.id) ?? 0;
+          const bS = shortfallsNow.get(b.id) ?? 0;
+          if (Math.abs(aS - bS) > 15) return bS - aS;
         }
         // Default: pure FIFO queue order — longest-waiting bench player first.
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
