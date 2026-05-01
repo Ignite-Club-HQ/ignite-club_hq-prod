@@ -300,11 +300,9 @@ export function createSubPlan(
     // Rolling FIFO queues seeded from current state.
     // benchQueue: index 0 = next on. pitchQueue: index 0 = next off.
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
-    // Exclude the nominated H2 GK from the outfield bench queue — they're
-    // earmarked for the GK slot at half-time, not for outfield rotation.
-    const benchOrder: string[] = outfieldOnBench
-      .filter(p => !halftimeGkIn || p.id !== halftimeGkIn.id)
-      .map(p => p.id);
+    // The H2 GK starts on the outfield bench in H1 and is eligible for outfield
+    // turns until half-time. We strip them only at HT (see gkSwapApplied below).
+    const benchOrder: string[] = outfieldOnBench.map(p => p.id);
 
     const halfTimeAbs = halfDurationSeconds;
     const willGkSwapAtHt =
@@ -313,17 +311,18 @@ export function createSubPlan(
     let gkSwapApplied = false;
     for (const t of windowTimes) {
       // At the first window after half-time, apply the GK swap to the queues:
-      // remove the starting GK from pitch (they become a bench-eligible
-      // outfielder for H2), and add the H2 GK onto the pitch (back of queue).
+      // remove the starting GK from pitch (becomes a bench-eligible outfielder
+      // for H2), remove the H2 GK from outfield rotation (they're now in goal),
+      // and add the starting GK to the bench queue.
       if (willGkSwapAtHt && !gkSwapApplied && t > halfTimeAbs) {
         const startingGkId = gkOnPitch!.id;
         const h2GkId = halftimeGkIn!.id;
-        // Remove starting GK from pitch ordering (was never there as outfield).
-        const idx = onPitchOrder.indexOf(startingGkId);
-        if (idx >= 0) onPitchOrder.splice(idx, 1);
-        // H2 GK is now on the pitch as goalkeeper — not subject to outfield
-        // rotation, so we don't add them to onPitchOrder.
-        // Starting GK joins the bench queue (longest-waiting → next on).
+        // Remove H2 GK from any outfield queue position — they're in goal now.
+        const ip = onPitchOrder.indexOf(h2GkId);
+        if (ip >= 0) onPitchOrder.splice(ip, 1);
+        const ib = benchOrder.indexOf(h2GkId);
+        if (ib >= 0) benchOrder.splice(ib, 1);
+        // Starting GK joins the front of the bench queue (longest-waiting).
         if (!benchOrder.includes(startingGkId)) benchOrder.unshift(startingGkId);
         gkSwapApplied = true;
       }
