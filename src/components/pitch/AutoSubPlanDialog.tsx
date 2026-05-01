@@ -378,30 +378,16 @@ export function createSubPlan(
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
+    // GOALKEEPER RULE: GKs may ONLY be swapped at halftime. We do NOT force
+    // the 2H GK on as outfield in 1H, nor do we force the 1H GK back on
+    // outfield in 2H. The GK swap itself happens at the half boundary,
+    // handled separately. This means the nominated 2H GK (if currently on
+    // bench) sits 1H entirely; the 1H GK plays only their half plus whatever
+    // outfield time the natural FIFO grants them in 2H (none, by design,
+    // since they aren't subbed back on as outfield).
     const forcedInByWindow = new Map<number, string>();
     const forcedOutByWindow = new Map<number, string>();
-    let halftimeGkBenchByAbs: number | null = null;
-    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
-      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
-      halftimeGkBenchByAbs = Math.floor(h1GkOff);
-      [h1GkOn, h1GkOff].forEach(gkTime => {
-        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
-      });
-      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
-        forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
-      }
-      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
-        forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
-      }
-    }
-    if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
-      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      if (h2GkOn < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2GkOn)) {
-        baseWindowTimes.push(Math.floor(h2GkOn));
-        forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
-      }
-    }
+    const halftimeGkBenchByAbs: number | null = null;
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
       const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
       if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {

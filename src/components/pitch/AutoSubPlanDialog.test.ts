@@ -103,10 +103,9 @@ describe("createSubPlan", () => {
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(25);
 
-    // Practical fairness floor: no outfield player below 75% of target,
-    // INCLUDING the 2H GK (Maximus). The keeper's guaranteed half-game GK
-    // shift counts toward total time, plus they must get enough outfield
-    // minutes in 1H to land in the top half of total minutes.
+    // Practical fairness floor (OUTFIELD-ONLY): no outfield-eligible player
+    // below 75% of target. GKs are EXCLUDED from this check because they
+    // can ONLY swap at halftime — they don't take outfield shifts mid-half.
     const practicalTotals = simulateTotals(players, practical, halfSec);
     const fieldPositions = players.filter(p => p.position && p.currentPitchPosition !== "GK").length;
     const outfield = players.filter(
@@ -114,31 +113,28 @@ describe("createSubPlan", () => {
     );
     const targetSec = (halfSec * 2 * fieldPositions) / outfield.length;
     const minSec = targetSec * 0.75;
-    const outfieldIds = new Set(outfield.map(p => p.id));
+    const gkIds = new Set(["Archer", "Maximus"]);
+    const outfieldNonGkIds = new Set(outfield.map(p => p.id).filter(id => !gkIds.has(id)));
     const lows = [...practicalTotals.entries()]
-      .filter(([id]) => outfieldIds.has(id))
+      .filter(([id]) => outfieldNonGkIds.has(id))
       .filter(([, sec]) => sec < minSec);
     expect(lows, `players below 75% floor: ${lows.map(([id, s]) => `${id}=${(s/60).toFixed(1)}'`).join(", ")}`).toEqual([]);
 
-    // 2H keeper (Maximus) must finish in the top half of total minutes.
-    const sortedTotals = [...practicalTotals.entries()]
-      .filter(([id]) => outfieldIds.has(id))
-      .sort((a, b) => b[1] - a[1]);
-    const maxIdx = sortedTotals.findIndex(([id]) => id === "Maximus");
-    const median = Math.floor(sortedTotals.length / 2);
-    expect(maxIdx, `Maximus rank = ${maxIdx + 1}/${sortedTotals.length}`).toBeLessThan(median);
+    // GKs play exactly their half (20'). Outfielders should be tightly spread.
+    const outfieldOnlyTotals = [...practicalTotals.entries()].filter(([id]) => outfieldNonGkIds.has(id));
+    const outfieldVals = outfieldOnlyTotals.map(([, s]) => s);
+    const outfieldSpread = (Math.max(...outfieldVals) - Math.min(...outfieldVals)) / 60;
+    expect(outfieldSpread, `outfield-only spread = ${outfieldSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
 
-    const practicalSpread = (Math.max(...practicalTotals.values()) - Math.min(...practicalTotals.values())) / 60;
-    expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
-
-    // Regression for the 9-player mobile case from the preview: the protected
-    // 2H-GK run must not leave the final FIFO player stranded at ~21'.
+    // Regression for the 9-player mobile case.
     const ninePlayerPractical = createSubPlan(players.slice(0, 9) as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     const nineTotals = simulateTotals(players.slice(0, 9), ninePlayerPractical, halfSec);
-    const nineSpread = (Math.max(...nineTotals.values()) - Math.min(...nineTotals.values())) / 60;
-    expect(nineSpread, `9-player Practical spread = ${nineSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
-    expect(nineTotals.get("Archer")! / 60, "1H GK should stay above fair floor").toBeGreaterThanOrEqual(30);
-    expect(nineTotals.get("Maximus")! / 60, "2H GK should be prioritised").toBeGreaterThanOrEqual(30);
+    const nineOutfield = [...nineTotals.entries()].filter(([id]) => !gkIds.has(id)).map(([, s]) => s);
+    const nineSpread = (Math.max(...nineOutfield) - Math.min(...nineOutfield)) / 60;
+    expect(nineSpread, `9-player Practical outfield spread = ${nineSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
+    // GKs play their full half = 20'.
+    expect(nineTotals.get("Archer")! / 60, "1H GK plays 1H").toBeGreaterThanOrEqual(20);
+    expect(nineTotals.get("Maximus")! / 60, "2H GK plays 2H").toBeGreaterThanOrEqual(20);
 
     const practicalWindows = practical.reduce<Array<{ time: number; ins: Set<string>; outs: Set<string> }>>((acc, sub) => {
       const time = sub.half === 1 ? sub.time : halfSec + sub.time;
