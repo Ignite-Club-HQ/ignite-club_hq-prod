@@ -552,16 +552,25 @@ export function createSubPlan(
   // batch size (subsAtOnce), not in window count. Fast doubles rotations.
   let cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
   // SPREAD CAP ESCALATION: when the user has set a tight max-spread, a single
-  // cycle may not give bench players enough on-pitch time to converge. Estimate
-  // the worst-case "stuck" deficit (a player who joins/leaves rotation midway,
-  // e.g. a half-game GK) and add cycles until it fits within the cap.
-  // Worst-case extra deficit ≈ time the GK player is locked out (= half length).
-  const estimatedWorstCycleSpreadSeconds = halfDurationSeconds / Math.max(1, baseCycleEvents);
+  // cycle may not give bench players enough on-pitch time to converge. The
+  // dominant residual spread comes from players "locked out" of part of the
+  // game (e.g. half-game GKs) who need a precise number of outfield turns to
+  // hit their share. Estimate that residual and add cycles until it fits.
+  const maxGkLockoutSeconds = Math.max(
+    0,
+    ...outfieldPlayers.map(p => gkDutySeconds(p.id))
+  );
+  // Residual spread ≈ outfield need a locked-out player misses if we run too
+  // few cycles. A locked-out player needs ~`shareOutfield` minutes; a single
+  // cycle gives them at most one turn (~window length).
   const targetSpreadSeconds = Math.max(60, maxSpreadMinutes * 60);
-  if (estimatedWorstCycleSpreadSeconds * cycleMultiplier > targetSpreadSeconds) {
+  const estimatedResidualSpread = maxGkLockoutSeconds > 0
+    ? Math.min(maxGkLockoutSeconds, halfDurationSeconds * 0.4)
+    : 0;
+  if (estimatedResidualSpread > targetSpreadSeconds) {
     cycleMultiplier = Math.min(
       6,
-      Math.max(cycleMultiplier, Math.ceil(estimatedWorstCycleSpreadSeconds / targetSpreadSeconds))
+      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 1)
     );
   }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
