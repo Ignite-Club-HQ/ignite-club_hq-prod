@@ -779,9 +779,10 @@ export function createSubPlan(
         )
         .sort((a, b) => {
           if (capBreached) {
-            const aProj = projectionsNow.get(a.playerOut!.id) ?? 0;
-            const bProj = projectionsNow.get(b.playerOut!.id) ?? 0;
-            if (Math.abs(aProj - bProj) > 15) return bProj - aProj;
+            // Pull off the player with the SMALLEST shortfall (most over their fair share).
+            const aS = shortfallsNow.get(a.playerOut!.id) ?? 0;
+            const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
+            if (Math.abs(aS - bS) > 15) return aS - bS;
           }
           // Default: queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
