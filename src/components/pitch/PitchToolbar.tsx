@@ -287,7 +287,7 @@ function PitchToolbar({
   gameInProgress = false,
   minutesPerHalf = 45,
   onMinutesPerHalfChange,
-  rotationSpeed = 2,
+  rotationSpeed = 1,
   onRotationSpeedChange,
   disablePositionSwaps = false,
   onDisablePositionSwapsChange,
