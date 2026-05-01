@@ -10,7 +10,7 @@
  *   node scripts/bump-ios-version.js minor           # 1.2.18 -> 1.3.0
  *   node scripts/bump-ios-version.js major           # 1.2.18 -> 2.0.0
  *   node scripts/bump-ios-version.js 1.2.20          # explicit version
- *   node scripts/bump-ios-version.js 1.2.20 20260501001  # explicit version + build
+ *   node scripts/bump-ios-version.js 1.2.20 20260501120000  # explicit version + build
  *
  * Build number defaults to YYYYMMDD + 3-digit counter. If the existing build
  * already matches today's date, the counter is incremented; otherwise reset to 001.
