@@ -625,12 +625,10 @@ export function createSubPlan(
       const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
       const aUrgency = aNeed / remainingAvailabilitySeconds(a, intervalStart);
       const bUrgency = bNeed / remainingAvailabilitySeconds(b, intervalStart);
-      // Tiebreaker: when needs are similar, prefer GKs so they finish at
-      // equal-top of the playing time list rather than below outfielders.
-      const aGkBoost = isGkPlayer(a.id) ? 5 : 0;
-      const bGkBoost = isGkPlayer(b.id) ? 5 : 0;
-      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0) + aGkBoost;
-      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0) + bGkBoost;
+      // Pure fairness ordering — no GK bonus. With correct targets, GKs
+      // already need less outfield time and will naturally end at equal totals.
+      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
+      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
       return bScore - aScore;
     });
 
