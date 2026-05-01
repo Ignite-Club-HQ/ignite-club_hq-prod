@@ -159,19 +159,26 @@ const formatTime = (seconds: number) => {
 };
 
 /**
- * Normalise the legacy 3-mode rotation speed to the supported 2-mode set:
- * - 1 ("Minimal") was mathematically broken — it could not honour the spread
- *   cap with a single sub per window plus a half-game GK lockout. We migrate
- *   any persisted value of 1 to 2 ("Balanced") at every read site.
- * - 2 = Balanced (default) — 2 subs / window, near-perfect fairness.
- * - 3 = Frequent — 3 subs / window, more rotation windows.
+ * Rotation modes (rotation_speed integer):
+ * - 1 = Practical (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
+ *   window, soft fairness (no spread escalation). Designed for real-world
+ *   junior coaching: minimal interruptions, predictable order, "fair enough".
+ * - 2 = Balanced — 2 subs / window, near-perfect fairness with full cycle.
+ * - 3 = Frequent — 3 subs / window, more windows for tightest spread.
+ *
+ * Anything outside 1–3 (including legacy/null) defaults to Practical.
  */
 export const normalizeRotationSpeed = (speed: number | null | undefined): number => {
-  const s = typeof speed === "number" ? speed : 2;
-  if (s <= 1) return 2;
+  const s = typeof speed === "number" ? speed : 1;
   if (s >= 3) return 3;
-  return 2;
+  if (s === 2) return 2;
+  return 1;
 };
+
+/** Target gap between Practical-mode sub windows (seconds). */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 7 * 60;
+/** Maximum players swapped in a single Practical-mode window. */
+const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 
 export function createSubPlan(
   playerData: Player[],
