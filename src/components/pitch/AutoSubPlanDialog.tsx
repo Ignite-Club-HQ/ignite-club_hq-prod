@@ -525,19 +525,28 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
+          // Build the eligible candidate list, then choose. For tiny squads
+          // (≤2 bench), pick the HIGHEST-MINUTE eligible player so forwards
+          // (last in positional FIFO) actually get rotated. For larger
+          // squads, retain strict positional FIFO order.
+          const eligible: string[] = [];
           for (let j = 0; j < onPitchOrder.length; j++) {
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
             if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
-            // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
-            // Protect recently-subbed-on players (<4 min on field).
             const onAt = lastSubbedOnAbs.get(candidate);
             if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
-            outId = candidate;
-            onPitchOrder.splice(j, 1);
-            break;
+            eligible.push(candidate);
+          }
+          if (eligible.length > 0) {
+            if (outfieldOnBench.length <= 2) {
+              eligible.sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
+            }
+            outId = eligible[0];
+            const idx = onPitchOrder.indexOf(outId);
+            if (idx >= 0) onPitchOrder.splice(idx, 1);
           }
         }
         if (!outId) break;
