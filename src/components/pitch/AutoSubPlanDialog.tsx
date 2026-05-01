@@ -1100,9 +1100,14 @@ export function createSubPlan(
     ? Math.min(maxGkLockoutSeconds, halfDurationSeconds * 0.4)
     : 0;
   if (estimatedResidualSpread > targetSpreadSeconds) {
+    // LIGHT FREQUENT: cap escalation tighter so we don't pile on extra cycles.
+    // Frequent (speed=2) tops out at +1 cycle; Fast (speed=3) keeps the higher
+    // ceiling for tight-spread scenarios.
+    const escalationCeiling = rotationSpeed === 3 ? 6 : 3;
+    const escalationBoost = rotationSpeed === 3 ? 2 : 1;
     cycleMultiplier = Math.min(
-      6,
-      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + 2)
+      escalationCeiling,
+      Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + escalationBoost)
     );
   }
   // Pick the smallest window count whose total off-events (W * subsAtOnce) is
@@ -1117,7 +1122,10 @@ export function createSubPlan(
   }
   // Floor interval prevents churn but never overrides fairness windows. We
   // recompute as evenly-spaced windows across remaining time.
-  const minIntervalFloor = rotationSpeed === 3 ? 90 : 120;
+  // LIGHT FREQUENT: raise the floor for speed=2 from 120s to 180s so shifts
+  // are noticeably longer than current Frequent (~3 min vs ~2 min) while
+  // still rotating much more often than Practical (~5 min).
+  const minIntervalFloor = rotationSpeed === 3 ? 90 : 180;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
