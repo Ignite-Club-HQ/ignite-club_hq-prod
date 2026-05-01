@@ -540,6 +540,15 @@ export function createSubPlan(
         // when a bench player is below their effective floor. Keepers should
         // generally NOT be pulled off via over-cap logic — they need their
         // outfield run to land in the top half of total minutes.
+        // GK-PROTECTED PROMOTION (OUT): if any GK-protected player on the
+        // pitch is below their target ceiling AND a non-GK-protected player
+        // on the pitch is at/above the non-GK floor, prefer pulling the
+        // non-GK-protected player off so the GK-protected one keeps banking
+        // outfield minutes toward the top of the spread.
+        const gkProtectedOnPitchBelowCeiling = onPitchOrder.some(
+          id => isGkProtected(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
+        );
+
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
@@ -550,11 +559,19 @@ export function createSubPlan(
           })
           // Keep the nominated 2H GK on until their planned pre-halftime bench window.
           .filter(id => id !== halftimeGkIn?.id || halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs)
-          // Keepers may be subbed off via over-cap once they've cleared the
-          // fairness floor — their 20 min in goal already puts them well above.
-          .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
+          // Don't pull a GK-protected player off via over-cap until they've
+          // reached the top of the allowed spread (gkCeilingSec). Their
+          // outfield run should land them at equal-highest minutes.
+          .filter(id => !isGkProtected(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
+            // GK-protected promotion: prefer pulling non-GK-protected first
+            // when a GK-protected on-pitch is still below ceiling.
+            if (gkProtectedOnPitchBelowCeiling) {
+              const aGk = isGkProtected(a) ? 1 : 0;
+              const bGk = isGkProtected(b) ? 1 : 0;
+              if (aGk !== bGk) return aGk - bGk;
+            }
             // Bench-everyone rule: prefer pulling never-benched players first.
             const aNB = neverBenched.has(a) ? 1 : 0;
             const bNB = neverBenched.has(b) ? 1 : 0;
@@ -589,6 +606,9 @@ export function createSubPlan(
               if (isActiveGk(candidate)) continue;
               if (windowIns.has(candidate)) continue;
               if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
+              // Don't sub off a GK-protected player while they're still below
+              // their ceiling — they need to finish at the top of the spread.
+              if (isGkProtected(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
               if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
               if (!allowRecentSub) {
                 const onAt = lastSubbedOnAbs.get(candidate);
@@ -615,11 +635,13 @@ export function createSubPlan(
           }
 
           if (eligible.length > 0) {
-            // Bench-everyone rule: always prefer never-benched players first.
-            // Tiebreak: positionally LAST (forwards tend to last in FIFO and
-            // would otherwise never come off). Among already-benched: tiny-squad
-            // highest-minutes / large-squad positional order.
+            // GK-protected first; never-benched next; then existing tiebreaks.
             eligible.sort((a, b) => {
+              if (gkProtectedOnPitchBelowCeiling) {
+                const aGk = isGkProtected(a) ? 1 : 0;
+                const bGk = isGkProtected(b) ? 1 : 0;
+                if (aGk !== bGk) return aGk - bGk;
+              }
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
