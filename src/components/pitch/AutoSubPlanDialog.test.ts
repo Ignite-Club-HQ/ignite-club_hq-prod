@@ -112,35 +112,5 @@ describe("createSubPlan", () => {
       expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
     }
   });
-      makePlayer("Archer", "GK"),         // GK 1H
-      makePlayer("Ezra", "DEF", 30, 80),
-      makePlayer("Augustine", "DEF", 70, 80),
-      makePlayer("Jett", "MID", 30, 50),
-      makePlayer("Louie", "MID", 70, 50),
-      makePlayer("Hugo", "FWD", 30, 20),
-      makePlayer("James", "FWD", 70, 20),
-      makePlayer("Maximus", null), // becomes 2H GK
-      makePlayer("Tom", null),
-      makePlayer("Bench3", null),
-      makePlayer("Bench4", null),
-    ];
-    // Make outfielders flexible so position constraints don't dominate.
-    players.forEach(p => {
-      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
-        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
-      }
-    });
-
-    const halfSec = 20 * 60;
-    // Half-game GK rosters have an irreducible spread floor (~8') because the
-    // locked-out GK can only make up minutes through limited outfield turns.
-    // Both supported modes (incl. legacy 1 → migrated to 2) must respect this.
-    for (const speed of [1, 2, 3]) {
-      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", 5);
-      const totals = simulateTotals(players, plan, halfSec);
-      const arr = [...totals.values()];
-      const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
-      expect(spread, `speed ${speed} spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(8.5);
-    }
-  });
 });
+
