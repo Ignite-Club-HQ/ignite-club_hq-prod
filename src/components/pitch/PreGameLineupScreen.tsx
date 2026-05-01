@@ -108,7 +108,7 @@ export default function PreGameLineupScreen({
   const toggleSection = useCallback((s: "size" | "formation" | "subs") => {
     setOpenSection(prev => (prev === s ? null : s));
   }, []);
-  const subsSpeedLabel = rotationSpeed === 1 ? "Minimal" : rotationSpeed === 3 ? "Batch" : "Balanced";
+  const subsSpeedLabel = (rotationSpeed ?? 2) >= 3 ? "Frequent" : "Balanced";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
