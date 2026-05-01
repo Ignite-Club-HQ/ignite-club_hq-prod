@@ -379,6 +379,29 @@ export function createSubPlan(
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
+    const forcedInByWindow = new Map<number, string>();
+    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
+      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
+      [h1GkOn, h1GkOff].forEach(gkTime => {
+        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+      });
+      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
+        forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      }
+    }
+    if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
+      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      if (h2GkOn < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2GkOn)) {
+        baseWindowTimes.push(Math.floor(h2GkOn));
+        forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
+      }
+    }
+    const protectedGkWindows = [...forcedInByWindow.keys()];
+    const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
+      .filter(t => forcedInByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
+      .sort((a, b) => a - b);
+    baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
     baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
