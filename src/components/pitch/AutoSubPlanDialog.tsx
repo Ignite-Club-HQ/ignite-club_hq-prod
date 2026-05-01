@@ -433,6 +433,180 @@ function createSubPlan(
   const adjustedTime = (id: string) =>
     (playingTime.get(id) || 0) - fieldTargetSeconds(id);
 
+  const canUseInOutfield = (player: Player, position?: PitchPosition) => {
+    if (!position || position === "GK" || player.isInjured) return false;
+    // A nominated half-game GK still needs fair total minutes, so allow them
+    // to cover an outfield slot outside their goalkeeping half.
+    if (player.id === gkOnPitch?.id || player.id === halftimeGkIn?.id) return true;
+    if (player.assignedPositions?.length === 1 && player.assignedPositions.includes("GK")) return true;
+    return !player.assignedPositions?.length || player.assignedPositions.includes(position);
+  };
+
+  const playerById = new Map(playerData.map(p => [p.id, p]));
+  const fieldSlots = outfieldOnPitch.map(p => ({
+    position: p.currentPitchPosition as PitchPosition,
+    playerId: p.id,
+  }));
+
+  const currentFieldSeconds = new Map<string, number>();
+  outfieldPlayers.forEach(p => currentFieldSeconds.set(p.id, p.minutesPlayed || 0));
+
+  const totalExistingSeconds = playerData.reduce((sum, p) => sum + (p.minutesPlayed || 0), 0);
+  const sharedTotalTarget = playerData.length > 0
+    ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
+    : 0;
+  const rawFieldTargets = new Map<string, number>();
+  outfieldPlayers.forEach(p => {
+    rawFieldTargets.set(
+      p.id,
+      Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id))
+    );
+  });
+  const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
+  const fieldTargetScale = rawTargetTotal > 0 ? totalFieldSeconds / rawTargetTotal : 1;
+  const targetFieldSeconds = (id: string) => (rawFieldTargets.get(id) || 0) * fieldTargetScale;
+
+  const toPlanTime = (absoluteSeconds: number): { half: 1 | 2; time: number } => ({
+    half: absoluteSeconds < halfDurationSeconds ? 1 : 2,
+    time: absoluteSeconds < halfDurationSeconds ? absoluteSeconds : absoluteSeconds - halfDurationSeconds,
+  });
+
+  const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
+  const endAbsoluteSeconds = halfDurationSeconds * 2;
+  const maxIntervalSeconds = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
+  const directEventTimes = new Set<number>();
+
+  for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
+    if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
+    if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
+    directEventTimes.add(Math.floor(t));
+  }
+  if (startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+    directEventTimes.add(halfDurationSeconds);
+  }
+
+  const sortedDirectEventTimes = Array.from(directEventTimes).sort((a, b) => a - b);
+
+  const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
+    if (player.isInjured) return false;
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
+    if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd >= halfDurationSeconds) return false;
+    return true;
+  };
+
+  const addFieldTime = (elapsed: number) => {
+    if (elapsed <= 0) return;
+    fieldSlots.forEach(slot => {
+      if (slot.playerId) {
+        currentFieldSeconds.set(slot.playerId, (currentFieldSeconds.get(slot.playerId) || 0) + elapsed);
+      }
+    });
+  };
+
+  const choosePlayerForSlot = (
+    position: PitchPosition,
+    currentSlotPlayerId: string | null,
+    usedIds: Set<string>,
+    currentIds: Set<string>,
+    intervalStart: number,
+    intervalEnd: number
+  ) => {
+    const intervalLength = Math.max(0, intervalEnd - intervalStart);
+    const candidates = outfieldPlayers.filter(player => {
+      if (usedIds.has(player.id)) return false;
+      if (!isAvailableForInterval(player, intervalStart, intervalEnd)) return false;
+      if (!canUseInOutfield(player, position)) return false;
+      // Avoid moving players between slots in the generated plan; only keep a
+      // player in their current slot or bring someone on from the bench.
+      if (currentIds.has(player.id) && player.id !== currentSlotPlayerId) return false;
+      return true;
+    });
+
+    candidates.sort((a, b) => {
+      const aNeed = targetFieldSeconds(a.id) - (currentFieldSeconds.get(a.id) || 0);
+      const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
+      const aScore = aNeed - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
+      const bScore = bNeed - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
+      return bScore - aScore;
+    });
+
+    return candidates[0] || null;
+  };
+
+  const applyFairRotationAt = (absoluteSeconds: number, nextAbsoluteSeconds: number) => {
+    const currentIds = new Set(fieldSlots.map(slot => slot.playerId).filter(Boolean) as string[]);
+    const usedIds = new Set<string>();
+    const desired = fieldSlots.map(slot => {
+      const player = choosePlayerForSlot(
+        slot.position,
+        slot.playerId,
+        usedIds,
+        currentIds,
+        absoluteSeconds,
+        nextAbsoluteSeconds
+      );
+      if (player) usedIds.add(player.id);
+      return player?.id || slot.playerId;
+    });
+
+    fieldSlots.forEach((slot, index) => {
+      const nextPlayerId = desired[index];
+      if (!slot.playerId || !nextPlayerId || slot.playerId === nextPlayerId) return;
+
+      const playerOut = playerById.get(slot.playerId);
+      const playerIn = playerById.get(nextPlayerId);
+      if (!playerOut || !playerIn || currentIds.has(nextPlayerId)) return;
+
+      const { half, time } = toPlanTime(absoluteSeconds);
+      plan.push({
+        time,
+        half,
+        playerOut,
+        playerIn,
+        executed: false,
+      });
+
+      currentIds.delete(slot.playerId);
+      currentIds.add(nextPlayerId);
+      slot.playerId = nextPlayerId;
+    });
+  };
+
+  let directLastTime = startAbsoluteSeconds;
+  for (let i = 0; i < sortedDirectEventTimes.length; i++) {
+    const eventTime = sortedDirectEventTimes[i];
+    addFieldTime(eventTime - directLastTime);
+    directLastTime = eventTime;
+
+    if (eventTime === halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: halftimeGkIn,
+        executed: false,
+      });
+      fieldSlots.forEach(slot => {
+        if (slot.playerId === halftimeGkIn.id) slot.playerId = null;
+      });
+    }
+
+    const nextTime = sortedDirectEventTimes[i + 1] ?? endAbsoluteSeconds;
+    applyFairRotationAt(eventTime, nextTime);
+  }
+  addFieldTime(endAbsoluteSeconds - directLastTime);
+
+  plan.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    if (a.time !== b.time) return a.time - b.time;
+    const aIsGkSwap = !!gkOnPitch && a.half === 2 && a.time === 0 && a.playerOut.id === gkOnPitch.id;
+    const bIsGkSwap = !!gkOnPitch && b.half === 2 && b.time === 0 && b.playerOut.id === gkOnPitch.id;
+    if (aIsGkSwap !== bIsGkSwap) return aIsGkSwap ? -1 : 1;
+    return 0;
+  });
+
+  return plan;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
