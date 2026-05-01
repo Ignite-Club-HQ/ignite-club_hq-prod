@@ -543,6 +543,7 @@ export function createSubPlan(
         windowIns.add(inId);
         windowOuts.add(outId);
         benchOrder.push(outId);
+        lastSubbedOnAbs.set(inId, t);
       }
     }
 
