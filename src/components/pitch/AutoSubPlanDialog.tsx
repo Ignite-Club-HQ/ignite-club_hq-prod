@@ -799,6 +799,13 @@ export function createSubPlan(
       if (p.currentPitchPosition) onPitch.set(p.id, p.currentPitchPosition);
     });
 
+    // Track when each player most recently came onto the pitch (in absolute seconds).
+    // Starters are seeded at startAbsoluteSeconds. Used to penalise short shifts
+    // (a player taken off less than MIN_SHIFT_SECONDS_PENALTY after coming on).
+    const cameOnAt = new Map<string, number>();
+    playersOnPitch.forEach(p => cameOnAt.set(p.id, startAbsoluteSeconds));
+    const MIN_SHIFT_SECONDS_PENALTY = 180;
+
     const ordered = candidatePlan
       .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
       .sort((a, b) => a.absoluteSeconds - b.absoluteSeconds);
@@ -806,6 +813,7 @@ export function createSubPlan(
     let last = startAbsoluteSeconds;
     let valid = true;
     let bounceBackCount = 0;
+    let shortShiftCount = 0;
     let currentWindowTime: number | null = null;
     let previousWindowPlayerIns = new Set<string>();
     let currentWindowPlayerIns = new Set<string>();
@@ -827,6 +835,14 @@ export function createSubPlan(
         bounceBackCount++;
       }
 
+      // Short-shift penalty: catches bounce-backs across more than one window.
+      if (benchSize > 1 && !isDirectHalftimeGkSwapSub(entry.sub)) {
+        const onSince = cameOnAt.get(entry.sub.playerOut.id);
+        if (onSince !== undefined && entry.absoluteSeconds - onSince < MIN_SHIFT_SECONDS_PENALTY) {
+          shortShiftCount++;
+        }
+      }
+
       snapshots.push({
         index: entry.index,
         before: new Map(onPitch),
@@ -838,6 +854,7 @@ export function createSubPlan(
       if (!outPosition || onPitch.has(entry.sub.playerIn.id)) valid = false;
 
       onPitch.delete(entry.sub.playerOut.id);
+      cameOnAt.delete(entry.sub.playerOut.id);
       if (entry.sub.positionSwap) {
         const swapFromPosition = onPitch.get(entry.sub.positionSwap.player.id);
         if (!swapFromPosition) valid = false;
@@ -846,6 +863,7 @@ export function createSubPlan(
       } else if (outPosition) {
         onPitch.set(entry.sub.playerIn.id, outPosition);
       }
+      cameOnAt.set(entry.sub.playerIn.id, entry.absoluteSeconds);
 
       currentWindowPlayerIns.add(entry.sub.playerIn.id);
 
@@ -857,10 +875,10 @@ export function createSubPlan(
       onPitch.forEach((_, id) => totals.set(id, (totals.get(id) || 0) + remaining));
     }
 
-    return { totals, snapshots, valid, bounceBackCount };
+    return { totals, snapshots, valid, bounceBackCount, shortShiftCount };
   };
 
-  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0) => {
+  const fairnessObjective = (totals: Map<string, number>, bounceBackCount = 0, shortShiftCount = 0) => {
     const values = fairPlayerIds.map(id => totals.get(id) || 0);
     if (values.length < 2) return 0;
     const spread = Math.max(...values) - Math.min(...values);
@@ -868,7 +886,7 @@ export function createSubPlan(
     const gkShortfall = fairPlayerIds
       .filter(id => isGkPlayer(id))
       .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
-    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000;
+    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000 + shortShiftCount * 5_000_000;
   };
 
   // Iterative fairness optimizer. Each pass tries every legal single-sub
