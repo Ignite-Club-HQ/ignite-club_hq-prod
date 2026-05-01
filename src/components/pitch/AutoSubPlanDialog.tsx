@@ -528,19 +528,28 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
+          // Build eligible list with current projected minutes.
+          const eligible: Array<{ id: string; idx: number; proj: number }> = [];
           for (let j = 0; j < onPitchOrder.length; j++) {
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
             if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
-            // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
-            // Protect recently-subbed-on players (<4 min on field).
             const onAt = lastSubbedOnAbs.get(candidate);
             if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
-            outId = candidate;
-            onPitchOrder.splice(j, 1);
-            break;
+            eligible.push({ id: candidate, idx: j, proj: projected.get(candidate) || 0 });
+          }
+          if (eligible.length > 0) {
+            const fifoFirst = eligible[0];
+            // If anyone on pitch is materially ahead of FIFO head (>60s),
+            // prefer pulling the highest-minutes player. This prevents
+            // never-subbed players (e.g. forwards last in the queue) from
+            // riding out the whole game on tiny squads.
+            const highest = [...eligible].sort((a, b) => b.proj - a.proj)[0];
+            const pick = (highest.proj - fifoFirst.proj > 60) ? highest : fifoFirst;
+            outId = pick.id;
+            onPitchOrder.splice(pick.idx, 1);
           }
         }
         if (!outId) break;
