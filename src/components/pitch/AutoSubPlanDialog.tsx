@@ -1290,6 +1290,10 @@ export function createSubPlan(
     const shortfallSpread = Math.max(...shortfallVals) - Math.min(...shortfallVals);
     const capBreached = shortfallSpread > escalationThreshold;
 
+    const isGkProtectedFreq = (id: string) =>
+      (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+      (halftimeGkIn ? id === halftimeGkIn.id : false);
+
     const benchQueue = outfieldPlayers
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
@@ -1299,6 +1303,15 @@ export function createSubPlan(
           const aS = shortfallsNow.get(a.id) ?? 0;
           const bS = shortfallsNow.get(b.id) ?? 0;
           if (Math.abs(aS - bS) > 15) return bS - aS;
+        }
+        // GK protection: bring protected players on first when both still owe minutes.
+        const aGk = isGkProtectedFreq(a.id) ? 1 : 0;
+        const bGk = isGkProtectedFreq(b.id) ? 1 : 0;
+        if (aGk !== bGk) {
+          const aProj = projectionsNow.get(a.id) ?? 0;
+          const bProj = projectionsNow.get(b.id) ?? 0;
+          if (aGk && aProj < gkCeilingTotal - 30) return -1;
+          if (bGk && bProj < gkCeilingTotal - 30) return 1;
         }
         // Default: pure FIFO queue order — longest-waiting bench player first.
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
