@@ -449,12 +449,14 @@ export function createSubPlan(
         // -------- Pick playerIn --------
         // Priority: lowest adjusted minutes first. This preserves simple
         // windows but makes Practical genuinely fair instead of queue-only.
-        // Use shortfall-aware threshold so keepers (with their priority bonus)
-        // keep qualifying as "under" until they've banked enough outfield time
-        // to land in the top half of total minutes.
+        // Effective threshold respects each player's priority bonus, so the 2H
+        // keeper (with their outfield bonus) keeps qualifying as "under" until
+        // they bank enough field time to land in the top half of total minutes.
+        const effectiveMinSec = (id: string) =>
+          minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
         const under = benchOrder
-          .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index), short: shortfall(id) }))
-          .filter(b => b.short > targetSecPerPlayer * (1 - PRACTICAL_MIN_THRESHOLD_RATIO))
+          .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
+          .filter(b => b.proj < effectiveMinSec(b.id))
           .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
