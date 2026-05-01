@@ -109,7 +109,7 @@ export default function PreGameLineupScreen({
     setOpenSection(prev => (prev === s ? null : s));
   }, []);
   const _rs = rotationSpeed ?? 1;
-  const subsSpeedLabel = _rs >= 2 ? "Frequent" : "Practical";
+  const subsSpeedLabel = _rs >= 2 ? "Frequent" : "Standard";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -641,7 +641,7 @@ export default function PreGameLineupScreen({
                     aria-label="Subs speed"
                   >
                     {[
-                      { value: 1, label: "Practical", Icon: List, hint: "Few subs, simple" },
+                      { value: 1, label: "Standard", Icon: List, hint: "Few subs, simple" },
                       { value: 2, label: "Frequent", Icon: Scale, hint: "2 subs / window" },
                     ].map(({ value, label, Icon, hint }) => {
                       const rs = rotationSpeed ?? 1;

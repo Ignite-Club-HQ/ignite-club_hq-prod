@@ -848,10 +848,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }), [members, teamPlayerPositions, miniLeagueTeams]);
 
   const savedPlayers = savedState?.players || [];
+  const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
+  const strictMatchRosterPlayerIds = useMemo(
+    () => new Set(realPlayers.map((player) => player.id)),
+    [realPlayers]
+  );
   const savedRosterMissingCurrentPlayers =
     savedPlayers.length > 0 && realPlayers.some((player) => !savedPlayers.some((savedPlayer) => savedPlayer.id === player.id));
+  const savedRosterHasPlayersOutsideCurrentRoster =
+    isStrictMatchEventRoster &&
+    savedPlayers.length > 0 &&
+    realPlayers.length > 0 &&
+    savedPlayers.some((player) => !strictMatchRosterPlayerIds.has(player.id));
   const savedRosterHasNoPlayersOnPitch =
     savedPlayers.length > 0 && savedPlayers.every((player) => player.position === null);
+  const applyStrictMatchRoster = useCallback((sourcePlayers: Player[]): Player[] => {
+    if (!isStrictMatchEventRoster || realPlayers.length === 0) return sourcePlayers;
+
+    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id));
+    const filteredIds = new Set(filteredPlayers.map((player) => player.id));
+    const missingCurrentPlayers = realPlayers
+      .filter((player) => !filteredIds.has(player.id))
+      .map((player) => ({ ...player, position: null, currentPitchPosition: undefined }));
+
+    return [...filteredPlayers, ...missingCurrentPlayers];
+  }, [isStrictMatchEventRoster, realPlayers, strictMatchRosterPlayerIds]);
+  const hasSamePlayerOrder = useCallback((a: Player[], b: Player[]) => (
+    a.length === b.length && a.every((player, index) => player.id === b[index]?.id)
+  ), []);
   const shouldRebuildFromRealRoster =
     !!savedState &&
     !savedState.mockMode &&
@@ -1172,7 +1196,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // source of truth for minute tracking. The catchup here was adding minutes
       // that handleTimerUpdate would ALSO add via its delta calculation, causing
       // double-counted player minutes (e.g. showing 15 min at 7 min game time).
-      return savedState.players;
+      return applyStrictMatchRoster(savedState.players);
     }
     if (savedState && !savedState.mockMode && realPlayers.length > 0) {
       console.log("[PitchState] useState init - ignoring stale empty saved state and using real players");
@@ -1192,7 +1216,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep playersRef in sync with players state (for use in effects with stale closures)
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
-  
+
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
@@ -1345,6 +1369,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
 
+  useEffect(() => {
+    if (!isStrictMatchEventRoster || mockMode || realPlayers.length === 0) return;
+
+    setPlayers(prev => {
+      const filtered = applyStrictMatchRoster(prev);
+      return hasSamePlayerOrder(prev, filtered) ? prev : filtered;
+    });
+  }, [isStrictMatchEventRoster, mockMode, realPlayers.length, applyStrictMatchRoster, hasSamePlayerOrder]);
+
   // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
   useEffect(() => {
     if (mockMode || realPlayers.length === 0) return;
@@ -1380,7 +1413,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
         : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
     );
-  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasNoPlayersOnPitch]);
+  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasPlayersOutsideCurrentRoster, savedRosterHasNoPlayersOnPitch]);
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
@@ -1474,10 +1507,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // We have saved state with real players - check if we need to merge new real players
       const savedPlayerIds = new Set(savedState.players.map(p => p.id));
       const newPlayers = realPlayers.filter(p => !savedPlayerIds.has(p.id));
+      if (isStrictMatchEventRoster && savedRosterHasPlayersOutsideCurrentRoster) {
+        setPlayers(prev => applyStrictMatchRoster(prev));
+      }
       
       // If there are new players not in saved state, add them
       if (newPlayers.length > 0) {
-        setPlayers(prev => [...prev, ...newPlayers]);
+        setPlayers(prev => applyStrictMatchRoster([...prev, ...newPlayers]));
       }
       
       hasLoadedRef.current = true;
@@ -1494,7 +1530,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setHasInitialized(true);
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
-  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
+  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation, isStrictMatchEventRoster, savedRosterHasPlayersOutsideCurrentRoster, applyStrictMatchRoster]);
 
   // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
   const handleLineupSkip = useCallback(() => {

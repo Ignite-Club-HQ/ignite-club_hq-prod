@@ -429,22 +429,56 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers, team?.clubs?.bot_user_id]);
 
-  const pitchBoardMembers = useMemo(() => [
-    ...rawMembers.map(m => ({
-      id: m.id,
-      user_id: m.user_id,
-      role: m.role,
-      profiles: m.profiles,
-    })),
-    ...teamChildren
+  // When the pitch board is opened in the context of a match (linkedEventId
+  // set by the "nearby game" detection), restrict the roster to players whose
+  // RSVP for that event is "going". Adults (staff) are always retained so they
+  // can run the board. Without an event link we keep the full roster.
+  const { data: goingRsvpsForLinkedEvent } = useQuery({
+    queryKey: ["pitch-board-going-rsvps", linkedEventId],
+    queryFn: async () => {
+      if (!linkedEventId) return null;
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("user_id, child_id, status")
+        .eq("event_id", linkedEventId)
+        .eq("status", "going");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!linkedEventId,
+    staleTime: 30_000,
+  });
+
+  const pitchBoardMembers = useMemo(() => {
+    const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
+    const goingChildIds = goingRsvpsForLinkedEvent
+      ? new Set(goingRsvpsForLinkedEvent.map(r => r.child_id).filter((v): v is string => !!v))
+      : null;
+    const goingAdultIds = goingRsvpsForLinkedEvent
+      ? new Set(goingRsvpsForLinkedEvent.map(r => r.user_id).filter((v): v is string => !!v))
+      : null;
+
+    const adults = rawMembers
+      .filter(m => !goingAdultIds || STAFF_ROLES.has(m.role) || goingAdultIds.has(m.user_id))
+      .map(m => ({
+        id: m.id,
+        user_id: m.user_id,
+        role: m.role,
+        profiles: m.profiles,
+      }));
+
+    const children = teamChildren
       .filter(child => child.children)
+      .filter(child => !goingChildIds || goingChildIds.has(child.children.id))
       .map(child => ({
         id: `child-${child.children.id}`,
         user_id: child.children.id,
         role: "player" as string,
         profiles: { display_name: child.children.name, avatar_url: null },
-      })),
-  ], [rawMembers, teamChildren]);
+      }));
+
+    return [...adults, ...children];
+  }, [rawMembers, teamChildren, goingRsvpsForLinkedEvent]);
 
   const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
@@ -1332,15 +1366,32 @@ export default function TeamDetailPage() {
               variant="outline"
               className="w-full h-9 text-xs font-medium justify-start gap-2"
               onClick={async () => {
-                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
+                const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
+                  refetchMembers(),
+                  refetchChildren(),
+                  findNearbyGameEvent(id!),
+                ]);
                 const freshMembers = membersResult.data || [];
                 const freshChildren = childrenResult.data || [];
+                let goingChildIds: Set<string> | null = null;
+                let goingAdultIds: Set<string> | null = null;
+                if (nearbyEventId) {
+                  const { data: goingRows } = await supabase
+                    .from("rsvps")
+                    .select("user_id, child_id")
+                    .eq("event_id", nearbyEventId)
+                    .eq("status", "going");
+                  goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
+                  goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
+                }
+                const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
                 const nextPitchBoardMembers = [
-                  ...freshMembers.map(m => ({
+                  ...freshMembers.filter(m => !goingAdultIds || STAFF_ROLES.has(m.role) || goingAdultIds.has(m.user_id)).map(m => ({
                     id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
                   })),
                   ...freshChildren
                     .filter(child => child.children)
+                    .filter(child => !goingChildIds || goingChildIds.has(child.children.id))
                     .map(child => ({
                       id: `child-${child.children.id}`, user_id: child.children.id,
                       role: "player" as string,
@@ -1348,7 +1399,6 @@ export default function TeamDetailPage() {
                     })),
                 ];
                 setPitchBoardMembersOverride(nextPitchBoardMembers);
-                const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
               }}
