@@ -873,6 +873,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     return [...filteredPlayers, ...missingCurrentPlayers];
   }, [isStrictMatchEventRoster, realPlayers, strictMatchRosterPlayerIds]);
+  const hasSamePlayerOrder = useCallback((a: Player[], b: Player[]) => (
+    a.length === b.length && a.every((player, index) => player.id === b[index]?.id)
+  ), []);
   const shouldRebuildFromRealRoster =
     !!savedState &&
     !savedState.mockMode &&
