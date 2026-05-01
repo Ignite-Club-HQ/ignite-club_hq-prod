@@ -467,10 +467,11 @@ function createSubPlan(
     : 0;
   const rawFieldTargets = new Map<string, number>();
   outfieldPlayers.forEach(p => {
-    rawFieldTargets.set(
-      p.id,
-      Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id))
-    );
+    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+    // Give GKs a slightly larger raw field target so the proportional
+    // scheduler hands them more outfield minutes during their non-GK half.
+    const boosted = isGkPlayer(p.id) ? base + GK_FIELD_PRIORITY_BONUS_SECONDS : base;
+    rawFieldTargets.set(p.id, boosted);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
   const fieldTargetScale = rawTargetTotal > 0 ? totalFieldSeconds / rawTargetTotal : 1;
