@@ -300,25 +300,32 @@ export function createSubPlan(
     // Rolling FIFO queues seeded from current state.
     // benchQueue: index 0 = next on. pitchQueue: index 0 = next off.
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
-    const benchOrder: string[] = outfieldOnBench.map(p => p.id);
+    // Exclude the nominated H2 GK from the outfield bench queue — they're
+    // earmarked for the GK slot at half-time, not for outfield rotation.
+    const benchOrder: string[] = outfieldOnBench
+      .filter(p => !halftimeGkIn || p.id !== halftimeGkIn.id)
+      .map(p => p.id);
 
     const halfTimeAbs = halfDurationSeconds;
     const willGkSwapAtHt =
       rotateGkAtHalftime && startHalf === 1 && !!gkOnPitch && !!halftimeGkIn;
 
+    let gkSwapApplied = false;
     for (const t of windowTimes) {
-      // If the halftime GK swap brings a current bench player onto the pitch,
-      // and we're in H2, treat that player as "just came on" — they shouldn't
-      // be the next out. We approximate by rotating them to the back of pitch.
-      if (willGkSwapAtHt && t > halfTimeAbs) {
-        const inId = halftimeGkIn!.id;
-        if (!onPitchOrder.includes(inId)) {
-          // Push to back so they're not next off.
-          onPitchOrder.push(inId);
-        }
-        const outId = gkOnPitch!.id;
-        const idx = onPitchOrder.indexOf(outId);
+      // At the first window after half-time, apply the GK swap to the queues:
+      // remove the starting GK from pitch (they become a bench-eligible
+      // outfielder for H2), and add the H2 GK onto the pitch (back of queue).
+      if (willGkSwapAtHt && !gkSwapApplied && t > halfTimeAbs) {
+        const startingGkId = gkOnPitch!.id;
+        const h2GkId = halftimeGkIn!.id;
+        // Remove starting GK from pitch ordering (was never there as outfield).
+        const idx = onPitchOrder.indexOf(startingGkId);
         if (idx >= 0) onPitchOrder.splice(idx, 1);
+        // H2 GK is now on the pitch as goalkeeper — not subject to outfield
+        // rotation, so we don't add them to onPitchOrder.
+        // Starting GK joins the bench queue (longest-waiting → next on).
+        if (!benchOrder.includes(startingGkId)) benchOrder.unshift(startingGkId);
+        gkSwapApplied = true;
       }
 
       const swaps = Math.min(subsPerWindow, onPitchOrder.length, benchOrder.length);
