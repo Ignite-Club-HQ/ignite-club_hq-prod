@@ -473,7 +473,7 @@ function createSubPlan(
 
   const startAbsoluteSeconds = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
   const endAbsoluteSeconds = halfDurationSeconds * 2;
-  const maxIntervalSeconds = rotationSpeed === 3 ? 120 : rotationSpeed === 1 ? 240 : 180;
+  const maxIntervalSeconds = rotationSpeed === 3 ? 90 : rotationSpeed === 1 ? 180 : 120;
   const directEventTimes = new Set<number>();
 
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
@@ -492,6 +492,17 @@ function createSubPlan(
     if (includeStartingGkInRotation && player.id === gkOnPitch?.id && intervalStart < halfDurationSeconds) return false;
     if (halftimeGkIn && player.id === halftimeGkIn.id && intervalEnd >= halfDurationSeconds) return false;
     return true;
+  };
+
+  const remainingAvailabilitySeconds = (player: Player, intervalStart: number) => {
+    const start = Math.max(intervalStart, startAbsoluteSeconds);
+    if (includeStartingGkInRotation && player.id === gkOnPitch?.id) {
+      return Math.max(1, endAbsoluteSeconds - Math.max(start, halfDurationSeconds));
+    }
+    if (halftimeGkIn && player.id === halftimeGkIn.id) {
+      return Math.max(1, halfDurationSeconds - Math.min(start, halfDurationSeconds));
+    }
+    return Math.max(1, endAbsoluteSeconds - start);
   };
 
   const addFieldTime = (elapsed: number) => {
@@ -525,8 +536,10 @@ function createSubPlan(
     candidates.sort((a, b) => {
       const aNeed = targetFieldSeconds(a.id) - (currentFieldSeconds.get(a.id) || 0);
       const bNeed = targetFieldSeconds(b.id) - (currentFieldSeconds.get(b.id) || 0);
-      const aScore = aNeed - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
-      const bScore = bNeed - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
+      const aUrgency = aNeed / remainingAvailabilitySeconds(a, intervalStart);
+      const bUrgency = bNeed / remainingAvailabilitySeconds(b, intervalStart);
+      const aScore = aUrgency * 1000 + aNeed * 0.01 - intervalLength + (a.id === currentSlotPlayerId ? 20 : 0);
+      const bScore = bUrgency * 1000 + bNeed * 0.01 - intervalLength + (b.id === currentSlotPlayerId ? 20 : 0);
       return bScore - aScore;
     });
 
