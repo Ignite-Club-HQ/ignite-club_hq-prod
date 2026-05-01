@@ -641,172 +641,151 @@ function createSubPlan(
     }
   }
   
-  plan.sort((a, b) => {
-    if (a.half !== b.half) return a.half - b.half;
-    return a.time - b.time;
-  });
-  
-  // FAIRNESS SIMULATION PASS: verify max-min playing time spread
-  // If spread exceeds 20% of ideal time, add corrective subs
-  const simOnPitch = new Map<string, PitchPosition>();
-  outfieldOnPitch.forEach(p => simOnPitch.set(p.id, p.currentPitchPosition as PitchPosition));
-  const simTime = new Map<string, number>();
-  outfieldPlayers.forEach(p => simTime.set(p.id, p.minutesPlayed || 0));
-  
-  // Simulate the plan
-  let simLastTime = startHalf === 1 ? startElapsedSeconds : startElapsedSeconds;
-  let simLastHalf = startHalf;
-  for (const sub of plan) {
-    // Advance time for on-pitch players
-    let elapsed = 0;
-    if (sub.half === simLastHalf) {
-      elapsed = sub.time - simLastTime;
-    } else {
-      // Half changed: add remaining time from first half + time into second half
-      elapsed = (halfDurationSeconds - simLastTime) + sub.time;
-    }
-    if (elapsed > 0) {
-      simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + elapsed));
-    }
-    simLastTime = sub.time;
-    simLastHalf = sub.half;
-    
-    // Apply the sub — track positions through simulation, not from the main algo's final state
-    const outPos = simOnPitch.get(sub.playerOut.id);
-    simOnPitch.delete(sub.playerOut.id);
-    if (sub.positionSwap) {
-      // Incoming player takes the swap player's position
-      const swapFromPos = simOnPitch.get(sub.positionSwap.player.id);
-      if (swapFromPos) simOnPitch.set(sub.playerIn.id, swapFromPos);
-      // Swap player moves to the outgoing player's position
-      if (outPos) simOnPitch.set(sub.positionSwap.player.id, outPos);
-    } else {
-      if (outPos) simOnPitch.set(sub.playerIn.id, outPos);
-    }
-  }
-  // Add remaining game time
-  const endElapsed = halfDurationSeconds - simLastTime;
-  if (endElapsed > 0) simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + endElapsed));
-  if (simLastHalf === 1) {
-    // Add full second half
-    simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + halfDurationSeconds));
-  }
-  
-  // ITERATIVE FAIRNESS PASS: rebalance by swapping sub targets in existing plan
-  // rather than just appending corrective subs at the end. This redistributes
-  // minutes across the whole match so no player ends up 5+ minutes ahead of
-  // the bottom of the pack.
-  //
-  // Strategy: for each pair of (overplayed, underplayed) outfield players,
-  // find an existing sub where overplayed is the playerIn (coming on) or
-  // playerOut (going off) and re-route it to involve underplayed instead.
-  const recomputeSimTimes = (): Map<string, number> => {
+  const isHalftimeGkSwapSub = (sub: SubstitutionEvent) =>
+    !!gkOnPitch && sub.half === 2 && sub.time === 0 && sub.playerOut.id === gkOnPitch.id;
+
+  const sortPlan = () => {
+    plan.sort((a, b) => {
+      if (a.half !== b.half) return a.half - b.half;
+      if (a.time !== b.time) return a.time - b.time;
+      // The GK change must happen before any other halftime subs so the H2 GK
+      // is removed from the outfield rotation before normal subs are applied.
+      if (isHalftimeGkSwapSub(a) !== isHalftimeGkSwapSub(b)) {
+        return isHalftimeGkSwapSub(a) ? -1 : 1;
+      }
+      return 0;
+    });
+  };
+
+  sortPlan();
+
+  type SimulationSnapshot = {
+    index: number;
+    sub: SubstitutionEvent;
+    before: Map<string, PitchPosition>;
+  };
+
+  const canPlayPosition = (player: Player, position?: PitchPosition) =>
+    !!position && (!player.assignedPositions?.length || player.assignedPositions.includes(position));
+
+  const simulateOutfieldPlan = (candidatePlan: SubstitutionEvent[]) => {
     const t = new Map<string, number>();
     outfieldPlayers.forEach(p => t.set(p.id, p.minutesPlayed || 0));
+
     const onP = new Map<string, PitchPosition>();
     outfieldOnPitch.forEach(p => onP.set(p.id, p.currentPitchPosition as PitchPosition));
-    let lt = startHalf === 1 ? startElapsedSeconds : startElapsedSeconds;
+
+    const snapshots: SimulationSnapshot[] = [];
+    let valid = true;
+    let lt = startElapsedSeconds;
     let lh: 1 | 2 = startHalf;
-    for (const sub of plan) {
-      let elapsed = 0;
-      if (sub.half === lh) elapsed = sub.time - lt;
-      else elapsed = (halfDurationSeconds - lt) + sub.time;
-      if (elapsed > 0) onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + elapsed));
+
+    candidatePlan.forEach((sub, index) => {
+      const elapsed = sub.half === lh
+        ? sub.time - lt
+        : (halfDurationSeconds - lt) + sub.time;
+
+      if (elapsed < 0) valid = false;
+      if (elapsed > 0) {
+        onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + elapsed));
+      }
+
       lt = sub.time;
       lh = sub.half;
+      snapshots.push({ index, sub, before: new Map(onP) });
+
+      if (isHalftimeGkSwapSub(sub)) {
+        // This is a goalkeeping change, not an outfield substitution. If the
+        // incoming GK was playing outfield in H1, remove them from field play.
+        onP.delete(sub.playerIn.id);
+        return;
+      }
+
       const outPos = onP.get(sub.playerOut.id);
+      if (!outPos || onP.has(sub.playerIn.id)) {
+        valid = false;
+      }
+
       onP.delete(sub.playerOut.id);
       if (sub.positionSwap) {
         const swapFromPos = onP.get(sub.positionSwap.player.id);
+        if (!swapFromPos || !canPlayPosition(sub.playerIn, swapFromPos) || !canPlayPosition(sub.positionSwap.player, outPos)) {
+          valid = false;
+        }
         if (swapFromPos) onP.set(sub.playerIn.id, swapFromPos);
         if (outPos) onP.set(sub.positionSwap.player.id, outPos);
-      } else {
-        if (outPos) onP.set(sub.playerIn.id, outPos);
+      } else if (outPos) {
+        if (!canPlayPosition(sub.playerIn, outPos)) valid = false;
+        onP.set(sub.playerIn.id, outPos);
       }
-    }
+    });
+
     const endE = halfDurationSeconds - lt;
     if (endE > 0) onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + endE));
     if (lh === 1) onP.forEach((_, id) => t.set(id, (t.get(id) || 0) + halfDurationSeconds));
-    return t;
+
+    return { times: t, snapshots, valid };
   };
 
-  // Non-GK outfield players for fairness comparison (GKs are intentionally
-  // boosted via the priority bonus and tracked separately).
+  // ITERATIVE FAIRNESS PASS: make legal, state-aware edits only. The previous
+  // pass could miss cases where the overplayed player never appeared as a
+  // matching `playerIn`/`playerOut`. Here we inspect the actual pitch state at
+  // each sub window and replace that window with `overplayed off, underplayed on`.
   const fairnessTargets = outfieldPlayers.filter(p => !isGkPlayer(p.id));
-  const FAIRNESS_TOLERANCE = 60; // accept spread up to 1 minute
-  const MAX_REBALANCE_ITERATIONS = 8;
+  const FAIRNESS_TOLERANCE = 30; // avoids rounded forecasts still showing a multi-minute gap
+  const MAX_REBALANCE_ITERATIONS = 24;
+
+  const fairnessSpread = (times: Map<string, number>) => {
+    const values = fairnessTargets.map(p => times.get(p.id) || 0);
+    if (values.length < 2) return 0;
+    return Math.max(...values) - Math.min(...values);
+  };
 
   for (let iter = 0; iter < MAX_REBALANCE_ITERATIONS; iter++) {
-    const times = recomputeSimTimes();
-    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: times.get(p.id) || 0 }));
+    const sim = simulateOutfieldPlan(plan);
+    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: sim.times.get(p.id) || 0 }));
     if (ftimes.length < 2) break;
+
     ftimes.sort((a, b) => b.t - a.t);
     const over = ftimes[0];
     const under = ftimes[ftimes.length - 1];
-    const spread = over.t - under.t;
-    if (spread <= FAIRNESS_TOLERANCE) break;
+    const currentSpread = over.t - under.t;
+    if (currentSpread <= FAIRNESS_TOLERANCE) break;
 
-    // Try to find a sub we can re-route to give `under` more minutes at
-    // `over`'s expense. Two options:
-    //   A) A sub where `over` comes ON — replace with `under` coming on instead.
-    //   B) A sub where `under` goes OFF — replace with `over` going off instead.
-    // Prefer the one that produces the largest reduction in spread.
-    let bestEdit: { idx: number; type: 'in' | 'out' } | null = null;
-    let bestNewSpread = spread;
+    const overPlayer = getPlayer(over.id);
+    const underPlayer = getPlayer(under.id);
+    if (!overPlayer || !underPlayer) break;
 
-    for (let i = 0; i < plan.length; i++) {
-      const sub = plan[i];
-      // Option A: over is the incoming player → swap with under (under must
-      // not already be on pitch at that moment, but we approximate by
-      // checking that under is not the playerOut of this same sub).
-      if (sub.playerIn.id === over.id && sub.playerOut.id !== under.id) {
-        const underPlayer = getPlayer(under.id);
-        if (underPlayer) {
-          const positionOk = !underPlayer.assignedPositions?.length ||
-            (sub.positionSwap
-              ? underPlayer.assignedPositions.includes(sub.positionSwap.fromPosition)
-              : true); // we don't know exact pos here; allow and let sim verify
-          if (positionOk) {
-            const original = plan[i];
-            plan[i] = { ...sub, playerIn: underPlayer, positionSwap: undefined };
-            const newTimes = recomputeSimTimes();
-            const nf = fairnessTargets.map(p => newTimes.get(p.id) || 0);
-            const ns = Math.max(...nf) - Math.min(...nf);
-            if (ns < bestNewSpread) {
-              bestNewSpread = ns;
-              bestEdit = { idx: i, type: 'in' };
-            }
-            plan[i] = original;
-          }
-        }
-      }
-      // Option B: under is the outgoing player → swap with over going off
-      if (sub.playerOut.id === under.id && sub.playerIn.id !== over.id) {
-        const overPlayer = getPlayer(over.id);
-        if (overPlayer) {
-          const original = plan[i];
-          plan[i] = { ...sub, playerOut: overPlayer, positionSwap: undefined };
-          const newTimes = recomputeSimTimes();
-          const nf = fairnessTargets.map(p => newTimes.get(p.id) || 0);
-          const ns = Math.max(...nf) - Math.min(...nf);
-          if (ns < bestNewSpread) {
-            bestNewSpread = ns;
-            bestEdit = { idx: i, type: 'out' };
-          }
-          plan[i] = original;
-        }
+    let bestEdit: { index: number; replacement: SubstitutionEvent; spread: number } | null = null;
+
+    for (const snapshot of sim.snapshots) {
+      const sub = plan[snapshot.index];
+      if (!sub || isHalftimeGkSwapSub(sub)) continue;
+      if (!snapshot.before.has(over.id) || snapshot.before.has(under.id)) continue;
+
+      const overPosition = snapshot.before.get(over.id);
+      if (!canPlayPosition(underPlayer, overPosition)) continue;
+
+      const replacement: SubstitutionEvent = {
+        ...sub,
+        playerOut: overPlayer,
+        playerIn: underPlayer,
+        positionSwap: undefined,
+      };
+
+      const original = plan[snapshot.index];
+      plan[snapshot.index] = replacement;
+      const trial = simulateOutfieldPlan(plan);
+      const spread = trial.valid ? fairnessSpread(trial.times) : currentSpread;
+      plan[snapshot.index] = original;
+
+      if (trial.valid && spread < (bestEdit?.spread ?? currentSpread)) {
+        bestEdit = { index: snapshot.index, replacement, spread };
       }
     }
 
     if (!bestEdit) break;
-    const sub = plan[bestEdit.idx];
-    if (bestEdit.type === 'in') {
-      const underPlayer = getPlayer(under.id)!;
-      plan[bestEdit.idx] = { ...sub, playerIn: underPlayer, positionSwap: undefined };
-    } else {
-      const overPlayer = getPlayer(over.id)!;
-      plan[bestEdit.idx] = { ...sub, playerOut: overPlayer, positionSwap: undefined };
-    }
+    plan[bestEdit.index] = bestEdit.replacement;
   }
 
   plan.sort((a, b) => {
