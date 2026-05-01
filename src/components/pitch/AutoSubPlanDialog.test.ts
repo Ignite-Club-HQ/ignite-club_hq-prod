@@ -103,9 +103,10 @@ describe("createSubPlan", () => {
     const practical = createSubPlan(players as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);
     expect(practical.length, `practical subs ${practical.length}`).toBeLessThanOrEqual(25);
 
-    // Practical fairness floor: no outfield player below 75% of target.
-    // (The 2H GK ("Maximus") is excluded because their guaranteed half-game
-    //  GK shift counts toward fairness even though it's not outfield time.)
+    // Practical fairness floor: no outfield player below 75% of target,
+    // INCLUDING the 2H GK (Maximus). The keeper's guaranteed half-game GK
+    // shift counts toward total time, plus they must get enough outfield
+    // minutes in 1H to land in the top half of total minutes.
     const practicalTotals = simulateTotals(players, practical, halfSec);
     const fieldPositions = players.filter(p => p.position && p.currentPitchPosition !== "GK").length;
     const outfield = players.filter(
@@ -115,9 +116,18 @@ describe("createSubPlan", () => {
     const minSec = targetSec * 0.75;
     const outfieldIds = new Set(outfield.map(p => p.id));
     const lows = [...practicalTotals.entries()]
-      .filter(([id]) => outfieldIds.has(id) && id !== "Maximus")
+      .filter(([id]) => outfieldIds.has(id))
       .filter(([, sec]) => sec < minSec);
     expect(lows, `players below 75% floor: ${lows.map(([id, s]) => `${id}=${(s/60).toFixed(1)}'`).join(", ")}`).toEqual([]);
+
+    // 2H keeper (Maximus) must finish in the top half of total minutes.
+    const sortedTotals = [...practicalTotals.entries()]
+      .filter(([id]) => outfieldIds.has(id))
+      .sort((a, b) => b[1] - a[1]);
+    const maxIdx = sortedTotals.findIndex(([id]) => id === "Maximus");
+    const median = Math.floor(sortedTotals.length / 2);
+    expect(maxIdx, `Maximus rank = ${maxIdx + 1}/${sortedTotals.length}`).toBeLessThan(median);
+
     const practicalSpread = (Math.max(...practicalTotals.values()) - Math.min(...practicalTotals.values())) / 60;
     expect(practicalSpread, `practical spread = ${practicalSpread.toFixed(1)}'`).toBeLessThanOrEqual(6);
 
