@@ -174,16 +174,16 @@ export const normalizeRotationSpeed = (speed: number | null | undefined): number
 };
 
 /** Target gap between Practical-mode sub windows (seconds). Tightened so
- *  spread stays within ~5 min on short (≤40 min) games. */
-const PRACTICAL_SUB_INTERVAL_SECONDS = 4 * 60;
+ *  spread stays within ~4 min on short (≤40 min) games. */
+const PRACTICAL_SUB_INTERVAL_SECONDS = 3 * 60;
 /** Maximum players swapped in a single Practical-mode window. */
 const PRACTICAL_MAX_SUBS_PER_WINDOW = 2;
 /** Fairness floor: players projected below this fraction of target minutes
  *  jump to the front of the bench queue (priority-aware FIFO). */
-const PRACTICAL_MIN_THRESHOLD_RATIO = 0.9;
+const PRACTICAL_MIN_THRESHOLD_RATIO = 0.95;
 /** Soft cap: players projected above this fraction of target minutes are
- *  prioritised to come OFF next. */
-const PRACTICAL_MAX_THRESHOLD_RATIO = 1.08;
+ *  prioritised to come OFF next AND blocked from coming ON. */
+const PRACTICAL_MAX_THRESHOLD_RATIO = 1.05;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
 const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 3 * 60;
@@ -297,11 +297,18 @@ export function createSubPlan(
     );
 
     // ---- Fairness model ------------------------------------------------------
-    // Target minutes per player across the WHOLE game (so existing minutes from
-    // mid-game starts are accounted for naturally).
+    // Each player gets a personal TOTAL-time target (outfield + guaranteed GK).
+    // Players with guaranteed GK shifts (starting GK in H1, halftimeGkIn in H2)
+    // already accumulate ~halfDurationSeconds of locked time, so we DON'T want
+    // their outfield share to push them well above an even split. By using
+    // total-time-per-player as the target, the over-cap rule will keep their
+    // outfield minutes low (they already get GK time) and free up outfield
+    // minutes for non-GK players — narrowing the spread.
     const fullGameSec = halfDurationSeconds * 2;
     const totalFieldSec = fullGameSec * fieldPositions;
-    const targetSecPerPlayer = totalFieldSec / Math.max(totalOutfieldPlayers, 1);
+    // Total minutes "available" across all players = field time + GK time.
+    const totalAvailableSec = totalFieldSec + fullGameSec; // +GK seat across whole game
+    const targetSecPerPlayer = totalAvailableSec / Math.max(totalOutfieldPlayers + (gkOnPitch && !includeStartingGkInRotation ? 1 : 0), 1);
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
 
@@ -414,7 +421,9 @@ export function createSubPlan(
 
         // -------- Pick playerIn --------
         // Priority: (1) any bench player below the floor — lowest minutes first.
-        //           (2) otherwise FIFO (front of bench queue).
+        //           (2) otherwise FIFO from bench, but skip anyone already
+        //               above the soft cap (prevents re-subbing high-minute
+        //               players onto the field).
         const under = benchOrder
           .map(id => ({ id, proj: projected.get(id) || 0 }))
           .filter(b => b.proj < minThresholdSec)
@@ -426,7 +435,15 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          inId = benchOrder.shift();
+          // FIFO but skip over-cap players first.
+          const fifoIdx = benchOrder.findIndex(
+            id => (projected.get(id) || 0) <= maxThresholdSec
+          );
+          if (fifoIdx >= 0) {
+            inId = benchOrder.splice(fifoIdx, 1)[0];
+          } else {
+            inId = benchOrder.shift();
+          }
         }
 
         if (!inId) {
