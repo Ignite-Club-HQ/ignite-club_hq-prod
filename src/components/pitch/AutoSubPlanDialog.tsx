@@ -1401,12 +1401,17 @@ export function createSubPlan(
       // player is still below ceiling. The bench-time stays available for
       // the GK in a later window.
       const nonGkFloor = sharedTotalTarget - spreadHalfSec;
-      const anyGkBelowCeiling = outfieldPlayers.some(
-        p => isGkProtectedFreq(p.id) && bankedTotal(p.id) < gkCeilingTotal - 30,
+      // Only block non-GK subs-in when a GK-protected player is currently
+      // available for outfield duty in this window — otherwise we'd starve
+      // the rotation entirely (e.g. H1 GK can't take outfield until H2).
+      const anyGkAvailableBelowCeiling = outfieldPlayers.some(
+        p => isGkProtectedFreq(p.id)
+          && bankedTotal(p.id) < gkCeilingTotal - 30
+          && isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds),
       );
       if (
         !inIsProtected &&
-        anyGkBelowCeiling &&
+        anyGkAvailableBelowCeiling &&
         bankedTotal(playerIn.id) >= nonGkFloor - 30
       ) {
         continue;
