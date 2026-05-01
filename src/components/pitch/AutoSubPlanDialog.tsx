@@ -1378,6 +1378,7 @@ export function createSubPlan(
       // Hard refusal: never make the spread worse (incoming player already above target).
       if (gapBefore < 0) continue;
 
+      if (process.env.DBG_FREQ) console.log(`[FREQ ${absoluteSeconds}s] OUT=${playerOut.name}(p=${(projectionsNow.get(playerOut.id)||0).toFixed(0)},sf=${(shortfallsNow.get(playerOut.id)||0).toFixed(0)}) IN=${playerIn.name}(p=${(projectionsNow.get(playerIn.id)||0).toFixed(0)},sf=${(shortfallsNow.get(playerIn.id)||0).toFixed(0)}) breach=${capBreached} elig=[${eligibleSlots.map(e => `${e.playerOut!.name}:sf${(shortfallsNow.get(e.playerOut!.id)||0).toFixed(0)}`).join(",")}]`);
       usedSlotIndexes.add(chosenSlot.index);
       usedInIds.add(playerIn.id);
       selectedSubs.push({ slotIndex: chosenSlot.index, playerOut, playerIn });
