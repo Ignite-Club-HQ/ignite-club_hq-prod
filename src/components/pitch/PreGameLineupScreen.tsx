@@ -109,7 +109,7 @@ export default function PreGameLineupScreen({
     setOpenSection(prev => (prev === s ? null : s));
   }, []);
   const _rs = rotationSpeed ?? 1;
-  const subsSpeedLabel = _rs >= 3 ? "Frequent" : _rs === 2 ? "Balanced" : "Practical";
+  const subsSpeedLabel = _rs >= 2 ? "Frequent" : "Practical";
 
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -642,11 +642,10 @@ export default function PreGameLineupScreen({
                   >
                     {[
                       { value: 1, label: "Practical", Icon: List, hint: "Few subs, simple" },
-                      { value: 2, label: "Balanced", Icon: Scale, hint: "2 subs / window" },
-                      { value: 3, label: "Frequent", Icon: Equal, hint: "3 subs / window" },
+                      { value: 2, label: "Frequent", Icon: Scale, hint: "2 subs / window" },
                     ].map(({ value, label, Icon, hint }) => {
                       const rs = rotationSpeed ?? 1;
-                      const normalised = rs >= 3 ? 3 : rs === 2 ? 2 : 1;
+                      const normalised = rs >= 2 ? 2 : 1;
                       const active = normalised === value;
                       return (
                         <button
