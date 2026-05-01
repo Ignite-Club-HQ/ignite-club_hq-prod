@@ -184,10 +184,6 @@ const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next AND blocked from coming ON. */
 const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
-/** GK priority weighting (~+4 min on a 40 min / 7-a-side / 11-player match).
- *  Keeps keepers at or slightly above the squad average without starving
- *  outfield players. */
-const PRACTICAL_GK_PRIORITY_RATIO = 0.16;
 /** No subs before this minute mark from kickoff (settling-in window). */
 const PRACTICAL_NO_SUB_BEFORE_SECONDS = 5 * 60;
 /** No subs in this trailing window of each half. */
@@ -313,14 +309,13 @@ export function createSubPlan(
     // targetSec = (gameDuration × playersOnField) / totalPlayers
     // minThreshold = 0.75 × target — fairness floor (override FIFO)
     // maxThreshold = 1.20 × target — soft cap (prioritise OFF, block ON)
-    // GK rotation players get a +12% priority weighting on top of target so
-    // they finish at or slightly above the squad average.
+    // GK priority is handled with protected outfield runs either side of the
+    // halftime keeper swap, without adding double-credit on top of GK minutes.
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
-    const gkPriorityBonusSec = targetSecPerPlayer * PRACTICAL_GK_PRIORITY_RATIO;
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -384,14 +379,20 @@ export function createSubPlan(
       baseWindowTimes.push(Math.floor(t));
     }
     const forcedInByWindow = new Map<number, string>();
+    const forcedOutByWindow = new Map<number, string>();
+    let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
+      halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
       });
       if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
         forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      }
+      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
+        forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
       }
     }
     if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
@@ -401,9 +402,15 @@ export function createSubPlan(
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
       }
     }
+    if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
+      const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
+      if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
+        baseWindowTimes.push(Math.floor(h2FairnessRescue));
+      }
+    }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
-      .filter(t => forcedInByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
+      .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
       .sort((a, b) => a - b);
     baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
     baseWindowTimes.sort((a, b) => a - b);
@@ -435,7 +442,7 @@ export function createSubPlan(
 
       // Rescue check: if any bench player is currently below the floor and
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
-      const isForcedGkWindow = forcedInByWindow.has(t);
+      const isForcedGkWindow = forcedInByWindow.has(t) || forcedOutByWindow.has(t);
       const benchUnder = benchOrder.filter(
         id => (projected.get(id) || 0) < minThresholdSec
       );
@@ -489,6 +496,8 @@ export function createSubPlan(
             const onAt = lastSubbedOnAbs.get(id);
             return onAt === undefined || (t - onAt) >= PRACTICAL_RECENT_SUB_PROTECTION_SECONDS;
           })
+          // Keep the nominated 2H GK on until their planned pre-halftime bench window.
+          .filter(id => id !== halftimeGkIn?.id || halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs)
           // Keepers may be subbed off via over-cap once they've cleared the
           // fairness floor — their 20 min in goal already puts them well above.
           .filter(id => !isKeeperRotationPlayer(id) || (projected.get(id) || 0) >= effectiveMinSec(id))
@@ -496,12 +505,16 @@ export function createSubPlan(
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
+        const forcedOutId = forcedOutByWindow.get(t);
         const h2GkNeedsBenchForHalftime = halftimeGkIn?.id &&
-          t < halfTimeAbs &&
-          t >= halfTimeAbs - intervalSec - 30 &&
+          (halftimeGkBenchByAbs === null || t >= halftimeGkBenchByAbs) &&
           !windowIns.has(halftimeGkIn.id) &&
           onPitchOrder.includes(halftimeGkIn.id);
-        if (h2GkNeedsBenchForHalftime) {
+        if (forcedOutId && onPitchOrder.includes(forcedOutId) && !windowIns.has(forcedOutId)) {
+          outId = forcedOutId;
+          const idx = onPitchOrder.indexOf(outId);
+          if (idx >= 0) onPitchOrder.splice(idx, 1);
+        } else if (h2GkNeedsBenchForHalftime) {
           outId = halftimeGkIn!.id;
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
@@ -514,6 +527,7 @@ export function createSubPlan(
             const candidate = onPitchOrder[j];
             if (isActiveGk(candidate)) continue;
             if (windowIns.has(candidate)) continue;
+            if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
             // Keepers follow normal FIFO once they've cleared the fairness floor.
             if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
             // Protect recently-subbed-on players (<4 min on field).
@@ -546,13 +560,19 @@ export function createSubPlan(
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
         } else {
-          // Mostly FIFO, but allow an urgent low-minute player with limited
-          // availability (notably the nominated 2H GK) to jump the queue.
-          const fifoIdx = benchOrder
-            .map((id, index) => ({ id, index, score: needScore(id, t, index) }))
+          // Mostly FIFO. Only jump the queue for a genuinely low-minute player
+          // (or a forced GK window); otherwise bench order stays predictable.
+          const fifoCandidates = benchOrder
+            .map((id, index) => ({ id, index, score: needScore(id, t, index), projected: projected.get(id) || 0 }))
             .filter(item => !windowOuts.has(item.id))
-            .filter(item => (projected.get(item.id) || 0) <= maxThresholdSec)
-            .sort((a, b) => b.score - a.score)[0]?.index ?? -1;
+            .filter(item => item.projected <= maxThresholdSec);
+          const fifoFirst = fifoCandidates[0];
+          const urgent = fifoCandidates
+            .filter(item => item.projected < targetSecPerPlayer)
+            .sort((a, b) => b.score - a.score)[0];
+          const fifoIdx = (urgent && (!fifoFirst || urgent.score > fifoFirst.score + 500))
+            ? urgent.index
+            : fifoFirst?.index ?? -1;
           if (fifoIdx >= 0) {
             inId = benchOrder.splice(fifoIdx, 1)[0];
           } else {
