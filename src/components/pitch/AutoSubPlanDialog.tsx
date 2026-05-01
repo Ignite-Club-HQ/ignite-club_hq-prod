@@ -418,7 +418,7 @@ export function createSubPlan(
         const overCap = onPitchOrder
           .filter(id => !isActiveGk(id))
           .filter(id => !windowIns.has(id))
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec))
+          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < minThresholdSec + (isKeeperRotationPlayer(benchId) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0)))
           .sort((a, b) => (projected.get(b) || 0) - (projected.get(a) || 0));
 
         let outId: string | null = null;
