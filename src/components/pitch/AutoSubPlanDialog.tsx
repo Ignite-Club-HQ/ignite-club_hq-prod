@@ -543,27 +543,44 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
-          // Build the eligible candidate list, then choose. For tiny squads
-          // (≤2 bench), pick the HIGHEST-MINUTE eligible player so forwards
-          // (last in positional FIFO) actually get rotated. For larger
-          // squads, retain strict positional FIFO order.
-          const eligible: string[] = [];
-          for (let j = 0; j < onPitchOrder.length; j++) {
-            const candidate = onPitchOrder[j];
-            if (isActiveGk(candidate)) continue;
-            if (windowIns.has(candidate)) continue;
-            if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
-            if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
-            const onAt = lastSubbedOnAbs.get(candidate);
-            if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
-            eligible.push(candidate);
+          // Build the eligible candidate list, then choose.
+          const buildEligible = (allowRecentSub: boolean) => {
+            const out: string[] = [];
+            for (let j = 0; j < onPitchOrder.length; j++) {
+              const candidate = onPitchOrder[j];
+              if (isActiveGk(candidate)) continue;
+              if (windowIns.has(candidate)) continue;
+              if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
+              if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
+              if (!allowRecentSub) {
+                const onAt = lastSubbedOnAbs.get(candidate);
+                if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
+              }
+              out.push(candidate);
+            }
+            return out;
+          };
+
+          // BENCH-EVERYONE GUARANTEE: if remaining sub windows are scarce
+          // relative to never-benched starters still on the pitch, force one
+          // of them off NOW — even if it costs a recently-subbed player a
+          // shorter shift. Threshold: windows-left ≤ never-benched-on-pitch.
+          const neverBenchedOnPitch = onPitchOrder.filter(id => neverBenched.has(id) && !isActiveGk(id) && !windowIns.has(id));
+          const windowsLeft = pendingWindows.length + 1;
+          const mustForceNeverBenched = neverBenchedOnPitch.length > 0 && windowsLeft <= neverBenchedOnPitch.length + 1;
+
+          let eligible = buildEligible(false);
+          // If we must force a never-benched player but none are eligible
+          // under the recent-sub-protection rule, drop that protection.
+          if (mustForceNeverBenched && !eligible.some(id => neverBenched.has(id))) {
+            eligible = buildEligible(true);
           }
+
           if (eligible.length > 0) {
             // Bench-everyone rule: always prefer never-benched players first.
-            // Among never-benched, pick the one positionally LAST (forwards
-            // tend to be last in onPitchOrder and would otherwise never come
-            // off via positional FIFO). Among already-benched, fall back to
-            // tiny-squad highest-minutes / large-squad positional order.
+            // Tiebreak: positionally LAST (forwards tend to last in FIFO and
+            // would otherwise never come off). Among already-benched: tiny-squad
+            // highest-minutes / large-squad positional order.
             eligible.sort((a, b) => {
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
