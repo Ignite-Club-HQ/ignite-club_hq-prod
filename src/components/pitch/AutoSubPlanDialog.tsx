@@ -407,8 +407,8 @@ export function createSubPlan(
       const tinySquad = outfieldOnBench.length <= 2;
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = tinySquad
-        ? Math.max(h1GkOn + 10 * 60, halfDurationSeconds - 2 * 60)
-        : Math.max(h1GkOn + 10 * 60, halfDurationSeconds - 2 * 60);
+        ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
+        : Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
