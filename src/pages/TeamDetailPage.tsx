@@ -2053,7 +2053,7 @@ export default function TeamDetailPage() {
                                 is_pro: teamSubscription?.is_pro || false,
                                 is_pro_football: teamSubscription?.is_pro_football || false,
                                 disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                                rotation_speed: teamSubscription?.rotation_speed || 2
+                                rotation_speed: teamSubscription?.rotation_speed || 1
                               }, { onConflict: 'team_id' });
                             if (error) {
                               toast({ title: "Failed to update", variant: "destructive" });
@@ -2089,7 +2089,7 @@ export default function TeamDetailPage() {
                                   is_pro: teamSubscription?.is_pro || false,
                                   is_pro_football: teamSubscription?.is_pro_football || false,
                                   disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                                  rotation_speed: teamSubscription?.rotation_speed || 2
+                                  rotation_speed: teamSubscription?.rotation_speed || 1
                                 }, { onConflict: 'team_id' });
                               if (error) {
                                 toast({ title: "Failed to update", variant: "destructive" });
@@ -2248,7 +2248,7 @@ export default function TeamDetailPage() {
                     teamSize={teamSubscription?.team_size || 7}
                     formation={teamSubscription?.formation || null}
                     minutesPerHalf={teamSubscription?.minutes_per_half || 10}
-                    rotationSpeed={teamSubscription?.rotation_speed || 2}
+                    rotationSpeed={teamSubscription?.rotation_speed || 1}
                     disableAutoSubs={teamSubscription?.disable_auto_subs || false}
                     disablePositionSwaps={teamSubscription?.disable_position_swaps || false}
                     isSaving={isSavingPitchSettings}
@@ -2266,7 +2266,7 @@ export default function TeamDetailPage() {
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                          rotation_speed: teamSubscription?.rotation_speed || 2,
+                          rotation_speed: teamSubscription?.rotation_speed || 1,
                           minutes_per_half: teamSubscription?.minutes_per_half || 10,
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
@@ -2290,7 +2290,7 @@ export default function TeamDetailPage() {
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                          rotation_speed: teamSubscription?.rotation_speed || 2,
+                          rotation_speed: teamSubscription?.rotation_speed || 1,
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
@@ -2335,7 +2335,7 @@ export default function TeamDetailPage() {
                           formation: teamSubscription?.formation || null,
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
-                          rotation_speed: teamSubscription?.rotation_speed || 2,
+                          rotation_speed: teamSubscription?.rotation_speed || 1,
                           minutes_per_half: teamSubscription?.minutes_per_half || 10,
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
@@ -2359,7 +2359,7 @@ export default function TeamDetailPage() {
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                          rotation_speed: teamSubscription?.rotation_speed || 2,
+                          rotation_speed: teamSubscription?.rotation_speed || 1,
                           minutes_per_half: teamSubscription?.minutes_per_half || 10
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
@@ -2418,7 +2418,7 @@ export default function TeamDetailPage() {
                 setPitchBoardMembersOverride([]);
               }}
               disableAutoSubs={teamSubscription?.disable_auto_subs || false}
-              initialRotationSpeed={teamSubscription?.rotation_speed || 2}
+              initialRotationSpeed={teamSubscription?.rotation_speed || 1}
               initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
               initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
               initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
