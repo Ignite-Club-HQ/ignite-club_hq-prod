@@ -873,6 +873,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     return [...filteredPlayers, ...missingCurrentPlayers];
   }, [isStrictMatchEventRoster, realPlayers, strictMatchRosterPlayerIds]);
+  const hasSamePlayerOrder = useCallback((a: Player[], b: Player[]) => (
+    a.length === b.length && a.every((player, index) => player.id === b[index]?.id)
+  ), []);
   const shouldRebuildFromRealRoster =
     !!savedState &&
     !savedState.mockMode &&
@@ -1213,7 +1216,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep playersRef in sync with players state (for use in effects with stale closures)
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
-  
+
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
@@ -1365,6 +1368,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
+
+  useEffect(() => {
+    if (!isStrictMatchEventRoster || mockMode || realPlayers.length === 0) return;
+
+    setPlayers(prev => {
+      const filtered = applyStrictMatchRoster(prev);
+      return hasSamePlayerOrder(prev, filtered) ? prev : filtered;
+    });
+  }, [isStrictMatchEventRoster, mockMode, realPlayers.length, applyStrictMatchRoster, hasSamePlayerOrder]);
 
   // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
   useEffect(() => {
