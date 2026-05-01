@@ -184,9 +184,10 @@ const PRACTICAL_MIN_THRESHOLD_RATIO = 0.75;
 /** Soft cap: players projected above this fraction of target minutes are
  *  prioritised to come OFF next AND blocked from coming ON. */
 const PRACTICAL_MAX_THRESHOLD_RATIO = 1.2;
-/** GK priority weighting (+12% of target). Keeps keepers at or slightly above
- *  the squad average without starving outfield players. */
-const PRACTICAL_GK_PRIORITY_RATIO = 0.12;
+/** GK priority weighting (~+4 min on a 40 min / 7-a-side / 11-player match).
+ *  Keeps keepers at or slightly above the squad average without starving
+ *  outfield players. */
+const PRACTICAL_GK_PRIORITY_RATIO = 0.16;
 /** No subs before this minute mark from kickoff (settling-in window). */
 const PRACTICAL_NO_SUB_BEFORE_SECONDS = 5 * 60;
 /** No subs in this trailing window of each half. */
@@ -196,6 +197,9 @@ const PRACTICAL_RECENT_SUB_PROTECTION_SECONDS = 4 * 60;
 /** How early (seconds) we may pull a sub forward to rescue a player who would
  *  otherwise breach the minimum threshold. */
 const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
+/** Keep normal Practical windows from landing immediately beside forced GK
+ *  participation windows. */
+const PRACTICAL_GK_WINDOW_BUFFER_SECONDS = 3 * 60;
 
 export function createSubPlan(
   playerData: Player[],
@@ -375,6 +379,29 @@ export function createSubPlan(
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
+    const forcedInByWindow = new Map<number, string>();
+    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
+      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
+      [h1GkOn, h1GkOff].forEach(gkTime => {
+        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+      });
+      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
+        forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      }
+    }
+    if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
+      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      if (h2GkOn < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2GkOn)) {
+        baseWindowTimes.push(Math.floor(h2GkOn));
+        forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
+      }
+    }
+    const protectedGkWindows = [...forcedInByWindow.keys()];
+    const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
+      .filter(t => forcedInByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
+      .sort((a, b) => a - b);
+    baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
     baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
@@ -404,10 +431,11 @@ export function createSubPlan(
 
       // Rescue check: if any bench player is currently below the floor and
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
+      const isForcedGkWindow = forcedInByWindow.has(t);
       const benchUnder = benchOrder.filter(
         id => (projected.get(id) || 0) < minThresholdSec
       );
-      if (benchUnder.length > 0) {
+      if (!isForcedGkWindow && benchUnder.length > 0) {
         const earliest = Math.max(lastTickAbs + 60, t - PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS);
         if (earliest < t) t = Math.floor(earliest);
       }
@@ -502,7 +530,12 @@ export function createSubPlan(
           .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
-        if (under.length > 0) {
+        const forcedInId = forcedInByWindow.get(t);
+        if (forcedInId && benchOrder.includes(forcedInId) && !windowOuts.has(forcedInId)) {
+          inId = forcedInId;
+          const idx = benchOrder.indexOf(inId);
+          if (idx >= 0) benchOrder.splice(idx, 1);
+        } else if (under.length > 0) {
           inId = under[0].id;
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
