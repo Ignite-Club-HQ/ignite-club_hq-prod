@@ -872,11 +872,7 @@ export function createSubPlan(
     const values = fairPlayerIds.map(id => totals.get(id) || 0);
     if (values.length < 2) return 0;
     const spread = Math.max(...values) - Math.min(...values);
-    const nonGkTop = Math.max(...fairPlayerIds.filter(id => !isGkPlayer(id)).map(id => totals.get(id) || 0), 0);
-    const gkShortfall = fairPlayerIds
-      .filter(id => isGkPlayer(id))
-      .reduce((sum, id) => sum + Math.max(0, nonGkTop - (totals.get(id) || 0)), 0);
-    return spread * 1000 + gkShortfall + bounceBackCount * 10_000_000 + shortShiftCount * 5_000_000;
+    return spread * 1000 + bounceBackCount * 10_000_000 + shortShiftCount * 5_000_000;
   };
 
   // Iterative fairness optimizer. Each pass tries every legal single-sub
