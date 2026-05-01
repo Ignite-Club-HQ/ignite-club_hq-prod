@@ -402,16 +402,11 @@ export function createSubPlan(
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
       }
     }
-    if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60) {
-      // Single mid-2H rescue for normal squads (3+ bench), two for tiny squads
-      // (1–2 bench) where forced GK windows otherwise dominate the schedule.
-      const rescueOffsets = outfieldOnBench.length >= 3 ? [0.5] : [0.35, 0.7];
-      rescueOffsets.forEach(frac => {
-        const rt = halfDurationSeconds + Math.floor(halfDurationSeconds * frac);
-        if (rt < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(rt)) {
-          baseWindowTimes.push(Math.floor(rt));
-        }
-      });
+    if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
+      const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
+      if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
+        baseWindowTimes.push(Math.floor(h2FairnessRescue));
+      }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
