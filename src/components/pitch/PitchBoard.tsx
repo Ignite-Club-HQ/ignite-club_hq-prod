@@ -485,7 +485,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   useEffect(() => {
     setMinutesPerHalf(initialMinutesPerHalf);
   }, [initialMinutesPerHalf]);
-  
+
+  useEffect(() => {
+    setMaxSpreadMinutes(initialMaxSpreadMinutes);
+  }, [initialMaxSpreadMinutes]);
+
   // Sync team size and formation from props if no saved state - runs on mount and when props change
   useEffect(() => {
     // Keep local reset defaults in sync with backend defaults
