@@ -401,14 +401,14 @@ export function createSubPlan(
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
-      // Bring the 2H GK on outfield early in 1H. For tiny squads (≤2 outfield
-      // bench) we extend the outfield run so the 2H GK gets meaningful pitch
-      // time; otherwise we keep them off ~4 min before halftime to rest.
+      // Bring the 2H GK on outfield as early as possible in 1H and keep them
+      // on as long as possible (sub off ~2 min before HT). This pushes them
+      // toward the top of the allowed spread without breaching it.
       const tinySquad = outfieldOnBench.length <= 2;
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = tinySquad
         ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
-        : Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
+        : Math.max(h1GkOn + 10 * 60, halfDurationSeconds - 2 * 60);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
@@ -418,6 +418,27 @@ export function createSubPlan(
       }
       if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
         forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
+      }
+    }
+    // Mirror window in H2 for the 1H GK so they get outfield time toward the
+    // top of the allowed spread. Bring them on shortly after HT and keep on
+    // until ~2 min before full time.
+    let h2StartingGkOnByAbs: number | null = null;
+    if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
+      const tinySquad = outfieldOnBench.length <= 2;
+      const h2GkOn = halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h2GkOff = tinySquad
+        ? Math.min(h2GkOn + 9 * 60, endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS)
+        : Math.min(h2GkOn + 12 * 60, endAbs - 2 * 60);
+      h2StartingGkOnByAbs = Math.floor(h2GkOn);
+      [h2GkOn, h2GkOff].forEach(gkTime => {
+        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+      });
+      if (h2GkOn > startAbs && !isInBlackout(h2GkOn)) {
+        forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
+      }
+      if (h2GkOff > startAbs && !isInBlackout(h2GkOff)) {
+        forcedOutByWindow.set(Math.floor(h2GkOff), gkOnPitch.id);
       }
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
