@@ -501,12 +501,20 @@ function createSubPlan(
   // disruption, but identical fairness ceiling). All speeds aim for at least
   // ONE full cycle so every bench player gets equal time off.
   const baseCycleEvents = totalOutfieldPlayers; // one off-event per player
-  const baseCycleWindows = Math.max(1, Math.ceil(baseCycleEvents / maxSubEventsPerWindow));
   // Cycles per speed: minimal=1 (longest shifts), balanced=1, fast=2 (shorter shifts)
   // Both minimal and balanced run a single full fairness cycle — they differ in
   // batch size (subsAtOnce), not in window count. Fast doubles rotations.
   const cycleMultiplier = rotationSpeed === 3 ? 2 : 1;
-  const targetWindowsTotal = Math.max(1, baseCycleWindows * cycleMultiplier);
+  // Pick the smallest window count whose total off-events (W * subsAtOnce) is
+  // a multiple of N players — this is the ONLY way to get exactly equal time.
+  const desiredOffEvents = baseCycleEvents * cycleMultiplier;
+  let targetWindowsTotal = Math.max(1, Math.ceil(desiredOffEvents / maxSubEventsPerWindow));
+  // Snap upward until W * subsAtOnce is divisible by N (fairness divisibility).
+  while ((targetWindowsTotal * maxSubEventsPerWindow) % totalOutfieldPlayers !== 0) {
+    targetWindowsTotal++;
+    // Safety: never exceed 2x the desired count
+    if (targetWindowsTotal > Math.ceil(desiredOffEvents / maxSubEventsPerWindow) * 2 + totalOutfieldPlayers) break;
+  }
   // Floor interval prevents churn but never overrides fairness windows. We
   // recompute as evenly-spaced windows across remaining time.
   const minIntervalFloor = rotationSpeed === 3 ? 90 : 120;
