@@ -927,7 +927,7 @@ export function createSubPlan(
 
           plan[snapshot.index] = replacement;
           const trial = simulateFullPlan(plan);
-          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount) : Number.POSITIVE_INFINITY;
+          const score = trial.valid ? fairnessObjective(trial.totals, trial.bounceBackCount, trial.shortShiftCount) : Number.POSITIVE_INFINITY;
           plan[snapshot.index] = original;
 
           // Accept any strict improvement (no slack) so the optimizer can keep
