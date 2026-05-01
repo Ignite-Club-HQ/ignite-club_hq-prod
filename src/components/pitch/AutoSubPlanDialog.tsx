@@ -313,14 +313,13 @@ export function createSubPlan(
     // targetSec = (gameDuration × playersOnField) / totalPlayers
     // minThreshold = 0.75 × target — fairness floor (override FIFO)
     // maxThreshold = 1.20 × target — soft cap (prioritise OFF, block ON)
-    // GK rotation players get a +12% priority weighting on top of target so
-    // they finish at or slightly above the squad average.
+    // GK priority is handled with protected outfield runs either side of the
+    // halftime keeper swap, without adding double-credit on top of GK minutes.
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
-    const gkPriorityBonusSec = targetSecPerPlayer * PRACTICAL_GK_PRIORITY_RATIO;
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -384,14 +383,20 @@ export function createSubPlan(
       baseWindowTimes.push(Math.floor(t));
     }
     const forcedInByWindow = new Map<number, string>();
+    const forcedOutByWindow = new Map<number, string>();
+    let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
       const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = Math.max(h1GkOn + 6 * 60, halfDurationSeconds - 4 * 60);
+      halftimeGkBenchByAbs = Math.floor(h1GkOff);
       [h1GkOn, h1GkOff].forEach(gkTime => {
         if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
       });
       if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
         forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      }
+      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
+        forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
       }
     }
     if (includeStartingGkInRotation && startAbs < halfTimeAbs && halfDurationSeconds > 12 * 60) {
@@ -401,7 +406,7 @@ export function createSubPlan(
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
       }
     }
-    const protectedGkWindows = [...forcedInByWindow.keys()];
+    const protectedGkWindows = [...forcedInByWindow.keys(), ...forcedOutByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
       .filter(t => forcedInByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
       .sort((a, b) => a - b);
