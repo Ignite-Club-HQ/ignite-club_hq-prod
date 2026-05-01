@@ -2114,6 +2114,11 @@ function DialogInner({
     rotateGkAtHalftime,
     teamSize,
     preferredSecondHalfGkId,
+    // Regenerate when the live roster / on-pitch assignments change so that
+    // swapping the GK (or any starter) before opening the planner refreshes
+    // the "GK 1H / GK 2H" badges and minute forecasts. We key on a compact
+    // signature to avoid loops from referential identity changes.
+    players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
