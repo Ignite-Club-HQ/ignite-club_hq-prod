@@ -494,6 +494,44 @@ export function createSubPlan(
   // They re-enter the normal off-order after one further window has passed.
   let previousRotationPlayerInIds = new Set<string>();
 
+  // QUEUE TRACKING (queue-first rotation with fairness override)
+  // ------------------------------------------------------------
+  // Players go on/off in FIFO order: oldest-waiting bench player goes on,
+  // longest-on-pitch player goes off. Fairness only overrides queue order
+  // when the projected end-of-game gap exceeds FAIRNESS_TOLERANCE_SECONDS.
+  // A MIN_SHIFT_SECONDS guarantees no player is pulled too soon after coming on.
+  const FAIRNESS_TOLERANCE_SECONDS = 60;
+  const MIN_SHIFT_SECONDS = 180;
+  // Position weight for ordering starters into the off-queue:
+  // GK never rotates off via queue; defenders go first, then mids, then forwards.
+  const positionRotationOrder = (pos: PitchPosition | undefined): number => {
+    switch (pos) {
+      case "GK": return 99;
+      case "DEF": return 0;
+      case "MID": return 1;
+      case "FWD": return 2;
+      default: return 3;
+    }
+  };
+  // lastOnAt = absolute seconds when the player most recently entered the pitch.
+  // Starters are seeded with offsets based on position so DEF rotate first.
+  // Lower lastOnAt = been on longer = next off.
+  const lastOnAt = new Map<string, number>();
+  outfieldOnPitch.forEach(p => {
+    const offset = positionRotationOrder(p.currentPitchPosition as PitchPosition);
+    // Sub-second offsets keep starters ordered by position without affecting
+    // shift-length math (which works in whole seconds).
+    lastOnAt.set(p.id, startAbsoluteSeconds - 1000 + offset);
+  });
+  // lastOffAt = absolute seconds when the player most recently came off the pitch.
+  // Bench players at start are all "waiting" since startAbsoluteSeconds.
+  // Lower lastOffAt = been waiting longer = next on.
+  const lastOffAt = new Map<string, number>();
+  outfieldOnBench.forEach((p, idx) => {
+    // Slight stagger by bench order so the first bench player goes on first.
+    lastOffAt.set(p.id, startAbsoluteSeconds - 1000 + idx);
+  });
+
   // FAIRNESS-DRIVEN WINDOW COUNT
   // ----------------------------
   // For perfectly equal minutes, each player spends T·B/N seconds on the bench
