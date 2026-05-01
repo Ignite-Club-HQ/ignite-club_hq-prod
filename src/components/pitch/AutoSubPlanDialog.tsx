@@ -402,6 +402,22 @@ function createSubPlan(
   // outfield rotation pool in the 2nd half (the new GK is no longer an outfielder).
   const halftimeGkIn = startingGkWillRotate ? (gkOnBench || null) : null;
 
+  // GK FAIRNESS: anyone who plays GK in either half only has ~half the game
+  // available for outfield time. To ensure they end up with at least as many
+  // total minutes as full-game outfielders, give them a strong priority bonus
+  // when sorting the bench (so they're always picked first to come on) and
+  // when sorting on-pitch players (so they're never picked to come off until
+  // they've caught up). The bonus is huge so it dominates normal time-diff
+  // sorting but doesn't affect actual accumulated minutes used for fairness.
+  const GK_PRIORITY_BONUS = halfDurationSeconds * 10;
+  const isGkPlayer = (id: string) =>
+    (includeStartingGkInRotation && id === gkOnPitch?.id) ||
+    (halftimeGkIn ? id === halftimeGkIn.id : false);
+  // Adjusted time for sorting: GKs appear "less played" everywhere so they
+  // jump to top of bench (picked first ON) and bottom of pitch (picked last OFF).
+  const adjustedTime = (id: string) =>
+    (playingTime.get(id) || 0) - (isGkPlayer(id) ? GK_PRIORITY_BONUS : 0);
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
@@ -443,9 +459,10 @@ function createSubPlan(
       });
       lastEventTime = subTime;
       
-      // Get sorted lists
+      // Get sorted lists — use GK-adjusted time so goalkeepers are prioritised
+      // (picked first off the bench, picked last off the pitch).
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       
@@ -456,7 +473,7 @@ function createSubPlan(
         .filter(p => !(includeStartingGkInRotation && half === 1 && p.id === gkOnPitch?.id))
         // Halftime GK substitute is in goal during H2, not on the bench.
         .filter(p => !(half === 2 && halftimeGkIn && p.id === halftimeGkIn.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       
       if (onPitchSorted.length === 0 || benchSorted.length === 0) continue;
@@ -526,14 +543,14 @@ function createSubPlan(
     // Process deferred end-of-half subs as halftime subs (half 2, time 0)
     if (half === 1 && deferredToHalftime.length > 0) {
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: adjustedTime(id), player: getPlayer(id)! }))
         .filter(p => p.player)
         .sort((a, b) => b.time - a.time);
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
         // Starting GK is still in goal at the end of H1 — not a real bench option here.
         .filter(p => !(includeStartingGkInRotation && p.id === gkOnPitch?.id))
-        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .map(p => ({ id: p.id, time: adjustedTime(p.id), player: p }))
         .sort((a, b) => a.time - b.time);
       const usedOutIds = new Set<string>();
       const usedInIds = new Set<string>();
