@@ -793,15 +793,15 @@ export function createSubPlan(
       const chosenSlot = eligibleSlots[0];
       const playerOut = chosenSlot.playerOut!;
 
-      // Only commit if the swap actually narrows the projected spread.
-      // (Avoids churn when projections are already balanced.)
-      const inProj = projectionsNow.get(playerIn.id) ?? 0;
-      const outProj = projectionsNow.get(playerOut.id) ?? 0;
-      const gapBefore = outProj - inProj;
+      // Only commit if the swap actually narrows the shortfall gap between
+      // these two players. (Avoids churn when shortfalls are already balanced.)
+      const inShortfall = shortfallsNow.get(playerIn.id) ?? 0;
+      const outShortfall = shortfallsNow.get(playerOut.id) ?? 0;
+      const gapBefore = inShortfall - outShortfall;
       if (gapBefore < 30 && !capBreached) {
         continue;
       }
-      // Hard refusal: never make the spread worse.
+      // Hard refusal: never make the spread worse (incoming player already above target).
       if (gapBefore < 0) continue;
 
       usedSlotIndexes.add(chosenSlot.index);
