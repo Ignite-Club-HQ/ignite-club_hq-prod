@@ -530,27 +530,19 @@ export function createSubPlan(
           const idx = onPitchOrder.indexOf(outId);
           if (idx >= 0) onPitchOrder.splice(idx, 1);
         } else {
-          // Build FIFO-eligible list with metadata.
-          const eligible = onPitchOrder
-            .map((id, idx) => ({ id, idx, proj: projected.get(id) || 0 }))
-            .filter(c => !isActiveGk(c.id))
-            .filter(c => !windowIns.has(c.id))
-            .filter(c => !(c.id === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs))
-            .filter(c => !(isKeeperRotationPlayer(c.id) && c.proj < effectiveMinSec(c.id)))
-            .filter(c => {
-              const onAt = lastSubbedOnAbs.get(c.id);
-              return onAt === undefined || (t - onAt) >= PRACTICAL_RECENT_SUB_PROTECTION_SECONDS;
-            });
-          if (eligible.length > 0) {
-            const fifoFirst = eligible[0];
-            const highest = [...eligible].sort((a, b) => b.proj - a.proj)[0];
-            // If the highest-minutes player is materially ahead (>90s) of the
-            // FIFO head, pull them off instead — protects bench fairness on
-            // small squads where forwards/last-in-line never reach FIFO front.
-            const pick = (highest.proj - fifoFirst.proj > 90) ? highest : fifoFirst;
-            outId = pick.id;
-            const idx = onPitchOrder.indexOf(outId);
-            if (idx >= 0) onPitchOrder.splice(idx, 1);
+          for (let j = 0; j < onPitchOrder.length; j++) {
+            const candidate = onPitchOrder[j];
+            if (isActiveGk(candidate)) continue;
+            if (windowIns.has(candidate)) continue;
+            if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
+            // Keepers follow normal FIFO once they've cleared the fairness floor.
+            if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
+            // Protect recently-subbed-on players (<4 min on field).
+            const onAt = lastSubbedOnAbs.get(candidate);
+            if (onAt !== undefined && (t - onAt) < PRACTICAL_RECENT_SUB_PROTECTION_SECONDS) continue;
+            outId = candidate;
+            onPitchOrder.splice(j, 1);
+            break;
           }
         }
         if (!outId) break;
