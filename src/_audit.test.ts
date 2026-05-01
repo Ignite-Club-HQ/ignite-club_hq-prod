@@ -1,33 +1,29 @@
 import { describe, it } from "vitest";
 import { createSubPlan } from "./components/pitch/AutoSubPlanDialog";
 
-const makePlayer = (id: string, position: any, x = 50, y = 50) => ({
+const makePlayer = (id: string, position: any, x = 50, y = 50, assigned?: any) => ({
   id, name: id,
   position: position ? { x, y } : null,
   currentPitchPosition: position || undefined,
-  assignedPositions: position ? [position] : ["DEF", "MID", "FWD"] as any,
+  assignedPositions: assigned ?? (position ? [position] : ["DEF", "MID", "FWD"]),
 });
 
-describe("audit", () => {
-  it("audit", () => {
+describe("audit-real", () => {
+  it("audit-real", () => {
+    // Match user's screenshot: 11 players, GK rotates at HT, restrictive positions
     const players = [
       makePlayer("Archer", "GK"),
-      makePlayer("Ezra", "DEF", 30, 80),
-      makePlayer("Augustine", "DEF", 70, 80),
-      makePlayer("Jett", "MID", 30, 50),
-      makePlayer("Louie", "MID", 70, 50),
-      makePlayer("Hugo", "FWD", 30, 20),
-      makePlayer("James", "FWD", 70, 20),
-      makePlayer("Maximus", null),
-      makePlayer("Tom", null),
-      makePlayer("Bench3", null),
-      makePlayer("Bench4", null),
+      makePlayer("Augustine", "DEF", 30, 80, ["DEF"]),
+      makePlayer("Ezra", "DEF", 70, 80, ["DEF"]),
+      makePlayer("Jett", "MID", 30, 50, ["MID"]),
+      makePlayer("Louie", "MID", 70, 50, ["MID"]),
+      makePlayer("Hugo", "FWD", 30, 20, ["FWD"]),
+      makePlayer("James", "FWD", 70, 20, ["FWD"]),
+      makePlayer("Maximus", null, 50, 50, ["GK","DEF"]),
+      makePlayer("Tom", null, 50, 50, ["DEF","MID"]),
+      makePlayer("Bench3", null, 50, 50, ["MID","FWD"]),
+      makePlayer("Bench4", null, 50, 50, ["FWD","MID"]),
     ];
-    players.forEach(p => {
-      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
-        p.assignedPositions = ["DEF", "MID", "FWD"] as any;
-      }
-    });
     const halfSec = 20 * 60;
     const simulate = (plan: any[]) => {
       const onPitch = new Set(players.filter(p => p.position).map(p => p.id));
@@ -48,10 +44,11 @@ describe("audit", () => {
       for (const cap of [3, 5, 7, 10]) {
         const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Maximus", cap);
         const totals = simulate(plan);
-        const arr = [...totals.values()].map(s => s/60);
-        const spread = (Math.max(...arr) - Math.min(...arr));
+        const arr = [...totals.entries()].map(([k,s]) => `${k}:${(s/60).toFixed(0)}`);
+        const vals = [...totals.values()].map(s => s/60);
+        const spread = (Math.max(...vals) - Math.min(...vals));
         // eslint-disable-next-line no-console
-        console.log(`speed=${speed} cap=${cap}: subs=${plan.length} spread=${spread.toFixed(1)}' min=${Math.min(...arr).toFixed(1)} max=${Math.max(...arr).toFixed(1)}`);
+        console.log(`speed=${speed} cap=${cap}: subs=${plan.length} spread=${spread.toFixed(1)}' [${arr.join(",")}]`);
       }
     }
   });
