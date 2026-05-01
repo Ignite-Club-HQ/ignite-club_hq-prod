@@ -406,6 +406,12 @@ export function createSubPlan(
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch!.id);
       }
     }
+    if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
+      const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
+      if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
+        baseWindowTimes.push(Math.floor(h2FairnessRescue));
+      }
+    }
     const protectedGkWindows = [...forcedInByWindow.keys()];
     const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
       .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
