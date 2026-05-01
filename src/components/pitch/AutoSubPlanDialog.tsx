@@ -306,17 +306,17 @@ export function createSubPlan(
     );
 
     // ---- Fairness model ------------------------------------------------------
-    // Track REAL total minutes for every player. Keeper duty counts as time on
-    // pitch; we add a sizeable outfield priority bonus so keepers still get a
-    // good run of outfield minutes and finish in the top half of total time.
-    // The bonus is large enough that the 2H keeper (who only has 1H available
-    // for outfield play) is prioritised onto the pitch early in the 1st half.
-    const GK_OUTFIELD_PRIORITY_BONUS_SECONDS = 5 * 60;
+    // targetSec = (gameDuration × playersOnField) / totalPlayers
+    // minThreshold = 0.75 × target — fairness floor (override FIFO)
+    // maxThreshold = 1.20 × target — soft cap (prioritise OFF, block ON)
+    // GK rotation players get a +12% priority weighting on top of target so
+    // they finish at or slightly above the squad average.
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
     const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
     const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
+    const gkPriorityBonusSec = targetSecPerPlayer * PRACTICAL_GK_PRIORITY_RATIO;
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -328,6 +328,8 @@ export function createSubPlan(
     if (halftimeGkIn) {
       projected.set(halftimeGkIn.id, (projected.get(halftimeGkIn.id) || 0) + halfDurationSeconds);
     }
+
+    const halfTimeAbs = halfDurationSeconds;
 
     const remainingOutfieldAvailability = (id: string, absT: number) => {
       if (includeStartingGkInRotation && id === gkOnPitch?.id) {
@@ -341,29 +343,46 @@ export function createSubPlan(
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
     const effectiveMinSec = (id: string) =>
-      minThresholdSec + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0);
-    const shortfall = (id: string) =>
-      targetSecPerPlayer + (isKeeperRotationPlayer(id) ? GK_OUTFIELD_PRIORITY_BONUS_SECONDS : 0) - (projected.get(id) || 0);
+      minThresholdSec + (isKeeperRotationPlayer(id) ? gkPriorityBonusSec : 0);
+    const effectiveTargetSec = (id: string) =>
+      targetSecPerPlayer + (isKeeperRotationPlayer(id) ? gkPriorityBonusSec : 0);
+    const shortfall = (id: string) => effectiveTargetSec(id) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
       return (need / remainingOutfieldAvailability(id, absT)) * 10000 + need * 0.05 - queueIndex * 0.01;
     };
 
     // Build candidate sub-window times.
+    // Rules: no subs before minute 5 from kickoff, none in last ~2.5 min of
+    // each half, none right around halftime. ~7 min cadence keeps things
+    // predictable and lands us in the 8–14 total subs sweet spot.
+    const earliestAbs = Math.max(startAbs + 60, PRACTICAL_NO_SUB_BEFORE_SECONDS);
+    const isInBlackout = (t: number) => {
+      // Last N seconds of half 1
+      if (t > halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && t <= halfDurationSeconds) return true;
+      // Last N seconds of half 2
+      if (t > endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS) return true;
+      // Right around halftime
+      if (Math.abs(t - halfDurationSeconds) < 90) return true;
+      // Before settling-in window in either half
+      if (t < PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
+      if (t > halfDurationSeconds && t < halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
+      return false;
+    };
+
     const baseWindowTimes: number[] = [];
-    for (let t = startAbs + intervalSec; t < endAbs - 60; t += intervalSec) {
-      if (Math.abs(t - halfDurationSeconds) < 90) continue;
+    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS; t += intervalSec) {
+      if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
-    [halfDurationSeconds - 120, endAbs - 120].forEach(t => {
-      if (t > startAbs + 60 && t < endAbs - 60 && !baseWindowTimes.some(existing => Math.abs(existing - t) < 90)) {
-        baseWindowTimes.push(Math.floor(t));
-      }
-    });
     baseWindowTimes.sort((a, b) => a - b);
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
     const benchOrder: string[] = outfieldOnBench.map(p => p.id);
+
+    // Track when each player was last subbed ON (absolute seconds) — used to
+    // protect recent subs from being immediately pulled off.
+    const lastSubbedOnAbs = new Map<string, number>();
 
     const halfTimeAbs = halfDurationSeconds;
     const willGkSwapAtHt =
