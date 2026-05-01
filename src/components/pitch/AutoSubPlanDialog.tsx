@@ -378,36 +378,44 @@ export function createSubPlan(
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
-    // GOALKEEPER RULE: GKs may ONLY be swapped at halftime. We do NOT force
-    // the 2H GK on as outfield in 1H, nor do we force the 1H GK back on
-    // outfield in 2H. The GK swap itself happens at the half boundary,
-    // handled separately. This means the nominated 2H GK (if currently on
-    // bench) sits 1H entirely; the 1H GK plays only their half plus whatever
-    // outfield time the natural FIFO grants them in 2H (none, by design,
-    // since they aren't subbed back on as outfield).
+    // GOALKEEPER RULE: GKs may ONLY be swapped at halftime (the GK position
+    // itself can only change at start-of-game or halftime). However, the
+    // nominated 2H GK can play OUTFIELD in 1H — they're just a normal field
+    // player until they take the gloves at HT. Same for the 1H GK in 2H.
+    // We give the 2H GK a forced outfield run in 1H so they don't end the
+    // match well below the fairness floor.
     const forcedInByWindow = new Map<number, string>();
     const forcedOutByWindow = new Map<number, string>();
-    const halftimeGkBenchByAbs: number | null = null;
+    let halftimeGkBenchByAbs: number | null = null;
+    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
+      // Bring the 2H GK on outfield early in 1H, take them off ~4 min before
+      // halftime so they're rested when they go in goal.
+      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h1GkOff = Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
+      halftimeGkBenchByAbs = Math.floor(h1GkOff);
+      [h1GkOn, h1GkOff].forEach(gkTime => {
+        if (gkTime > startAbs && !isInBlackout(gkTime)) baseWindowTimes.push(Math.floor(gkTime));
+      });
+      if (h1GkOn > startAbs && !isInBlackout(h1GkOn)) {
+        forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      }
+      if (h1GkOff > startAbs && !isInBlackout(h1GkOff)) {
+        forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
+      }
+    }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
       const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
       if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
     }
-    // Tiny squads (≤2 bench): GKs can ONLY swap at halftime, so no forced GK
-    // windows in 1H. Add TWO extra rescue windows per half (~33% and ~66%) so
-    // high-minute outfielders (typically forwards last in FIFO order) get
-    // pulled off — prevents any starter from playing a full 40'.
+    // Tiny squads (≤2 bench): the forced 2H-GK 1H window already eats 2 of the
+    // sub slots. Add a single extra rescue window in 2H (~50%) so the FWDs
+    // who play full 1H still get pulled off in 2H.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
-      for (const ratio of [0.33, 0.66]) {
-        const h1R = Math.floor(halfDurationSeconds * ratio);
-        if (h1R > startAbs && h1R < halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h1R)) {
-          baseWindowTimes.push(h1R);
-        }
-        const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * ratio);
-        if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
-          baseWindowTimes.push(h2R);
-        }
+      const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
+      if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
+        baseWindowTimes.push(h2R);
       }
     }
     const protectedGkWindows = [...forcedInByWindow.keys()];
