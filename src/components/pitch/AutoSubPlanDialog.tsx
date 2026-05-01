@@ -529,7 +529,12 @@ export function createSubPlan(
           .sort((a, b) => b.score - a.score);
 
         let inId: string | undefined;
-        if (under.length > 0) {
+        const forcedInId = forcedInByWindow.get(t);
+        if (forcedInId && benchOrder.includes(forcedInId) && !windowOuts.has(forcedInId)) {
+          inId = forcedInId;
+          const idx = benchOrder.indexOf(inId);
+          if (idx >= 0) benchOrder.splice(idx, 1);
+        } else if (under.length > 0) {
           inId = under[0].id;
           const idx = benchOrder.indexOf(inId);
           if (idx >= 0) benchOrder.splice(idx, 1);
