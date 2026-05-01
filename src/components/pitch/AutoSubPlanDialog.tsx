@@ -391,8 +391,8 @@ export function createSubPlan(
       // Bring the 2H GK on outfield early in 1H. For tiny squads (≤2 outfield
       // bench) we extend the outfield run so the 2H GK gets meaningful pitch
       // time; otherwise we keep them off ~4 min before halftime to rest.
-      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const tinySquad = outfieldOnBench.length <= 2;
+      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
       const h1GkOff = tinySquad
         ? Math.max(h1GkOn + 9 * 60, halfDurationSeconds - 3 * 60)
         : Math.max(h1GkOn + 8 * 60, halfDurationSeconds - 4 * 60);
