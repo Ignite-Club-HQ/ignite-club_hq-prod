@@ -154,7 +154,7 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
-function createSubPlan(
+export function createSubPlan(
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
