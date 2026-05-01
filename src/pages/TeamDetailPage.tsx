@@ -2423,6 +2423,7 @@ export default function TeamDetailPage() {
               initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
               initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
               initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+              initialMaxSpreadMinutes={(teamSubscription as any)?.max_spread_minutes ?? 5}
               initialTeamSize={teamSubscription?.team_size}
               initialFormation={teamSubscription?.formation || undefined}
               readOnly={!canEditPitchBoard && !isSubsManager}
