@@ -39,6 +39,7 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
@@ -1113,6 +1114,17 @@ export default function ClubChatPage() {
     onError: () => toast({ title: "Failed to update message", variant: "destructive" }),
   });
 
+  const {
+    publishingIds: galleryPublishingIds,
+    publishedIds: galleryPublishedIds,
+    publish: handlePublishToGallery,
+    nudgeAfterSend: nudgeGalleryAfterSend,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: null,
+    clubId: clubId ?? null,
+  });
+
   const handleSend = () => {
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
@@ -1123,7 +1135,9 @@ export default function ClubChatPage() {
     const finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    if (hadImage) nudgeGalleryAfterSend();
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
@@ -1397,6 +1411,10 @@ export default function ClubChatPage() {
                         pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                         onPin={pinMessage}
                         onUnpin={unpinMessage}
+                        canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                        isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                        isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                        onPublishToGallery={handlePublishToGallery}
                       />
                     </div>
                   </div>
