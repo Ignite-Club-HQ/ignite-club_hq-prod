@@ -76,6 +76,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
+import { MatchScoreCard } from "@/components/event/MatchScoreCard";
 
 
 // Lazy load PitchBoard for game events
@@ -2370,6 +2371,24 @@ export default function EventDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
+      {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
+        const isSubsManagerForEvent = !!duties?.some(
+          (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+        );
+        const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
+        return (
+          <MatchScoreCard
+            eventId={event.id}
+            teamId={event.team_id}
+            teamName={event.teams?.name || "Our Team"}
+            opponent={event.opponent || null}
+            sport="soccer"
+            canEdit={canEditScore}
+          />
+        );
+      })()}
 
       {/* Map */}
       {event.address && (
