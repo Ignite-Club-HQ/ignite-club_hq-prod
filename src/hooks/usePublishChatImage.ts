@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
   publishChatImageToGallery,
+  unpublishGalleryPhoto,
   type PublishChatImageArgs,
 } from "@/lib/publishChatImageToGallery";
 import {
@@ -27,6 +28,24 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
 
   const canPublish = !!uploaderId && (!!teamId || !!clubId);
 
+  const undoPublish = useCallback(
+    async (messageId: string, photoId: string) => {
+      try {
+        await unpublishGalleryPhoto(photoId);
+        setPublishedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+        toast.success("Removed from gallery");
+      } catch (err: any) {
+        console.error("[usePublishChatImage] undo failed", err);
+        toast.error(err?.message || "Couldn't undo");
+      }
+    },
+    [],
+  );
+
   const publish = useCallback(
     async (messageId: string, imageUrl: string) => {
       if (!canPublish || !uploaderId) return;
@@ -51,11 +70,19 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
           next.add(messageId);
           return next;
         });
-        toast.success(
-          result.alreadyPublished
-            ? "Already in the media gallery"
-            : "Added to media gallery",
-        );
+        if (result.alreadyPublished) {
+          toast.success("Already in the media gallery");
+        } else {
+          toast.success("Added to media gallery", {
+            duration: 6000,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                void undoPublish(messageId, result.photoId);
+              },
+            },
+          });
+        }
       } catch (err: any) {
         console.error("[usePublishChatImage] failed", err);
         toast.error(err?.message || "Couldn't add to gallery");
@@ -67,7 +94,7 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
         });
       }
     },
-    [canPublish, uploaderId, teamId, clubId, publishingIds, publishedIds],
+    [canPublish, uploaderId, teamId, clubId, publishingIds, publishedIds, undoPublish],
   );
 
   /**
