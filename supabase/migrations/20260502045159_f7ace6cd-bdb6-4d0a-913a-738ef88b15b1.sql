@@ -1,0 +1,1 @@
+UPDATE duties SET status = 'open', completed_at = NULL WHERE id = '4a39e1f2-4540-4c8b-937f-1bfc3e968090';
