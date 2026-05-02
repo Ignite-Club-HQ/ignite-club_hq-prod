@@ -176,6 +176,8 @@ interface AutoSubPlanDialogProps {
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
   miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
+  /** Optional power-user overrides for planner thresholds. */
+  advancedOverrides?: AutoSubAdvancedOverrides;
 }
 
 const formatTime = (seconds: number) => {
