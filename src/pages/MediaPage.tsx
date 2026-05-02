@@ -998,13 +998,13 @@ export default function MediaPage() {
       setSelectedDeleteOption(null);
       
       // Cancel any outgoing refetches - use correct query key with user id
-      await queryClient.cancelQueries({ queryKey: ["photos", user?.id] });
+      await queryClient.cancelQueries({ queryKey: photosQueryKey });
       
       // Snapshot the previous value
-      const previousPhotos = queryClient.getQueryData(["photos", user?.id]);
+      const previousPhotos = queryClient.getQueryData(photosQueryKey);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["photos", user?.id], (old: any) => {
+      queryClient.setQueryData(photosQueryKey, (old: any) => {
         if (!old?.pages) return old;
         return {
           ...old,
@@ -1025,13 +1025,13 @@ export default function MediaPage() {
     onError: (error: any, _, context) => {
       // Rollback on error
       if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", user?.id], context.previousPhotos);
+        queryClient.setQueryData(photosQueryKey, context.previousPhotos);
       }
       toast.error(error.message || "Failed to delete photo");
     },
     onSettled: () => {
       setDeletingPhotoId(null);
-      queryClient.invalidateQueries({ queryKey: ["photos", user?.id] });
+      queryClient.invalidateQueries({ queryKey: photosQueryKey });
     },
   });
 
