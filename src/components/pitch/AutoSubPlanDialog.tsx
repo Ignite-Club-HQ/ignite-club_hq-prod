@@ -2356,6 +2356,24 @@ function DialogInner({
     if (!plan) return [];
     return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
   }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
+
+  // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
+  useEffect(() => { setFairnessReport(null); }, [plan]);
+
+  const handleRunSimulator = () => {
+    if (!plan) return;
+    setIsSimulating(true);
+    setTimeout(() => {
+      try {
+        const report = calculateFairnessReport(players, plan, minutesPerHalf);
+        setFairnessReport(report);
+      } catch (err) {
+        console.error("[AutoSubPlan] Fairness sim error:", err);
+      } finally {
+        setIsSimulating(false);
+      }
+    }, 10);
+  };
   
   const handleGenerate = () => {
     setIsGenerating(true);
