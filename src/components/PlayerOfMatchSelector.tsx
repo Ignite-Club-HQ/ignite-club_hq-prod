@@ -430,32 +430,11 @@ export default function PlayerOfMatchSelector({
             </div>
           ) : isAdmin ? (
              <div className="space-y-2">
-              {/* Reward selector when multiple POM rewards exist */}
-              {pomRewards.length > 1 && (
-                <div className="mb-2">
-                  <p className="text-xs text-muted-foreground mb-1.5">Select reward to give:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pomRewards.map((reward: any) => (
-                      <Button
-                        key={reward.id}
-                        variant={selectedReward?.id === reward.id ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setSelectedReward(reward)}
-                      >
-                        <Trophy className="h-3 w-3 mr-1" />
-                        {reward.name}
-                        {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <Button
                 variant="outline"
                 className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                 onClick={() => setSelectDialogOpen(true)}
-                disabled={goingPlayers.length === 0 || (pomRewards.length > 1 && !selectedReward)}
+                disabled={goingPlayers.length === 0}
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Select Player of the Match
@@ -467,12 +446,7 @@ export default function PlayerOfMatchSelector({
               )}
               {pomRewards.length === 0 && goingPlayers.length > 0 && (
                 <p className="text-xs text-muted-foreground text-center">
-                  No points reward configured. Add a "Player of the Match" reward in Club Rewards to award points.
-                </p>
-              )}
-              {pomRewards.length > 1 && !selectedReward && goingPlayers.length > 0 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Select a reward above before choosing a player
+                  No voucher configured. Add a "Player of the Match" reward in Club Rewards to award a voucher.
                 </p>
               )}
             </div>
@@ -495,17 +469,45 @@ export default function PlayerOfMatchSelector({
           </ResponsiveDialogHeader>
           <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
             <div className="p-4 space-y-2">
+              {/* Voucher selector — always show inside the dialog so the admin
+                  can pick the voucher type just before choosing a player. */}
+              {pomRewards.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    Voucher to award:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pomRewards.map((reward: any) => {
+                      const isActive = activePomReward?.id === reward.id;
+                      return (
+                        <Button
+                          key={reward.id}
+                          variant={isActive ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => setSelectedReward(reward)}
+                        >
+                          <Trophy className="h-3 w-3 mr-1" />
+                          {reward.name}
+                          {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and a voucher.
+                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and the "{activePomReward.name}" voucher.
                 </p>
-              ) : pomRewards.length > 0 ? (
+              ) : pomRewards.length > 1 ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Select the player who stood out this match. Points will be awarded based on the selected reward.
+                  Pick a voucher above, then choose the player who stood out this match.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Select the player who stood out this match. No points reward is currently configured.
+                  Select the player who stood out this match. No voucher is currently configured.
                 </p>
               )}
               
@@ -516,7 +518,7 @@ export default function PlayerOfMatchSelector({
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() => awardMutation.mutate({ userId: rsvp.user_id })}
-                  disabled={awardMutation.isPending}
+                  disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
                     <AvatarImage src={rsvp.profiles?.avatar_url} />
@@ -538,7 +540,7 @@ export default function PlayerOfMatchSelector({
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() => awardMutation.mutate({ childId: rsvp.child_id })}
-                  disabled={awardMutation.isPending}
+                  disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
                     <AvatarFallback className="bg-secondary">
