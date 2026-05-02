@@ -729,11 +729,11 @@ export function UploadPhotoSheet({
 
     // ---------------------------------------------------------------------
     // Team Gallery → Chat Card
-    // Trigger ONLY for batches uploaded to a TEAM gallery with ≥3 successful items.
+    // Trigger for batches uploaded to a TEAM gallery with ≥2 successful items.
     // Aggregation (10-min window) and message text are handled in the RPC.
     // Push notification only when ≥5 items in the resulting card.
     // ---------------------------------------------------------------------
-    if (teamId && successCount >= 3 && uploadedPhotoIds.length >= 3) {
+    if (teamId && successCount >= 2 && uploadedPhotoIds.length >= 2) {
       try {
         const heroPhotoId = uploadedPhotoIds[0];
         const heroUrl = uploadedUrls[0];
