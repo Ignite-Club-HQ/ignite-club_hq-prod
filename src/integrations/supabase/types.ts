@@ -7996,9 +7996,9 @@ export type Database = {
       get_club_leaderboard: {
         Args: {
           _club_id: string
-          _limit?: number
-          _viewer_id?: string
-          _window?: string
+          _limit: number
+          _viewer_id: string
+          _window: string
         }
         Returns: {
           avatar_url: string
@@ -8276,10 +8276,10 @@ export type Database = {
       }
       get_team_leaderboard: {
         Args: {
-          _limit?: number
+          _limit: number
           _team_id: string
-          _viewer_id?: string
-          _window?: string
+          _viewer_id: string
+          _window: string
         }
         Returns: {
           avatar_url: string
