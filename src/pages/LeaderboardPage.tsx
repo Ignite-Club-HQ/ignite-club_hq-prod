@@ -108,7 +108,7 @@ export default function LeaderboardPage() {
     }
   }, [scope, teams, teamId, setSearchParams]);
 
-  // Leaderboard rows
+  // Leaderboard rows (members)
   const { data: rows, isLoading } = useQuery({
     queryKey: ["leaderboard", scope, scope === "team" ? teamId : clubId, windowKey, user?.id],
     queryFn: async () => {
@@ -122,7 +122,7 @@ export default function LeaderboardPage() {
         });
         if (error) throw error;
         return (data ?? []) as Row[];
-      } else {
+      } else if (scope === "team") {
         if (!teamId) return [];
         const { data, error } = await supabase.rpc("get_team_leaderboard", {
           _team_id: teamId,
@@ -133,8 +133,25 @@ export default function LeaderboardPage() {
         if (error) throw error;
         return (data ?? []) as Row[];
       }
+      return [];
     },
-    enabled: scope === "club" ? !!clubId : !!teamId,
+    enabled: scope === "club" ? !!clubId : scope === "team" ? !!teamId : false,
+  });
+
+  // Teams ranking
+  const { data: teamRows, isLoading: teamsLoading } = useQuery({
+    queryKey: ["leaderboard-teams-rank", clubId, windowKey],
+    queryFn: async () => {
+      if (!clubId) return [];
+      const { data, error } = await supabase.rpc("get_teams_leaderboard", {
+        _club_id: clubId,
+        _window: windowKey,
+        _limit: 50,
+      });
+      if (error) throw error;
+      return (data ?? []) as TeamRow[];
+    },
+    enabled: scope === "teams" && !!clubId,
   });
 
   const topRows = useMemo(() => (rows ?? []).filter((r) => r.rank <= 50 && !r.hidden), [rows]);
