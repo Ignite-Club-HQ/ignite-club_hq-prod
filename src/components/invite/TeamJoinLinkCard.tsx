@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Loader2, Copy, RefreshCw, Check, Link2, QrCode, Share2, AlertTriangle } from "lucide-react";
+import { Loader2, Copy, RefreshCw, Check, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
+import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -186,6 +187,54 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     setCopied(false);
   };
 
+  const handleSaveQR = async (linkId: string) => {
+    const container = document.getElementById(`qr-${linkId}`);
+    const svg = container?.querySelector("svg");
+    if (!svg) return;
+    try {
+      const xml = new XMLSerializer().serializeToString(svg);
+      const svg64 = btoa(unescape(encodeURIComponent(xml)));
+      const img = new Image();
+      img.src = `data:image/svg+xml;base64,${svg64}`;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const size = 720;
+      const pad = 48;
+      const canvas = document.createElement("canvas");
+      canvas.width = size + pad * 2;
+      canvas.height = size + pad * 2 + 60;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, pad, pad, size, size);
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "600 22px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`Join ${teamName}`, canvas.width / 2, size + pad + 38);
+      const dataUrl = canvas.toDataURL("image/png");
+      const filename = `join-${teamName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${activeRole}.png`;
+
+      if (Capacitor.isNativePlatform()) {
+        const base64 = dataUrl.split(",")[1];
+        const written = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        await Share.share({ title: `Join ${teamName}`, url: written.uri, dialogTitle: "Share QR code" });
+      } else {
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast({ title: "QR saved", description: filename });
+      }
+    } catch (e: any) {
+      toast({ title: "Couldn't save QR", description: e?.message ?? "Unknown error", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
       <div className="flex items-start gap-2">
@@ -318,10 +367,20 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           <Collapsible open={showQR}>
             <CollapsibleContent>
               <div className="flex flex-col items-center gap-2 py-3 bg-background rounded-md border border-border">
-                <div className="bg-white p-3 rounded-md">
+                <div id={`qr-${link.id}`} className="bg-white p-3 rounded-md">
                   <QRCodeSVG value={fullUrl} size={180} level="M" includeMargin={false} />
                 </div>
                 <p className="text-[11px] text-muted-foreground">Point a camera at the code to join as {activeRoleLabel.toLowerCase()}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => handleSaveQR(link.id)}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  {Capacitor.isNativePlatform() ? "Share QR image" : "Download QR"}
+                </Button>
               </div>
             </CollapsibleContent>
           </Collapsible>
