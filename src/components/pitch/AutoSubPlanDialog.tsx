@@ -2077,17 +2077,18 @@ function createMiniLeagueSubPlan(
   startHalf: 1 | 2,
   miniLeagueTeams: MiniLeagueTeams,
   preferredSecondHalfGkId?: string,
-  maxSpreadMinutes: number = 5
+  maxSpreadMinutes: number = 5,
+  advancedOverrides: AutoSubAdvancedOverrides = {}
 ): SubstitutionEvent[] {
   const teamAPlayers = players.filter(p => p.teamSide === "a");
   const teamBPlayers = players.filter(p => p.teamSide === "b");
   
   const planA = teamAPlayers.length > 0
-    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes)
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes, advancedOverrides)
     : [];
   
   const planB = teamBPlayers.length > 0
-    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes)
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes, advancedOverrides)
     : [];
   
   // Merge and sort by half then time
