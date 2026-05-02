@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { useSignedPhotoUrl, resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import { isVideoUrl } from "@/lib/videoUtils";
 
 interface LazyImageProps {
@@ -11,16 +11,12 @@ interface LazyImageProps {
 
 // Generate a low-quality image URL for Supabase storage
 function getLqipUrl(src: string): string {
-  // Check if it's a Supabase storage URL (signed or public)
   if (src.includes('/storage/v1/object/') || src.includes('/storage/v1/render/')) {
-    // For signed URLs, we can't use render endpoint, so skip LQIP
     if (src.includes('token=')) {
       return src;
     }
-    // Transform to render endpoint with tiny dimensions
     return src.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=20&height=20&quality=20';
   }
-  // For non-Supabase URLs, return original (will use blur on load)
   return src;
 }
 
@@ -28,14 +24,21 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
   const [isLoaded, setIsLoaded] = useState(false);
   const [lqipLoaded, setLqipLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
+  const [retrySrc, setRetrySrc] = useState<string | null>(null);
+  const [retryAttempts, setRetryAttempts] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
   const prevSrcRef = useRef(src);
 
-  // Get signed URL if this is a private storage URL
-  const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(src);
-  
-  // Use signed URL if available, otherwise fall back to original
-  const effectiveSrc = signedUrl || src;
+  // Only request a signed URL once the image is actually in view (or marked priority).
+  // This prevents dozens of parallel createSignedUrl calls when scrolling a long
+  // gallery feed — that bottleneck was causing many of them to time out and fall
+  // back to public URLs that 400 because the photos bucket is private.
+  const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(
+    isInView || priority ? src : null,
+  );
+
+  const baseSrc = signedUrl || src;
+  const effectiveSrc = retrySrc || baseSrc;
   const lqipUrl = getLqipUrl(effectiveSrc);
   const hasLqip = lqipUrl !== effectiveSrc && !effectiveSrc.includes('token=');
 
@@ -44,6 +47,8 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
     if (prevSrcRef.current !== src) {
       setIsLoaded(false);
       setLqipLoaded(false);
+      setRetrySrc(null);
+      setRetryAttempts(0);
       prevSrcRef.current = src;
     }
   }, [src]);
@@ -53,9 +58,6 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
       setIsInView(true);
       return;
     }
-
-    // Wait until the img element is actually mounted (not hidden by isLoadingSignedUrl)
-    if (isLoadingSignedUrl) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -69,7 +71,6 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
 
     const currentImg = imgRef.current;
     if (currentImg) {
-      // Check immediately if already in viewport
       const rect = currentImg.getBoundingClientRect();
       const isVisible = rect.top < window.innerHeight + 200 && rect.bottom > -200;
       if (isVisible) {
@@ -80,18 +81,32 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
     }
 
     return () => observer.disconnect();
-  }, [priority, src, isLoadingSignedUrl]); // Re-run when signed URL resolves so we can observe the now-mounted img
+  }, [priority, src]);
 
   const showAsVideo = isVideoUrl(src);
 
+  // On load failure, force a fresh signed URL once. Old photos in the feed
+  // sometimes render with a stale fallback URL when the initial signed-URL
+  // request timed out under load.
+  const handleError = async () => {
+    if (retryAttempts >= 1 || !src) return;
+    setRetryAttempts((n) => n + 1);
+    try {
+      const fresh = await resolveSignedUrl(src);
+      // Cache-bust to force a new request even if URL is identical.
+      const bust = `${fresh}${fresh.includes("?") ? "&" : "?"}r=${Date.now()}`;
+      setRetrySrc(bust);
+    } catch {
+      // give up silently — placeholder will remain
+    }
+  };
+
   return (
     <>
-      {/* Base placeholder - show while loading signed URL or image */}
       {(!isLoaded && !lqipLoaded) || isLoadingSignedUrl ? (
         <div className="absolute inset-0 bg-muted animate-pulse" />
       ) : null}
 
-      {/* LQIP blurred placeholder (images only) */}
       {!showAsVideo && hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
         <img
           src={lqipUrl}
@@ -102,19 +117,19 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
         />
       )}
 
-      {/* Full quality image OR video first-frame thumbnail */}
-      {!isLoadingSignedUrl && !showAsVideo && (
+      {!showAsVideo && (
         <img
           ref={imgRef}
-          src={isInView ? effectiveSrc : undefined}
+          src={isInView && !isLoadingSignedUrl ? effectiveSrc : undefined}
           alt={alt}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
             isLoaded ? "opacity-100" : "opacity-0"
           } ${className}`}
           onLoad={() => setIsLoaded(true)}
+          onError={handleError}
         />
       )}
-      {!isLoadingSignedUrl && showAsVideo && (
+      {showAsVideo && !isLoadingSignedUrl && (
         <>
           <video
             ref={imgRef as unknown as React.RefObject<HTMLVideoElement>}
@@ -126,6 +141,7 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
             muted
             playsInline
             onLoadedData={() => setIsLoaded(true)}
+            onError={handleError}
           />
           {isLoaded && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
