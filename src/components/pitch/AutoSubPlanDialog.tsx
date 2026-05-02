@@ -236,9 +236,21 @@ export function createSubPlan(
   startElapsedSeconds: number = 0,
   startHalf: 1 | 2 = 1,
   preferredSecondHalfGkId?: string,
-  maxSpreadMinutes: number = 5
+  maxSpreadMinutes: number = 5,
+  advancedOverrides: AutoSubAdvancedOverrides = {}
 ): SubstitutionEvent[] {
   const rotationSpeed = normalizeRotationSpeed(rotationSpeedInput);
+  // Resolve overrides → effective tunables (clamped to safe ranges)
+  const ov = advancedOverrides || {};
+  const eff = {
+    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? PRACTICAL_SUB_INTERVAL_SECONDS)),
+    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? 240)),
+    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? 180)),
+    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? 180)),
+    halftimeGuardSeconds: ov.halftimeGuardSeconds !== undefined
+      ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
+      : undefined, // undefined → fall back to interval floor at use site
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
