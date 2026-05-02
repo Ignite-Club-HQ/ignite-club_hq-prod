@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { getCachedRoles } from "@/lib/rolesCache";
 
 const APP_URL = "https://igniteclubhq.app";
 const DEFAULT_EXPIRY_DAYS = 30;
