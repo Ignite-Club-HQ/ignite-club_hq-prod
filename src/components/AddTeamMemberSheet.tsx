@@ -2108,6 +2108,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
+            {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
+            {canBulkInvite && wizardStep === 1 && (
+              <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
+            )}
+
             {/* Wizard stepper header */}
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
               {[
