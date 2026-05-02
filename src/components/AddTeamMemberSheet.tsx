@@ -430,9 +430,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
         .eq("club_id", clubId)
         .eq("status", "pending")
-        .neq("team_id", teamId)
         .ilike("invited_label", `%${debouncedNameInput}%`)
-        .limit(8);
+        .limit(12);
       
       if (!invites?.length) return [];
       
