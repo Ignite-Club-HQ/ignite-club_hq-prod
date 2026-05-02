@@ -74,6 +74,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
 
   const queryKey = ["team-join-links", teamId];
 
