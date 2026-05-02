@@ -1556,7 +1556,7 @@ export function createSubPlan(
     // (a player taken off less than MIN_SHIFT_SECONDS_PENALTY after coming on).
     const cameOnAt = new Map<string, number>();
     playersOnPitch.forEach(p => cameOnAt.set(p.id, startAbsoluteSeconds));
-    const MIN_SHIFT_SECONDS_PENALTY = 180;
+    const MIN_SHIFT_SECONDS_PENALTY = eff.minShiftSeconds;
 
     const ordered = candidatePlan
       .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
