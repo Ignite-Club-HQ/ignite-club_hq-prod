@@ -74,6 +74,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
 
   const queryKey = ["team-join-links", teamId];
 
@@ -248,7 +249,10 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
             variant="secondary"
             className="w-full"
             disabled={createOrRotate.isPending}
-            onClick={() => createOrRotate.mutate({ rotate: false, role: activeRole })}
+            onClick={() => {
+              if (isSensitive) setConfirmGenerate(true);
+              else createOrRotate.mutate({ rotate: false, role: activeRole });
+            }}
           >
             {createOrRotate.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -358,6 +362,31 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
               }}
             >
               Regenerate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} join link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anyone with this link can join {teamName} as a {activeRoleLabel.toLowerCase()} —
+              that grants {activeRole === "team_admin" ? "full team admin" : "coach edit"} access.
+              Only share it with people you trust, and revoke it when no longer needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                setConfirmGenerate(false);
+                createOrRotate.mutate({ rotate: false, role: activeRole });
+              }}
+            >
+              Yes, create link
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
