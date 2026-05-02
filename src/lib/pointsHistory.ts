@@ -42,8 +42,11 @@ export async function recordPointsHistory({
   createdBy,
 }: RecordPointsHistoryParams): Promise<boolean> {
   try {
+    // points_history has a check constraint enforcing EXACTLY ONE of user_id/child_id.
+    // When awarding to a child, we must NOT also set user_id (the guardian) on the row.
+    const isChildAward = !!childId;
     const { error } = await supabase.from("points_history").insert({
-      user_id: userId || null,
+      user_id: isChildAward ? null : (userId || null),
       child_id: childId || null,
       club_id: clubId || null,
       amount,
