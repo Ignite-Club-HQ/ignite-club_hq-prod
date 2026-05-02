@@ -72,29 +72,18 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
 
   /**
    * Throttled toast nudge — call right after the user sends an image message.
-   * Shows at most once every 24h per device, with an "Add" action that triggers
-   * the publish flow once the message id resolves.
+   * Shows at most once every 24h per device, pointing at the inline
+   * "Add to gallery" chip on the just-sent message.
    */
-  const nudgeAfterSend = useCallback(
-    (resolveMessageId: () => string | null, imageUrl: string) => {
-      if (!canPublish) return;
-      if (!shouldShowGalleryNudge()) return;
-      markGalleryNudgeShown();
-      toast("Photo shared in chat", {
-        description: "Also add it to the Media Gallery so it's saved for the team?",
-        duration: 8000,
-        action: {
-          label: "Add",
-          onClick: () => {
-            const id = resolveMessageId();
-            if (!id) return;
-            void publish(id, imageUrl);
-          },
-        },
-      });
-    },
-    [canPublish, publish],
-  );
+  const nudgeAfterSend = useCallback(() => {
+    if (!canPublish) return;
+    if (!shouldShowGalleryNudge()) return;
+    markGalleryNudgeShown();
+    toast("Saved to chat", {
+      description: "Tap “Add to gallery” under your photo to save it to the team Media Gallery.",
+      duration: 7000,
+    });
+  }, [canPublish]);
 
   return {
     publishingIds,
