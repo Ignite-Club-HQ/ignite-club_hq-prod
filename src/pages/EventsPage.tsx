@@ -809,6 +809,7 @@ export default function EventsPage() {
                   ? [clubFilter]
                   : (userMemberships?.clubIds || [])
               }
+              myTeamIds={userMemberships?.teamIds || []}
             />
           )}
         </div>
