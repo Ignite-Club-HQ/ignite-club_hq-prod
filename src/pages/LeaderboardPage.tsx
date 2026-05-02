@@ -52,7 +52,7 @@ export default function LeaderboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [scope, setScope] = useState<Scope>("club");
-  const [windowKey, setWindowKey] = useState<WindowKey>("week");
+  const [windowKey] = useState<WindowKey>("all");
   const [teamId, setTeamId] = useState<string | null>(searchParams.get("teamId"));
 
   // Clubs the user belongs to (for the selector)
@@ -201,14 +201,6 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Window tabs */}
-      <Tabs value={windowKey} onValueChange={(v) => setWindowKey(v as WindowKey)} className="mb-4">
-        <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="week">This Week</TabsTrigger>
-          <TabsTrigger value="month">This Month</TabsTrigger>
-          <TabsTrigger value="all">All Time</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {/* Body */}
       {scope === "teams" ? (
