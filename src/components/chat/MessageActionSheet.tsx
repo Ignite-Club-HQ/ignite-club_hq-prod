@@ -61,6 +61,12 @@ interface MessageActionSheetProps {
   pinLimitReached?: boolean;
   onPin?: () => void;
   onUnpin?: () => void;
+  // Publish-to-gallery support (only set when poster owns the image
+  // and the chat has a known team/club context, e.g. team chat).
+  canPublishToGallery?: boolean;
+  isPublishedToGallery?: boolean;
+  isPublishingToGallery?: boolean;
+  onPublishToGallery?: () => void;
 }
 
 export function MessageActionSheet({
