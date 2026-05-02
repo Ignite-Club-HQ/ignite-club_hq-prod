@@ -320,7 +320,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
               <button
                 type="button"
                 className="underline hover:text-foreground transition-colors disabled:opacity-50"
-                onClick={() => createOrRotate.mutate({ rotate: true, role: activeRole })}
+                onClick={() => setConfirmRegenerate(true)}
                 disabled={createOrRotate.isPending}
               >
                 <RefreshCw className="h-3 w-3 inline mr-0.5" />
@@ -339,6 +339,29 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           </div>
         </>
       )}
+
+      <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current link will stop working immediately. Anyone you've already shared
+              it with won't be able to join — you'll need to send them the new link.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmRegenerate(false);
+                createOrRotate.mutate({ rotate: true, role: activeRole });
+              }}
+            >
+              Regenerate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
