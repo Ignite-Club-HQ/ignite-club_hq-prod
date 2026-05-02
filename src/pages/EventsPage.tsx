@@ -33,6 +33,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
+import { ClubDaySummary } from "@/components/events/ClubDaySummary";
 
 type EventType = "game" | "training" | "social";
 
