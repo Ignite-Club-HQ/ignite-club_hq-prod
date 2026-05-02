@@ -133,7 +133,8 @@ export default function PlayerOfMatchSelector({
         user_id: userId || null,
         child_id: childId || null,
         awarded_by: user!.id,
-        points_awarded: pointsToAward,
+        points_awarded: pointsToAward > 0,
+        points: pointsToAward,
       } as any);
 
       if (pomError) throw pomError;
