@@ -1242,7 +1242,9 @@ export default function TeamChatPage() {
     const finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    const hadImage = !!imageUrl;
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    if (hadImage) nudgeGalleryAfterSend();
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
