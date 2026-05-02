@@ -164,6 +164,8 @@ export default function TeamChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
+  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
@@ -1250,6 +1252,46 @@ export default function TeamChatPage() {
     setReplyingTo(null);
   }, []);
 
+  const handlePublishToGallery = useCallback(
+    async (messageId: string, msgImageUrl: string) => {
+      if (!user?.id || !teamId) return;
+      if (publishingIds.has(messageId) || publishedIds.has(messageId)) return;
+      setPublishingIds((prev) => {
+        const next = new Set(prev);
+        next.add(messageId);
+        return next;
+      });
+      try {
+        const result = await publishChatImageToGallery({
+          imageUrl: msgImageUrl,
+          uploaderId: user.id,
+          teamId,
+          clubId: team?.club_id ?? null,
+        });
+        setPublishedIds((prev) => {
+          const next = new Set(prev);
+          next.add(messageId);
+          return next;
+        });
+        toast.success(
+          result.alreadyPublished
+            ? "Already in the media gallery"
+            : "Published to media gallery",
+        );
+      } catch (err: any) {
+        console.error("[TeamChatPage] publish to gallery failed", err);
+        toast.error(err?.message || "Could not publish to gallery");
+      } finally {
+        setPublishingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+      }
+    },
+    [user?.id, teamId, team?.club_id, publishingIds, publishedIds],
+  );
+
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
     setMessage("");
@@ -1515,6 +1557,10 @@ export default function TeamChatPage() {
                         pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                         onPin={pinMessage}
                         onUnpin={unpinMessage}
+                        canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                        isPublishingToGallery={publishingIds.has(msg.id)}
+                        isPublishedToGallery={publishedIds.has(msg.id)}
+                        onPublishToGallery={handlePublishToGallery}
                       />
                     </div>
                   </div>
