@@ -2120,6 +2120,7 @@ function DialogInner({
   preferredSecondHalfGkId,
   isSetupFlow = false,
   miniLeagueTeams,
+  advancedOverrides,
 }: {
   players: Player[];
   teamSize: number;
@@ -2138,19 +2139,39 @@ function DialogInner({
   preferredSecondHalfGkId?: string;
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
+  advancedOverrides?: AutoSubAdvancedOverrides;
 }) {
   // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
   const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+
+  // ---- Advanced overrides (persisted) -----------------------------------
+  // External `advancedOverrides` prop wins; otherwise we read/write our own
+  // copy in localStorage so the panel survives reloads.
+  const ADV_STORAGE_KEY = "autoSubPlan.advancedOverrides.v1";
+  const [localOverrides, setLocalOverrides] = useState<AutoSubAdvancedOverrides>(() => {
+    if (advancedOverrides) return {};
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(ADV_STORAGE_KEY) : null;
+      return raw ? JSON.parse(raw) as AutoSubAdvancedOverrides : {};
+    } catch { return {}; }
+  });
+  const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const persistLocal = (next: AutoSubAdvancedOverrides) => {
+    setLocalOverrides(next);
+    try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
+  };
   
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
