@@ -1024,6 +1024,12 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      // Refresh points history & rank after fire-and-forget early-RSVP bonus award.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["points-history"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
+      }, 1500);
       
 
       // Show post-RSVP notification nudge if user hasn't enabled push
