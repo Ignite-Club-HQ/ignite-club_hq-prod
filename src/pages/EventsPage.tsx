@@ -32,6 +32,7 @@ import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { useUserEventViews } from "@/hooks/useEventViews";
+import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 
 type EventType = "game" | "training" | "social";
 
@@ -70,6 +71,9 @@ export default function EventsPage() {
   const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  // Day filter for list view (separate from calendar's selectedDate)
+  const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
+  const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
@@ -471,6 +475,25 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
+  // Day-of-week dot indicators for the list-view date strip
+  const daysWithEventsKeySet = useMemo(() => {
+    const set = new Set<string>();
+    (events || []).forEach((e) => {
+      try {
+        set.add(format(parseISO(e.event_date), "yyyy-MM-dd"));
+      } catch {
+        // ignore malformed dates
+      }
+    });
+    return set;
+  }, [events]);
+
+  // List-view: events on the chosen day (only when date strip is active)
+  const listDayEvents = useMemo(() => {
+    if (!listSelectedDate) return null;
+    return (events || []).filter((e) => isSameDay(parseISO(e.event_date), listSelectedDate));
+  }, [events, listSelectedDate]);
+
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
   const isInitialLoad = !events && !upcomingEvents && !pastEvents;
@@ -797,11 +820,53 @@ export default function EventsPage() {
           )}
         </div>
       ) : (
-        <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="w-full">
-            <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
-            <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
-          </TabsList>
+        <div className="space-y-3">
+          {/* Day strip — tap a day to filter the list to just that day */}
+          <ScheduleDateStrip
+            selectedDate={listSelectedDate}
+            onSelectDate={(d) => {
+              setListSelectedDate(d);
+              if (d) setStripWeekAnchor(d);
+            }}
+            daysWithEvents={daysWithEventsKeySet}
+            weekAnchor={stripWeekAnchor}
+            onShiftWeek={(delta) => {
+              setStripWeekAnchor((prev) => {
+                const next = new Date(prev);
+                next.setDate(next.getDate() + delta);
+                return next;
+              });
+            }}
+          />
+
+          {listSelectedDate ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-sm">
+                  {format(listSelectedDate, "EEEE, MMMM d")}
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setListSelectedDate(null)}>
+                  Clear
+                </Button>
+              </div>
+              {listDayEvents && listDayEvents.length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-muted-foreground text-sm">Nothing scheduled this day</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                listDayEvents?.map((event) => (
+                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
+                ))
+              )}
+            </div>
+          ) : (
+            <Tabs defaultValue="upcoming" className="w-full">
+              <TabsList className="w-full">
+                <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
+                <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
+              </TabsList>
 
           <TabsContent value="upcoming" className="mt-4 space-y-3">
             {upcomingEvents?.length === 0 ? (
@@ -831,7 +896,9 @@ export default function EventsPage() {
               ))
             )}
           </TabsContent>
-        </Tabs>
+            </Tabs>
+          )}
+        </div>
       )}
 
       {/* Sponsor/Ad Carousel */}
