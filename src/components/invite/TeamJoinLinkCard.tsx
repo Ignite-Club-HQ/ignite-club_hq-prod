@@ -115,7 +115,10 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     setAutoSelected(true);
   }
 
-  const link = links[activeRole] ?? null;
+  // `links` is undefined while the query is still loading — guard before indexing
+  // to prevent a render-time TypeError, which manifests as React error #310
+  // ("Rendered fewer hooks than expected") when React aborts the partial render.
+  const link = links?.[activeRole] ?? null;
 
   const createOrRotate = useMutation({
     mutationFn: async ({ rotate, role }: { rotate: boolean; role: RoleVariant }) => {
