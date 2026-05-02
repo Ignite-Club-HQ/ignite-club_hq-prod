@@ -1,15 +1,21 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { MapPin, Clock, Trophy, Dumbbell } from "lucide-react";
+import { MapPin, Clock, Trophy, Dumbbell, Users, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
 interface ClubDaySummaryProps {
   selectedDate: Date;
   clubIds: string[];
+  /** Team IDs the user is a member of — used for "My teams" filter (default view). */
+  myTeamIds?: string[];
+  /** Initial scope. Defaults to "my". */
+  defaultScope?: "my" | "club";
 }
 
 interface ClubDayEvent {
@@ -30,13 +36,27 @@ interface ClubDayEvent {
 
 const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
 
+function venueLabel(e: ClubDayEvent): string {
+  return (
+    e.location_name ||
+    [e.address, e.suburb].filter(Boolean).join(", ") ||
+    "Location TBD"
+  );
+}
+
 /**
- * Club-wide summary for a single day. Shows ALL games and training scheduled
- * across the user's club(s) on the selected date — not just the teams the
- * user is a member of. Backed by `get_club_day_events` SECURITY DEFINER fn.
+ * Day summary for a single date. Defaults to showing only events for teams
+ * the user belongs to ("My teams"); a toggle switches to a club-wide view
+ * (all teams) where events are grouped by venue/location.
  */
-export function ClubDaySummary({ selectedDate, clubIds }: ClubDaySummaryProps) {
+export function ClubDaySummary({
+  selectedDate,
+  clubIds,
+  myTeamIds = [],
+  defaultScope = "my",
+}: ClubDaySummaryProps) {
   const dKey = dayKey(selectedDate);
+  const [scope, setScope] = useState<"my" | "club">(defaultScope);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["club-day-events", dKey, clubIds.slice().sort().join(",")],
@@ -51,7 +71,6 @@ export function ClubDaySummary({ selectedDate, clubIds }: ClubDaySummaryProps) {
         if (error) throw error;
         if (data) all.push(...(data as ClubDayEvent[]));
       }
-      // Sort by start_time, then event_date
       return all.sort((a, b) => {
         const at = a.start_time || a.event_date;
         const bt = b.start_time || b.event_date;
@@ -62,36 +81,101 @@ export function ClubDaySummary({ selectedDate, clubIds }: ClubDaySummaryProps) {
     staleTime: 60 * 1000,
   });
 
-  const games = (events || []).filter((e) => e.type === "game");
-  const trainings = (events || []).filter((e) => e.type === "training");
+  const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
+  const visible = useMemo(() => {
+    if (!events) return [] as ClubDayEvent[];
+    if (scope === "club") return events;
+    return events.filter((e) => e.team_id && myTeamSet.has(e.team_id));
+  }, [events, scope, myTeamSet]);
+
+  const games = visible.filter((e) => e.type === "game");
+  const trainings = visible.filter((e) => e.type === "training");
+
+  // Group by venue for club view
+  const byVenue = useMemo(() => {
+    const map = new Map<string, ClubDayEvent[]>();
+    for (const e of visible) {
+      const k = venueLabel(e);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(e);
+    }
+    return Array.from(map.entries());
+  }, [visible]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold">
           {format(selectedDate, "EEEE, MMMM d")}
         </h2>
-        {events && events.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {games.length} game{games.length === 1 ? "" : "s"} ·{" "}
-            {trainings.length} training
-          </span>
-        )}
+        <ToggleGroup
+          type="single"
+          size="sm"
+          value={scope}
+          onValueChange={(v) => v && setScope(v as "my" | "club")}
+          className="shrink-0"
+        >
+          <ToggleGroupItem value="my" className="h-7 px-2 text-xs gap-1">
+            <Users className="h-3 w-3" />
+            My teams
+          </ToggleGroupItem>
+          <ToggleGroupItem value="club" className="h-7 px-2 text-xs gap-1">
+            <Building2 className="h-3 w-3" />
+            Whole club
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
+
+      {visible.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {games.length} game{games.length === 1 ? "" : "s"} ·{" "}
+          {trainings.length} training
+          {scope === "my" && events && events.length > visible.length && (
+            <> · {events.length - visible.length} more across club</>
+          )}
+        </p>
+      )}
 
       {isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
         </div>
-      ) : !events || events.length === 0 ? (
+      ) : visible.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground text-sm">
-              No games or training scheduled across the club on this day.
+              {scope === "my"
+                ? "None of your teams have games or training on this day."
+                : "No games or training scheduled across the club on this day."}
             </p>
+            {scope === "my" && events && events.length > 0 && (
+              <button
+                onClick={() => setScope("club")}
+                className="text-xs text-primary mt-2 underline"
+              >
+                See {events.length} club-wide event{events.length === 1 ? "" : "s"}
+              </button>
+            )}
           </CardContent>
         </Card>
+      ) : scope === "club" ? (
+        <div className="space-y-3">
+          {byVenue.map(([venue, list]) => (
+            <div key={venue} className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 text-primary" />
+                <span className="truncate">{venue}</span>
+                <span>({list.length})</span>
+              </div>
+              <div className="space-y-2">
+                {list.map((e) => (
+                  <DayEventRow key={e.id} event={e} hideVenue />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <>
           {games.length > 0 && (
@@ -143,14 +227,12 @@ function SummarySection({
   );
 }
 
-function DayEventRow({ event }: { event: ClubDayEvent }) {
+function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVenue?: boolean }) {
   const time = event.start_time
     ? format(new Date(event.start_time), "h:mma").toLowerCase()
     : null;
-  const venue =
-    event.location_name ||
-    [event.address, event.suburb].filter(Boolean).join(", ") ||
-    null;
+  const venue = hideVenue ? null : venueLabel(event);
+  const isTraining = event.type === "training";
 
   return (
     <Card>
@@ -158,6 +240,17 @@ function DayEventRow({ event }: { event: ClubDayEvent }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
+              {!hideVenue && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] py-0 h-4 shrink-0",
+                    isTraining ? "border-primary/40 text-primary" : "border-destructive/40 text-destructive"
+                  )}
+                >
+                  {isTraining ? "Training" : "Game"}
+                </Badge>
+              )}
               <p className="font-medium text-sm truncate">
                 {event.team_name || event.title}
                 {event.opponent ? (
@@ -174,6 +267,12 @@ function DayEventRow({ event }: { event: ClubDayEvent }) {
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                 <MapPin className="h-3 w-3 shrink-0" />
                 <span className="truncate">{venue}</span>
+              </div>
+            )}
+            {hideVenue && isTraining && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                <Dumbbell className="h-3 w-3 shrink-0" />
+                <span>Training</span>
               </div>
             )}
           </div>
