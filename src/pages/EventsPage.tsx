@@ -756,16 +756,6 @@ export default function EventsPage() {
 
       {viewMode === "calendar" ? (
         <div className="space-y-4">
-          <ScheduleDateStrip
-            selectedDate={selectedDate ?? null}
-            onSelectDate={(d) => {
-              setSelectedDate(d ?? undefined);
-              if (d) setCalendarStripWeekAnchor(d);
-            }}
-            daysWithEvents={daysWithEventsKeySet}
-            weekAnchor={calendarStripWeekAnchor}
-            onShiftWeek={(delta) => setCalendarStripWeekAnchor((prev) => addDays(prev, delta))}
-          />
           <Card>
             <CardContent className="p-4">
               <Calendar
@@ -811,22 +801,14 @@ export default function EventsPage() {
           </Card>
 
           {selectedDate && (
-            <div className="space-y-3">
-              <h2 className="font-semibold">
-                Events on {format(selectedDate, "EEEE, MMMM d")}
-              </h2>
-              {selectedDateEvents?.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground">No events on this date</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                selectedDateEvents?.map((event) => (
-                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
-                ))
-              )}
-            </div>
+            <ClubDaySummary
+              selectedDate={selectedDate}
+              clubIds={
+                clubFilter
+                  ? [clubFilter]
+                  : (userMemberships?.clubIds || [])
+              }
+            />
           )}
         </div>
       ) : (
