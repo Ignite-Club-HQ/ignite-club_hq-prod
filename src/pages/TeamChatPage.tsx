@@ -164,6 +164,8 @@ export default function TeamChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
+  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
