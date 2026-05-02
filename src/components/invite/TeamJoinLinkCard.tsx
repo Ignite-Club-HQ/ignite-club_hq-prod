@@ -366,6 +366,31 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} join link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Anyone with this link can join {teamName} as a {activeRoleLabel.toLowerCase()} —
+              that grants {activeRole === "team_admin" ? "full team admin" : "coach edit"} access.
+              Only share it with people you trust, and revoke it when no longer needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                setConfirmGenerate(false);
+                createOrRotate.mutate({ rotate: false, role: activeRole });
+              }}
+            >
+              Yes, create link
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
