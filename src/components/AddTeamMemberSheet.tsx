@@ -1671,6 +1671,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setNameConfirmed(false);
     setSelectedUser(null);
     setCustomEmail("");
+    setSharePhone("");
     setDeliveryMethod("share");
     setSelectedRole(getDefaultRole());
     setInviteLink(null);
