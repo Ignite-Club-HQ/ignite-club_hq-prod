@@ -66,37 +66,18 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
   const queryKey = ["team-join-links", teamId];
 
-  // Load all role-variant links for this team in one query
-  const { data: links, isLoading, isError, refetch } = useQuery({
-    queryKey,
-    enabled: !!teamId,
-    staleTime: 30_000,
-    refetchOnMount: "always",
-    queryFn: async (): Promise<Record<RoleVariant, JoinLinkRow | null>> => {
-      const { data, error } = await supabase
-        .from("team_invites")
-        .select("id, token, expires_at, uses_count, max_uses, created_at, metadata, role")
-        .eq("team_id", teamId)
-        .contains("metadata", { kind: TOKEN_METADATA_KIND })
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const map: Record<RoleVariant, JoinLinkRow | null> = {
-        parent: null, player: null, coach: null, team_admin: null,
-      };
-      for (const row of data ?? []) {
-        const meta = (row.metadata ?? {}) as { kind?: string; role_variant?: RoleVariant };
-        // Fall back to row.role for legacy rows that didn't store role_variant in metadata
-        const variant = (meta.role_variant ?? (row.role as RoleVariant)) as RoleVariant;
-        if (!ROLE_OPTIONS.some((o) => o.value === variant)) continue;
-        if (map[variant]) continue; // keep newest only
-        if (row.expires_at && new Date(row.expires_at) < new Date()) continue;
-        map[variant] = { ...(row as any), metadata: meta };
-      }
-      return map;
-    },
+  // Session-only state: links are NOT loaded from DB on mount.
+  // They appear after Generate and disappear once this component unmounts
+  // (e.g. when the sheet is closed and reopened).
+  const [sessionLinks, setSessionLinks] = useState<Record<RoleVariant, JoinLinkRow | null>>({
+    parent: null, player: null, coach: null, team_admin: null,
   });
+  const links = sessionLinks;
+  const isLoading = false;
+  const isError = false;
+  const refetch = () => {};
 
-  const link = links?.[activeRole] ?? null;
+  const link = links[activeRole] ?? null;
 
   const createOrRotate = useMutation({
     mutationFn: async ({ rotate, role }: { rotate: boolean; role: RoleVariant }) => {
