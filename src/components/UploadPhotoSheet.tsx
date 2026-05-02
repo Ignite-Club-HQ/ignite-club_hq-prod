@@ -472,8 +472,19 @@ export function UploadPhotoSheet({
       throw insertError || new Error("Insert failed");
     }
 
-    // Note: Media gallery uploads are intentionally NOT mirrored into vault_files.
-    // Media and Vault are independent — uploads to one must not appear in the other.
+    // One-way mirror: gallery upload → vault "Gallery Uploads" folder
+    // (team-scoped if a team is selected, else club-wide). Vault edits/deletes
+    // never propagate back to the gallery.
+    syncGalleryPhotoToVault({
+      fileUrl: storageUrl,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || null,
+      userId: user!.id,
+      clubId,
+      teamId: teamId || null,
+      miniLeagueId: miniLeagueId || null,
+    }).catch((e) => console.warn("gallery → vault sync failed:", e));
 
     return { url: storageUrl, photoId: insertedPhoto.id };
   };
