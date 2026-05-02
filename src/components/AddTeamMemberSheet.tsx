@@ -2093,18 +2093,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
-          {canBulkInvite && (
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="single" className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Single
-              </TabsTrigger>
-              <TabsTrigger value="bulk" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Multiple
-              </TabsTrigger>
-            </TabsList>
-          )}
+          {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
