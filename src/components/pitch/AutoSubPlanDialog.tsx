@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
@@ -100,6 +100,126 @@ function calculateTimeForecasts(
     startsOnPitch: startsOnPitchMap.get(player.id) || false,
     gkRole: gkRoles.get(player.id),
   })).sort((a, b) => b.predictedMinutes - a.predictedMinutes);
+}
+
+// ===========================================================================
+// Fairness Simulator
+// ---------------------------------------------------------------------------
+// Walk a generated plan and produce per-player stint stats: total minutes,
+// number of short shifts (<3 min on pitch) and bounce-backs (<3 min on bench
+// between two on-pitch stints). Used by the in-dialog Fairness Simulator
+// to surface problematic plans before the coach commits.
+// ===========================================================================
+
+const FAIRNESS_SHORT_SHIFT_SECONDS = 180;
+const FAIRNESS_BOUNCE_BACK_SECONDS = 180;
+
+interface FairnessPlayerStat {
+  playerId: string;
+  playerName: string;
+  totalSeconds: number;
+  shortShifts: number;
+  bounceBacks: number;
+  startsOnPitch: boolean;
+}
+
+interface FairnessReport {
+  perPlayer: FairnessPlayerStat[];
+  spreadSeconds: number;          // max - min playing time
+  minSeconds: number;
+  maxSeconds: number;
+  avgSeconds: number;
+  totalShortShifts: number;
+  totalBounceBacks: number;
+  totalSubs: number;
+  /** Subjective overall grade derived from spread + short-shift count. */
+  grade: "excellent" | "good" | "fair" | "poor";
+}
+
+function calculateFairnessReport(
+  players: { id: string; name: string; position: { x: number; y: number } | null }[],
+  plan: SubstitutionEvent[],
+  minutesPerHalf: number,
+): FairnessReport {
+  const halfSec = minutesPerHalf * 60;
+  const totalSec = halfSec * 2;
+
+  // Per-player stints in absolute seconds. Starters open at 0; bench players
+  // open a stint when subbed on, close it when subbed off.
+  const stints = new Map<string, { start: number; end: number }[]>();
+  for (const p of players) {
+    stints.set(p.id, p.position !== null ? [{ start: 0, end: totalSec }] : []);
+  }
+
+  const events = [...plan].sort((a, b) => {
+    const aAbs = (a.half - 1) * halfSec + a.time;
+    const bAbs = (b.half - 1) * halfSec + b.time;
+    return aAbs - bAbs;
+  });
+
+  for (const ev of events) {
+    if (ev.skipped) continue;
+    const abs = (ev.half - 1) * halfSec + ev.time;
+    const outArr = stints.get(ev.playerOut.id);
+    if (outArr && outArr.length) {
+      const last = outArr[outArr.length - 1];
+      if (last.end > abs) last.end = abs;
+    }
+    const inArr = stints.get(ev.playerIn.id);
+    if (inArr) inArr.push({ start: abs, end: totalSec });
+  }
+
+  const perPlayer: FairnessPlayerStat[] = players.map((p) => {
+    const arr = stints.get(p.id) || [];
+    let total = 0;
+    let shortShifts = 0;
+    let bounceBacks = 0;
+    for (let i = 0; i < arr.length; i++) {
+      const dur = Math.max(0, arr[i].end - arr[i].start);
+      total += dur;
+      if (dur < FAIRNESS_SHORT_SHIFT_SECONDS) shortShifts++;
+      if (i > 0) {
+        const gap = arr[i].start - arr[i - 1].end;
+        if (gap > 0 && gap < FAIRNESS_BOUNCE_BACK_SECONDS) bounceBacks++;
+      }
+    }
+    return {
+      playerId: p.id,
+      playerName: p.name,
+      totalSeconds: total,
+      shortShifts,
+      bounceBacks,
+      startsOnPitch: p.position !== null,
+    };
+  });
+
+  const totals = perPlayer.map((s) => s.totalSeconds);
+  const minSeconds = totals.length ? Math.min(...totals) : 0;
+  const maxSeconds = totals.length ? Math.max(...totals) : 0;
+  const avgSeconds = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+  const spreadSeconds = maxSeconds - minSeconds;
+  const totalShortShifts = perPlayer.reduce((a, s) => a + s.shortShifts, 0);
+  const totalBounceBacks = perPlayer.reduce((a, s) => a + s.bounceBacks, 0);
+
+  // Grade thresholds (in minutes)
+  const spreadMin = spreadSeconds / 60;
+  let grade: FairnessReport["grade"];
+  if (spreadMin <= 4 && totalShortShifts === 0 && totalBounceBacks === 0) grade = "excellent";
+  else if (spreadMin <= 7 && totalShortShifts <= 1 && totalBounceBacks <= 1) grade = "good";
+  else if (spreadMin <= 12 && totalShortShifts <= 3) grade = "fair";
+  else grade = "poor";
+
+  return {
+    perPlayer: perPlayer.sort((a, b) => b.totalSeconds - a.totalSeconds),
+    spreadSeconds,
+    minSeconds,
+    maxSeconds,
+    avgSeconds,
+    totalShortShifts,
+    totalBounceBacks,
+    totalSubs: events.length,
+    grade,
+  };
 }
 
 interface Player {
@@ -2160,6 +2280,10 @@ function DialogInner({
   });
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Fairness simulator: lazily computed on coach demand so the dialog stays
+  // snappy. Cleared whenever the underlying plan changes.
+  const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
@@ -2232,6 +2356,24 @@ function DialogInner({
     if (!plan) return [];
     return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
   }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
+
+  // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
+  useEffect(() => { setFairnessReport(null); }, [plan]);
+
+  const handleRunSimulator = () => {
+    if (!plan) return;
+    setIsSimulating(true);
+    setTimeout(() => {
+      try {
+        const report = calculateFairnessReport(players, plan, minutesPerHalf);
+        setFairnessReport(report);
+      } catch (err) {
+        console.error("[AutoSubPlan] Fairness sim error:", err);
+      } finally {
+        setIsSimulating(false);
+      }
+    }, 10);
+  };
   
   const handleGenerate = () => {
     setIsGenerating(true);
@@ -2344,6 +2486,16 @@ function DialogInner({
               <p className="text-xs text-muted-foreground mb-3">
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
               </p>
+
+              {/* Fairness Simulator — one-click preview of plan quality */}
+              <FairnessSimulatorPanel
+                report={fairnessReport}
+                isSimulating={isSimulating}
+                onRun={handleRunSimulator}
+                modeLabel={rotationSpeed === 2 ? "Frequent" : "Standard"}
+                teamSize={teamSize}
+                benchSize={players.filter(p => p.position === null).length}
+              />
               {forecasts.map(forecast => (
                 <div 
                   key={forecast.player.id}
@@ -2376,6 +2528,24 @@ function DialogInner({
                           {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
                         </Badge>
                       )}
+                      {(() => {
+                        const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
+                        if (!stat) return null;
+                        return (
+                          <>
+                            {stat.shortShifts > 0 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
+                                {stat.shortShifts} short
+                              </Badge>
+                            )}
+                            {stat.bounceBacks > 0 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
+                                {stat.bounceBacks} bounce
+                              </Badge>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <Progress 
@@ -2721,6 +2891,135 @@ function AdvancedSettingsPanel({
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// Fairness Simulator Panel
+// One-click "run the plan and grade it" surfaced inside the Forecast tab.
+// Renders nothing scary by default — just a CTA. Once the coach taps Run,
+// shows spread + grade + short shifts + bounce-backs and unlocks per-player
+// flag badges in the list below.
+// ===========================================================================
+function FairnessSimulatorPanel({
+  report,
+  isSimulating,
+  onRun,
+  modeLabel,
+  teamSize,
+  benchSize,
+}: {
+  report: FairnessReport | null;
+  isSimulating: boolean;
+  onRun: () => void;
+  modeLabel: string;
+  teamSize: number;
+  benchSize: number;
+}) {
+  const fmtMinClock = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}'${s.toString().padStart(2, "0")}`;
+  };
+
+  const gradeMeta: Record<FairnessReport["grade"], { label: string; tone: string; Icon: typeof ShieldCheck }> = {
+    excellent: { label: "Excellent",  tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", Icon: ShieldCheck },
+    good:      { label: "Good",       tone: "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400",  Icon: ShieldCheck },
+    fair:      { label: "Fair",       tone: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",         Icon: ShieldAlert },
+    poor:      { label: "Needs work", tone: "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400",                  Icon: ShieldAlert },
+  };
+
+  if (!report) {
+    return (
+      <div className="mb-3 rounded-lg border border-border bg-muted/30 p-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Fairness simulator
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            {modeLabel} · {teamSize}v{teamSize} +{benchSize} — preview spread &amp; short shifts before saving.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="default"
+          className="gap-1.5 shrink-0"
+          onClick={onRun}
+          disabled={isSimulating}
+        >
+          {isSimulating
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Zap className="h-3.5 w-3.5" />}
+          {isSimulating ? "Running…" : "Run simulator"}
+        </Button>
+      </div>
+    );
+  }
+
+  const meta = gradeMeta[report.grade];
+  const GradeIcon = meta.Icon;
+
+  return (
+    <div className={cn("mb-3 rounded-lg border p-3 space-y-3", meta.tone.split(" ").filter(c => c.startsWith("border-") || c.startsWith("bg-")).join(" "))}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <GradeIcon className={cn("h-4 w-4 shrink-0", meta.tone)} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">Fairness: <span className={meta.tone.split(" ").filter(c => c.startsWith("text-")).join(" ")}>{meta.label}</span></span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {modeLabel} · {teamSize}v{teamSize} +{benchSize} · {report.totalSubs} subs
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="gap-1.5 h-7 text-xs shrink-0"
+          onClick={onRun}
+          disabled={isSimulating}
+        >
+          {isSimulating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          Re-run
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Spread</div>
+          <div className="text-sm font-bold text-foreground tabular-nums">{fmtMinClock(report.spreadSeconds)}</div>
+          <div className="text-[10px] text-muted-foreground tabular-nums">{fmtMinClock(report.minSeconds)} → {fmtMinClock(report.maxSeconds)}</div>
+        </div>
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Short shifts</div>
+          <div className={cn(
+            "text-sm font-bold tabular-nums",
+            report.totalShortShifts === 0 ? "text-foreground" : "text-red-500"
+          )}>{report.totalShortShifts}</div>
+          <div className="text-[10px] text-muted-foreground">&lt; 3 min on pitch</div>
+        </div>
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Bounce-backs</div>
+          <div className={cn(
+            "text-sm font-bold tabular-nums",
+            report.totalBounceBacks === 0 ? "text-foreground" : "text-purple-500"
+          )}>{report.totalBounceBacks}</div>
+          <div className="text-[10px] text-muted-foreground">&lt; 3 min off pitch</div>
+        </div>
+      </div>
+
+      {(report.totalShortShifts > 0 || report.totalBounceBacks > 0 || report.grade === "poor" || report.grade === "fair") && (
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          {report.grade === "poor"
+            ? "This plan has noticeable imbalance. Try a different mode, increase Max Spread, or tweak Advanced settings below."
+            : report.grade === "fair"
+              ? "Acceptable, but a couple of players will feel it. Check the flagged rows below."
+              : "Plan is solid overall — flagged rows below show edge cases worth a glance."}
+        </p>
       )}
     </div>
   );
