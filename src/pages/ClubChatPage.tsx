@@ -1114,6 +1114,17 @@ export default function ClubChatPage() {
     onError: () => toast({ title: "Failed to update message", variant: "destructive" }),
   });
 
+  const {
+    publishingIds: galleryPublishingIds,
+    publishedIds: galleryPublishedIds,
+    publish: handlePublishToGallery,
+    nudgeAfterSend: nudgeGalleryAfterSend,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: null,
+    clubId: clubId ?? null,
+  });
+
   const handleSend = () => {
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
@@ -1124,7 +1135,9 @@ export default function ClubChatPage() {
     const finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    if (hadImage) nudgeGalleryAfterSend();
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
