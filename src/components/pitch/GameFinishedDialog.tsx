@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trophy, Clock, Users, Loader2, Check, CalendarCheck } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { useGameStats } from "@/hooks/useGameStats";
+import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 
 interface Player {
   id: string;
@@ -84,6 +85,7 @@ export default function GameFinishedDialog({
   opponent,
 }: GameFinishedDialogProps) {
   const { saveGameStats, isSaving } = useGameStats();
+  const { save: saveGameResult } = useSaveGameResult();
   const [statsSaved, setStatsSaved] = useState(false);
   
   // Sort players by minutes played (descending)
