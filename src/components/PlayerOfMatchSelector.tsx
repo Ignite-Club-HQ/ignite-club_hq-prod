@@ -544,7 +544,7 @@ export default function PlayerOfMatchSelector({
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() => awardMutation.mutate({ userId: rsvp.user_id })}
-                  disabled={awardMutation.isPending}
+                  disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
                     <AvatarImage src={rsvp.profiles?.avatar_url} />
