@@ -228,15 +228,28 @@ export default function JoinTeamPage() {
     refetchOnMount: 'always',
   });
 
-  // Fetch existing children on this team for parent linking
+  // Fetch existing children on this team for parent linking.
+  // Only surface children who don't yet have a primary parent or any guardians,
+  // so a new parent can claim them without colliding with existing families.
   const { data: existingTeamChildren = [] } = useQuery({
     queryKey: ["team-children-for-linking", invite?.team_id],
     queryFn: async () => {
       const { data } = await supabase
         .from("child_team_assignments")
-        .select("child_id, children(id, name, year_of_birth)")
+        .select("child_id, children(id, name, year_of_birth, parent_id)")
         .eq("team_id", invite!.team_id);
-      return data?.map(a => (a.children as any)).filter(Boolean) || [];
+      const candidates = (data || [])
+        .map(a => (a.children as any))
+        .filter((c: any) => c && !c.parent_id);
+      if (candidates.length === 0) return [];
+      // Exclude any candidates that already have at least one guardian linked
+      const ids = candidates.map((c: any) => c.id);
+      const { data: guardians } = await supabase
+        .from("child_guardians")
+        .select("child_id")
+        .in("child_id", ids);
+      const linked = new Set((guardians || []).map((g: any) => g.child_id));
+      return candidates.filter((c: any) => !linked.has(c.id));
     },
     enabled: !!invite?.team_id && showChildStep,
   });
