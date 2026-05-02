@@ -887,6 +887,12 @@ export const ChatMessage = memo(function ChatMessage({
           pinLimitReached={pinLimitReached}
           onPin={onPin ? () => onPin(id) : undefined}
           onUnpin={onUnpin ? () => onUnpin(id) : undefined}
+          canPublishToGallery={canPublishToGallery && isOwn && !!imageUrl}
+          isPublishedToGallery={isPublishedToGallery}
+          isPublishingToGallery={isPublishingToGallery}
+          onPublishToGallery={
+            onPublishToGallery && imageUrl ? () => onPublishToGallery(id, imageUrl) : undefined
+          }
         />
         {/* Fullscreen image viewer triggered from action sheet */}
         {showFullscreenImage && imageUrl && (
