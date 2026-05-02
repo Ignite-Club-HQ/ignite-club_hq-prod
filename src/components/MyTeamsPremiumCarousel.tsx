@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
+import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 interface TeamOrLeague {
@@ -538,14 +539,22 @@ export function MyTeamsPremiumCarousel() {
         .limit(teamIds.length * 2);
 
       if (data) {
+        // Collect raw URLs first, then resolve to signed URLs in one batch
+        const rawUrls: string[] = [];
+        const entries: { teamId: string; id: string; rawUrl: string }[] = [];
         for (const photo of data) {
           if (!photo.team_id) continue;
           const url = photo.file_url || photo.image_url;
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
-          if (map[photo.team_id].length < 2) {
-            map[photo.team_id].push({ id: photo.id, url });
-          }
+          if (entries.filter((e) => e.teamId === photo.team_id).length >= 2) continue;
+          entries.push({ teamId: photo.team_id, id: photo.id, rawUrl: url });
+          rawUrls.push(url);
+        }
+
+        const signed = await getSignedPhotoUrls(rawUrls);
+        for (const entry of entries) {
+          map[entry.teamId].push({ id: entry.id, url: signed[entry.rawUrl] || entry.rawUrl });
         }
       }
 
