@@ -1557,6 +1557,10 @@ export default function TeamChatPage() {
                         pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                         onPin={pinMessage}
                         onUnpin={unpinMessage}
+                        canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                        isPublishingToGallery={publishingIds.has(msg.id)}
+                        isPublishedToGallery={publishedIds.has(msg.id)}
+                        onPublishToGallery={handlePublishToGallery}
                       />
                     </div>
                   </div>
