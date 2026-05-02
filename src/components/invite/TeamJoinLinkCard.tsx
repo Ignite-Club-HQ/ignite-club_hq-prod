@@ -319,10 +319,20 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           <Collapsible open={showQR}>
             <CollapsibleContent>
               <div className="flex flex-col items-center gap-2 py-3 bg-background rounded-md border border-border">
-                <div className="bg-white p-3 rounded-md">
+                <div id={`qr-${link.id}`} className="bg-white p-3 rounded-md">
                   <QRCodeSVG value={fullUrl} size={180} level="M" includeMargin={false} />
                 </div>
                 <p className="text-[11px] text-muted-foreground">Point a camera at the code to join as {activeRoleLabel.toLowerCase()}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => handleSaveQR(link.id)}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  {Capacitor.isNativePlatform() ? "Share QR image" : "Download QR"}
+                </Button>
               </div>
             </CollapsibleContent>
           </Collapsible>
