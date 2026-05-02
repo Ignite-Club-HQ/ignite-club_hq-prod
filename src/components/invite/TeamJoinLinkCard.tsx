@@ -76,19 +76,44 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [showQR, setShowQR] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [autoSelected, setAutoSelected] = useState(false);
 
   const queryKey = ["team-join-links", teamId];
 
-  // Session-only state: links are NOT loaded from DB on mount.
-  // They appear after Generate and disappear once this component unmounts
-  // (e.g. when the sheet is closed and reopened).
-  const [sessionLinks, setSessionLinks] = useState<Record<RoleVariant, JoinLinkRow | null>>({
-    parent: null, player: null, coach: null, team_admin: null,
+  // Load all persistent join links for this team from DB so admins
+  // can reuse a previously generated link instead of regenerating.
+  const { data: links, isLoading, isError, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_invites")
+        .select("id, token, expires_at, uses_count, max_uses, created_at, metadata, role")
+        .eq("team_id", teamId)
+        .contains("metadata", { kind: TOKEN_METADATA_KIND })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const map: Record<RoleVariant, JoinLinkRow | null> = {
+        parent: null, player: null, coach: null, team_admin: null,
+      };
+      for (const row of (data ?? []) as any[]) {
+        const role = (row.metadata?.role_variant ?? row.role) as RoleVariant;
+        if (role && map[role] === null) map[role] = row as JoinLinkRow;
+      }
+      return map;
+    },
+    staleTime: 30_000,
   });
-  const links = sessionLinks;
-  const isLoading = false;
-  const isError = false;
-  const refetch = () => {};
+
+  // Auto-jump to a role that already has a link the first time we load,
+  // so admins land on a usable link instead of an empty Generate state.
+  if (!autoSelected && links) {
+    const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
+    const existing = order.find((r) => links[r]);
+    if (existing && existing !== activeRole) {
+      setActiveRole(existing);
+    }
+    setAutoSelected(true);
+  }
 
   const link = links[activeRole] ?? null;
 
