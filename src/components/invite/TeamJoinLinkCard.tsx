@@ -438,26 +438,28 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
               {link.uses_count} {link.uses_count === 1 ? "join" : "joins"} · expires{" "}
               {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
             </span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className="underline hover:text-foreground transition-colors disabled:opacity-50"
-                onClick={() => setConfirmRegenerate(true)}
-                disabled={createOrRotate.isPending}
-              >
-                <RefreshCw className="h-3 w-3 inline mr-0.5" />
-                Regenerate
-              </button>
-              <span aria-hidden>·</span>
-              <button
-                type="button"
-                className="underline hover:text-destructive transition-colors disabled:opacity-50"
-                onClick={() => revoke.mutate(activeRole)}
-                disabled={revoke.isPending}
-              >
-                Revoke
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  className="underline hover:text-foreground transition-colors disabled:opacity-50"
+                  onClick={() => setConfirmRegenerate(true)}
+                  disabled={createOrRotate.isPending}
+                >
+                  <RefreshCw className="h-3 w-3 inline mr-0.5" />
+                  Regenerate
+                </button>
+                <span aria-hidden>·</span>
+                <button
+                  type="button"
+                  className="underline hover:text-destructive transition-colors disabled:opacity-50"
+                  onClick={() => revoke.mutate(activeRole)}
+                  disabled={revoke.isPending}
+                >
+                  Revoke
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
