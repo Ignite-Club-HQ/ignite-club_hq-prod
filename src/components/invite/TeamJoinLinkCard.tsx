@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { getCachedRoles } from "@/lib/rolesCache";
 
 const APP_URL = "https://igniteclubhq.app";
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -77,6 +78,17 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
+
+  // Only admins/coaches can regenerate or revoke the link.
+  const isAdmin = useMemo(() => {
+    const roles = getCachedRoles();
+    if (!roles) return false;
+    return roles.some(
+      (r) =>
+        ["app_admin", "club_admin", "team_admin", "coach"].includes(r.role) &&
+        (r.team_id === teamId || (r.club_id && !r.team_id)),
+    );
+  }, [teamId]);
 
   const queryKey = ["team-join-links", teamId];
 
@@ -367,23 +379,20 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
           <button
             type="button"
             onClick={handleCopy}
-            aria-label="Copy link"
-            className="w-full flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2 text-left hover:bg-muted/50 transition-colors"
+            aria-label="Copy join link"
+            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
           >
-            <span className="text-xs font-mono truncate flex-1 min-w-0">{fullUrl}</span>
-            <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-primary">
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy
-                </>
-              )}
-            </span>
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 text-primary" />
+                <span className="text-primary">Link copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                <span>Copy link</span>
+              </>
+            )}
           </button>
 
           <div className="flex flex-wrap gap-2">
@@ -429,26 +438,28 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
               {link.uses_count} {link.uses_count === 1 ? "join" : "joins"} · expires{" "}
               {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
             </span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className="underline hover:text-foreground transition-colors disabled:opacity-50"
-                onClick={() => setConfirmRegenerate(true)}
-                disabled={createOrRotate.isPending}
-              >
-                <RefreshCw className="h-3 w-3 inline mr-0.5" />
-                Regenerate
-              </button>
-              <span aria-hidden>·</span>
-              <button
-                type="button"
-                className="underline hover:text-destructive transition-colors disabled:opacity-50"
-                onClick={() => revoke.mutate(activeRole)}
-                disabled={revoke.isPending}
-              >
-                Revoke
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  className="underline hover:text-foreground transition-colors disabled:opacity-50"
+                  onClick={() => setConfirmRegenerate(true)}
+                  disabled={createOrRotate.isPending}
+                >
+                  <RefreshCw className="h-3 w-3 inline mr-0.5" />
+                  Regenerate
+                </button>
+                <span aria-hidden>·</span>
+                <button
+                  type="button"
+                  className="underline hover:text-destructive transition-colors disabled:opacity-50"
+                  onClick={() => revoke.mutate(activeRole)}
+                  disabled={revoke.isPending}
+                >
+                  Revoke
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
