@@ -73,6 +73,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [activeRole, setActiveRole] = useState<RoleVariant>("parent");
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
 
   const queryKey = ["team-join-links", teamId];
 
