@@ -277,7 +277,7 @@ export default function PlayerOfMatchSelector({
     mutationFn: async () => {
       if (!playerOfMatch) return;
 
-      const pointsToDeduct = Number((playerOfMatch as any).points_awarded) || 0;
+      const pointsToDeduct = Number((playerOfMatch as any).points) || 0;
 
       // Deduct points
       if (playerOfMatch.user_id) {
