@@ -229,6 +229,7 @@ function SummarySection({
 }
 
 function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVenue?: boolean }) {
+  const navigate = useNavigate();
   const time = event.start_time
     ? format(new Date(event.start_time), "h:mma").toLowerCase()
     : null;
@@ -236,7 +237,18 @@ function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVe
   const isTraining = event.type === "training";
 
   return (
-    <Card>
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(`/events/${event.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/events/${event.id}`);
+        }
+      }}
+      className="cursor-pointer hover:bg-accent/50 active:bg-accent transition-colors"
+    >
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
