@@ -2486,6 +2486,16 @@ function DialogInner({
               <p className="text-xs text-muted-foreground mb-3">
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
               </p>
+
+              {/* Fairness Simulator — one-click preview of plan quality */}
+              <FairnessSimulatorPanel
+                report={fairnessReport}
+                isSimulating={isSimulating}
+                onRun={handleRunSimulator}
+                modeLabel={rotationSpeed === 2 ? "Frequent" : "Standard"}
+                teamSize={teamSize}
+                benchSize={players.filter(p => p.position === null).length}
+              />
               {forecasts.map(forecast => (
                 <div 
                   key={forecast.player.id}
