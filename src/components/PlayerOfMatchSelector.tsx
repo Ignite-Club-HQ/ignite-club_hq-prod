@@ -570,7 +570,7 @@ export default function PlayerOfMatchSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Player of the Match?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the Player of the Match selection and deduct {playerOfMatch?.points_awarded} points from{" "}
+              This will remove the Player of the Match selection and deduct {(playerOfMatch as any)?.points ?? 0} points from{" "}
               {playerOfMatch?.profiles?.display_name || playerOfMatch?.children?.name}.
             </AlertDialogDescription>
           </AlertDialogHeader>
