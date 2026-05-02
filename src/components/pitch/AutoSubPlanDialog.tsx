@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
@@ -137,6 +137,23 @@ interface MiniLeagueTeams {
   teamBName?: string;
 }
 
+/** Power-user overrides for sub-planner thresholds. All optional — when
+ *  omitted the planner uses its built-in defaults. Exposed via the Advanced
+ *  Settings panel in the AutoSubPlanDialog. */
+export interface AutoSubAdvancedOverrides {
+  /** Standard mode: hard floor on the sub-window cadence (sec). Default 240. */
+  standardIntervalFloorSec?: number;
+  /** Standard mode: target/maximum sub-window cadence (sec). Default 420. */
+  standardTargetIntervalSec?: number;
+  /** Frequent mode: minimum gap between sub windows (sec). Default 180. */
+  frequentIntervalFloorSec?: number;
+  /** Minimum on-pitch shift before a player can be pulled (sec). Default 180. */
+  minShiftSeconds?: number;
+  /** Halftime guard: no interval-driven sub windows within this many sec of HT
+   *  (when a halftime GK swap is scheduled). Default = the active interval floor. */
+  halftimeGuardSeconds?: number;
+}
+
 interface AutoSubPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -159,6 +176,8 @@ interface AutoSubPlanDialogProps {
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
   miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
+  /** Optional power-user overrides for planner thresholds. */
+  advancedOverrides?: AutoSubAdvancedOverrides;
 }
 
 const formatTime = (seconds: number) => {
@@ -217,9 +236,21 @@ export function createSubPlan(
   startElapsedSeconds: number = 0,
   startHalf: 1 | 2 = 1,
   preferredSecondHalfGkId?: string,
-  maxSpreadMinutes: number = 5
+  maxSpreadMinutes: number = 5,
+  advancedOverrides: AutoSubAdvancedOverrides = {}
 ): SubstitutionEvent[] {
   const rotationSpeed = normalizeRotationSpeed(rotationSpeedInput);
+  // Resolve overrides → effective tunables (clamped to safe ranges)
+  const ov = advancedOverrides || {};
+  const eff = {
+    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? PRACTICAL_SUB_INTERVAL_SECONDS)),
+    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? 240)),
+    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? 180)),
+    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? 180)),
+    halftimeGuardSeconds: ov.halftimeGuardSeconds !== undefined
+      ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
+      : undefined, // undefined → fall back to interval floor at use site
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
@@ -331,11 +362,11 @@ export function createSubPlan(
     const cycleWindowsNeeded = Math.ceil(totalOutfieldPlayers / subsPerWindow);
     const cadenceForCycle = totalRemainingSeconds > 0 && cycleWindowsNeeded > 0
       ? Math.floor(totalRemainingSeconds / (cycleWindowsNeeded + 1))
-      : PRACTICAL_SUB_INTERVAL_SECONDS;
-    const PRACTICAL_MIN_INTERVAL = 4 * 60; // never let Standard windows fall below 4 min
+      : eff.standardTargetInterval;
+    const PRACTICAL_MIN_INTERVAL = eff.standardIntervalFloor; // floor for Standard windows
     const intervalSec = Math.max(
       PRACTICAL_MIN_INTERVAL,
-      Math.min(PRACTICAL_SUB_INTERVAL_SECONDS, cadenceForCycle)
+      Math.min(eff.standardTargetInterval, cadenceForCycle)
     );
 
     // ---- Fairness model ------------------------------------------------------
@@ -1070,7 +1101,7 @@ export function createSubPlan(
   // when the projected end-of-game gap exceeds FAIRNESS_TOLERANCE_SECONDS.
   // A MIN_SHIFT_SECONDS guarantees no player is pulled too soon after coming on.
   const FAIRNESS_TOLERANCE_SECONDS = 60;
-  const MIN_SHIFT_SECONDS = 180;
+  const MIN_SHIFT_SECONDS = eff.minShiftSeconds;
   // Position weight for ordering starters into the off-queue:
   // GK never rotates off via queue; defenders go first, then mids, then forwards.
   const positionRotationOrder = (pos: PitchPosition | undefined): number => {
@@ -1158,7 +1189,8 @@ export function createSubPlan(
   // LIGHT FREQUENT: raise the floor for speed=2 from 120s to 180s so shifts
   // are noticeably longer than current Frequent (~3 min vs ~2 min) while
   // still rotating much more often than Standard (~5 min).
-  const minIntervalFloor = rotationSpeed === 3 ? 90 : 180;
+  const minIntervalFloor = rotationSpeed === 3 ? 90 : eff.frequentIntervalFloor;
+  const halftimeGuardWindow = eff.halftimeGuardSeconds ?? minIntervalFloor;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
@@ -1173,7 +1205,7 @@ export function createSubPlan(
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
     if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
     if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
-    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < minIntervalFloor) continue;
+    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < halftimeGuardWindow) continue;
     directEventTimes.add(Math.floor(t));
   }
   if (halftimeGuardActive) {
@@ -1524,7 +1556,7 @@ export function createSubPlan(
     // (a player taken off less than MIN_SHIFT_SECONDS_PENALTY after coming on).
     const cameOnAt = new Map<string, number>();
     playersOnPitch.forEach(p => cameOnAt.set(p.id, startAbsoluteSeconds));
-    const MIN_SHIFT_SECONDS_PENALTY = 180;
+    const MIN_SHIFT_SECONDS_PENALTY = eff.minShiftSeconds;
 
     const ordered = candidatePlan
       .map((sub, index) => ({ sub, index, absoluteSeconds: getPlanAbsoluteSeconds(sub) }))
@@ -2045,17 +2077,18 @@ function createMiniLeagueSubPlan(
   startHalf: 1 | 2,
   miniLeagueTeams: MiniLeagueTeams,
   preferredSecondHalfGkId?: string,
-  maxSpreadMinutes: number = 5
+  maxSpreadMinutes: number = 5,
+  advancedOverrides: AutoSubAdvancedOverrides = {}
 ): SubstitutionEvent[] {
   const teamAPlayers = players.filter(p => p.teamSide === "a");
   const teamBPlayers = players.filter(p => p.teamSide === "b");
   
   const planA = teamAPlayers.length > 0
-    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes)
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId, maxSpreadMinutes, advancedOverrides)
     : [];
   
   const planB = teamBPlayers.length > 0
-    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes)
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, undefined, maxSpreadMinutes, advancedOverrides)
     : [];
   
   // Merge and sort by half then time
@@ -2087,6 +2120,7 @@ function DialogInner({
   preferredSecondHalfGkId,
   isSetupFlow = false,
   miniLeagueTeams,
+  advancedOverrides,
 }: {
   players: Player[];
   teamSize: number;
@@ -2105,19 +2139,39 @@ function DialogInner({
   preferredSecondHalfGkId?: string;
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
+  advancedOverrides?: AutoSubAdvancedOverrides;
 }) {
   // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
   const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+
+  // ---- Advanced overrides (persisted) -----------------------------------
+  // External `advancedOverrides` prop wins; otherwise we read/write our own
+  // copy in localStorage so the panel survives reloads.
+  const ADV_STORAGE_KEY = "autoSubPlan.advancedOverrides.v1";
+  const [localOverrides, setLocalOverrides] = useState<AutoSubAdvancedOverrides>(() => {
+    if (advancedOverrides) return {};
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(ADV_STORAGE_KEY) : null;
+      return raw ? JSON.parse(raw) as AutoSubAdvancedOverrides : {};
+    } catch { return {}; }
+  });
+  const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const persistLocal = (next: AutoSubAdvancedOverrides) => {
+    setLocalOverrides(next);
+    try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
+  };
   
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -2163,6 +2217,8 @@ function DialogInner({
     // the "GK 1H / GK 2H" badges and minute forecasts. We key on a compact
     // signature to avoid loops from referential identity changes.
     players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
+    // Regenerate when advanced overrides change.
+    JSON.stringify(effectiveOverrides),
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -2348,7 +2404,16 @@ function DialogInner({
           />
         )}
       </div>
-      
+
+      {/* Advanced settings — power-user thresholds for auto-sub planning. */}
+      <AdvancedSettingsPanel
+        open={advancedOpen}
+        onToggle={() => setAdvancedOpen(o => !o)}
+        overrides={effectiveOverrides}
+        readOnly={!!advancedOverrides}
+        onChange={persistLocal}
+      />
+
       <div className="flex gap-2 justify-end mt-4">
         <Button variant="outline" onClick={onClose}>
           {isSetupFlow ? "Skip — do subs manually" : "Cancel"}
@@ -2381,6 +2446,7 @@ export default function AutoSubPlanDialog({
   preferredSecondHalfGkId,
   showStepper = false,
   miniLeagueTeams,
+  advancedOverrides,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -2446,11 +2512,216 @@ export default function AutoSubPlanDialog({
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
                 isSetupFlow={showStepper}
                 miniLeagueTeams={miniLeagueTeams}
+                advancedOverrides={advancedOverrides}
               />
             )}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+// ===========================================================================
+// Advanced Settings Panel — power-user thresholds for the auto-sub planner.
+// Renders inside the AutoSubPlanDialog footer as a collapsible section.
+// All values are stored as seconds and apply per-mode where indicated.
+// ===========================================================================
+
+const ADV_DEFAULTS = {
+  standardTargetIntervalSec: 7 * 60,   // 420
+  standardIntervalFloorSec: 4 * 60,    // 240
+  frequentIntervalFloorSec: 180,
+  minShiftSeconds: 180,
+  halftimeGuardSeconds: 180,
+} as const;
+
+function fmtSec(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  if (sec >= 60) return `${(sec / 60).toFixed(1)} min`;
+  return `${sec}s`;
+}
+
+function NumberRow({
+  label, hint, value, defaultValue, min, max, step, disabled, onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled?: boolean;
+  onChange: (next: number | undefined) => void;
+}) {
+  const isOverridden = value !== defaultValue;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-medium text-foreground">{label}</label>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "text-xs tabular-nums",
+            isOverridden ? "text-primary font-semibold" : "text-muted-foreground"
+          )}>
+            {fmtSec(value)}
+          </span>
+          {isOverridden && !disabled && (
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              reset
+            </button>
+          )}
+        </div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-primary disabled:opacity-50"
+      />
+      <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+function AdvancedSettingsPanel({
+  open, onToggle, overrides, readOnly, onChange,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  overrides: AutoSubAdvancedOverrides;
+  readOnly: boolean;
+  onChange: (next: AutoSubAdvancedOverrides) => void;
+}) {
+  const v = {
+    standardTargetIntervalSec: overrides.standardTargetIntervalSec ?? ADV_DEFAULTS.standardTargetIntervalSec,
+    standardIntervalFloorSec: overrides.standardIntervalFloorSec ?? ADV_DEFAULTS.standardIntervalFloorSec,
+    frequentIntervalFloorSec: overrides.frequentIntervalFloorSec ?? ADV_DEFAULTS.frequentIntervalFloorSec,
+    minShiftSeconds: overrides.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds,
+    halftimeGuardSeconds: overrides.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds,
+  };
+  const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
+    .filter(k => overrides[k] !== undefined).length;
+
+  const set = (key: keyof AutoSubAdvancedOverrides, next: number | undefined) => {
+    if (readOnly) return;
+    const merged: AutoSubAdvancedOverrides = { ...overrides };
+    if (next === undefined) delete merged[key];
+    else merged[key] = next;
+    onChange(merged);
+  };
+
+  const resetAll = () => onChange({});
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/20">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Settings2 className="h-4 w-4" />
+          Advanced settings
+          {overrideCount > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              {overrideCount} custom
+            </Badge>
+          )}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
+          {readOnly && (
+            <p className="text-[11px] text-muted-foreground italic">
+              These thresholds are controlled by the parent screen and can't be changed here.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Standard mode</p>
+            <NumberRow
+              label="Target sub-window cadence"
+              hint="Maximum gap between sub windows. Planner shrinks below this if needed to fit a full rotation."
+              value={v.standardTargetIntervalSec}
+              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
+              min={180} max={900} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardTargetIntervalSec", n)}
+            />
+            <NumberRow
+              label="Sub-window floor"
+              hint="Hard lower bound — windows never get tighter than this even with a large bench."
+              value={v.standardIntervalFloorSec}
+              defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
+              min={120} max={600} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardIntervalFloorSec", n)}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Frequent mode</p>
+            <NumberRow
+              label="Sub-window floor"
+              hint="Minimum gap between sub windows in Frequent mode. Lower = more rotations, shorter shifts."
+              value={v.frequentIntervalFloorSec}
+              defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
+              min={60} max={420} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("frequentIntervalFloorSec", n)}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Both modes</p>
+            <NumberRow
+              label="Minimum shift on pitch"
+              hint="A player can't be pulled until they've been on at least this long. Prevents 'phantom' short shifts."
+              value={v.minShiftSeconds}
+              defaultValue={ADV_DEFAULTS.minShiftSeconds}
+              min={60} max={360} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("minShiftSeconds", n)}
+            />
+            <NumberRow
+              label="Halftime guard window"
+              hint="When a halftime GK swap is scheduled, no interval-driven sub windows are placed within this window of HT."
+              value={v.halftimeGuardSeconds}
+              defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
+              min={0} max={420} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("halftimeGuardSeconds", n)}
+            />
+          </div>
+
+          {!readOnly && overrideCount > 0 && (
+            <div className="flex justify-end pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={resetAll}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset all to defaults
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
