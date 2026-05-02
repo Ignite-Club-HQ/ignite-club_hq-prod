@@ -160,8 +160,8 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
       if (error) throw error;
       return role;
     },
-    onSuccess: (role) => {
-      setSessionLinks((prev) => ({ ...prev, [role]: null }));
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Link revoked", description: "The previous link no longer works." });
     },
     onError: (err: any) => {
