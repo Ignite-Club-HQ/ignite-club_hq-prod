@@ -255,7 +255,7 @@ export default function LeaderboardPage() {
       )}
 
       {/* Sticky "your rank" */}
-      {myRow && !myRowInTop && (
+      {scope !== "teams" && myRow && !myRowInTop && (
         <div className="sticky bottom-2 mt-4">
           <Card className="border-primary/40 shadow-lg">
             <CardContent className="p-3 flex items-center gap-3">
