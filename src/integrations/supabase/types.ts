@@ -7976,6 +7976,24 @@ export type Database = {
         Returns: string
       }
       generate_email_hash: { Args: { email: string }; Returns: string }
+      get_club_day_events: {
+        Args: { _club_id: string; _day: string }
+        Returns: {
+          address: string
+          end_time: string
+          event_date: string
+          id: string
+          is_cancelled: boolean
+          location_name: string
+          opponent: string
+          start_time: string
+          suburb: string
+          team_id: string
+          team_name: string
+          title: string
+          type: string
+        }[]
+      }
       get_club_invite_by_token: {
         Args: { _token: string }
         Returns: {
