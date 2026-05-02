@@ -115,7 +115,28 @@ export function MessageActionSheet({
     });
   }
 
-  if (canReply) {
+  // Publish own chat photo to the team's media gallery.
+  // Only meaningful for image messages in a team-context chat where the
+  // poster has team-member upload rights.
+  if (canPublishToGallery && hasImage && onPublishToGallery) {
+    const label = isPublishingToGallery
+      ? "Publishing…"
+      : isPublishedToGallery
+        ? "Published to Gallery"
+        : "Publish to Media Gallery";
+    actions.push({
+      label,
+      icon: isPublishingToGallery
+        ? <Loader2 className="h-5 w-5 animate-spin" />
+        : isPublishedToGallery
+          ? <Check className="h-5 w-5 text-primary" />
+          : <ImagePlus className="h-5 w-5" />,
+      onClick: () => {
+        if (isPublishingToGallery || isPublishedToGallery) return;
+        onPublishToGallery();
+      },
+    });
+  }
     actions.push({
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
