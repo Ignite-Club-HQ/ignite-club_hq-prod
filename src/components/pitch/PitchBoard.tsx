@@ -4248,14 +4248,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSelectedOnBench(null);
     setSubMode(false);
 
-    // Auto-regenerate the plan if auto-subs are active
-    if (autoSubActive) {
-      setTimeout(() => {
-        handleRegeneratePlan();
-        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for manual substitution" });
-      }, 200);
-    }
-  }, [pendingManualSub, toast, pushToUndoHistory, autoSubActive, handleRegeneratePlan]);
+    // Note: the on-pitch composition effect (see playersOnPitch useEffect)
+    // will detect this manual sub and regenerate the auto-sub plan automatically,
+    // so we no longer need to call handleRegeneratePlan() here.
+  }, [pendingManualSub, toast, pushToUndoHistory]);
 
   // Handle manual substitution cancel
   const handleCancelManualSub = useCallback(() => {
