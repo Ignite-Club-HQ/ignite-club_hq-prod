@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trophy, Clock, Users, Loader2, Check, CalendarCheck } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { useGameStats } from "@/hooks/useGameStats";
+import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 
 interface Player {
   id: string;
@@ -84,6 +85,7 @@ export default function GameFinishedDialog({
   opponent,
 }: GameFinishedDialogProps) {
   const { saveGameStats, isSaving } = useGameStats();
+  const { save: saveGameResult } = useSaveGameResult();
   const [statsSaved, setStatsSaved] = useState(false);
   
   // Sort players by minutes played (descending)
@@ -120,6 +122,29 @@ export default function GameFinishedDialog({
       } catch (error) {
         console.error("Failed to save game stats:", error);
         // Continue with cleanup even if save fails
+      }
+
+      // Also persist a soccer match score row (parity with basketball/netball boards),
+      // so the score shows on the event card and in History.
+      try {
+        const homeScore = goals.filter((g) => !g.isOpponentGoal).length;
+        const awayScore = goals.filter((g) => g.isOpponentGoal).length;
+        await saveGameResult(
+          {
+            teamId,
+            eventId: linkedEventId,
+            sport: "soccer",
+            homeLabel: teamName || "Our Team",
+            awayLabel: opponent || "Opponent",
+            homeScore,
+            awayScore,
+            perQuarter: [],
+            players: [],
+          },
+          { silent: true }
+        );
+      } catch (err) {
+        console.error("Failed to save soccer game result:", err);
       }
     }
 

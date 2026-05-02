@@ -8370,6 +8370,10 @@ export type Database = {
       }
       is_season_editable: { Args: { _season_id: string }; Returns: boolean }
       is_season_eoi_open: { Args: { _season_id: string }; Returns: boolean }
+      is_subs_manager_for_event: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean

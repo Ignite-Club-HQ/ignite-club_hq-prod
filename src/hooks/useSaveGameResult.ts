@@ -11,7 +11,7 @@ import type { SummaryPlayerStat, PerQuarterScore } from "@/components/scoreboard
 export interface SaveGameResultInput {
   teamId: string;
   eventId?: string | null;
-  sport: "basketball" | "netball";
+  sport: "basketball" | "netball" | "soccer";
   homeLabel: string;
   awayLabel: string;
   homeScore: number;
