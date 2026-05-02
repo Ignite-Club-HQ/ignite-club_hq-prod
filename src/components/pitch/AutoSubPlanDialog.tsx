@@ -1101,7 +1101,7 @@ export function createSubPlan(
   // when the projected end-of-game gap exceeds FAIRNESS_TOLERANCE_SECONDS.
   // A MIN_SHIFT_SECONDS guarantees no player is pulled too soon after coming on.
   const FAIRNESS_TOLERANCE_SECONDS = 60;
-  const MIN_SHIFT_SECONDS = 180;
+  const MIN_SHIFT_SECONDS = eff.minShiftSeconds;
   // Position weight for ordering starters into the off-queue:
   // GK never rotates off via queue; defenders go first, then mids, then forwards.
   const positionRotationOrder = (pos: PitchPosition | undefined): number => {
