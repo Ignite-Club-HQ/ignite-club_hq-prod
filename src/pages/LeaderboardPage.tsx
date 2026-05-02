@@ -267,7 +267,7 @@ export default function LeaderboardPage() {
       )}
 
       <p className="text-[11px] text-muted-foreground text-center mt-6">
-        Children's points are included with their guardian. Hide yourself in Edit Profile.
+        Children appear as their own entries. Hide yourself in Edit Profile.
       </p>
     </div>
   );
