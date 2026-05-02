@@ -111,6 +111,7 @@ const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
 const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
 const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
+const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -307,6 +308,7 @@ const App = () => {
                   <Route path="/admin/active-games" element={<AdminActiveGamesPage />} />
                   <Route path="/admin/engagement" element={<AdminEngagementPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
+                  <Route path="/leaderboard" element={<LeaderboardPage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/children" element={<ChildrenPage />} />

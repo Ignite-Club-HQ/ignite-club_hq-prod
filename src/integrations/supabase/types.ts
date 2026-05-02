@@ -5426,6 +5426,7 @@ export type Database = {
           id: string
           ignite_points: number
           last_seen_at: string | null
+          leaderboard_opt_out: boolean
           photo_consent: boolean | null
           photo_consent_given_at: string | null
           privacy_accepted_at: string | null
@@ -5446,6 +5447,7 @@ export type Database = {
           id: string
           ignite_points?: number
           last_seen_at?: string | null
+          leaderboard_opt_out?: boolean
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
           privacy_accepted_at?: string | null
@@ -5466,6 +5468,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           last_seen_at?: string | null
+          leaderboard_opt_out?: boolean
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
           privacy_accepted_at?: string | null
@@ -7642,6 +7645,7 @@ export type Database = {
       }
     }
     Functions: {
+      _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -7989,6 +7993,23 @@ export type Database = {
           uses_count: number
         }[]
       }
+      get_club_leaderboard: {
+        Args: {
+          _club_id: string
+          _limit?: number
+          _viewer_id?: string
+          _window?: string
+        }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          hidden: boolean
+          is_viewer: boolean
+          points: number
+          rank: number
+          user_id: string
+        }[]
+      }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
       get_engagement_streak: {
         Args: { _club_id: string; _user_id: string }
@@ -8253,6 +8274,23 @@ export type Database = {
           uses_count: number
         }[]
       }
+      get_team_leaderboard: {
+        Args: {
+          _limit?: number
+          _team_id: string
+          _viewer_id?: string
+          _window?: string
+        }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          hidden: boolean
+          is_viewer: boolean
+          points: number
+          rank: number
+          user_id: string
+        }[]
+      }
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {
@@ -8377,6 +8415,13 @@ export type Database = {
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_leaderboard_teams: {
+        Args: { _club_id: string }
+        Returns: {
+          id: string
+          name: string
+        }[]
       }
       mark_gallery_card_push_sent: {
         Args: { _card_id: string }

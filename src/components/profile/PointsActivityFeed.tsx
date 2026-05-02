@@ -154,7 +154,11 @@ export function PointsActivityFeed({
           </div>
 
           {rank && (
-            <div className="w-full flex items-center gap-3 rounded-lg border bg-card p-3">
+            <button
+              type="button"
+              onClick={() => navigate("/leaderboard")}
+              className="w-full flex items-center gap-3 rounded-lg border bg-card p-3 text-left hover:bg-accent transition-colors touch-manipulation"
+            >
               <div className="h-9 w-9 rounded-full bg-yellow-500/15 text-yellow-600 flex items-center justify-center shrink-0">
                 <Trophy className="h-4 w-4" />
               </div>
@@ -164,14 +168,14 @@ export function PointsActivityFeed({
                 </p>
                 {rank.rank > 1 && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Keep going to climb the leaderboard
+                    Tap to see the leaderboard
                   </p>
                 )}
                 {rank.rank === 1 && (
                   <p className="text-xs text-emerald-600 mt-0.5 font-medium">You're leading the pack 🏆</p>
                 )}
               </div>
-            </div>
+            </button>
           )}
 
           {untrackedNote && (
