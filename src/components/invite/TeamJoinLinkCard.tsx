@@ -106,12 +106,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
       return { role, row: data as JoinLinkRow };
     },
     onSuccess: ({ role, row }) => {
-      queryClient.setQueryData<Record<RoleVariant, JoinLinkRow | null>>(queryKey, (prev) => ({
-        parent: null, player: null, coach: null, team_admin: null,
-        ...(prev ?? {}),
-        [role]: row,
-      }));
-      queryClient.invalidateQueries({ queryKey });
+      setSessionLinks((prev) => ({ ...prev, [role]: row }));
       toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
@@ -128,12 +123,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
       return role;
     },
     onSuccess: (role) => {
-      queryClient.setQueryData<Record<RoleVariant, JoinLinkRow | null>>(queryKey, (prev) => ({
-        parent: null, player: null, coach: null, team_admin: null,
-        ...(prev ?? {}),
-        [role]: null,
-      }));
-      queryClient.invalidateQueries({ queryKey });
+      setSessionLinks((prev) => ({ ...prev, [role]: null }));
       toast({ title: "Link revoked", description: "The previous link no longer works." });
     },
     onError: (err: any) => {
