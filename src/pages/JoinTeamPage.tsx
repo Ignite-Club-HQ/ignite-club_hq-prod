@@ -1079,6 +1079,49 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Notify team admins + coaches when a parent joins via a link
+  // but skips the child-linking step, so someone can manually link them.
+  const notifyAdminsOfUnlinkedParent = async () => {
+    if (!user || !invite?.team_id) return;
+    try {
+      const parentName = userProfile?.display_name || user.email?.split("@")[0] || "A parent";
+      const { data: staff } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", invite.team_id)
+        .in("role", ["team_admin", "coach"]);
+      const clubId = invite.teams?.club_id;
+      let clubAdmins: { user_id: string }[] = [];
+      if (clubId) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", clubId)
+          .is("team_id", null)
+          .eq("role", "club_admin");
+        clubAdmins = data || [];
+      }
+      const recipientIds = Array.from(
+        new Set(
+          [...(staff || []), ...clubAdmins]
+            .map((r) => r.user_id)
+            .filter((id) => id && id !== user.id)
+        )
+      );
+      if (recipientIds.length === 0) return;
+      const message = `${parentName} joined ${inviteEntityName} as a parent but hasn't linked a child yet — tap to link them.`;
+      const rows = recipientIds.map((uid) => ({
+        user_id: uid,
+        type: "membership",
+        message,
+        related_id: invite.team_id,
+      }));
+      await supabase.from("notifications").insert(rows);
+    } catch (err) {
+      console.error("[JoinTeam] Failed to notify admins of unlinked parent:", err);
+    }
+  };
+
   // Add child step for parent role (regular invite links only)
   const handleAddChild = async () => {
     if (!user || !invite?.team_id) return;
@@ -1127,6 +1170,16 @@ export default function JoinTeamPage() {
     } finally {
       setAddingChild(false);
     }
+  };
+
+  const handleSkipChildStep = async () => {
+    await notifyAdminsOfUnlinkedParent();
+    toast({
+      title: "Team admins notified",
+      description: "They'll help link your child to the team.",
+    });
+    setShowChildStep(false);
+    setJoined(true);
   };
 
   if (showChildStep) {
@@ -1217,7 +1270,7 @@ export default function JoinTeamPage() {
             <Button
               variant="ghost"
               className="w-full"
-              onClick={() => { setShowChildStep(false); setJoined(true); }}
+              onClick={handleSkipChildStep}
             >
               Skip for now
             </Button>
