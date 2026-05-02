@@ -79,6 +79,17 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
 
+  // Only admins/coaches can regenerate or revoke the link.
+  const isAdmin = useMemo(() => {
+    const roles = getCachedRoles();
+    if (!roles) return false;
+    return roles.some(
+      (r) =>
+        ["app_admin", "club_admin", "team_admin", "coach"].includes(r.role) &&
+        (r.team_id === teamId || (r.club_id && !r.team_id)),
+    );
+  }, [teamId]);
+
   const queryKey = ["team-join-links", teamId];
 
   // Load all persistent join links for this team from DB so admins
