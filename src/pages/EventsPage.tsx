@@ -239,6 +239,24 @@ export default function EventsPage() {
         }
       });
       
+      // Add teams via children (parents/guardians)
+      step = performance.now();
+      const { data: guardianRows } = await supabase
+        .from("child_guardians")
+        .select("child_id")
+        .eq("guardian_id", user!.id);
+      const childIds = (guardianRows || []).map((g: any) => g.child_id);
+      if (childIds.length > 0) {
+        const { data: childTeams } = await supabase
+          .from("child_team_assignments")
+          .select("team_id")
+          .in("child_id", childIds);
+        (childTeams || []).forEach((ct: any) => {
+          if (ct.team_id && !teamIds.includes(ct.team_id)) teamIds.push(ct.team_id);
+        });
+      }
+      diagLog("memberships:child-teams", { ms: Math.round(performance.now() - step), childIds: childIds.length });
+
       // Get club IDs from team memberships
       if (teamIds.length > 0) {
         step = performance.now();
