@@ -117,6 +117,10 @@ export const ChatMessage = memo(function ChatMessage({
   pinLimitReached = false,
   onPin,
   onUnpin,
+  canPublishToGallery = false,
+  isPublishedToGallery = false,
+  isPublishingToGallery = false,
+  onPublishToGallery,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
