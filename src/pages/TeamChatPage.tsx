@@ -1251,45 +1251,16 @@ export default function TeamChatPage() {
     setReplyingTo(null);
   }, []);
 
-  const handlePublishToGallery = useCallback(
-    async (messageId: string, msgImageUrl: string) => {
-      if (!user?.id || !teamId) return;
-      if (publishingIds.has(messageId) || publishedIds.has(messageId)) return;
-      setPublishingIds((prev) => {
-        const next = new Set(prev);
-        next.add(messageId);
-        return next;
-      });
-      try {
-        const result = await publishChatImageToGallery({
-          imageUrl: msgImageUrl,
-          uploaderId: user.id,
-          teamId,
-          clubId: team?.club_id ?? null,
-        });
-        setPublishedIds((prev) => {
-          const next = new Set(prev);
-          next.add(messageId);
-          return next;
-        });
-        toast.success(
-          result.alreadyPublished
-            ? "Already in the media gallery"
-            : "Published to media gallery",
-        );
-      } catch (err: any) {
-        console.error("[TeamChatPage] publish to gallery failed", err);
-        toast.error(err?.message || "Could not publish to gallery");
-      } finally {
-        setPublishingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(messageId);
-          return next;
-        });
-      }
-    },
-    [user?.id, teamId, team?.club_id, publishingIds, publishedIds],
-  );
+  const {
+    publishingIds,
+    publishedIds,
+    publish: handlePublishToGallery,
+    nudgeAfterSend: nudgeGalleryAfterSend,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: teamId ?? null,
+    clubId: team?.club_id ?? null,
+  });
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
