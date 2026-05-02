@@ -67,10 +67,11 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const queryKey = ["team-join-links", teamId];
 
   // Load all role-variant links for this team in one query
-  const { data: links, isLoading } = useQuery({
+  const { data: links, isLoading, isError, refetch } = useQuery({
     queryKey,
     enabled: !!teamId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchOnMount: "always",
     queryFn: async (): Promise<Record<RoleVariant, JoinLinkRow | null>> => {
       const { data, error } = await supabase
         .from("team_invites")
@@ -129,6 +130,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         ...(prev ?? {}),
         [role]: row,
       }));
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
@@ -150,6 +152,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         ...(prev ?? {}),
         [role]: null,
       }));
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Link revoked", description: "The previous link no longer works." });
     },
     onError: (err: any) => {
@@ -251,26 +254,37 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && !links ? (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : !link ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="w-full"
-          disabled={createOrRotate.isPending}
-          onClick={() => createOrRotate.mutate({ rotate: false, role: activeRole })}
-        >
-          {createOrRotate.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Link2 className="h-4 w-4 mr-2" />
+        <div className="space-y-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            disabled={createOrRotate.isPending}
+            onClick={() => createOrRotate.mutate({ rotate: false, role: activeRole })}
+          >
+            {createOrRotate.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Link2 className="h-4 w-4 mr-2" />
+            )}
+            Generate {activeRoleLabel.toLowerCase()} link
+          </Button>
+          {isError && (
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="w-full text-[11px] text-muted-foreground underline"
+            >
+              Couldn't load existing links — tap to retry
+            </button>
           )}
-          Generate {activeRoleLabel.toLowerCase()} link
-        </Button>
+        </div>
       ) : (
         <>
           <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1.5">
