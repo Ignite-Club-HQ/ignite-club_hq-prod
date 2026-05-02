@@ -856,6 +856,40 @@ export const ChatMessage = memo(function ChatMessage({
                 anchorRef={bubbleRef}
               />
             </div>
+            {/* Inline "Add to gallery" chip — only on own image messages */}
+            {canPublishToGallery && isOwn && imageUrl && onPublishToGallery && !id.startsWith("queued-") && (
+              <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                <button
+                  type="button"
+                  disabled={isPublishingToGallery || isPublishedToGallery}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPublishToGallery(id, imageUrl);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    isPublishedToGallery
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  aria-label={isPublishedToGallery ? "Already in gallery" : "Add to media gallery"}
+                >
+                  {isPublishingToGallery ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : isPublishedToGallery ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <ImagePlus className="h-3 w-3" />
+                  )}
+                  <span>
+                    {isPublishingToGallery
+                      ? "Adding…"
+                      : isPublishedToGallery
+                        ? "In gallery"
+                        : "Add to gallery"}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {/* Action sheet (replaces 3-dot dropdown menu) */}
