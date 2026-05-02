@@ -218,6 +218,16 @@ export function PhotoLightbox({
                 variant="ghost"
                 size="icon"
                 className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                onClick={handleDownload}
+                aria-label="Download photo"
+                title="Download"
+              >
+                <Download className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
                 onClick={() => setReportDialogOpen(true)}
                 title="Report photo"
               >
