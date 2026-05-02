@@ -183,9 +183,10 @@ export default function LeaderboardPage() {
 
       {/* Scope tabs */}
       <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)} className="mb-3">
-        <TabsList className="grid grid-cols-2 w-full">
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="club"><Trophy className="h-4 w-4 mr-1.5" />Club</TabsTrigger>
-          <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
+          <TabsTrigger value="teams"><Users className="h-4 w-4 mr-1.5" />Teams</TabsTrigger>
+          <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />My Team</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -210,7 +211,32 @@ export default function LeaderboardPage() {
       </Tabs>
 
       {/* Body */}
-      {scope === "team" && !teamId ? (
+      {scope === "teams" ? (
+        teamsLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : !teamRows || teamRows.length === 0 ? (
+          <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
+            No team points in this window yet.
+          </CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {teamRows.map((t) => (
+              <Card key={t.team_id}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <span className={cn(
+                    "text-base font-semibold w-12 text-center tabular-nums",
+                    t.rank <= 3 && "text-lg",
+                  )}>{rankBadge(t.rank)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{t.team_name}</p>
+                  </div>
+                  <span className="font-bold tabular-nums">{t.points}</span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : scope === "team" && !teamId ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
           {(teams ?? []).length === 0 ? "No teams available for this club yet." : "Select a team to view its leaderboard."}
         </CardContent></Card>
