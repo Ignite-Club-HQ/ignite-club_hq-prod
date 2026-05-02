@@ -151,6 +151,18 @@ export function PhotoLightbox({
   };
 
   const photoSrc = currentPhoto.file_url || currentPhoto.image_url || '';
+  const { signedUrl: downloadSignedUrl } = useSignedPhotoUrl(photoSrc);
+
+  const handleDownload = async () => {
+    const url = downloadSignedUrl || photoSrc;
+    if (!url) return;
+    try {
+      await downloadImage(url, "ignite-photo");
+    } catch (err) {
+      console.warn("Download failed:", err);
+      toast.error("Could not download photo");
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
