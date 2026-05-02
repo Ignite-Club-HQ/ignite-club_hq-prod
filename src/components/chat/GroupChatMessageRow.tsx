@@ -465,6 +465,40 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
           </div>
+          {/* Inline "Add to gallery" chip — only on own image messages */}
+          {canPublishToGallery && isOwnMessage && msg.image_url && onPublishToGallery && !msg.id.startsWith("queued-") && (
+            <div className={`mt-1 flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+              <button
+                type="button"
+                disabled={isPublishingToGallery || isPublishedToGallery}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPublishToGallery(msg.id, msg.image_url!);
+                }}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  isPublishedToGallery
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+                aria-label={isPublishedToGallery ? "Already in gallery" : "Add to media gallery"}
+              >
+                {isPublishingToGallery ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : isPublishedToGallery ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <ImagePlus className="h-3 w-3" />
+                )}
+                <span>
+                  {isPublishingToGallery
+                    ? "Adding…"
+                    : isPublishedToGallery
+                      ? "In gallery"
+                      : "Add to gallery"}
+                </span>
+              </button>
+            </div>
+          )}
           {/* Link previews rendered outside the message bubble */}
           <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
             <MessageContent text={msg.text} previewsOnly />
