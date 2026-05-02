@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Camera, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, User, Camera, Trash2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,11 +24,13 @@ export default function EditProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [leaderboardOptOut, setLeaderboardOptOut] = useState(false);
 
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || "");
       setAvatarUrl(profile.avatar_url || "");
+      setLeaderboardOptOut(((profile as any).leaderboard_opt_out as boolean) ?? false);
     }
   }, [profile]);
 
@@ -137,7 +140,8 @@ export default function EditProfilePage() {
       .update({
         display_name: displayName.trim(),
         avatar_url: avatarUrl.trim() || null,
-      })
+        leaderboard_opt_out: leaderboardOptOut,
+      } as any)
       .eq("id", user!.id);
 
     setSaving(false);
@@ -260,6 +264,20 @@ export default function EditProfilePage() {
             <p className="text-xs text-muted-foreground">
               Email cannot be changed
             </p>
+          </div>
+
+          {/* Leaderboard privacy */}
+          <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+            <div className="flex-1 min-w-0">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <Trophy className="h-4 w-4" />
+                Hide me from the leaderboard
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                You'll still see your own rank, but other members won't see you on club or team ladders.
+              </p>
+            </div>
+            <Switch checked={leaderboardOptOut} onCheckedChange={setLeaderboardOptOut} />
           </div>
 
           <Button
