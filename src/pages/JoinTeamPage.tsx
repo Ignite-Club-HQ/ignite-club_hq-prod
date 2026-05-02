@@ -1270,7 +1270,7 @@ export default function JoinTeamPage() {
             <Button
               variant="ghost"
               className="w-full"
-              onClick={() => { setShowChildStep(false); setJoined(true); }}
+              onClick={handleSkipChildStep}
             >
               Skip for now
             </Button>
