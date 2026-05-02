@@ -78,6 +78,11 @@ export interface ChatMessageProps {
   pinLimitReached?: boolean;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  // Publish-to-gallery support (team chat). Parent handles the actual upload.
+  canPublishToGallery?: boolean;
+  isPublishedToGallery?: boolean;
+  isPublishingToGallery?: boolean;
+  onPublishToGallery?: (messageId: string, imageUrl: string) => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -112,6 +117,10 @@ export const ChatMessage = memo(function ChatMessage({
   pinLimitReached = false,
   onPin,
   onUnpin,
+  canPublishToGallery = false,
+  isPublishedToGallery = false,
+  isPublishingToGallery = false,
+  onPublishToGallery,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -878,6 +887,12 @@ export const ChatMessage = memo(function ChatMessage({
           pinLimitReached={pinLimitReached}
           onPin={onPin ? () => onPin(id) : undefined}
           onUnpin={onUnpin ? () => onUnpin(id) : undefined}
+          canPublishToGallery={canPublishToGallery && isOwn && !!imageUrl}
+          isPublishedToGallery={isPublishedToGallery}
+          isPublishingToGallery={isPublishingToGallery}
+          onPublishToGallery={
+            onPublishToGallery && imageUrl ? () => onPublishToGallery(id, imageUrl) : undefined
+          }
         />
         {/* Fullscreen image viewer triggered from action sheet */}
         {showFullscreenImage && imageUrl && (

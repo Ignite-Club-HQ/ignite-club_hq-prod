@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2 } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -61,6 +61,12 @@ interface MessageActionSheetProps {
   pinLimitReached?: boolean;
   onPin?: () => void;
   onUnpin?: () => void;
+  // Publish-to-gallery support (only set when poster owns the image
+  // and the chat has a known team/club context, e.g. team chat).
+  canPublishToGallery?: boolean;
+  isPublishedToGallery?: boolean;
+  isPublishingToGallery?: boolean;
+  onPublishToGallery?: () => void;
 }
 
 export function MessageActionSheet({
@@ -84,6 +90,10 @@ export function MessageActionSheet({
   pinLimitReached = false,
   onPin,
   onUnpin,
+  canPublishToGallery = false,
+  isPublishedToGallery = false,
+  isPublishingToGallery = false,
+  onPublishToGallery,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -102,6 +112,29 @@ export function MessageActionSheet({
       label: "View Image",
       icon: <ImageIcon className="h-5 w-5" />,
       onClick: onViewImage,
+    });
+  }
+
+  // Publish own chat photo to the team's media gallery.
+  // Only meaningful for image messages in a team-context chat where the
+  // poster has team-member upload rights.
+  if (canPublishToGallery && hasImage && onPublishToGallery) {
+    const label = isPublishingToGallery
+      ? "Publishing…"
+      : isPublishedToGallery
+        ? "Published to Gallery"
+        : "Publish to Media Gallery";
+    actions.push({
+      label,
+      icon: isPublishingToGallery
+        ? <Loader2 className="h-5 w-5 animate-spin" />
+        : isPublishedToGallery
+          ? <Check className="h-5 w-5 text-primary" />
+          : <ImagePlus className="h-5 w-5" />,
+      onClick: () => {
+        if (isPublishingToGallery || isPublishedToGallery) return;
+        onPublishToGallery();
+      },
     });
   }
 
