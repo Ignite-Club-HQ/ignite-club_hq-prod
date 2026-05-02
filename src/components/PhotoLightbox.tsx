@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -8,6 +8,8 @@ import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
+import { downloadImage } from "@/lib/downloadImage";
+import { toast } from "sonner";
 
 interface PhotoLightboxProps {
   isOpen: boolean;
@@ -149,6 +151,18 @@ export function PhotoLightbox({
   };
 
   const photoSrc = currentPhoto.file_url || currentPhoto.image_url || '';
+  const { signedUrl: downloadSignedUrl } = useSignedPhotoUrl(photoSrc);
+
+  const handleDownload = async () => {
+    const url = downloadSignedUrl || photoSrc;
+    if (!url) return;
+    try {
+      await downloadImage(url, "ignite-photo");
+    } catch (err) {
+      console.warn("Download failed:", err);
+      toast.error("Could not download photo");
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -200,6 +214,16 @@ export function PhotoLightbox({
             
             {/* Right side - Report and Close buttons */}
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                onClick={handleDownload}
+                aria-label="Download photo"
+                title="Download"
+              >
+                <Download className="h-5 w-5" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
