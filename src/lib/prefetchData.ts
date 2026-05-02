@@ -47,8 +47,18 @@ async function tryEdgePrefetch(
 } | null> {
   try {
     // Only call edge function if we have a valid user session (not just anon key)
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    let { data: sessionData } = await supabase.auth.getSession();
+    let session = sessionData?.session;
+
+    // If session expires within 60s, refresh proactively to avoid a 401
+    // race between getSession() and the edge invoke.
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (session && (session.expires_at ?? 0) - nowSec <= 60) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.session) session = refreshed.session;
+    }
+
+    const accessToken = session?.access_token;
     if (!accessToken) {
       // No session yet — silently skip. Falling back to direct queries would
       // also fail RLS, so just return null and let the caller decide.
