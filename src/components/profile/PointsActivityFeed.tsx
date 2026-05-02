@@ -154,11 +154,7 @@ export function PointsActivityFeed({
           </div>
 
           {rank && (
-            <button
-              type="button"
-              onClick={() => navigate("/leaderboard")}
-              className="w-full flex items-center gap-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors p-3 text-left"
-            >
+            <div className="w-full flex items-center gap-3 rounded-lg border bg-card p-3">
               <div className="h-9 w-9 rounded-full bg-yellow-500/15 text-yellow-600 flex items-center justify-center shrink-0">
                 <Trophy className="h-4 w-4" />
               </div>
@@ -175,7 +171,7 @@ export function PointsActivityFeed({
                   <p className="text-xs text-emerald-600 mt-0.5 font-medium">You're leading the pack 🏆</p>
                 )}
               </div>
-            </button>
+            </div>
           )}
 
           {untrackedNote && (
