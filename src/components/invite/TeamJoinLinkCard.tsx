@@ -346,6 +346,9 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
             )}
             Generate {activeRoleLabel.toLowerCase()} link
           </Button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
+          </p>
           {isError && (
             <button
               type="button"
