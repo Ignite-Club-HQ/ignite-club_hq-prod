@@ -123,6 +123,29 @@ export default function GameFinishedDialog({
         console.error("Failed to save game stats:", error);
         // Continue with cleanup even if save fails
       }
+
+      // Also persist a soccer match score row (parity with basketball/netball boards),
+      // so the score shows on the event card and in History.
+      try {
+        const homeScore = goals.filter((g) => !g.isOpponentGoal).length;
+        const awayScore = goals.filter((g) => g.isOpponentGoal).length;
+        await saveGameResult(
+          {
+            teamId,
+            eventId: linkedEventId,
+            sport: "soccer",
+            homeLabel: teamName || "Our Team",
+            awayLabel: opponent || "Opponent",
+            homeScore,
+            awayScore,
+            perQuarter: [],
+            players: [],
+          },
+          { silent: true }
+        );
+      } catch (err) {
+        console.error("Failed to save soccer game result:", err);
+      }
     }
 
     // Clear timer state — team-specific key first, then only clear active key if it matches
