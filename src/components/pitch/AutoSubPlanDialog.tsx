@@ -2528,6 +2528,24 @@ function DialogInner({
                           {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
                         </Badge>
                       )}
+                      {(() => {
+                        const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
+                        if (!stat) return null;
+                        return (
+                          <>
+                            {stat.shortShifts > 0 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
+                                {stat.shortShifts} short
+                              </Badge>
+                            )}
+                            {stat.bounceBacks > 0 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
+                                {stat.bounceBacks} bounce
+                              </Badge>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <Progress 
