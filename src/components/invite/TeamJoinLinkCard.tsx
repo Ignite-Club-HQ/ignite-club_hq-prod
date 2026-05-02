@@ -67,10 +67,11 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
   const queryKey = ["team-join-links", teamId];
 
   // Load all role-variant links for this team in one query
-  const { data: links, isLoading } = useQuery({
+  const { data: links, isLoading, isError, refetch } = useQuery({
     queryKey,
     enabled: !!teamId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchOnMount: "always",
     queryFn: async (): Promise<Record<RoleVariant, JoinLinkRow | null>> => {
       const { data, error } = await supabase
         .from("team_invites")
