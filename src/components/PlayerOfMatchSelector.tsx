@@ -430,32 +430,11 @@ export default function PlayerOfMatchSelector({
             </div>
           ) : isAdmin ? (
              <div className="space-y-2">
-              {/* Reward selector when multiple POM rewards exist */}
-              {pomRewards.length > 1 && (
-                <div className="mb-2">
-                  <p className="text-xs text-muted-foreground mb-1.5">Select reward to give:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pomRewards.map((reward: any) => (
-                      <Button
-                        key={reward.id}
-                        variant={selectedReward?.id === reward.id ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setSelectedReward(reward)}
-                      >
-                        <Trophy className="h-3 w-3 mr-1" />
-                        {reward.name}
-                        {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <Button
                 variant="outline"
                 className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                 onClick={() => setSelectDialogOpen(true)}
-                disabled={goingPlayers.length === 0 || (pomRewards.length > 1 && !selectedReward)}
+                disabled={goingPlayers.length === 0}
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Select Player of the Match
@@ -467,12 +446,7 @@ export default function PlayerOfMatchSelector({
               )}
               {pomRewards.length === 0 && goingPlayers.length > 0 && (
                 <p className="text-xs text-muted-foreground text-center">
-                  No points reward configured. Add a "Player of the Match" reward in Club Rewards to award points.
-                </p>
-              )}
-              {pomRewards.length > 1 && !selectedReward && goingPlayers.length > 0 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Select a reward above before choosing a player
+                  No voucher configured. Add a "Player of the Match" reward in Club Rewards to award a voucher.
                 </p>
               )}
             </div>
