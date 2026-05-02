@@ -16,6 +16,7 @@ import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDia
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 import PlayerOfMatchSelector from "@/components/PlayerOfMatchSelector";
+import MatchCaptainSelector from "@/components/MatchCaptainSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2883,6 +2884,12 @@ export default function EventDetailPage() {
       {event.type === "game" && event.team_id && (
         <>
           <Separator />
+          <MatchCaptainSelector
+            eventId={id!}
+            teamId={event.team_id}
+            isAdmin={isAdmin || isAppAdmin || false}
+            rsvps={rsvps || []}
+          />
           <PlayerOfMatchSelector
             eventId={id!}
             clubId={event.club_id}
