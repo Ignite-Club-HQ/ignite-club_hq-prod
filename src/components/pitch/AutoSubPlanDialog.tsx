@@ -1205,7 +1205,7 @@ export function createSubPlan(
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
     if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
     if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
-    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < minIntervalFloor) continue;
+    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < halftimeGuardWindow) continue;
     directEventTimes.add(Math.floor(t));
   }
   if (halftimeGuardActive) {
