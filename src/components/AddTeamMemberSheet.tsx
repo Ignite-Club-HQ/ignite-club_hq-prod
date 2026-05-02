@@ -2011,6 +2011,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setNameInput("");
                 setNameConfirmed(false);
                 setCustomEmail("");
+                setSharePhone("");
                 setDeliveryMethod("share");
                 setSingleChildren([]);
                 setSecondParentName("");
