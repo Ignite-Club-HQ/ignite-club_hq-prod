@@ -758,6 +758,16 @@ export default function EventsPage() {
 
       {viewMode === "calendar" ? (
         <div className="space-y-4">
+          <ScheduleDateStrip
+            selectedDate={selectedDate ?? null}
+            onSelectDate={(d) => {
+              setSelectedDate(d ?? undefined);
+              if (d) setCalendarStripWeekAnchor(d);
+            }}
+            daysWithEvents={daysWithEventsKeySet}
+            weekAnchor={calendarStripWeekAnchor}
+            onShiftWeek={(delta) => setCalendarStripWeekAnchor((prev) => addDays(prev, delta))}
+          />
           <Card>
             <CardContent className="p-4">
               <Calendar
