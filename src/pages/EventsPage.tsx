@@ -74,8 +74,6 @@ export default function EventsPage() {
   // Day filter for list view (separate from calendar's selectedDate)
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
-  // Week anchor for calendar-view date strip (synced with calendar's selectedDate)
-  const [calendarStripWeekAnchor, setCalendarStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
