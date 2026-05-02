@@ -1163,12 +1163,20 @@ export function createSubPlan(
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
 
+  // SHIFT-FLOOR GUARD: if a halftime GK swap is going to happen, don't place
+  // any interval-driven sub window within `minIntervalFloor` seconds of HT —
+  // otherwise a player can come on at window N and be forced off at HT, producing
+  // a sub-1-min "shift" that's impossible for the optimizer to remove because
+  // the HT event is fixed.
+  const halftimeGuardActive =
+    startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn;
   for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
     if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
     if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
+    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < minIntervalFloor) continue;
     directEventTimes.add(Math.floor(t));
   }
-  if (startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn) {
+  if (halftimeGuardActive) {
     directEventTimes.add(halfDurationSeconds);
   }
 
