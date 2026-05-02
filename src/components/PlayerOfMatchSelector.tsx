@@ -403,10 +403,18 @@ export default function PlayerOfMatchSelector({
                       <Badge variant="outline" className="text-xs">Child</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 text-sm text-amber-600">
-                    <Star className="h-3 w-3 fill-current" />
-                    <span>+{(playerOfMatch as any).points ?? 0} points</span>
-                  </div>
+                  {(() => {
+                    const pts = (playerOfMatch as any).points ?? 0;
+                    const matched = pomRewards.find((r: any) => r.points_required === pts);
+                    return (
+                      <div className="flex items-center gap-1 text-sm text-amber-600">
+                        <Star className="h-3 w-3 fill-current" />
+                        <span>
+                          Awarded a voucher{matched?.name ? `: ${matched.name}` : ""}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               {isAdmin && (
