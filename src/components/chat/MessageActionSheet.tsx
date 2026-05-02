@@ -90,6 +90,10 @@ export function MessageActionSheet({
   pinLimitReached = false,
   onPin,
   onUnpin,
+  canPublishToGallery = false,
+  isPublishedToGallery = false,
+  isPublishingToGallery = false,
+  onPublishToGallery,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
