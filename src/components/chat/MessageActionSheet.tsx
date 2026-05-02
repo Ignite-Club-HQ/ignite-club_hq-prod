@@ -137,6 +137,8 @@ export function MessageActionSheet({
       },
     });
   }
+
+  if (canReply) {
     actions.push({
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
