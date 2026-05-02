@@ -1902,49 +1902,101 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </div>
 
             {/* Share invite via other channels */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-sm font-medium text-center">Share invite via</p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={async () => {
-                    const msg = buildInviteShareMessage().trim();
-                    if (Capacitor.isNativePlatform()) {
-                      try {
-                        await Share.share({
-                          title: `Join ${clubBranding?.name || teamName}`,
-                          text: msg,
-                          dialogTitle: `Share invite`,
-                        });
-                        return;
-                      } catch {
-                        // cancelled
-                      }
-                    }
-                    // Fallback: WhatsApp
-                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-                  }}
-                >
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Share
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
-                      toast({ title: "Invite link copied!" });
-                    } catch {
-                      toast({ title: "Failed to copy link", variant: "destructive" });
-                    }
-                  }}
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy Link
-                </Button>
+
+              {/* Optional phone — used only to pre-fill SMS / WhatsApp on this device.
+                  Not stored anywhere. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="share-phone" className="text-xs text-muted-foreground">
+                  Phone number (optional — opens SMS or WhatsApp)
+                </Label>
+                <Input
+                  id="share-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
+                  placeholder="e.g. +61 412 345 678"
+                  value={sharePhone}
+                  onChange={(e) => setSharePhone(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Not saved — used only to open your messaging app.
+                </p>
               </div>
+
+              {(() => {
+                const msg = buildInviteShareMessage().trim();
+                const cleanedPhone = sharePhone.replace(/[^\d+]/g, "");
+                // wa.me requires digits only (no +)
+                const waPhone = cleanedPhone.replace(/^\+/, "");
+                const hasPhone = cleanedPhone.length >= 4;
+                const smsHref = hasPhone
+                  ? `sms:${cleanedPhone}${/android/i.test(navigator.userAgent) ? "?" : "&"}body=${encodeURIComponent(msg)}`
+                  : `sms:?body=${encodeURIComponent(msg)}`;
+                const waHref = hasPhone
+                  ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
+                  : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => { window.location.href = smsHref; }}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        SMS
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { window.open(waHref, "_blank"); }}
+                      >
+                        <Share2 className="h-4 w-4 mr-2" />
+                        WhatsApp
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={async () => {
+                          if (Capacitor.isNativePlatform()) {
+                            try {
+                              await Share.share({
+                                title: `Join ${clubBranding?.name || teamName}`,
+                                text: msg,
+                                dialogTitle: `Share invite`,
+                              });
+                              return;
+                            } catch {
+                              // cancelled
+                            }
+                          }
+                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                        }}
+                      >
+                        <Share2 className="h-4 w-4 mr-2" />
+                        More
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
+                            toast({ title: "Invite link copied!" });
+                          } catch {
+                            toast({ title: "Failed to copy link", variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Link
+                      </Button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <p className="text-sm text-muted-foreground text-center">
