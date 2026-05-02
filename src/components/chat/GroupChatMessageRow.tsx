@@ -86,6 +86,10 @@ interface GroupChatMessageRowProps {
   pinLimitReached?: boolean;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  canPublishToGallery?: boolean;
+  isPublishingToGallery?: boolean;
+  isPublishedToGallery?: boolean;
+  onPublishToGallery?: (messageId: string, imageUrl: string) => void;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
