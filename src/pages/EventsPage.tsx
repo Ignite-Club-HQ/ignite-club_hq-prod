@@ -71,6 +71,9 @@ export default function EventsPage() {
   const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  // Day filter for list view (separate from calendar's selectedDate)
+  const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
+  const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
