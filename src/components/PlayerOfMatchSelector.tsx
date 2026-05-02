@@ -133,7 +133,8 @@ export default function PlayerOfMatchSelector({
         user_id: userId || null,
         child_id: childId || null,
         awarded_by: user!.id,
-        points_awarded: pointsToAward,
+        points_awarded: pointsToAward > 0,
+        points: pointsToAward,
       } as any);
 
       if (pomError) throw pomError;
@@ -276,7 +277,7 @@ export default function PlayerOfMatchSelector({
     mutationFn: async () => {
       if (!playerOfMatch) return;
 
-      const pointsToDeduct = Number((playerOfMatch as any).points_awarded) || 0;
+      const pointsToDeduct = Number((playerOfMatch as any).points) || 0;
 
       // Deduct points
       if (playerOfMatch.user_id) {
@@ -404,7 +405,7 @@ export default function PlayerOfMatchSelector({
                   </div>
                   <div className="flex items-center gap-1 text-sm text-amber-600">
                     <Star className="h-3 w-3 fill-current" />
-                    <span>+{playerOfMatch.points_awarded} points</span>
+                    <span>+{(playerOfMatch as any).points ?? 0} points</span>
                   </div>
                 </div>
               </div>
@@ -569,7 +570,7 @@ export default function PlayerOfMatchSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Player of the Match?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the Player of the Match selection and deduct {playerOfMatch?.points_awarded} points from{" "}
+              This will remove the Player of the Match selection and deduct {(playerOfMatch as any)?.points ?? 0} points from{" "}
               {playerOfMatch?.profiles?.display_name || playerOfMatch?.children?.name}.
             </AlertDialogDescription>
           </AlertDialogHeader>
