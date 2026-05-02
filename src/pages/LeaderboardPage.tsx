@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type WindowKey = "week" | "month" | "all";
-type Scope = "club" | "team";
+type Scope = "club" | "team" | "teams";
 
 interface Row {
   rank: number;
@@ -24,6 +24,13 @@ interface Row {
   points: number;
   is_viewer: boolean;
   hidden: boolean;
+}
+
+interface TeamRow {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  points: number;
 }
 
 function rankBadge(rank: number) {
