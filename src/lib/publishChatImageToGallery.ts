@@ -127,3 +127,19 @@ export async function publishChatImageToGallery(
 
   return { photoId: inserted.id, alreadyPublished: false };
 }
+
+/**
+ * Reverse a recent publish by soft-deleting the gallery photo row.
+ * Mirrors the regular media gallery delete flow (sets deleted_at) so it
+ * disappears from the gallery immediately and can be cleaned up later.
+ */
+export async function unpublishGalleryPhoto(photoId: string): Promise<void> {
+  const { error } = await supabase
+    .from("photos")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", photoId);
+  if (error) {
+    console.error("[unpublishGalleryPhoto] failed", error);
+    throw new Error("Could not undo");
+  }
+}
