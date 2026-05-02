@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
+import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
