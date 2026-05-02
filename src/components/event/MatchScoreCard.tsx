@@ -402,7 +402,7 @@ export function MatchScoreCard({
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Select a player…" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-64">
+                  <SelectContent className="max-h-64 z-[100000]">
                     {availableToAdd.length === 0 ? (
                       <div className="px-2 py-3 text-xs text-muted-foreground">
                         {roster?.length ? "All players added" : "No players found"}
