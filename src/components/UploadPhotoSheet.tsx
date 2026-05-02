@@ -17,6 +17,7 @@ import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
 import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
+import { syncGalleryPhotoToVault } from "@/lib/galleryVaultSync";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
