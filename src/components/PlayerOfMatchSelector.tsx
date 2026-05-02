@@ -337,10 +337,29 @@ export default function PlayerOfMatchSelector({
     },
   });
 
+  // Fetch user_ids that have the 'player' role on this team so we can exclude
+  // parents, coaches, admins etc. from the POM list. Children are always players.
+  const { data: playerUserIds = [] } = useQuery({
+    queryKey: ["team-player-user-ids", teamId],
+    queryFn: async () => {
+      if (!teamId) return [] as string[];
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .eq("role", "player");
+      if (error) throw error;
+      return (data || []).map((r: any) => r.user_id);
+    },
+    enabled: !!teamId,
+  });
+
   // Get eligible players (going RSVPs)
   const goingPlayers = rsvps?.filter((r) => r.status === "going") || [];
   const goingChildren = goingPlayers.filter((r) => r.child_id);
-  const goingMembers = goingPlayers.filter((r) => !r.child_id);
+  const goingMembers = goingPlayers.filter(
+    (r) => !r.child_id && r.user_id && playerUserIds.includes(r.user_id)
+  );
 
   if (isLoading) {
     return (
@@ -465,7 +484,7 @@ export default function PlayerOfMatchSelector({
               Select Player of the Match
             </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
             <div className="p-4 space-y-2">
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
@@ -525,13 +544,13 @@ export default function PlayerOfMatchSelector({
                 </Button>
               ))}
 
-              {goingPlayers.length === 0 && (
+              {goingMembers.length + goingChildren.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
-                  No players have RSVP'd as "Going" yet
+                  No eligible players found. Only members with the "Player" role and children on the team can be selected.
                 </p>
               )}
             </div>
-          </ScrollArea>
+          </div>
           <div className="p-4 border-t">
             <Button
               variant="outline"
