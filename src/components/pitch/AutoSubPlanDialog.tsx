@@ -2404,7 +2404,16 @@ function DialogInner({
           />
         )}
       </div>
-      
+
+      {/* Advanced settings — power-user thresholds for auto-sub planning. */}
+      <AdvancedSettingsPanel
+        open={advancedOpen}
+        onToggle={() => setAdvancedOpen(o => !o)}
+        overrides={effectiveOverrides}
+        readOnly={!!advancedOverrides}
+        onChange={persistLocal}
+      />
+
       <div className="flex gap-2 justify-end mt-4">
         <Button variant="outline" onClick={onClose}>
           {isSetupFlow ? "Skip — do subs manually" : "Cancel"}
