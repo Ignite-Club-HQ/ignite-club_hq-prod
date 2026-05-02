@@ -377,7 +377,7 @@ export function useBasketballBoardState({
   );
 
   // Push notify all team admins/coaches when an auto-sub fires.
-  const notifyAutoSub = useAutoSubNotify(teamId, teamName);
+  const notifyAutoSub = useAutoSubNotify(teamId, teamName, eventId);
   // Pending mid-quarter auto-sub awaiting coach confirmation. Quarter-break
   // batches still flow through pendingQuarterSubs (separate dialog).
   const [pendingAutoSub, setPendingAutoSub] = useState<BasketballSubEvent | null>(null);
