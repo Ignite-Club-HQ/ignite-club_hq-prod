@@ -2110,7 +2110,18 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
             {canBulkInvite && wizardStep === 1 && (
-              <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
+              <>
+                <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">or</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold">Invite by name</h3>
+                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person via email or SMS.</p>
+                </div>
+              </>
             )}
 
             {/* Wizard stepper header */}
