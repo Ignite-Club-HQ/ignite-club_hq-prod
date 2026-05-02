@@ -466,6 +466,10 @@ export default function MediaPage() {
   const dateFromKey = dateRange.from ? startOfDay(dateRange.from).toISOString() : null;
   const dateToKey = dateRange.to ? endOfDay(dateRange.to).toISOString() : null;
   const cardPhotoIdsKey = cardPhotoIds?.join(",") ?? "";
+  const photosQueryKey = useMemo(
+    () => ["photos", user?.id, selectedClubFilter, selectedTeamFilter, urlEventId ?? null, dateFromKey, dateToKey, cardId, cardPhotoIdsKey] as const,
+    [user?.id, selectedClubFilter, selectedTeamFilter, urlEventId, dateFromKey, dateToKey, cardId, cardPhotoIdsKey]
+  );
 
   const { 
     data: photosData, 
@@ -475,7 +479,7 @@ export default function MediaPage() {
     isFetchingNextPage,
     isSuccess: photosSuccess,
   } = useInfiniteQuery({
-    queryKey: ["photos", user?.id, selectedClubFilter, selectedTeamFilter, urlEventId ?? null, dateFromKey, dateToKey, cardId, cardPhotoIdsKey],
+    queryKey: photosQueryKey,
     queryFn: async ({ pageParam = 0 }) => {
       if (cardId && (cardPhotoIds?.length ?? 0) === 0) {
         return { photos: [], nextCursor: undefined };
