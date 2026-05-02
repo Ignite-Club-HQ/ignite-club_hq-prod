@@ -337,10 +337,29 @@ export default function PlayerOfMatchSelector({
     },
   });
 
+  // Fetch user_ids that have the 'player' role on this team so we can exclude
+  // parents, coaches, admins etc. from the POM list. Children are always players.
+  const { data: playerUserIds = [] } = useQuery({
+    queryKey: ["team-player-user-ids", teamId],
+    queryFn: async () => {
+      if (!teamId) return [] as string[];
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .eq("role", "player");
+      if (error) throw error;
+      return (data || []).map((r: any) => r.user_id);
+    },
+    enabled: !!teamId,
+  });
+
   // Get eligible players (going RSVPs)
   const goingPlayers = rsvps?.filter((r) => r.status === "going") || [];
   const goingChildren = goingPlayers.filter((r) => r.child_id);
-  const goingMembers = goingPlayers.filter((r) => !r.child_id);
+  const goingMembers = goingPlayers.filter(
+    (r) => !r.child_id && r.user_id && playerUserIds.includes(r.user_id)
+  );
 
   if (isLoading) {
     return (
