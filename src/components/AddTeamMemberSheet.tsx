@@ -182,6 +182,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     avatar_url: string | null;
   } | null>(null);
   const [customEmail, setCustomEmail] = useState("");
+  // Optional phone used ONLY to build SMS/WhatsApp share links on the success step.
+  // Never sent to Supabase, never persisted — cleared on reset.
+  const [sharePhone, setSharePhone] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
   const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [inviteSent, setInviteSent] = useState(false);
