@@ -475,6 +475,25 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
+  // Day-of-week dot indicators for the list-view date strip
+  const daysWithEventsKeySet = useMemo(() => {
+    const set = new Set<string>();
+    (events || []).forEach((e) => {
+      try {
+        set.add(format(parseISO(e.event_date), "yyyy-MM-dd"));
+      } catch {
+        // ignore malformed dates
+      }
+    });
+    return set;
+  }, [events]);
+
+  // List-view: events on the chosen day (only when date strip is active)
+  const listDayEvents = useMemo(() => {
+    if (!listSelectedDate) return null;
+    return (events || []).filter((e) => isSameDay(parseISO(e.event_date), listSelectedDate));
+  }, [events, listSelectedDate]);
+
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
   const isInitialLoad = !events && !upcomingEvents && !pastEvents;
