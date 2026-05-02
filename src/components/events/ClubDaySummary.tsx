@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { MapPin, Clock, Trophy, Dumbbell, Users, Building2 } from "lucide-react";
