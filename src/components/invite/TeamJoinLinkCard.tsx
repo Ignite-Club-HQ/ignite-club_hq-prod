@@ -143,8 +143,8 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
       if (error) throw error;
       return { role, row: data as JoinLinkRow };
     },
-    onSuccess: ({ role, row }) => {
-      setSessionLinks((prev) => ({ ...prev, [role]: row }));
+    onSuccess: ({ role }) => {
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
