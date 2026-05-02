@@ -484,7 +484,7 @@ export default function PlayerOfMatchSelector({
               Select Player of the Match
             </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
             <div className="p-4 space-y-2">
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
@@ -544,13 +544,13 @@ export default function PlayerOfMatchSelector({
                 </Button>
               ))}
 
-              {goingPlayers.length === 0 && (
+              {goingMembers.length + goingChildren.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
-                  No players have RSVP'd as "Going" yet
+                  No eligible players found. Only members with the "Player" role and children on the team can be selected.
                 </p>
               )}
             </div>
-          </ScrollArea>
+          </div>
           <div className="p-4 border-t">
             <Button
               variant="outline"
