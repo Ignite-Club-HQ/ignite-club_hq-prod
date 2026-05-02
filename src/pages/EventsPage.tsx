@@ -833,48 +833,7 @@ export default function EventsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Day strip — tap a day to filter the list to just that day */}
-          <ScheduleDateStrip
-            selectedDate={listSelectedDate}
-            onSelectDate={(d) => {
-              setListSelectedDate(d);
-              if (d) setStripWeekAnchor(d);
-            }}
-            daysWithEvents={daysWithEventsKeySet}
-            weekAnchor={stripWeekAnchor}
-            onShiftWeek={(delta) => {
-              setStripWeekAnchor((prev) => {
-                const next = new Date(prev);
-                next.setDate(next.getDate() + delta);
-                return next;
-              });
-            }}
-          />
-
-          {listSelectedDate ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-sm">
-                  {format(listSelectedDate, "EEEE, MMMM d")}
-                </h2>
-                <Button variant="ghost" size="sm" onClick={() => setListSelectedDate(null)}>
-                  Clear
-                </Button>
-              </div>
-              {listDayEvents && listDayEvents.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground text-sm">Nothing scheduled this day</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                listDayEvents?.map((event) => (
-                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
-                ))
-              )}
-            </div>
-          ) : (
-            <Tabs defaultValue="upcoming" className="w-full">
+          <Tabs defaultValue="upcoming" className="w-full">
               <TabsList className="w-full">
                 <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
                 <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
@@ -908,8 +867,7 @@ export default function EventsPage() {
               ))
             )}
           </TabsContent>
-            </Tabs>
-          )}
+          </Tabs>
         </div>
       )}
 
