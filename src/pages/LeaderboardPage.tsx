@@ -92,6 +92,15 @@ export default function LeaderboardPage() {
     enabled: !!clubId,
   });
 
+  useEffect(() => {
+    if (scope !== "team" || !teams?.length) return;
+    const selectedTeamStillExists = teamId && teams.some((team) => team.id === teamId);
+    if (!selectedTeamStillExists) {
+      setTeamId(teams[0].id);
+      setSearchParams({ teamId: teams[0].id });
+    }
+  }, [scope, teams, teamId, setSearchParams]);
+
   // Leaderboard rows
   const { data: rows, isLoading } = useQuery({
     queryKey: ["leaderboard", scope, scope === "team" ? teamId : clubId, windowKey, user?.id],
@@ -177,7 +186,11 @@ export default function LeaderboardPage() {
       </Tabs>
 
       {/* Body */}
-      {isLoading ? (
+      {scope === "team" && !teamId ? (
+        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
+          {(teams ?? []).length === 0 ? "No teams available for this club yet." : "Select a team to view its leaderboard."}
+        </CardContent></Card>
+      ) : isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : topRows.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
