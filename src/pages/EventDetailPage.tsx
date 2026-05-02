@@ -2886,12 +2886,10 @@ export default function EventDetailPage() {
               isMiniLeague={!!event?.mini_league_id}
               context="session"
             />
-            {(() => null)()}
             {duties?.length === 0 ? (
               <p className="text-muted-foreground text-sm">No duties assigned for this event</p>
             ) : (
               <div className="space-y-2">
-                {(() => null)()}
                 {duties?.map((duty) => (
                   <Card key={duty.id} className={duty.status === "completed" ? "opacity-60" : ""}>
                     <CardContent className="p-4 flex items-center justify-between">
