@@ -49,6 +49,7 @@ import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
+import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
@@ -1650,6 +1651,17 @@ export default function GroupChatPage() {
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
     enabled: !!group,
   });
+
+  const {
+    publishingIds: galleryPublishingIds,
+    publishedIds: galleryPublishedIds,
+    publish: handlePublishToGallery,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: group?.team_id ?? null,
+    clubId: group?.club_id ?? null,
+  });
+
   const groupBaseSublabel = group?.team_id
     ? "Team group"
     : group?.club_id
@@ -1791,6 +1803,10 @@ export default function GroupChatPage() {
                   pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                   onPin={pinMessage}
                   onUnpin={unpinMessage}
+                  canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
+                  isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                  isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                  onPublishToGallery={handlePublishToGallery}
                 />
               </div>
             );
