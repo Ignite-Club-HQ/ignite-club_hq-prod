@@ -33,6 +33,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
+import { ClubDaySummary } from "@/components/events/ClubDaySummary";
 
 type EventType = "game" | "training" | "social";
 
@@ -74,8 +75,6 @@ export default function EventsPage() {
   // Day filter for list view (separate from calendar's selectedDate)
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
-  // Week anchor for calendar-view date strip (synced with calendar's selectedDate)
-  const [calendarStripWeekAnchor, setCalendarStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
@@ -758,16 +757,6 @@ export default function EventsPage() {
 
       {viewMode === "calendar" ? (
         <div className="space-y-4">
-          <ScheduleDateStrip
-            selectedDate={selectedDate ?? null}
-            onSelectDate={(d) => {
-              setSelectedDate(d ?? undefined);
-              if (d) setCalendarStripWeekAnchor(d);
-            }}
-            daysWithEvents={daysWithEventsKeySet}
-            weekAnchor={calendarStripWeekAnchor}
-            onShiftWeek={(delta) => setCalendarStripWeekAnchor((prev) => addDays(prev, delta))}
-          />
           <Card>
             <CardContent className="p-4">
               <Calendar
@@ -813,22 +802,14 @@ export default function EventsPage() {
           </Card>
 
           {selectedDate && (
-            <div className="space-y-3">
-              <h2 className="font-semibold">
-                Events on {format(selectedDate, "EEEE, MMMM d")}
-              </h2>
-              {selectedDateEvents?.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground">No events on this date</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                selectedDateEvents?.map((event) => (
-                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
-                ))
-              )}
-            </div>
+            <ClubDaySummary
+              selectedDate={selectedDate}
+              clubIds={
+                clubFilter
+                  ? [clubFilter]
+                  : (userMemberships?.clubIds || [])
+              }
+            />
           )}
         </div>
       ) : (
