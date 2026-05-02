@@ -2217,6 +2217,8 @@ function DialogInner({
     // the "GK 1H / GK 2H" badges and minute forecasts. We key on a compact
     // signature to avoid loops from referential identity changes.
     players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
+    // Regenerate when advanced overrides change.
+    JSON.stringify(effectiveOverrides),
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
