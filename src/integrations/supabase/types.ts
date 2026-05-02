@@ -8291,6 +8291,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_teams_leaderboard: {
+        Args: { _club_id: string; _limit: number; _window: string }
+        Returns: {
+          points: number
+          rank: number
+          team_id: string
+          team_name: string
+        }[]
+      }
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {

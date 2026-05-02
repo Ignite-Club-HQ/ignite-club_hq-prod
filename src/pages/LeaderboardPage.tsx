@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type WindowKey = "week" | "month" | "all";
-type Scope = "club" | "team";
+type Scope = "club" | "team" | "teams";
 
 interface Row {
   rank: number;
@@ -24,6 +24,13 @@ interface Row {
   points: number;
   is_viewer: boolean;
   hidden: boolean;
+}
+
+interface TeamRow {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  points: number;
 }
 
 function rankBadge(rank: number) {
@@ -101,7 +108,7 @@ export default function LeaderboardPage() {
     }
   }, [scope, teams, teamId, setSearchParams]);
 
-  // Leaderboard rows
+  // Leaderboard rows (members)
   const { data: rows, isLoading } = useQuery({
     queryKey: ["leaderboard", scope, scope === "team" ? teamId : clubId, windowKey, user?.id],
     queryFn: async () => {
@@ -115,7 +122,7 @@ export default function LeaderboardPage() {
         });
         if (error) throw error;
         return (data ?? []) as Row[];
-      } else {
+      } else if (scope === "team") {
         if (!teamId) return [];
         const { data, error } = await supabase.rpc("get_team_leaderboard", {
           _team_id: teamId,
@@ -126,8 +133,25 @@ export default function LeaderboardPage() {
         if (error) throw error;
         return (data ?? []) as Row[];
       }
+      return [];
     },
-    enabled: scope === "club" ? !!clubId : !!teamId,
+    enabled: scope === "club" ? !!clubId : scope === "team" ? !!teamId : false,
+  });
+
+  // Teams ranking
+  const { data: teamRows, isLoading: teamsLoading } = useQuery({
+    queryKey: ["leaderboard-teams-rank", clubId, windowKey],
+    queryFn: async () => {
+      if (!clubId) return [];
+      const { data, error } = await supabase.rpc("get_teams_leaderboard", {
+        _club_id: clubId,
+        _window: windowKey,
+        _limit: 50,
+      });
+      if (error) throw error;
+      return (data ?? []) as TeamRow[];
+    },
+    enabled: scope === "teams" && !!clubId,
   });
 
   const topRows = useMemo(() => (rows ?? []).filter((r) => r.rank <= 50 && !r.hidden), [rows]);
@@ -159,9 +183,10 @@ export default function LeaderboardPage() {
 
       {/* Scope tabs */}
       <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)} className="mb-3">
-        <TabsList className="grid grid-cols-2 w-full">
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="club"><Trophy className="h-4 w-4 mr-1.5" />Club</TabsTrigger>
-          <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />Team</TabsTrigger>
+          <TabsTrigger value="teams"><Users className="h-4 w-4 mr-1.5" />Teams</TabsTrigger>
+          <TabsTrigger value="team"><Users className="h-4 w-4 mr-1.5" />My Team</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -186,7 +211,32 @@ export default function LeaderboardPage() {
       </Tabs>
 
       {/* Body */}
-      {scope === "team" && !teamId ? (
+      {scope === "teams" ? (
+        teamsLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : !teamRows || teamRows.length === 0 ? (
+          <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
+            No team points in this window yet.
+          </CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {teamRows.map((t) => (
+              <Card key={t.team_id}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <span className={cn(
+                    "text-base font-semibold w-12 text-center tabular-nums",
+                    t.rank <= 3 && "text-lg",
+                  )}>{rankBadge(t.rank)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{t.team_name}</p>
+                  </div>
+                  <span className="font-bold tabular-nums">{t.points}</span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : scope === "team" && !teamId ? (
         <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">
           {(teams ?? []).length === 0 ? "No teams available for this club yet." : "Select a team to view its leaderboard."}
         </CardContent></Card>
@@ -205,7 +255,7 @@ export default function LeaderboardPage() {
       )}
 
       {/* Sticky "your rank" */}
-      {myRow && !myRowInTop && (
+      {scope !== "teams" && myRow && !myRowInTop && (
         <div className="sticky bottom-2 mt-4">
           <Card className="border-primary/40 shadow-lg">
             <CardContent className="p-3 flex items-center gap-3">
