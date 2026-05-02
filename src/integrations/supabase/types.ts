@@ -6537,73 +6537,6 @@ export type Database = {
           },
         ]
       }
-      team_join_tokens: {
-        Row: {
-          club_id: string
-          created_at: string
-          created_by: string
-          default_role: string
-          expires_at: string
-          id: string
-          max_uses: number | null
-          revoked_at: string | null
-          team_id: string
-          token: string
-          updated_at: string
-          use_count: number
-        }
-        Insert: {
-          club_id: string
-          created_at?: string
-          created_by: string
-          default_role?: string
-          expires_at?: string
-          id?: string
-          max_uses?: number | null
-          revoked_at?: string | null
-          team_id: string
-          token: string
-          updated_at?: string
-          use_count?: number
-        }
-        Update: {
-          club_id?: string
-          created_at?: string
-          created_by?: string
-          default_role?: string
-          expires_at?: string
-          id?: string
-          max_uses?: number | null
-          revoked_at?: string | null
-          team_id?: string
-          token?: string
-          updated_at?: string
-          use_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_join_tokens_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_join_tokens_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "public_clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_join_tokens_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       team_memberships: {
         Row: {
           club_player_id: string
@@ -7828,10 +7761,6 @@ export type Database = {
         Returns: boolean
       }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
-      can_manage_team_join_token: {
-        Args: { _club_id: string; _team_id: string; _user_id: string }
-        Returns: boolean
-      }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
