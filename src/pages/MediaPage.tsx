@@ -442,6 +442,31 @@ export default function MediaPage() {
     return { clubId: undefined, teamId: undefined };
   }, [userRoles]);
 
+  const cardId = searchParams.get("card");
+
+  // Fetch the gallery card's photo_ids when ?card= is present so we can scope
+  // the gallery to just that upload batch.
+  const { data: cardPhotoIds } = useQuery({
+    queryKey: ["gallery-chat-card-photo-ids", cardId],
+    queryFn: async () => {
+      if (!cardId) return null;
+      const { data } = await supabase
+        .from("gallery_chat_cards")
+        .select("photo_ids")
+        .eq("id", cardId)
+        .maybeSingle();
+      return (data?.photo_ids as string[] | null) ?? [];
+    },
+    enabled: !!cardId,
+    staleTime: 60 * 1000,
+  });
+
+  const selectedClubFilter = selectedClubId !== "all" ? selectedClubId : null;
+  const selectedTeamFilter = selectedTeamId !== "all" ? selectedTeamId : null;
+  const dateFromKey = dateRange.from ? startOfDay(dateRange.from).toISOString() : null;
+  const dateToKey = dateRange.to ? endOfDay(dateRange.to).toISOString() : null;
+  const cardPhotoIdsKey = cardPhotoIds?.join(",") ?? "";
+
   const { 
     data: photosData, 
     isLoading: loadingPhotos,
