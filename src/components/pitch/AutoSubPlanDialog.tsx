@@ -362,11 +362,11 @@ export function createSubPlan(
     const cycleWindowsNeeded = Math.ceil(totalOutfieldPlayers / subsPerWindow);
     const cadenceForCycle = totalRemainingSeconds > 0 && cycleWindowsNeeded > 0
       ? Math.floor(totalRemainingSeconds / (cycleWindowsNeeded + 1))
-      : PRACTICAL_SUB_INTERVAL_SECONDS;
-    const PRACTICAL_MIN_INTERVAL = 4 * 60; // never let Standard windows fall below 4 min
+      : eff.standardTargetInterval;
+    const PRACTICAL_MIN_INTERVAL = eff.standardIntervalFloor; // floor for Standard windows
     const intervalSec = Math.max(
       PRACTICAL_MIN_INTERVAL,
-      Math.min(PRACTICAL_SUB_INTERVAL_SECONDS, cadenceForCycle)
+      Math.min(eff.standardTargetInterval, cadenceForCycle)
     );
 
     // ---- Fairness model ------------------------------------------------------
