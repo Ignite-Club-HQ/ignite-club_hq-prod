@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
+import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
@@ -74,6 +74,8 @@ export default function EventsPage() {
   // Day filter for list view (separate from calendar's selectedDate)
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
+  // Week anchor for calendar-view date strip (synced with calendar's selectedDate)
+  const [calendarStripWeekAnchor, setCalendarStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
@@ -756,6 +758,16 @@ export default function EventsPage() {
 
       {viewMode === "calendar" ? (
         <div className="space-y-4">
+          <ScheduleDateStrip
+            selectedDate={selectedDate ?? null}
+            onSelectDate={(d) => {
+              setSelectedDate(d ?? undefined);
+              if (d) setCalendarStripWeekAnchor(d);
+            }}
+            daysWithEvents={daysWithEventsKeySet}
+            weekAnchor={calendarStripWeekAnchor}
+            onShiftWeek={(delta) => setCalendarStripWeekAnchor((prev) => addDays(prev, delta))}
+          />
           <Card>
             <CardContent className="p-4">
               <Calendar
