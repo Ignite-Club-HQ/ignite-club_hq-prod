@@ -110,7 +110,7 @@ export function useAutoSubNotify(
         console.error("[AutoSubNotify] unexpected error:", err);
       }
     },
-    [teamId, teamName],
+    [teamId, teamName, linkedEventId],
   );
 
   return notify;
