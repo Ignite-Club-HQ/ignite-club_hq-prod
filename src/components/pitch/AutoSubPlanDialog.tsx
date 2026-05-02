@@ -2521,3 +2521,207 @@ export default function AutoSubPlanDialog({
     </DialogPrimitive.Root>
   );
 }
+
+// ===========================================================================
+// Advanced Settings Panel — power-user thresholds for the auto-sub planner.
+// Renders inside the AutoSubPlanDialog footer as a collapsible section.
+// All values are stored as seconds and apply per-mode where indicated.
+// ===========================================================================
+
+const ADV_DEFAULTS = {
+  standardTargetIntervalSec: 7 * 60,   // 420
+  standardIntervalFloorSec: 4 * 60,    // 240
+  frequentIntervalFloorSec: 180,
+  minShiftSeconds: 180,
+  halftimeGuardSeconds: 180,
+} as const;
+
+function fmtSec(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  if (sec >= 60) return `${(sec / 60).toFixed(1)} min`;
+  return `${sec}s`;
+}
+
+function NumberRow({
+  label, hint, value, defaultValue, min, max, step, disabled, onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled?: boolean;
+  onChange: (next: number | undefined) => void;
+}) {
+  const isOverridden = value !== defaultValue;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-medium text-foreground">{label}</label>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "text-xs tabular-nums",
+            isOverridden ? "text-primary font-semibold" : "text-muted-foreground"
+          )}>
+            {fmtSec(value)}
+          </span>
+          {isOverridden && !disabled && (
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              reset
+            </button>
+          )}
+        </div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-primary disabled:opacity-50"
+      />
+      <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+function AdvancedSettingsPanel({
+  open, onToggle, overrides, readOnly, onChange,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  overrides: AutoSubAdvancedOverrides;
+  readOnly: boolean;
+  onChange: (next: AutoSubAdvancedOverrides) => void;
+}) {
+  const v = {
+    standardTargetIntervalSec: overrides.standardTargetIntervalSec ?? ADV_DEFAULTS.standardTargetIntervalSec,
+    standardIntervalFloorSec: overrides.standardIntervalFloorSec ?? ADV_DEFAULTS.standardIntervalFloorSec,
+    frequentIntervalFloorSec: overrides.frequentIntervalFloorSec ?? ADV_DEFAULTS.frequentIntervalFloorSec,
+    minShiftSeconds: overrides.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds,
+    halftimeGuardSeconds: overrides.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds,
+  };
+  const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
+    .filter(k => overrides[k] !== undefined).length;
+
+  const set = (key: keyof AutoSubAdvancedOverrides, next: number | undefined) => {
+    if (readOnly) return;
+    const merged: AutoSubAdvancedOverrides = { ...overrides };
+    if (next === undefined) delete merged[key];
+    else merged[key] = next;
+    onChange(merged);
+  };
+
+  const resetAll = () => onChange({});
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/20">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Settings2 className="h-4 w-4" />
+          Advanced settings
+          {overrideCount > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              {overrideCount} custom
+            </Badge>
+          )}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
+          {readOnly && (
+            <p className="text-[11px] text-muted-foreground italic">
+              These thresholds are controlled by the parent screen and can't be changed here.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Standard mode</p>
+            <NumberRow
+              label="Target sub-window cadence"
+              hint="Maximum gap between sub windows. Planner shrinks below this if needed to fit a full rotation."
+              value={v.standardTargetIntervalSec}
+              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
+              min={180} max={900} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardTargetIntervalSec", n)}
+            />
+            <NumberRow
+              label="Sub-window floor"
+              hint="Hard lower bound — windows never get tighter than this even with a large bench."
+              value={v.standardIntervalFloorSec}
+              defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
+              min={120} max={600} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardIntervalFloorSec", n)}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Frequent mode</p>
+            <NumberRow
+              label="Sub-window floor"
+              hint="Minimum gap between sub windows in Frequent mode. Lower = more rotations, shorter shifts."
+              value={v.frequentIntervalFloorSec}
+              defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
+              min={60} max={420} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("frequentIntervalFloorSec", n)}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Both modes</p>
+            <NumberRow
+              label="Minimum shift on pitch"
+              hint="A player can't be pulled until they've been on at least this long. Prevents 'phantom' short shifts."
+              value={v.minShiftSeconds}
+              defaultValue={ADV_DEFAULTS.minShiftSeconds}
+              min={60} max={360} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("minShiftSeconds", n)}
+            />
+            <NumberRow
+              label="Halftime guard window"
+              hint="When a halftime GK swap is scheduled, no interval-driven sub windows are placed within this window of HT."
+              value={v.halftimeGuardSeconds}
+              defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
+              min={0} max={420} step={15}
+              disabled={readOnly}
+              onChange={(n) => set("halftimeGuardSeconds", n)}
+            />
+          </div>
+
+          {!readOnly && overrideCount > 0 && (
+            <div className="flex justify-end pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={resetAll}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset all to defaults
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
