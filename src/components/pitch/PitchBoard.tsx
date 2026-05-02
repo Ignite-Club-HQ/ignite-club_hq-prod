@@ -3751,6 +3751,43 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
+  // ── Auto-regenerate the sub plan when the on-pitch composition changes ──
+  // Whenever a manual swap, drag-to-bench, drag-to-pitch, or any other action
+  // changes who is currently on the pitch, the existing auto-sub plan can become
+  // stale (referencing players who are no longer on the pitch / bench as expected).
+  // Triggering a regeneration here keeps both the next-sub card and the timeline
+  // in `AutoSubControlPanel` (and projected minutes in `AutoSubPlanDialog`) in sync
+  // with reality. Auto-sub executions also change `players`, but those subs are
+  // already marked `executed: true` so regeneration is a no-op for them.
+  const onPitchSignatureRef = useRef<string>("");
+  const lastRegenAtRef = useRef<number>(0);
+  useEffect(() => {
+    if (!autoSubActive) return;
+    if (autoSubPlan.length === 0) return;
+    // Stable, order-independent signature of who is on the pitch.
+    const sig = playersOnPitch
+      .map(p => p.id)
+      .sort()
+      .join("|");
+    const prev = onPitchSignatureRef.current;
+    // First run after autosubs activate — capture baseline, no regen.
+    if (!prev) {
+      onPitchSignatureRef.current = sig;
+      return;
+    }
+    if (prev === sig) return;
+    onPitchSignatureRef.current = sig;
+    // Debounce against rapid back-to-back state updates (e.g. animation phases).
+    const now = Date.now();
+    if (now - lastRegenAtRef.current < 250) return;
+    lastRegenAtRef.current = now;
+    // Defer to next tick so any in-flight setPlayers commits land first.
+    const t = setTimeout(() => {
+      regeneratePlanRef.current?.();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [playersOnPitch, autoSubActive, autoSubPlan.length, regeneratePlanRef]);
+
   // Filtered on-pitch players for mini-league team selector (hides the other team)
   const filteredPlayersOnPitch = useMemo(() => {
     if (!miniLeagueTeams || selectedTeamForSettings === "both") return playersOnPitch;
