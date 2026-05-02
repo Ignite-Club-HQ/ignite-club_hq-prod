@@ -2280,6 +2280,10 @@ function DialogInner({
   });
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Fairness simulator: lazily computed on coach demand so the dialog stays
+  // snappy. Cleared whenever the underlying plan changes.
+  const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
