@@ -32,6 +32,7 @@ import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { useUserEventViews } from "@/hooks/useEventViews";
+import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 
 type EventType = "game" | "training" | "social";
 
