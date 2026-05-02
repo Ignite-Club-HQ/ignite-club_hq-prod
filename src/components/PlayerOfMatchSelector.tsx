@@ -454,11 +454,41 @@ export default function PlayerOfMatchSelector({
             </div>
           ) : isAdmin ? (
              <div className="space-y-2">
+              {/* Inline voucher picker when multiple vouchers exist */}
+              {pomRewards.length > 1 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    Voucher to award:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pomRewards.map((reward: any) => {
+                      const isActive = activePomReward?.id === reward.id;
+                      return (
+                        <Button
+                          key={reward.id}
+                          variant={isActive ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => setSelectedRewardPersisted(reward)}
+                        >
+                          <Trophy className="h-3 w-3 mr-1" />
+                          {reward.name}
+                          {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <Button
                 variant="outline"
                 className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                 onClick={() => setSelectDialogOpen(true)}
-                disabled={goingPlayers.length === 0}
+                disabled={
+                  goingPlayers.length === 0 ||
+                  (pomRewards.length > 1 && !activePomReward)
+                }
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Select Player of the Match
@@ -466,6 +496,11 @@ export default function PlayerOfMatchSelector({
               {goingPlayers.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center">
                   No players RSVP'd as "Going" yet
+                </p>
+              )}
+              {pomRewards.length > 1 && !activePomReward && goingPlayers.length > 0 && (
+                <p className="text-xs text-destructive text-center">
+                  Select a voucher above to continue.
                 </p>
               )}
               {pomRewards.length === 0 && goingPlayers.length > 0 && (
