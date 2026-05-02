@@ -599,11 +599,23 @@ export default function ProfilePage() {
       <div ref={pointsHistoryRef}>
       {hasProAccess ? (
         (() => {
-          const balance = profile?.ignite_points || 0;
+          // Use the most recent history entry's balance_after as the source of truth
+          // for the displayed balance. This stays in sync with the activity feed even
+          // when the auth-context profile cache hasn't refreshed yet.
+          const profileBalance = profile?.ignite_points || 0;
+          const latestHistoryBalance =
+            pointsHistoryData && pointsHistoryData.length > 0
+              ? (pointsHistoryData[0] as any).balance_after ?? null
+              : null;
+          const balance =
+            latestHistoryBalance !== null ? latestHistoryBalance : profileBalance;
           const calculatedBalance = pointsEarned - pointsSpent;
           const untracked = balance - calculatedBalance;
+          // Only show the "earned before history tracking" note when the gap is
+          // material (>5 pts) and queries are settled — small gaps are usually just
+          // transient sync lag between the profile cache and the history table.
           const untrackedNote =
-            untracked > 0 && !pointsHistoryLoading && !redemptionsLoading
+            untracked > 5 && !pointsHistoryLoading && !redemptionsLoading
               ? `+${untracked} pts earned before history tracking began`
               : null;
           const rankForFeed = displayedRank
