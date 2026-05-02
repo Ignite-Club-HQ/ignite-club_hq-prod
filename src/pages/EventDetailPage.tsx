@@ -1094,7 +1094,12 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      
+      // Refresh points history & rank after fire-and-forget child early-RSVP bonus award.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["points-history"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
+      }, 1500);
     },
   });
 
