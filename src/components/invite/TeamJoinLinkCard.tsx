@@ -6,6 +6,16 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
