@@ -867,8 +867,7 @@ export default function EventsPage() {
               ))
             )}
           </TabsContent>
-            </Tabs>
-          )}
+          </Tabs>
         </div>
       )}
 
