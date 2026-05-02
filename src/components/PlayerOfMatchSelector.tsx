@@ -405,7 +405,7 @@ export default function PlayerOfMatchSelector({
                   </div>
                   <div className="flex items-center gap-1 text-sm text-amber-600">
                     <Star className="h-3 w-3 fill-current" />
-                    <span>+{playerOfMatch.points_awarded} points</span>
+                    <span>+{(playerOfMatch as any).points ?? 0} points</span>
                   </div>
                 </div>
               </div>
