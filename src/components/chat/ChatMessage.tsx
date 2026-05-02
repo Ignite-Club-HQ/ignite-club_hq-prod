@@ -862,23 +862,34 @@ export const ChatMessage = memo(function ChatMessage({
                 <button
                   type="button"
                   disabled={isPublishingToGallery || isPublishedToGallery}
+                  aria-busy={isPublishingToGallery || undefined}
+                  aria-disabled={isPublishingToGallery || isPublishedToGallery || undefined}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (isPublishingToGallery || isPublishedToGallery) return;
                     onPublishToGallery(id, imageUrl);
                   }}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
                     isPublishedToGallery
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-default"
+                      : isPublishingToGallery
+                        ? "bg-primary/10 text-primary cursor-wait animate-pulse"
+                        : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] cursor-pointer"
                   }`}
-                  aria-label={isPublishedToGallery ? "Already in gallery" : "Add to media gallery"}
+                  aria-label={
+                    isPublishingToGallery
+                      ? "Adding to media gallery"
+                      : isPublishedToGallery
+                        ? "Already in gallery"
+                        : "Add to media gallery"
+                  }
                 >
                   {isPublishingToGallery ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
                   ) : isPublishedToGallery ? (
-                    <Check className="h-3 w-3" />
+                    <Check className="h-3 w-3" aria-hidden="true" />
                   ) : (
-                    <ImagePlus className="h-3 w-3" />
+                    <ImagePlus className="h-3 w-3" aria-hidden="true" />
                   )}
                   <span>
                     {isPublishingToGallery
