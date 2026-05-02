@@ -49,6 +49,7 @@ import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
+import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
