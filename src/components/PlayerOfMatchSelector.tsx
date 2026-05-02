@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trophy, Loader2, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,18 @@ export default function PlayerOfMatchSelector({
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [selectedReward, setSelectedReward] = useState<any | null>(null);
+
+  const lastRewardStorageKey = useMemo(
+    () => `pom-last-reward:${clubId}:${teamId ?? "club"}`,
+    [clubId, teamId]
+  );
+
+  const setSelectedRewardPersisted = (reward: any | null) => {
+    setSelectedReward(reward);
+    try {
+      if (reward?.id) localStorage.setItem(lastRewardStorageKey, reward.id);
+    } catch {}
+  };
 
   // Fetch current player of match
   const { data: playerOfMatch, isLoading } = useQuery({
@@ -116,6 +128,18 @@ export default function PlayerOfMatchSelector({
       return data || [];
     },
   });
+
+  // Rehydrate last-used reward when rewards load / dialog opens
+  useEffect(() => {
+    if (selectedReward || pomRewards.length === 0) return;
+    try {
+      const lastId = localStorage.getItem(lastRewardStorageKey);
+      if (lastId) {
+        const found = pomRewards.find((r: any) => r.id === lastId);
+        if (found) setSelectedReward(found);
+      }
+    } catch {}
+  }, [pomRewards, lastRewardStorageKey, selectedReward]);
 
   // Use selected reward or default to first available
   const activePomReward = selectedReward || (pomRewards.length === 1 ? pomRewards[0] : null);
@@ -485,7 +509,7 @@ export default function PlayerOfMatchSelector({
                           variant={isActive ? "default" : "outline"}
                           size="sm"
                           className="text-xs"
-                          onClick={() => setSelectedReward(reward)}
+                          onClick={() => setSelectedRewardPersisted(reward)}
                         >
                           <Trophy className="h-3 w-3 mr-1" />
                           {reward.name}
