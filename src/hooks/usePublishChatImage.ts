@@ -25,11 +25,11 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
 
-  const canPublish = !!uploaderId && !!teamId; // photos table requires team_id
+  const canPublish = !!uploaderId && (!!teamId || !!clubId);
 
   const publish = useCallback(
     async (messageId: string, imageUrl: string) => {
-      if (!canPublish || !uploaderId || !teamId) return;
+      if (!canPublish || !uploaderId) return;
       if (publishingIds.has(messageId) || publishedIds.has(messageId)) return;
 
       setPublishingIds((prev) => {
