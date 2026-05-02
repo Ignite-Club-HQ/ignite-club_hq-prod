@@ -314,7 +314,6 @@ export function createSubPlan(
   if (rotationSpeed === 1) {
     const startAbs = startHalf === 1 ? clampedStartElapsed : halfDurationSeconds + clampedStartElapsed;
     const endAbs = halfDurationSeconds * 2;
-    const intervalSec = Math.max(120, PRACTICAL_SUB_INTERVAL_SECONDS);
     const subsPerWindow = Math.max(
       1,
       Math.min(
@@ -322,6 +321,21 @@ export function createSubPlan(
         outfieldOnBench.length,
         outfieldOnPitch.length
       )
+    );
+    // BENCH-AWARE CADENCE: the default 7-min window keeps Standard low-disruption,
+    // but with a large bench (e.g. 9v9 +5, 11v11 +6) a fixed 7-min cadence can't
+    // rotate everyone through within the spread cap and minutes blow out to 16-20'.
+    // Shrink the interval just enough to deliver one full rotation cycle in the
+    // remaining game time, with a hard floor of 4 min so windows never get tricky.
+    // Cycle = N off-events needed (one per outfielder), batched `subsPerWindow` at a time.
+    const cycleWindowsNeeded = Math.ceil(totalOutfieldPlayers / subsPerWindow);
+    const cadenceForCycle = totalRemainingSeconds > 0 && cycleWindowsNeeded > 0
+      ? Math.floor(totalRemainingSeconds / (cycleWindowsNeeded + 1))
+      : PRACTICAL_SUB_INTERVAL_SECONDS;
+    const PRACTICAL_MIN_INTERVAL = 4 * 60; // never let Standard windows fall below 4 min
+    const intervalSec = Math.max(
+      PRACTICAL_MIN_INTERVAL,
+      Math.min(PRACTICAL_SUB_INTERVAL_SECONDS, cadenceForCycle)
     );
 
     // ---- Fairness model ------------------------------------------------------
