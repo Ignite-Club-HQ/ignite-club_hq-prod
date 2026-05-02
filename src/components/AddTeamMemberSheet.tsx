@@ -509,15 +509,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
           );
 
-          // Also search pending invites from other teams in same club
+          // Also search pending invites across the entire club
           const { data: invites } = await supabase
             .from("pending_invites")
             .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
             .eq("club_id", clubId)
             .eq("status", "pending")
-            .neq("team_id", teamId)
             .ilike("invited_label", `%${term}%`)
-            .limit(6);
+            .limit(8);
 
           const profileIds = new Set(profileResults.map(r => r.id));
           const pendingResults = (invites || [])
