@@ -102,6 +102,126 @@ function calculateTimeForecasts(
   })).sort((a, b) => b.predictedMinutes - a.predictedMinutes);
 }
 
+// ===========================================================================
+// Fairness Simulator
+// ---------------------------------------------------------------------------
+// Walk a generated plan and produce per-player stint stats: total minutes,
+// number of short shifts (<3 min on pitch) and bounce-backs (<3 min on bench
+// between two on-pitch stints). Used by the in-dialog Fairness Simulator
+// to surface problematic plans before the coach commits.
+// ===========================================================================
+
+const FAIRNESS_SHORT_SHIFT_SECONDS = 180;
+const FAIRNESS_BOUNCE_BACK_SECONDS = 180;
+
+interface FairnessPlayerStat {
+  playerId: string;
+  playerName: string;
+  totalSeconds: number;
+  shortShifts: number;
+  bounceBacks: number;
+  startsOnPitch: boolean;
+}
+
+interface FairnessReport {
+  perPlayer: FairnessPlayerStat[];
+  spreadSeconds: number;          // max - min playing time
+  minSeconds: number;
+  maxSeconds: number;
+  avgSeconds: number;
+  totalShortShifts: number;
+  totalBounceBacks: number;
+  totalSubs: number;
+  /** Subjective overall grade derived from spread + short-shift count. */
+  grade: "excellent" | "good" | "fair" | "poor";
+}
+
+function calculateFairnessReport(
+  players: { id: string; name: string; position: { x: number; y: number } | null }[],
+  plan: SubstitutionEvent[],
+  minutesPerHalf: number,
+): FairnessReport {
+  const halfSec = minutesPerHalf * 60;
+  const totalSec = halfSec * 2;
+
+  // Per-player stints in absolute seconds. Starters open at 0; bench players
+  // open a stint when subbed on, close it when subbed off.
+  const stints = new Map<string, { start: number; end: number }[]>();
+  for (const p of players) {
+    stints.set(p.id, p.position !== null ? [{ start: 0, end: totalSec }] : []);
+  }
+
+  const events = [...plan].sort((a, b) => {
+    const aAbs = (a.half - 1) * halfSec + a.time;
+    const bAbs = (b.half - 1) * halfSec + b.time;
+    return aAbs - bAbs;
+  });
+
+  for (const ev of events) {
+    if (ev.skipped) continue;
+    const abs = (ev.half - 1) * halfSec + ev.time;
+    const outArr = stints.get(ev.playerOut.id);
+    if (outArr && outArr.length) {
+      const last = outArr[outArr.length - 1];
+      if (last.end > abs) last.end = abs;
+    }
+    const inArr = stints.get(ev.playerIn.id);
+    if (inArr) inArr.push({ start: abs, end: totalSec });
+  }
+
+  const perPlayer: FairnessPlayerStat[] = players.map((p) => {
+    const arr = stints.get(p.id) || [];
+    let total = 0;
+    let shortShifts = 0;
+    let bounceBacks = 0;
+    for (let i = 0; i < arr.length; i++) {
+      const dur = Math.max(0, arr[i].end - arr[i].start);
+      total += dur;
+      if (dur < FAIRNESS_SHORT_SHIFT_SECONDS) shortShifts++;
+      if (i > 0) {
+        const gap = arr[i].start - arr[i - 1].end;
+        if (gap > 0 && gap < FAIRNESS_BOUNCE_BACK_SECONDS) bounceBacks++;
+      }
+    }
+    return {
+      playerId: p.id,
+      playerName: p.name,
+      totalSeconds: total,
+      shortShifts,
+      bounceBacks,
+      startsOnPitch: p.position !== null,
+    };
+  });
+
+  const totals = perPlayer.map((s) => s.totalSeconds);
+  const minSeconds = totals.length ? Math.min(...totals) : 0;
+  const maxSeconds = totals.length ? Math.max(...totals) : 0;
+  const avgSeconds = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+  const spreadSeconds = maxSeconds - minSeconds;
+  const totalShortShifts = perPlayer.reduce((a, s) => a + s.shortShifts, 0);
+  const totalBounceBacks = perPlayer.reduce((a, s) => a + s.bounceBacks, 0);
+
+  // Grade thresholds (in minutes)
+  const spreadMin = spreadSeconds / 60;
+  let grade: FairnessReport["grade"];
+  if (spreadMin <= 4 && totalShortShifts === 0 && totalBounceBacks === 0) grade = "excellent";
+  else if (spreadMin <= 7 && totalShortShifts <= 1 && totalBounceBacks <= 1) grade = "good";
+  else if (spreadMin <= 12 && totalShortShifts <= 3) grade = "fair";
+  else grade = "poor";
+
+  return {
+    perPlayer: perPlayer.sort((a, b) => b.totalSeconds - a.totalSeconds),
+    spreadSeconds,
+    minSeconds,
+    maxSeconds,
+    avgSeconds,
+    totalShortShifts,
+    totalBounceBacks,
+    totalSubs: events.length,
+    grade,
+  };
+}
+
 interface Player {
   id: string;
   name: string;
