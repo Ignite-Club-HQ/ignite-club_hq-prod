@@ -1803,6 +1803,10 @@ export default function GroupChatPage() {
                   pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                   onPin={pinMessage}
                   onUnpin={unpinMessage}
+                  canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
+                  isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                  isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                  onPublishToGallery={handlePublishToGallery}
                 />
               </div>
             );
