@@ -1319,7 +1319,20 @@ export default function EventDetailPage() {
     mutationFn: async (dutyId: string) => {
       // Get duty details before updating
       const duty = duties?.find(d => d.id === dutyId);
-      
+
+      // Guard against premature completion — duties can only be marked complete
+      // from match arrival time (for games) or event start time onwards.
+      if (event) {
+        const earliest = event.type === "game"
+          ? (getMatchArrivalDate(event as any) ?? new Date(event.start_time || event.event_date))
+          : new Date(event.start_time || event.event_date);
+        if (!Number.isNaN(earliest.getTime()) && new Date() < earliest) {
+          throw new Error(
+            `This duty can't be completed yet — it's available from ${format(earliest, "EEE d MMM, h:mm a")}.`
+          );
+        }
+      }
+
       const { error } = await supabase
         .from("duties")
         .update({ status: "completed" as DutyStatus, completed_at: new Date().toISOString() })
