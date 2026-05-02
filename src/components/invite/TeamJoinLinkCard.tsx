@@ -152,6 +152,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         ...(prev ?? {}),
         [role]: null,
       }));
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Link revoked", description: "The previous link no longer works." });
     },
     onError: (err: any) => {
