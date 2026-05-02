@@ -111,11 +111,11 @@ export function MatchScoreCard({
       if (userIds.length) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id, display_name")
           .in("id", userIds);
         adults = (profiles || []).map((p: any) => ({
           id: p.id,
-          name: p.full_name || "Player",
+          name: p.display_name || "Player",
         }));
       }
 
