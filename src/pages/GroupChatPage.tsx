@@ -1651,6 +1651,17 @@ export default function GroupChatPage() {
     groupAllowedRoles: (group?.allowed_roles as any) ?? null,
     enabled: !!group,
   });
+
+  const {
+    publishingIds: galleryPublishingIds,
+    publishedIds: galleryPublishedIds,
+    publish: handlePublishToGallery,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: group?.team_id ?? null,
+    clubId: group?.club_id ?? null,
+  });
+
   const groupBaseSublabel = group?.team_id
     ? "Team group"
     : group?.club_id
