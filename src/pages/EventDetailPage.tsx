@@ -75,7 +75,7 @@ import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
-import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
+import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 
 
 // Lazy load PitchBoard for game events
@@ -1319,7 +1319,20 @@ export default function EventDetailPage() {
     mutationFn: async (dutyId: string) => {
       // Get duty details before updating
       const duty = duties?.find(d => d.id === dutyId);
-      
+
+      // Guard against premature completion — duties can only be marked complete
+      // from match arrival time (for games) or event start time onwards.
+      if (event) {
+        const earliest = event.type === "game"
+          ? (getMatchArrivalDate(event as any) ?? new Date(event.start_time || event.event_date))
+          : new Date(event.start_time || event.event_date);
+        if (!Number.isNaN(earliest.getTime()) && new Date() < earliest) {
+          throw new Error(
+            `This duty can't be completed yet — it's available from ${format(earliest, "EEE d MMM, h:mm a")}.`
+          );
+        }
+      }
+
       const { error } = await supabase
         .from("duties")
         .update({ status: "completed" as DutyStatus, completed_at: new Date().toISOString() })
@@ -2940,19 +2953,33 @@ export default function EventDetailPage() {
                             Claim
                           </Button>
                         )}
-                        {duty.status === "open" && (duty.assigned_to === user?.id || isAdmin) && (
-                          <Button
-                            size="sm"
-                            onClick={() => completeDutyMutation.mutate(duty.id)}
-                            disabled={completeDutyMutation.isPending}
-                          >
-                            {completeDutyMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Complete"
-                            )}
-                          </Button>
-                        )}
+                        {duty.status === "open" && (duty.assigned_to === user?.id || isAdmin) && (() => {
+                          const earliest = event?.type === "game"
+                            ? (getMatchArrivalDate(event as any) ?? new Date(event.start_time || event.event_date))
+                            : new Date(event!.start_time || event!.event_date);
+                          const tooEarly = !Number.isNaN(earliest.getTime()) && new Date() < earliest;
+                          return (
+                            <div className="flex flex-col items-end gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => completeDutyMutation.mutate(duty.id)}
+                                disabled={completeDutyMutation.isPending || tooEarly}
+                                title={tooEarly ? `Available from ${format(earliest, "EEE d MMM, h:mm a")}` : undefined}
+                              >
+                                {completeDutyMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Complete"
+                                )}
+                              </Button>
+                              {tooEarly && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Available {format(earliest, "EEE d MMM, h:mm a")}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {duty.status === "completed" && (
                           <Badge variant="secondary" className="bg-primary/20 text-primary gap-1">
                             <Check className="h-3 w-3" />
