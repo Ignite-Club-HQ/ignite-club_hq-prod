@@ -1454,8 +1454,10 @@ export default function MediaPage() {
           
           {/* Load more sentinel */}
           {hasNextPage && (
-            <div ref={loadMoreRef} className="flex justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div ref={loadMoreRef} className="flex min-h-8 justify-center py-2" aria-live="polite">
+              {isFetchingNextPage ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : null}
             </div>
           )}
           {!hasNextPage && photos.length > 0 && (
