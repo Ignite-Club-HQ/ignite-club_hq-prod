@@ -78,6 +78,11 @@ export interface ChatMessageProps {
   pinLimitReached?: boolean;
   onPin?: (messageId: string) => void;
   onUnpin?: (messageId: string) => void;
+  // Publish-to-gallery support (team chat). Parent handles the actual upload.
+  canPublishToGallery?: boolean;
+  isPublishedToGallery?: boolean;
+  isPublishingToGallery?: boolean;
+  onPublishToGallery?: (messageId: string, imageUrl: string) => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
