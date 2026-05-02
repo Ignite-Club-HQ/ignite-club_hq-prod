@@ -499,7 +499,7 @@ export default function NetballBoard({
   // ---------- Sub execution ----------
   // Push notifications for fired auto-subs go to all team admins/coaches so
   // assistant coaches on the sideline see the change without being on-board.
-  const notifyAutoSub = useAutoSubNotify(teamId, teamName);
+  const notifyAutoSub = useAutoSubNotify(teamId, teamName, linkedEventId);
   // Pending auto-sub awaiting coach confirmation. Mid-quarter timed subs are
   // staged here (instead of mutating immediately) so a confirmation dialog
   // surfaces — quarter-break subs continue using NetballQuarterBreakDialog.
