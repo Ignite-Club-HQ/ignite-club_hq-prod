@@ -249,7 +249,10 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
             variant="secondary"
             className="w-full"
             disabled={createOrRotate.isPending}
-            onClick={() => createOrRotate.mutate({ rotate: false, role: activeRole })}
+            onClick={() => {
+              if (isSensitive) setConfirmGenerate(true);
+              else createOrRotate.mutate({ rotate: false, role: activeRole });
+            }}
           >
             {createOrRotate.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
