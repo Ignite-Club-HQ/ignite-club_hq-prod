@@ -20,6 +20,11 @@ interface AutoSubNotifyArgs {
  * coaches on the sideline see the change even if they aren't running the
  * board themselves.
  *
+ * Recipients:
+ *   - team_admin / coach for the team
+ *   - Anyone assigned the "Subs Manager" duty for the linked event (so a
+ *     parent running the board on match-day still gets pushes)
+ *
  * - Fan-out happens in the background (not awaited) so the board UI never
  *   blocks on the network round-trip.
  * - We dedupe per (player-out + player-in + position + minute) inside a
@@ -28,7 +33,11 @@ interface AutoSubNotifyArgs {
  * - Failures are swallowed + logged; a missed push must never break the
  *   coach's live sub.
  */
-export function useAutoSubNotify(teamId: string, teamName: string) {
+export function useAutoSubNotify(
+  teamId: string,
+  teamName: string,
+  linkedEventId?: string | null,
+) {
   const sentRef = useRef<Set<string>>(new Set());
 
   const notify = useCallback(
@@ -39,6 +48,8 @@ export function useAutoSubNotify(teamId: string, teamName: string) {
       sentRef.current.add(dedupeKey);
 
       try {
+        const recipientIds = new Set<string>();
+
         const { data: roles, error } = await supabase
           .from("user_roles")
           .select("user_id")
@@ -46,11 +57,31 @@ export function useAutoSubNotify(teamId: string, teamName: string) {
           .in("role", ["team_admin", "coach"]);
         if (error) {
           console.error("[AutoSubNotify] role lookup failed:", error);
-          return;
+        } else {
+          (roles ?? []).forEach((r) => {
+            if (r.user_id) recipientIds.add(r.user_id as string);
+          });
         }
-        const userIds = Array.from(
-          new Set((roles ?? []).map((r) => r.user_id).filter(Boolean) as string[]),
-        );
+
+        // Include anyone with the "Subs Manager" duty for the linked event —
+        // they're effectively running the board today even without a coach role.
+        if (linkedEventId) {
+          const { data: subsManagers, error: dutyErr } = await supabase
+            .from("duties")
+            .select("assigned_to")
+            .eq("event_id", linkedEventId)
+            .eq("name", "Subs Manager")
+            .not("assigned_to", "is", null);
+          if (dutyErr) {
+            console.error("[AutoSubNotify] subs-manager lookup failed:", dutyErr);
+          } else {
+            (subsManagers ?? []).forEach((d: any) => {
+              if (d.assigned_to) recipientIds.add(d.assigned_to as string);
+            });
+          }
+        }
+
+        const userIds = Array.from(recipientIds);
         if (userIds.length === 0) return;
 
         const title = `${teamName} — Auto-sub`;
