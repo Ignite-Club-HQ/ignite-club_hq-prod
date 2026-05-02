@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff, ImagePlus, Loader2 } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
