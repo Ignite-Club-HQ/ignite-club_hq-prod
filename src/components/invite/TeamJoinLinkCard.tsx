@@ -130,6 +130,7 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         ...(prev ?? {}),
         [role]: row,
       }));
+      queryClient.invalidateQueries({ queryKey });
       toast({ title: "Join link ready", description: `Share it with anyone joining as ${ROLE_OPTIONS.find(r => r.value === role)?.label.toLowerCase()}.` });
     },
     onError: (err: any) => {
