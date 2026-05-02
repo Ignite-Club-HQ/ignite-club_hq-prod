@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -8,6 +8,8 @@ import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
+import { downloadImage } from "@/lib/downloadImage";
+import { toast } from "sonner";
 
 interface PhotoLightboxProps {
   isOpen: boolean;
