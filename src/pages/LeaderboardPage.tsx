@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Trophy, Medal, Users, Loader2, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useActiveClubFilter } from "@/hooks/useActiveClubFilter";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,7 +41,7 @@ function initials(name: string | null) {
 export default function LeaderboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeClubFilter } = useActiveClubFilter();
+  const { activeClubFilter } = useClubTheme();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [scope, setScope] = useState<Scope>("club");
