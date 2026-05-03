@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
+import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -2233,10 +2234,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search or add member name"
+                      placeholder="Search or add member name (paste a list to add many)"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
+                      onPaste={(e) => {
+                        const text = e.clipboardData.getData("text");
+                        if (!looksLikeMultiRecipient(text)) return;
+                        e.preventDefault();
+                        const recipients = parseRecipients(text);
+                        if (recipients.length < 2) return;
+                        setBulkMembers(recipients.map((r) => ({
+                          id: crypto.randomUUID(),
+                          name: r.name,
+                          email: r.email,
+                          role: getDefaultRole(),
+                          children: [],
+                          selectedUser: null,
+                        })));
+                        setMode("bulk");
+                        toast({
+                          title: `${recipients.length} recipients detected`,
+                          description: "Switched to multi-invite. Review the list and send.",
+                        });
+                      }}
                       onFocus={(e) => {
                         // On iOS the soft keyboard covers the input because the
                         // sheet sits above the keyboard but the input is below
