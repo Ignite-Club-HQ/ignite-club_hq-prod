@@ -674,7 +674,7 @@ export default function MediaPage() {
     }
 
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, loadingPhotos, isShowingCachedData, photos.length]);
 
   // Pro access check - don't show content until we've confirmed Pro status on FIRST load.
   // Once resolved, never re-show skeletons on background refetch (prevents jolt on resume/unlock).
