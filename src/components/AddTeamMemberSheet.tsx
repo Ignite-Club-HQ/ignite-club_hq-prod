@@ -2098,7 +2098,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="single" className="space-y-4 mt-0">
 
             {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
-            {canBulkInvite && wizardStep === 1 && (
+            {/* Hide the persistent join-link card once the wizard becomes
+                active (a name typed or an existing user picked) so it
+                doesn't visually compete with the one-off invite flow. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
               <>
                 <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
                 <div className="flex items-center gap-3 pt-1">
@@ -2998,9 +3001,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       className="h-7 text-xs"
                       onClick={() => {
                         setShowMessageEditor(!showMessageEditor);
-                        if (!showMessageEditor && !customMessage) {
-                          setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                        }
                       }}
                     >
                       {showMessageEditor ? "Hide" : "Add message"}
@@ -3008,10 +3008,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                   {showMessageEditor && (
                     <Textarea
-                      placeholder="Write a personal welcome message..."
+                      placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                       value={customMessage}
                       onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={3}
+                      rows={4}
                       className="text-sm resize-none"
                     />
                   )}
@@ -3467,9 +3467,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   className="h-7 text-xs"
                   onClick={() => {
                     setShowMessageEditor(!showMessageEditor);
-                    if (!showMessageEditor && !customMessage) {
-                      setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                    }
                   }}
                 >
                   {showMessageEditor ? "Hide" : "Add message"}
@@ -3478,10 +3475,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               {showMessageEditor && (
                 <div className="space-y-1.5">
                   <Textarea
-                    placeholder="Write a personal welcome message..."
+                    placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                     value={customMessage}
                     onChange={(e) => setCustomMessage(e.target.value)}
-                    rows={3}
+                    rows={4}
                     className="text-sm resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -3595,7 +3592,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       disabled={nextDisabled}
                       variant={nextDisabled ? "outline" : "default"}
                     >
-                      {wizardStep === 1 ? "Next: Role" : "Next: Send"}
+                      {wizardStep === 1
+                        ? "Next: Role"
+                        : selectedUser && selectedRole === "parent"
+                          ? "Next: Add Children"
+                          : "Next: Send"}
                     </Button>
                   )}
                 </div>
