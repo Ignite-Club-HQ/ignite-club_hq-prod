@@ -3604,9 +3604,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     >
                       {wizardStep === 1
                         ? "Next: Role"
-                        : selectedUser && selectedRole === "parent"
-                          ? "Next: Add Children"
-                          : "Next: Send"}
+                        : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
+                          ? "Add a child to continue"
+                          : selectedUser && selectedRole === "parent"
+                            ? "Next: Add Children"
+                            : "Next: Send"}
                     </Button>
                   )}
                 </div>
