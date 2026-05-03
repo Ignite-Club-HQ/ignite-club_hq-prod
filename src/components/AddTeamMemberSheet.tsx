@@ -3505,8 +3505,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               || singleChildren.some(c => c.name.trim().length > 0);
             const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
             const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const emailTrimmed = customEmail.trim();
             const submitNeedsEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !customEmail.trim();
+              isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
+            const submitInvalidEmail =
+              isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
@@ -3518,6 +3522,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
               blockedReason = "Enter an email address to send the invite.";
+            } else if (submitInvalidEmail) {
+              blockedReason = "That email doesn't look right — double-check the format.";
             }
 
             const handleNext = () => {
