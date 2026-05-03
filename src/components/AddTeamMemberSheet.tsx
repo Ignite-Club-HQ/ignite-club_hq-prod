@@ -3284,23 +3284,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Jersey #"
-                              value={child.jerseyNumber}
-                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
-                              className="h-9 text-sm w-24"
-                              maxLength={2}
-                              inputMode="numeric"
-                            />
-                            <Input
-                              placeholder="Birth year"
-                              value={child.yearOfBirth}
-                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                              className="h-9 text-sm w-28"
-                              maxLength={4}
-                            />
-                          </div>
+                          <Collapsible defaultOpen={!!(child.jerseyNumber || child.yearOfBirth)}>
+                            <CollapsibleTrigger asChild>
+                              <button
+                                type="button"
+                                className="group flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                                <span className="italic">Add details now (optional)</span>
+                              </button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-2">
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="Jersey #"
+                                  value={child.jerseyNumber}
+                                  onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                                  className="h-9 text-sm w-24"
+                                  maxLength={2}
+                                  inputMode="numeric"
+                                />
+                                <Input
+                                  placeholder="Birth year"
+                                  value={child.yearOfBirth}
+                                  onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                                  className="h-9 text-sm w-28"
+                                  maxLength={4}
+                                />
+                              </div>
+                              <p className="text-[10px] text-muted-foreground italic mt-1.5 pl-0.5">
+                                Parent can complete this later
+                              </p>
+                            </CollapsibleContent>
+                          </Collapsible>
                           {child.existingChildId && (
                             <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
