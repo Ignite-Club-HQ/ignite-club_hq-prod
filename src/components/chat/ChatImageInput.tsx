@@ -345,7 +345,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      if (stablePreviewUrl) {
+      if (stablePreviewUrl && stablePreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
       restoreBodyScrollLock();
