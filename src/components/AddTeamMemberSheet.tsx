@@ -3585,8 +3585,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Button
                       className="flex-1 h-12 text-base font-semibold"
                       onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail}
-                      variant={submitNeedsEmail ? "outline" : "default"}
+                      disabled={isPending || submitNeedsEmail || submitInvalidEmail}
+                      variant={submitNeedsEmail || submitInvalidEmail ? "outline" : "default"}
                     >
                       {isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
