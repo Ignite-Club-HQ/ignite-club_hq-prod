@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
+import { EventCard, type EventCardEvent } from "@/components/events/EventCard";
 
 interface ClubDaySummaryProps {
   selectedDate: Date;
@@ -17,6 +18,15 @@ interface ClubDaySummaryProps {
   myTeamIds?: string[];
   /** Initial scope. Defaults to "my". */
   defaultScope?: "my" | "club";
+  /**
+   * Full EventCard-shaped events for the selected day that the user has access to.
+   * When provided, the "My teams" view renders rich EventCards instead of compact rows.
+   */
+  myDayEvents?: EventCardEvent[];
+  /** Set of event IDs the current user has already viewed (for "New" badge on EventCard). */
+  viewedEventIds?: Set<string>;
+  /** Returns true if the current user is admin for a given event. */
+  isAdminForEvent?: (event: EventCardEvent) => boolean;
 }
 
 interface ClubDayEvent {
