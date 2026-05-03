@@ -456,7 +456,9 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
             <span>
-              {link.uses_count} {link.uses_count === 1 ? "join" : "joins"} · expires{" "}
+              {link.uses_count} {link.uses_count === 1 ? "join" : "joins"}
+              {pendingCount && pendingCount > 0 ? ` · ${pendingCount} pending` : ""}
+              {" · expires "}
               {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
             </span>
             {isAdmin && (
