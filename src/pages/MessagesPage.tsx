@@ -1093,7 +1093,8 @@ export default function MessagesPage() {
   const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
   // Wait for fresh latest-message data before sorting/rendering, so the most recent
   // thread is at the top on first paint (cached `lastActivity` may be stale).
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && (!hasAnyProAccess || dmFetched);
+  const proAccessKnown = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
+  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && proAccessKnown && (!hasAnyProAccess || dmFetched);
   const showSkeletonLoading = isLoadingFreshData || (!freshSortDataReady && !hasCachedData);
 
   // Determine which data to display (prefer fresh, fallback to cached)
