@@ -473,7 +473,6 @@ export default function PlayerOfMatchSelector({
                         >
                           <Trophy className="h-3 w-3 mr-1" />
                           {reward.name}
-                          {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
                         </Button>
                       );
                     })}
