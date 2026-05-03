@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Image } from "lucide-react";
+import { SecureImage } from "@/components/SecureImage";
 
 interface TeamLatestPhotosProps {
   teamId: string;
