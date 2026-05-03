@@ -192,21 +192,38 @@ export function ClubDaySummary({
         </div>
       ) : (
         <>
-          {games.length > 0 && (
-            <SummarySection
-              title="Games"
-              icon={<Trophy className="h-4 w-4" />}
-              accent="text-destructive"
-              events={games}
-            />
-          )}
-          {trainings.length > 0 && (
-            <SummarySection
-              title="Training"
-              icon={<Dumbbell className="h-4 w-4" />}
-              accent="text-primary"
-              events={trainings}
-            />
+          {myDayEvents && myDayEvents.length > 0 ? (
+            <div className="space-y-3">
+              {myDayEvents
+                .filter((e) => visible.some((v) => v.id === e.id))
+                .map((e) => (
+                  <EventCard
+                    key={e.id}
+                    event={e}
+                    isAdmin={isAdminForEvent ? isAdminForEvent(e) : false}
+                    hasViewed={viewedEventIds ? viewedEventIds.has(e.id) : true}
+                  />
+                ))}
+            </div>
+          ) : (
+            <>
+              {games.length > 0 && (
+                <SummarySection
+                  title="Games"
+                  icon={<Trophy className="h-4 w-4" />}
+                  accent="text-destructive"
+                  events={games}
+                />
+              )}
+              {trainings.length > 0 && (
+                <SummarySection
+                  title="Training"
+                  icon={<Dumbbell className="h-4 w-4" />}
+                  accent="text-primary"
+                  events={trainings}
+                />
+              )}
+            </>
           )}
         </>
       )}
