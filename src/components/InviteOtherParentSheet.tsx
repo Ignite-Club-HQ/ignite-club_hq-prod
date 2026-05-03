@@ -371,7 +371,6 @@ export default function InviteOtherParentSheet({
                         onChange={(e) => setParentName(e.target.value)}
                         placeholder="Search or type parent's name"
                         className="pl-10"
-                        autoFocus
                       />
                     </div>
 
