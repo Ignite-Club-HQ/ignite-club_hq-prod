@@ -257,11 +257,11 @@ export default function TrackInviteSheet({
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Track & Copy Link
+            Reserve spot & copy link
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            The invite link will be copied to your clipboard after tracking.
+            Creates a pending invite for this person and copies their unique link to your clipboard.
           </p>
         </div>
       </SheetContent>
