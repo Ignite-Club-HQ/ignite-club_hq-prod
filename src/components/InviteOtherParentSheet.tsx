@@ -65,6 +65,30 @@ export default function InviteOtherParentSheet({
     enabled: open && debouncedName.length >= 2 && !selectedUser,
   });
 
+  // Direct link existing user as guardian (no invite needed)
+  const linkExistingGuardian = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) return;
+      const { error } = await supabase.from("child_guardians").insert({
+        child_id: childId,
+        guardian_id: selectedUser.id,
+        relationship_type: "parent",
+        is_primary: false,
+      } as any);
+      if (error && !error.message?.includes("duplicate")) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
+      queryClient.invalidateQueries({ queryKey: ["potential_guardians"] });
+      toast({ title: `${selectedUser?.display_name || "Guardian"} linked to ${childName}` });
+      handleClose(false);
+    },
+    onError: (error: Error) => {
+      console.error("[LinkGuardian] Error:", error);
+      toast({ title: "Failed to link guardian", variant: "destructive" });
+    },
+  });
+
   const sendInvite = useMutation({
     mutationFn: async () => {
       if (!user || !parentName.trim()) return;
