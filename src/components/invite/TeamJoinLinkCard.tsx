@@ -118,28 +118,15 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
   // Auto-jump to a role that already has a link the first time we load,
   // so users land on a usable link instead of an empty Generate state.
-  // Non-admins prefer the most recently created link across all roles.
   if (!autoSelected && links) {
     const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
-    let target: RoleVariant | undefined;
-    if (!isAdmin) {
-      const allLinks = order
-        .map((r) => ({ r, row: links[r] }))
-        .filter((x) => x.row);
-      allLinks.sort((a, b) => (b.row!.created_at || "").localeCompare(a.row!.created_at || ""));
-      target = allLinks[0]?.r;
-    } else {
-      target = order.find((r) => links[r]);
-    }
-    if (target && target !== activeRole) {
-      setActiveRole(target);
+    const existing = order.find((r) => links[r]);
+    if (existing && existing !== activeRole) {
+      setActiveRole(existing);
     }
     setAutoSelected(true);
   }
 
-  // `links` is undefined while the query is still loading — guard before indexing
-  // to prevent a render-time TypeError, which manifests as React error #310
-  // ("Rendered fewer hooks than expected") when React aborts the partial render.
   const link = links?.[activeRole] ?? null;
 
   const createOrRotate = useMutation({
@@ -297,47 +284,45 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       </div>
 
-      {/* Role selector — admins/coaches only; everyone else just sees the latest link */}
-      {isAdmin && (
-        <div className="grid grid-cols-4 gap-1 rounded-md bg-background border border-border p-1">
-          {ROLE_OPTIONS.map((opt) => {
-            const has = !!links?.[opt.value];
-            const isActive = activeRole === opt.value;
-            const sensitive = SENSITIVE_ROLES.includes(opt.value);
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleRoleChange(opt.value)}
-                aria-label={`${opt.label} link — ${sensitive ? "sensitive, grants edit access" : "safe to share"}`}
-                className={`relative px-2 py-1.5 text-xs rounded transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span className="inline-flex items-center gap-1">
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      sensitive ? "bg-amber-500" : "bg-emerald-500"
-                    }`}
-                    aria-hidden
-                  />
-                  {opt.label}
-                </span>
-                {has && (
-                  <span
-                    className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ring-1 ring-background ${
-                      isActive ? "bg-primary-foreground" : "bg-sky-500"
-                    }`}
-                    aria-label="Active link"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Role selector */}
+      <div className="grid grid-cols-4 gap-1 rounded-md bg-background border border-border p-1">
+        {ROLE_OPTIONS.map((opt) => {
+          const has = !!links?.[opt.value];
+          const isActive = activeRole === opt.value;
+          const sensitive = SENSITIVE_ROLES.includes(opt.value);
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleRoleChange(opt.value)}
+              aria-label={`${opt.label} link — ${sensitive ? "sensitive, grants edit access" : "safe to share"}`}
+              className={`relative px-2 py-1.5 text-xs rounded transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    sensitive ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                  aria-hidden
+                />
+                {opt.label}
+              </span>
+              {has && (
+                <span
+                  className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ring-1 ring-background ${
+                    isActive ? "bg-primary-foreground" : "bg-sky-500"
+                  }`}
+                  aria-label="Active link"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
 
       {isSensitive && (
