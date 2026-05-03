@@ -116,6 +116,22 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     staleTime: 30_000,
   });
 
+  // Pending invite count for this team — gives admins a sense of traction
+  // alongside the link's joined-count.
+  const { data: pendingCount } = useQuery({
+    queryKey: ["team-pending-invite-count", teamId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("pending_invites")
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", teamId)
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
   // Auto-jump to a role that already has a link the first time we load,
   // so users land on a usable link instead of an empty Generate state.
   if (!autoSelected && links) {
