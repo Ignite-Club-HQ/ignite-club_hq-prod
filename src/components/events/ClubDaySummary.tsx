@@ -65,6 +65,9 @@ export function ClubDaySummary({
   clubIds,
   myTeamIds = [],
   defaultScope = "my",
+  myDayEvents,
+  viewedEventIds,
+  isAdminForEvent,
 }: ClubDaySummaryProps) {
   const dKey = dayKey(selectedDate);
   const [scope, setScope] = useState<"my" | "club">(defaultScope);
