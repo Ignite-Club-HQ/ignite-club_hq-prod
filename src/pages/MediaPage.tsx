@@ -1452,15 +1452,17 @@ export default function MediaPage() {
             );
           })}
           
-          {/* Load more sentinel */}
-          {hasNextPage && (
+          {/* Load more sentinel - always rendered so the IntersectionObserver
+              can fire as soon as hasNextPage flips true (e.g. when server data
+              arrives after initial cached photos render). */}
+          {(hasNextPage || isFetchingNextPage || loadingPhotos || isShowingCachedData) && (
             <div ref={loadMoreRef} className="flex min-h-8 justify-center py-2" aria-live="polite">
               {isFetchingNextPage ? (
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               ) : null}
             </div>
           )}
-          {!hasNextPage && photos.length > 0 && (
+          {!hasNextPage && !loadingPhotos && !isShowingCachedData && photos.length > 0 && (
             <p className="text-center text-muted-foreground text-sm py-4">No more photos</p>
           )}
         </div>
