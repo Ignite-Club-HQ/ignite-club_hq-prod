@@ -2005,18 +2005,8 @@ export default function MessagesPage() {
           </>
         )}
 
-        {/* Cached-data placeholder while fresh data is loading (prevents wrong sort order) */}
-        {!showSkeletonLoading && !freshSortDataReady && hasCachedData && (
-          <>
-            <MessageSkeleton />
-            <MessageSkeleton />
-            <MessageSkeleton />
-            <MessageSkeleton />
-          </>
-        )}
-
-        {/* Unread Section */}
-        {!showSkeletonLoading && freshSortDataReady && unreadItems.length > 0 && (
+        {/* Unread Section — render with cached items while fresh data loads to avoid flicker */}
+        {!showSkeletonLoading && unreadItems.length > 0 && (
           <>
             <div className="flex items-center gap-2 pb-1.5">
               <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
@@ -2029,7 +2019,7 @@ export default function MessagesPage() {
         )}
 
         {/* Recent Section */}
-        {!showSkeletonLoading && freshSortDataReady && recentItems.length > 0 && (
+        {!showSkeletonLoading && recentItems.length > 0 && (
           <>
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
