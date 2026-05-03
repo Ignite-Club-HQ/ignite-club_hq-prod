@@ -2098,7 +2098,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="single" className="space-y-4 mt-0">
 
             {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
-            {canBulkInvite && wizardStep === 1 && (
+            {/* Hide the persistent join-link card once the wizard becomes
+                active (a name typed or an existing user picked) so it
+                doesn't visually compete with the one-off invite flow. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
               <>
                 <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
                 <div className="flex items-center gap-3 pt-1">
