@@ -65,6 +65,30 @@ export default function InviteOtherParentSheet({
     enabled: open && debouncedName.length >= 2 && !selectedUser,
   });
 
+  // Direct link existing user as guardian (no invite needed)
+  const linkExistingGuardian = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) return;
+      const { error } = await supabase.from("child_guardians").insert({
+        child_id: childId,
+        guardian_id: selectedUser.id,
+        relationship_type: "parent",
+        is_primary: false,
+      } as any);
+      if (error && !error.message?.includes("duplicate")) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
+      queryClient.invalidateQueries({ queryKey: ["potential_guardians"] });
+      toast({ title: `${selectedUser?.display_name || "Guardian"} linked to ${childName}` });
+      handleClose(false);
+    },
+    onError: (error: Error) => {
+      console.error("[LinkGuardian] Error:", error);
+      toast({ title: "Failed to link guardian", variant: "destructive" });
+    },
+  });
+
   const sendInvite = useMutation({
     mutationFn: async () => {
       if (!user || !parentName.trim()) return;
@@ -347,7 +371,6 @@ export default function InviteOtherParentSheet({
                         onChange={(e) => setParentName(e.target.value)}
                         placeholder="Search or type parent's name"
                         className="pl-10"
-                        autoFocus
                       />
                     </div>
 
@@ -394,68 +417,83 @@ export default function InviteOtherParentSheet({
                 )}
               </div>
 
-              {/* Delivery method toggle */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">How to deliver invite?</Label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setDeliveryMethod("email"); }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                      deliveryMethod === "email"
-                        ? "bg-primary/10 border-primary text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setDeliveryMethod("share"); setParentEmail(""); }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                      deliveryMethod === "share"
-                        ? "bg-primary/10 border-primary text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Share Link
-                  </button>
-                </div>
-
-                {deliveryMethod === "email" && (
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      value={parentEmail}
-                      onChange={(e) => setParentEmail(e.target.value)}
-                      placeholder="e.g., parent@example.com"
-                      className="pl-10"
-                      autoFocus
-                    />
+              {/* Delivery method only for new (non-existing) users */}
+              {!selectedUser && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">How to deliver invite?</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("email"); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "email"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("share"); setParentEmail(""); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "share"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share Link
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  {deliveryMethod === "email" && (
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        value={parentEmail}
+                        onChange={(e) => setParentEmail(e.target.value)}
+                        placeholder="e.g., parent@example.com"
+                        className="pl-10"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedUser && (
+                <p className="text-xs text-muted-foreground">
+                  This person already has an Ignite account. They'll be linked directly as a guardian — no invite needed.
+                </p>
+              )}
             </div>
 
             <ResponsiveDialogFooter className="mt-2">
               <Button
                 className="w-full"
-                onClick={() => sendInvite.mutate()}
-                disabled={!canSend || sendInvite.isPending}
+                onClick={() => selectedUser ? linkExistingGuardian.mutate() : sendInvite.mutate()}
+                disabled={
+                  selectedUser
+                    ? linkExistingGuardian.isPending
+                    : (!canSend || sendInvite.isPending)
+                }
               >
-                {sendInvite.isPending ? (
+                {(sendInvite.isPending || linkExistingGuardian.isPending) ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : selectedUser ? (
+                  <UserPlus className="h-4 w-4 mr-2" />
                 ) : (
                   <Send className="h-4 w-4 mr-2" />
                 )}
-                {!parentName.trim()
-                  ? "Enter name to continue"
-                  : deliveryMethod === "email" && !parentEmail.trim()
-                    ? "Enter email to continue"
-                    : "Create Invite"}
+                {selectedUser
+                  ? `Add ${selectedUser.display_name || "as guardian"}`
+                  : !parentName.trim()
+                    ? "Enter name to continue"
+                    : deliveryMethod === "email" && !parentEmail.trim()
+                      ? "Enter email to continue"
+                      : "Create Invite"}
               </Button>
             </ResponsiveDialogFooter>
           </>
