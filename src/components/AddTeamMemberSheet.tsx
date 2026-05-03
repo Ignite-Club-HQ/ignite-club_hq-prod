@@ -2196,6 +2196,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <button
                       key={`top-${opt.value}`}
                       type="button"
+                      role="radio"
+                      aria-checked={selectedRole === opt.value}
+                      aria-pressed={selectedRole === opt.value}
+                      aria-label={`Role: ${opt.label}`}
                       onClick={() => setSelectedRole(opt.value)}
                       className={`p-3 rounded-xl text-center transition-all border ${
                         selectedRole === opt.value
