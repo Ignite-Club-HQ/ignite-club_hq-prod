@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Reply, Clock, Megaphone } from "lucide-react";
+import { Reply, Clock, Megaphone, ImagePlus, Check, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -856,6 +856,51 @@ export const ChatMessage = memo(function ChatMessage({
                 anchorRef={bubbleRef}
               />
             </div>
+            {/* Inline "Add to gallery" chip — only on own image messages */}
+            {canPublishToGallery && isOwn && imageUrl && onPublishToGallery && !id.startsWith("queued-") && (
+              <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                <button
+                  type="button"
+                  disabled={isPublishingToGallery || isPublishedToGallery}
+                  aria-busy={isPublishingToGallery || undefined}
+                  aria-disabled={isPublishingToGallery || isPublishedToGallery || undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isPublishingToGallery || isPublishedToGallery) return;
+                    onPublishToGallery(id, imageUrl);
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                    isPublishedToGallery
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-default"
+                      : isPublishingToGallery
+                        ? "bg-primary/10 text-primary cursor-wait animate-pulse"
+                        : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] cursor-pointer"
+                  }`}
+                  aria-label={
+                    isPublishingToGallery
+                      ? "Adding to media gallery"
+                      : isPublishedToGallery
+                        ? "Already in gallery"
+                        : "Add to media gallery"
+                  }
+                >
+                  {isPublishingToGallery ? (
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  ) : isPublishedToGallery ? (
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <ImagePlus className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  <span>
+                    {isPublishingToGallery
+                      ? "Adding…"
+                      : isPublishedToGallery
+                        ? "In gallery"
+                        : "Add to gallery"}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {/* Action sheet (replaces 3-dot dropdown menu) */}

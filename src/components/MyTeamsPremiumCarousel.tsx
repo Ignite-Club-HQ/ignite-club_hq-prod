@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
+import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 interface TeamOrLeague {
@@ -290,6 +291,19 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
                   alt=""
                   className="h-full w-full object-cover"
                   loading="lazy"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    img.style.display = "none";
+                    const parent = img.parentElement;
+                    if (parent && !parent.querySelector("[data-photo-fallback]")) {
+                      parent.classList.add("flex", "items-center", "justify-center", "bg-muted");
+                      const span = document.createElement("span");
+                      span.setAttribute("data-photo-fallback", "true");
+                      span.className = "text-muted-foreground";
+                      span.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                      parent.appendChild(span);
+                    }
+                  }}
                 />
               </div>
             ))}
@@ -538,14 +552,22 @@ export function MyTeamsPremiumCarousel() {
         .limit(teamIds.length * 2);
 
       if (data) {
+        // Collect raw URLs first, then resolve to signed URLs in one batch
+        const rawUrls: string[] = [];
+        const entries: { teamId: string; id: string; rawUrl: string }[] = [];
         for (const photo of data) {
           if (!photo.team_id) continue;
           const url = photo.file_url || photo.image_url;
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
-          if (map[photo.team_id].length < 2) {
-            map[photo.team_id].push({ id: photo.id, url });
-          }
+          if (entries.filter((e) => e.teamId === photo.team_id).length >= 2) continue;
+          entries.push({ teamId: photo.team_id, id: photo.id, rawUrl: url });
+          rawUrls.push(url);
+        }
+
+        const signed = await getSignedPhotoUrls(rawUrls);
+        for (const entry of entries) {
+          map[entry.teamId].push({ id: entry.id, url: signed[entry.rawUrl] || entry.rawUrl });
         }
       }
 

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -430,9 +432,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
         .eq("club_id", clubId)
         .eq("status", "pending")
-        .neq("team_id", teamId)
         .ilike("invited_label", `%${debouncedNameInput}%`)
-        .limit(8);
+        .limit(12);
       
       if (!invites?.length) return [];
       
@@ -510,15 +511,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
           );
 
-          // Also search pending invites from other teams in same club
+          // Also search pending invites across the entire club
           const { data: invites } = await supabase
             .from("pending_invites")
             .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
             .eq("club_id", clubId)
             .eq("status", "pending")
-            .neq("team_id", teamId)
             .ilike("invited_label", `%${term}%`)
-            .limit(6);
+            .limit(8);
 
           const profileIds = new Set(profileResults.map(r => r.id));
           const pendingResults = (invites || [])
@@ -2093,20 +2093,25 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
-          {canBulkInvite && (
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="single" className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Single
-              </TabsTrigger>
-              <TabsTrigger value="bulk" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Multiple
-              </TabsTrigger>
-            </TabsList>
-          )}
+          {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
           <TabsContent value="single" className="space-y-4 mt-0">
+
+            {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
+            {canBulkInvite && wizardStep === 1 && (
+              <>
+                <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">or</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold">Invite by name</h3>
+                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person via email or SMS.</p>
+                </div>
+              </>
+            )}
 
             {/* Wizard stepper header */}
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
@@ -2460,41 +2465,56 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                              <p className="text-[10px] text-muted-foreground italic">Optional</p>
-                              <div className="flex gap-2 pl-0">
-                                <div className="flex-1">
-                                  <Input
-                                    placeholder="Jersey #"
-                                    value={child.jerseyNumber}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                      setSingleChildren(singleChildren.map(c =>
-                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                      ));
-                                    }}
-                                    className="h-10 text-sm"
-                                    maxLength={2}
-                                    inputMode="numeric"
-                                  />
-                                </div>
-                                <div className="flex-1">
-                                  <select
-                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                    onChange={(e) => {
-                                      setSingleChildren(singleChildren.map(c =>
-                                        c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
-                                      ));
-                                    }}
-                                    disabled={!!child.existingChildId}
-                                    className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                              <Collapsible defaultOpen={!!(child.jerseyNumber || child.yearOfBirth)}>
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="group flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                                   >
-                                    <option value="">Birth year</option>
-                                    {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
-                                      <option key={year} value={year.toString()}>{year}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
+                                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                                    <span className="italic">Add details now (optional)</span>
+                                  </button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pt-2">
+                                  <div className="flex gap-2 pl-0">
+                                    <div className="flex-1">
+                                      <Input
+                                        placeholder="Jersey #"
+                                        value={child.jerseyNumber}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                          setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                          ));
+                                        }}
+                                        className="h-10 text-sm"
+                                        maxLength={2}
+                                        inputMode="numeric"
+                                      />
+                                    </div>
+                                    <div className="flex-1">
+                                      <select
+                                        value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                        onChange={(e) => {
+                                          setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
+                                          ));
+                                        }}
+                                        disabled={!!child.existingChildId}
+                                        className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                      >
+                                        <option value="">Birth year</option>
+                                        {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                          <option key={year} value={year.toString()}>{year}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground italic mt-1.5 pl-0.5">
+                                    Parent can complete this later
+                                  </p>
+                                </CollapsibleContent>
+                              </Collapsible>
                             </div>
                             {child.existingChildId && (
                               <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
@@ -2711,41 +2731,56 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                              <p className="text-[10px] text-muted-foreground italic">Optional</p>
-                              <div className="flex gap-2 pl-0">
-                                <div className="flex-1">
-                                  <Input
-                                    placeholder="Jersey #"
-                                    value={child.jerseyNumber}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                      setSingleChildren(singleChildren.map(c =>
-                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                      ));
-                                    }}
-                                    className="h-10 text-sm"
-                                    maxLength={2}
-                                    inputMode="numeric"
-                                  />
-                                </div>
-                                <div className="flex-1">
-                                  <select
-                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                    onChange={(e) => {
-                                      setSingleChildren(singleChildren.map(c =>
-                                        c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
-                                      ));
-                                    }}
-                                    disabled={!!child.existingChildId}
-                                    className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                              <Collapsible defaultOpen={!!(child.jerseyNumber || child.yearOfBirth)}>
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="group flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                                   >
-                                    <option value="">Birth year</option>
-                                    {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
-                                      <option key={year} value={year.toString()}>{year}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
+                                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                                    <span className="italic">Add details now (optional)</span>
+                                  </button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pt-2">
+                                  <div className="flex gap-2 pl-0">
+                                    <div className="flex-1">
+                                      <Input
+                                        placeholder="Jersey #"
+                                        value={child.jerseyNumber}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                          setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                          ));
+                                        }}
+                                        className="h-10 text-sm"
+                                        maxLength={2}
+                                        inputMode="numeric"
+                                      />
+                                    </div>
+                                    <div className="flex-1">
+                                      <select
+                                        value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                        onChange={(e) => {
+                                          setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
+                                          ));
+                                        }}
+                                        disabled={!!child.existingChildId}
+                                        className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                      >
+                                        <option value="">Birth year</option>
+                                        {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                          <option key={year} value={year.toString()}>{year}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground italic mt-1.5 pl-0.5">
+                                    Parent can complete this later
+                                  </p>
+                                </CollapsibleContent>
+                              </Collapsible>
                             </div>
                             {child.existingChildId && (
                               <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">

@@ -19,7 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 export interface PublishChatImageArgs {
   imageUrl: string;
   uploaderId: string;
-  teamId: string;
+  /** team scope — required unless clubId is provided (club-wide chat). */
+  teamId: string | null;
   clubId: string | null;
   caption?: string | null;
 }
@@ -48,7 +49,7 @@ export async function publishChatImageToGallery(
   const { imageUrl, uploaderId, teamId, clubId, caption } = args;
   if (!imageUrl) throw new Error("imageUrl is required");
   if (!uploaderId) throw new Error("uploaderId is required");
-  if (!teamId) throw new Error("teamId is required");
+  if (!teamId && !clubId) throw new Error("teamId or clubId is required");
 
   // 1. Idempotency — has this exact image already been published by this user?
   const { data: existing, error: existingError } = await supabase
@@ -76,13 +77,15 @@ export async function publishChatImageToGallery(
     throw new Error("Could not load the image to publish");
   }
 
-  // 3. Re-upload into the photos bucket under the team/club path.
+  // 3. Re-upload into the photos bucket under the appropriate scope path.
   const ext = inferExtension(blob);
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).slice(2, 9);
-  const storagePath = clubId
-    ? `clubs/${clubId}/teams/${teamId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`
-    : `teams/${teamId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`;
+  const storagePath = teamId
+    ? clubId
+      ? `clubs/${clubId}/teams/${teamId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`
+      : `teams/${teamId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`
+    : `clubs/${clubId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from(PHOTOS_BUCKET)
@@ -123,4 +126,20 @@ export async function publishChatImageToGallery(
   }
 
   return { photoId: inserted.id, alreadyPublished: false };
+}
+
+/**
+ * Reverse a recent publish by soft-deleting the gallery photo row.
+ * Mirrors the regular media gallery delete flow (sets deleted_at) so it
+ * disappears from the gallery immediately and can be cleaned up later.
+ */
+export async function unpublishGalleryPhoto(photoId: string): Promise<void> {
+  const { error } = await supabase
+    .from("photos")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", photoId);
+  if (error) {
+    console.error("[unpublishGalleryPhoto] failed", error);
+    throw new Error("Could not undo");
+  }
 }

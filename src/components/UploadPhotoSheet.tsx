@@ -17,6 +17,7 @@ import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
 import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
+import { syncGalleryPhotoToVault } from "@/lib/galleryVaultSync";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -472,8 +473,19 @@ export function UploadPhotoSheet({
       throw insertError || new Error("Insert failed");
     }
 
-    // Note: Media gallery uploads are intentionally NOT mirrored into vault_files.
-    // Media and Vault are independent — uploads to one must not appear in the other.
+    // One-way mirror: gallery upload → vault "Gallery Uploads" folder
+    // (team-scoped if a team is selected, else club-wide). Vault edits/deletes
+    // never propagate back to the gallery.
+    syncGalleryPhotoToVault({
+      fileUrl: storageUrl,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || null,
+      userId: user!.id,
+      clubId,
+      teamId: teamId || null,
+      miniLeagueId: miniLeagueId || null,
+    }).catch((e) => console.warn("gallery → vault sync failed:", e));
 
     return { url: storageUrl, photoId: insertedPhoto.id };
   };
@@ -729,11 +741,11 @@ export function UploadPhotoSheet({
 
     // ---------------------------------------------------------------------
     // Team Gallery → Chat Card
-    // Trigger ONLY for batches uploaded to a TEAM gallery with ≥3 successful items.
+    // Trigger for batches uploaded to a TEAM gallery with ≥2 successful items.
     // Aggregation (10-min window) and message text are handled in the RPC.
     // Push notification only when ≥5 items in the resulting card.
     // ---------------------------------------------------------------------
-    if (teamId && successCount >= 3 && uploadedPhotoIds.length >= 3) {
+    if (teamId && successCount >= 2 && uploadedPhotoIds.length >= 2) {
       try {
         const heroPhotoId = uploadedPhotoIds[0];
         const heroUrl = uploadedUrls[0];

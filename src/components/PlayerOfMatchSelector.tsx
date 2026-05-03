@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trophy, Loader2, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,18 @@ export default function PlayerOfMatchSelector({
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [selectedReward, setSelectedReward] = useState<any | null>(null);
+
+  const lastRewardStorageKey = useMemo(
+    () => `pom-last-reward:${clubId}:${teamId ?? "club"}`,
+    [clubId, teamId]
+  );
+
+  const setSelectedRewardPersisted = (reward: any | null) => {
+    setSelectedReward(reward);
+    try {
+      if (reward?.id) localStorage.setItem(lastRewardStorageKey, reward.id);
+    } catch {}
+  };
 
   // Fetch current player of match
   const { data: playerOfMatch, isLoading } = useQuery({
@@ -117,6 +129,18 @@ export default function PlayerOfMatchSelector({
     },
   });
 
+  // Rehydrate last-used reward when rewards load / dialog opens
+  useEffect(() => {
+    if (selectedReward || pomRewards.length === 0) return;
+    try {
+      const lastId = localStorage.getItem(lastRewardStorageKey);
+      if (lastId) {
+        const found = pomRewards.find((r: any) => r.id === lastId);
+        if (found) setSelectedReward(found);
+      }
+    } catch {}
+  }, [pomRewards, lastRewardStorageKey, selectedReward]);
+
   // Use selected reward or default to first available
   const activePomReward = selectedReward || (pomRewards.length === 1 ? pomRewards[0] : null);
 
@@ -133,7 +157,8 @@ export default function PlayerOfMatchSelector({
         user_id: userId || null,
         child_id: childId || null,
         awarded_by: user!.id,
-        points_awarded: pointsToAward,
+        points_awarded: pointsToAward > 0,
+        points: pointsToAward,
       } as any);
 
       if (pomError) throw pomError;
@@ -276,7 +301,7 @@ export default function PlayerOfMatchSelector({
     mutationFn: async () => {
       if (!playerOfMatch) return;
 
-      const pointsToDeduct = Number((playerOfMatch as any).points_awarded) || 0;
+      const pointsToDeduct = Number((playerOfMatch as any).points) || 0;
 
       // Deduct points
       if (playerOfMatch.user_id) {
@@ -337,10 +362,29 @@ export default function PlayerOfMatchSelector({
     },
   });
 
+  // Fetch user_ids that have the 'player' role on this team so we can exclude
+  // parents, coaches, admins etc. from the POM list. Children are always players.
+  const { data: playerUserIds = [] } = useQuery({
+    queryKey: ["team-player-user-ids", teamId],
+    queryFn: async () => {
+      if (!teamId) return [] as string[];
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .eq("role", "player");
+      if (error) throw error;
+      return (data || []).map((r: any) => r.user_id);
+    },
+    enabled: !!teamId,
+  });
+
   // Get eligible players (going RSVPs)
   const goingPlayers = rsvps?.filter((r) => r.status === "going") || [];
   const goingChildren = goingPlayers.filter((r) => r.child_id);
-  const goingMembers = goingPlayers.filter((r) => !r.child_id);
+  const goingMembers = goingPlayers.filter(
+    (r) => !r.child_id && r.user_id && playerUserIds.includes(r.user_id)
+  );
 
   if (isLoading) {
     return (
@@ -383,10 +427,18 @@ export default function PlayerOfMatchSelector({
                       <Badge variant="outline" className="text-xs">Child</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 text-sm text-amber-600">
-                    <Star className="h-3 w-3 fill-current" />
-                    <span>+{playerOfMatch.points_awarded} points</span>
-                  </div>
+                  {(() => {
+                    const pts = (playerOfMatch as any).points ?? 0;
+                    const matched = pomRewards.find((r: any) => r.points_required === pts);
+                    return (
+                      <div className="flex items-center gap-1 text-sm text-amber-600">
+                        <Star className="h-3 w-3 fill-current" />
+                        <span>
+                          Awarded a voucher{matched?.name ? `: ${matched.name}` : ""}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               {isAdmin && (
@@ -402,32 +454,40 @@ export default function PlayerOfMatchSelector({
             </div>
           ) : isAdmin ? (
              <div className="space-y-2">
-              {/* Reward selector when multiple POM rewards exist */}
+              {/* Inline voucher picker when multiple vouchers exist */}
               {pomRewards.length > 1 && (
-                <div className="mb-2">
-                  <p className="text-xs text-muted-foreground mb-1.5">Select reward to give:</p>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    Voucher to award:
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {pomRewards.map((reward: any) => (
-                      <Button
-                        key={reward.id}
-                        variant={selectedReward?.id === reward.id ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setSelectedReward(reward)}
-                      >
-                        <Trophy className="h-3 w-3 mr-1" />
-                        {reward.name}
-                        {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
-                      </Button>
-                    ))}
+                    {pomRewards.map((reward: any) => {
+                      const isActive = activePomReward?.id === reward.id;
+                      return (
+                        <Button
+                          key={reward.id}
+                          variant={isActive ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => setSelectedRewardPersisted(reward)}
+                        >
+                          <Trophy className="h-3 w-3 mr-1" />
+                          {reward.name}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
+
               <Button
                 variant="outline"
                 className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                 onClick={() => setSelectDialogOpen(true)}
-                disabled={goingPlayers.length === 0 || (pomRewards.length > 1 && !selectedReward)}
+                disabled={
+                  goingPlayers.length === 0 ||
+                  (pomRewards.length > 1 && !activePomReward)
+                }
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Select Player of the Match
@@ -437,14 +497,14 @@ export default function PlayerOfMatchSelector({
                   No players RSVP'd as "Going" yet
                 </p>
               )}
-              {pomRewards.length === 0 && goingPlayers.length > 0 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  No points reward configured. Add a "Player of the Match" reward in Club Rewards to award points.
+              {pomRewards.length > 1 && !activePomReward && goingPlayers.length > 0 && (
+                <p className="text-xs text-destructive text-center">
+                  Select a voucher above to continue.
                 </p>
               )}
-              {pomRewards.length > 1 && !selectedReward && goingPlayers.length > 0 && (
+              {pomRewards.length === 0 && goingPlayers.length > 0 && (
                 <p className="text-xs text-muted-foreground text-center">
-                  Select a reward above before choosing a player
+                  No voucher configured. Add a "Player of the Match" reward in Club Rewards to award a voucher.
                 </p>
               )}
             </div>
@@ -465,19 +525,47 @@ export default function PlayerOfMatchSelector({
               Select Player of the Match
             </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
             <div className="p-4 space-y-2">
+              {/* Voucher selector — always show inside the dialog so the admin
+                  can pick the voucher type just before choosing a player. */}
+              {pomRewards.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                    Voucher to award:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pomRewards.map((reward: any) => {
+                      const isActive = activePomReward?.id === reward.id;
+                      return (
+                        <Button
+                          key={reward.id}
+                          variant={isActive ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => setSelectedRewardPersisted(reward)}
+                        >
+                          <Trophy className="h-3 w-3 mr-1" />
+                          {reward.name}
+                          
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and the "{activePomReward.name}" reward.
+                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and the "{activePomReward.name}" voucher.
                 </p>
-              ) : pomRewards.length > 0 ? (
+              ) : pomRewards.length > 1 ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Select the player who stood out this match. Points will be awarded based on the selected reward.
+                  Pick a voucher above, then choose the player who stood out this match.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Select the player who stood out this match. No points reward is currently configured.
+                  Select the player who stood out this match. No voucher is currently configured.
                 </p>
               )}
               
@@ -488,7 +576,7 @@ export default function PlayerOfMatchSelector({
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() => awardMutation.mutate({ userId: rsvp.user_id })}
-                  disabled={awardMutation.isPending}
+                  disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
                     <AvatarImage src={rsvp.profiles?.avatar_url} />
@@ -510,7 +598,7 @@ export default function PlayerOfMatchSelector({
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() => awardMutation.mutate({ childId: rsvp.child_id })}
-                  disabled={awardMutation.isPending}
+                  disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
                     <AvatarFallback className="bg-secondary">
@@ -525,13 +613,13 @@ export default function PlayerOfMatchSelector({
                 </Button>
               ))}
 
-              {goingPlayers.length === 0 && (
+              {goingMembers.length + goingChildren.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
-                  No players have RSVP'd as "Going" yet
+                  No eligible players found. Only members with the "Player" role and children on the team can be selected.
                 </p>
               )}
             </div>
-          </ScrollArea>
+          </div>
           <div className="p-4 border-t">
             <Button
               variant="outline"
@@ -550,7 +638,7 @@ export default function PlayerOfMatchSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Player of the Match?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the Player of the Match selection and deduct {playerOfMatch?.points_awarded} points from{" "}
+              This will remove the Player of the Match selection and deduct {(playerOfMatch as any)?.points ?? 0} points from{" "}
               {playerOfMatch?.profiles?.display_name || playerOfMatch?.children?.name}.
             </AlertDialogDescription>
           </AlertDialogHeader>

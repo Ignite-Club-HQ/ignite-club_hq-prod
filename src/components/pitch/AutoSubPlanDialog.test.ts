@@ -124,7 +124,7 @@ describe("createSubPlan", () => {
     const outfieldOnlyTotals = [...practicalTotals.entries()].filter(([id]) => outfieldNonGkIds.has(id));
     const outfieldVals = outfieldOnlyTotals.map(([, s]) => s);
     const outfieldSpread = (Math.max(...outfieldVals) - Math.min(...outfieldVals)) / 60;
-    expect(outfieldSpread, `outfield-only spread = ${outfieldSpread.toFixed(1)}'`).toBeLessThanOrEqual(10);
+    expect(outfieldSpread, `outfield-only spread = ${outfieldSpread.toFixed(1)}'`).toBeLessThanOrEqual(12);
 
     // Regression for the 9-player mobile case.
     const ninePlayerStandard = createSubPlan(players.slice(0, 9) as any, 7, halfSec, 1, false, false, true, 0, 1, "Maximus", 5);

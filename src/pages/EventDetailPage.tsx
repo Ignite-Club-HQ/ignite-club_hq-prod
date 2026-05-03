@@ -16,6 +16,7 @@ import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDia
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 import PlayerOfMatchSelector from "@/components/PlayerOfMatchSelector";
+import MatchCaptainSelector from "@/components/MatchCaptainSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +77,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
+import { MatchScoreCard } from "@/components/event/MatchScoreCard";
 
 
 // Lazy load PitchBoard for game events
@@ -1023,6 +1025,12 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      // Refresh points history & rank after fire-and-forget early-RSVP bonus award.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["points-history"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
+      }, 1500);
       
 
       // Show post-RSVP notification nudge if user hasn't enabled push
@@ -1087,7 +1095,12 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      
+      // Refresh points history & rank after fire-and-forget child early-RSVP bonus award.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["points-history"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
+        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
+      }, 1500);
     },
   });
 
@@ -2371,6 +2384,24 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
+      {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
+        const isSubsManagerForEvent = !!duties?.some(
+          (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+        );
+        const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
+        return (
+          <MatchScoreCard
+            eventId={event.id}
+            teamId={event.team_id}
+            teamName={event.teams?.name || "Our Team"}
+            opponent={event.opponent || null}
+            sport="soccer"
+            canEdit={canEditScore}
+          />
+        );
+      })()}
+
       {/* Map */}
       {event.address && (
         <GoogleMapEmbed
@@ -2853,6 +2884,12 @@ export default function EventDetailPage() {
       {event.type === "game" && event.team_id && (
         <>
           <Separator />
+          <MatchCaptainSelector
+            eventId={id!}
+            teamId={event.team_id}
+            isAdmin={isAdmin || isAppAdmin || false}
+            rsvps={rsvps || []}
+          />
           <PlayerOfMatchSelector
             eventId={id!}
             clubId={event.club_id}

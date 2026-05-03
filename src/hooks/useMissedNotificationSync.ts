@@ -91,7 +91,7 @@ export function useMissedNotificationSync(userId: string | undefined) {
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready;
         
-        await registration.showNotification('Ignite Club HQ', {
+        await registration.showNotification('Ignite', {
           body: notification.message,
           icon: '/ignite-logo.png',
           badge: '/badge-96.png',
@@ -109,7 +109,7 @@ export function useMissedNotificationSync(userId: string | undefined) {
         return true;
       } else {
         // Fallback to direct Notification API
-        const browserNotification = new Notification('Ignite Club HQ', {
+        const browserNotification = new Notification('Ignite', {
           body: notification.message,
           icon: '/ignite-logo.png',
           tag: `missed-${notification.id}`
@@ -213,7 +213,7 @@ export function useMissedNotificationSync(userId: string | undefined) {
           try {
             if ('serviceWorker' in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification('Ignite Club HQ', {
+              await registration.showNotification('Ignite', {
                 body: `You have ${remaining} more notification${remaining > 1 ? 's' : ''}`,
                 icon: '/ignite-logo.png',
                 badge: '/badge-96.png',

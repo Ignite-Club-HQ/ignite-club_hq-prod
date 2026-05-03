@@ -442,6 +442,35 @@ export default function MediaPage() {
     return { clubId: undefined, teamId: undefined };
   }, [userRoles]);
 
+  const cardId = searchParams.get("card");
+
+  // Fetch the gallery card's photo_ids when ?card= is present so we can scope
+  // the gallery to just that upload batch.
+  const { data: cardPhotoIds } = useQuery({
+    queryKey: ["gallery-chat-card-photo-ids", cardId],
+    queryFn: async () => {
+      if (!cardId) return null;
+      const { data } = await supabase
+        .from("gallery_chat_cards")
+        .select("photo_ids")
+        .eq("id", cardId)
+        .maybeSingle();
+      return (data?.photo_ids as string[] | null) ?? [];
+    },
+    enabled: !!cardId,
+    staleTime: 60 * 1000,
+  });
+
+  const selectedClubFilter = selectedClubId !== "all" ? selectedClubId : null;
+  const selectedTeamFilter = selectedTeamId !== "all" ? selectedTeamId : null;
+  const dateFromKey = dateRange.from ? startOfDay(dateRange.from).toISOString() : null;
+  const dateToKey = dateRange.to ? endOfDay(dateRange.to).toISOString() : null;
+  const cardPhotoIdsKey = cardPhotoIds?.join(",") ?? "";
+  const photosQueryKey = useMemo(
+    () => ["photos", user?.id, selectedClubFilter, selectedTeamFilter, urlEventId ?? null, dateFromKey, dateToKey, cardId, cardPhotoIdsKey] as const,
+    [user?.id, selectedClubFilter, selectedTeamFilter, urlEventId, dateFromKey, dateToKey, cardId, cardPhotoIdsKey]
+  );
+
   const { 
     data: photosData, 
     isLoading: loadingPhotos,
@@ -450,15 +479,28 @@ export default function MediaPage() {
     isFetchingNextPage,
     isSuccess: photosSuccess,
   } = useInfiniteQuery({
-    queryKey: ["photos", user?.id],
+    queryKey: photosQueryKey,
     queryFn: async ({ pageParam = 0 }) => {
+      if (cardId && (cardPhotoIds?.length ?? 0) === 0) {
+        return { photos: [], nextCursor: undefined };
+      }
+
       const start = performance.now();
       diagLog("photos:start", { pageParam });
-      const { data, error } = await supabase
+      let query = supabase
         .from("photos")
         .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
-        .is("deleted_at", null)
+        .is("deleted_at", null);
+
+      if (cardId && cardPhotoIds?.length) query = query.in("id", cardPhotoIds);
+      if (selectedClubFilter) query = query.eq("club_id", selectedClubFilter);
+      if (selectedTeamFilter) query = query.eq("team_id", selectedTeamFilter);
+      if (urlEventId) query = query.eq("event_id", urlEventId);
+      if (dateFromKey) query = query.gte("created_at", dateFromKey);
+      if (dateToKey) query = query.lte("created_at", dateToKey);
+
+      const { data, error } = await query
         .order("created_at", { ascending: false })
         .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1);
       diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
@@ -466,7 +508,7 @@ export default function MediaPage() {
       if (error) throw error;
       
       // Cache first page results for offline access
-      if (pageParam === 0 && data) {
+      if (pageParam === 0 && data && !selectedClubFilter && !selectedTeamFilter && !urlEventId && !dateFromKey && !dateToKey && !cardId) {
         cachePhotos(null, null, null, data.map(p => ({
           id: p.id,
           file_url: p.file_url || p.image_url,
@@ -487,7 +529,7 @@ export default function MediaPage() {
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
-    enabled: !!user,
+    enabled: !!user && (!cardId || cardPhotoIds !== undefined),
     staleTime: 60000,
     gcTime: 300000,
   });
@@ -563,25 +605,6 @@ export default function MediaPage() {
   const { getProfile, isLoading: loadingProfiles } = useProfiles(allUploaderIds);
 
   // Apply filters to photos
-  const cardId = searchParams.get("card");
-
-  // Fetch the gallery card's photo_ids when ?card= is present so we can scope
-  // the gallery to just that upload batch.
-  const { data: cardPhotoIds } = useQuery({
-    queryKey: ["gallery-chat-card-photo-ids", cardId],
-    queryFn: async () => {
-      if (!cardId) return null;
-      const { data } = await supabase
-        .from("gallery_chat_cards")
-        .select("photo_ids")
-        .eq("id", cardId)
-        .maybeSingle();
-      return (data?.photo_ids as string[] | null) ?? [];
-    },
-    enabled: !!cardId,
-    staleTime: 60 * 1000,
-  });
-
   const photos = useMemo(() => {
     let filtered = allPhotos;
 
@@ -975,13 +998,13 @@ export default function MediaPage() {
       setSelectedDeleteOption(null);
       
       // Cancel any outgoing refetches - use correct query key with user id
-      await queryClient.cancelQueries({ queryKey: ["photos", user?.id] });
+      await queryClient.cancelQueries({ queryKey: photosQueryKey });
       
       // Snapshot the previous value
-      const previousPhotos = queryClient.getQueryData(["photos", user?.id]);
+      const previousPhotos = queryClient.getQueryData(photosQueryKey);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["photos", user?.id], (old: any) => {
+      queryClient.setQueryData(photosQueryKey, (old: any) => {
         if (!old?.pages) return old;
         return {
           ...old,
@@ -1002,13 +1025,13 @@ export default function MediaPage() {
     onError: (error: any, _, context) => {
       // Rollback on error
       if (context?.previousPhotos) {
-        queryClient.setQueryData(["photos", user?.id], context.previousPhotos);
+        queryClient.setQueryData(photosQueryKey, context.previousPhotos);
       }
       toast.error(error.message || "Failed to delete photo");
     },
     onSettled: () => {
       setDeletingPhotoId(null);
-      queryClient.invalidateQueries({ queryKey: ["photos", user?.id] });
+      queryClient.invalidateQueries({ queryKey: photosQueryKey });
     },
   });
 
@@ -1431,8 +1454,10 @@ export default function MediaPage() {
           
           {/* Load more sentinel */}
           {hasNextPage && (
-            <div ref={loadMoreRef} className="flex justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div ref={loadMoreRef} className="flex min-h-8 justify-center py-2" aria-live="polite">
+              {isFetchingNextPage ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : null}
             </div>
           )}
           {!hasNextPage && photos.length > 0 && (

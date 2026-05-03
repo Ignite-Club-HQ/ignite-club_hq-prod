@@ -27,11 +27,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
+import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { useUserEventViews } from "@/hooks/useEventViews";
+import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
+import { ClubDaySummary } from "@/components/events/ClubDaySummary";
 
 type EventType = "game" | "training" | "social";
 
@@ -70,6 +72,9 @@ export default function EventsPage() {
   const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  // Day filter for list view (separate from calendar's selectedDate)
+  const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
+  const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
@@ -234,6 +239,24 @@ export default function EventsPage() {
         }
       });
       
+      // Add teams via children (parents/guardians)
+      step = performance.now();
+      const { data: guardianRows } = await supabase
+        .from("child_guardians")
+        .select("child_id")
+        .eq("guardian_id", user!.id);
+      const childIds = (guardianRows || []).map((g: any) => g.child_id);
+      if (childIds.length > 0) {
+        const { data: childTeams } = await supabase
+          .from("child_team_assignments")
+          .select("team_id")
+          .in("child_id", childIds);
+        (childTeams || []).forEach((ct: any) => {
+          if (ct.team_id && !teamIds.includes(ct.team_id)) teamIds.push(ct.team_id);
+        });
+      }
+      diagLog("memberships:child-teams", { ms: Math.round(performance.now() - step), childIds: childIds.length });
+
       // Get club IDs from team memberships
       if (teamIds.length > 0) {
         step = performance.now();
@@ -470,6 +493,25 @@ export default function EventsPage() {
 
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
+
+  // Day-of-week dot indicators for the list-view date strip
+  const daysWithEventsKeySet = useMemo(() => {
+    const set = new Set<string>();
+    (events || []).forEach((e) => {
+      try {
+        set.add(format(parseISO(e.event_date), "yyyy-MM-dd"));
+      } catch {
+        // ignore malformed dates
+      }
+    });
+    return set;
+  }, [events]);
+
+  // List-view: events on the chosen day (only when date strip is active)
+  const listDayEvents = useMemo(() => {
+    if (!listSelectedDate) return null;
+    return (events || []).filter((e) => isSameDay(parseISO(e.event_date), listSelectedDate));
+  }, [events, listSelectedDate]);
 
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
@@ -778,30 +820,24 @@ export default function EventsPage() {
           </Card>
 
           {selectedDate && (
-            <div className="space-y-3">
-              <h2 className="font-semibold">
-                Events on {format(selectedDate, "EEEE, MMMM d")}
-              </h2>
-              {selectedDateEvents?.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground">No events on this date</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                selectedDateEvents?.map((event) => (
-                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
-                ))
-              )}
-            </div>
+            <ClubDaySummary
+              selectedDate={selectedDate}
+              clubIds={
+                clubFilter
+                  ? [clubFilter]
+                  : (userMemberships?.clubIds || [])
+              }
+              myTeamIds={userMemberships?.teamIds || []}
+            />
           )}
         </div>
       ) : (
-        <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="w-full">
-            <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
-            <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
-          </TabsList>
+        <div className="space-y-3">
+          <Tabs defaultValue="upcoming" className="w-full">
+              <TabsList className="w-full">
+                <TabsTrigger value="upcoming" className="flex-1">Upcoming</TabsTrigger>
+                <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
+              </TabsList>
 
           <TabsContent value="upcoming" className="mt-4 space-y-3">
             {upcomingEvents?.length === 0 ? (
@@ -831,7 +867,8 @@ export default function EventsPage() {
               ))
             )}
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       )}
 
       {/* Sponsor/Ad Carousel */}

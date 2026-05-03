@@ -3396,7 +3396,7 @@ export type Database = {
           {
             foreignKeyName: "game_results_event_id_fkey"
             columns: ["event_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "events"
             referencedColumns: ["id"]
           },
@@ -3665,6 +3665,51 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      match_captains: {
+        Row: {
+          assigned_by: string | null
+          child_id: string | null
+          created_at: string
+          event_id: string
+          id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          assigned_by?: string | null
+          child_id?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          assigned_by?: string | null
+          child_id?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_captains_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_captains_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       match_message_reads: {
         Row: {
@@ -5426,6 +5471,7 @@ export type Database = {
           id: string
           ignite_points: number
           last_seen_at: string | null
+          leaderboard_opt_out: boolean
           photo_consent: boolean | null
           photo_consent_given_at: string | null
           privacy_accepted_at: string | null
@@ -5446,6 +5492,7 @@ export type Database = {
           id: string
           ignite_points?: number
           last_seen_at?: string | null
+          leaderboard_opt_out?: boolean
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
           privacy_accepted_at?: string | null
@@ -5466,6 +5513,7 @@ export type Database = {
           id?: string
           ignite_points?: number
           last_seen_at?: string | null
+          leaderboard_opt_out?: boolean
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
           privacy_accepted_at?: string | null
@@ -7642,6 +7690,7 @@ export type Database = {
       }
     }
     Functions: {
+      _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -7972,6 +8021,24 @@ export type Database = {
         Returns: string
       }
       generate_email_hash: { Args: { email: string }; Returns: string }
+      get_club_day_events: {
+        Args: { _club_id: string; _day: string }
+        Returns: {
+          address: string
+          end_time: string
+          event_date: string
+          id: string
+          is_cancelled: boolean
+          location_name: string
+          opponent: string
+          start_time: string
+          suburb: string
+          team_id: string
+          team_name: string
+          title: string
+          type: string
+        }[]
+      }
       get_club_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -7987,6 +8054,23 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           token: string
           uses_count: number
+        }[]
+      }
+      get_club_leaderboard: {
+        Args: {
+          _club_id: string
+          _limit: number
+          _viewer_id: string
+          _window: string
+        }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          hidden: boolean
+          is_viewer: boolean
+          points: number
+          rank: number
+          user_id: string
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
@@ -8253,6 +8337,32 @@ export type Database = {
           uses_count: number
         }[]
       }
+      get_team_leaderboard: {
+        Args: {
+          _limit: number
+          _team_id: string
+          _viewer_id: string
+          _window: string
+        }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          hidden: boolean
+          is_viewer: boolean
+          points: number
+          rank: number
+          user_id: string
+        }[]
+      }
+      get_teams_leaderboard: {
+        Args: { _club_id: string; _limit: number; _window: string }
+        Returns: {
+          points: number
+          rank: number
+          team_id: string
+          team_name: string
+        }[]
+      }
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {
@@ -8370,9 +8480,20 @@ export type Database = {
       }
       is_season_editable: { Args: { _season_id: string }; Returns: boolean }
       is_season_eoi_open: { Args: { _season_id: string }; Returns: boolean }
+      is_subs_manager_for_event: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_leaderboard_teams: {
+        Args: { _club_id: string }
+        Returns: {
+          id: string
+          name: string
+        }[]
       }
       mark_gallery_card_push_sent: {
         Args: { _card_id: string }

@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { publishChatImageToGallery } from "@/lib/publishChatImageToGallery";
+import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
@@ -164,8 +164,7 @@ export default function TeamChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
-  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
+  // publishing state moved to usePublishChatImage hook (declared after team load)
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
@@ -1243,7 +1242,9 @@ export default function TeamChatPage() {
     const finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    const hadImage = !!imageUrl;
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    if (hadImage) nudgeGalleryAfterSend();
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
@@ -1252,45 +1253,16 @@ export default function TeamChatPage() {
     setReplyingTo(null);
   }, []);
 
-  const handlePublishToGallery = useCallback(
-    async (messageId: string, msgImageUrl: string) => {
-      if (!user?.id || !teamId) return;
-      if (publishingIds.has(messageId) || publishedIds.has(messageId)) return;
-      setPublishingIds((prev) => {
-        const next = new Set(prev);
-        next.add(messageId);
-        return next;
-      });
-      try {
-        const result = await publishChatImageToGallery({
-          imageUrl: msgImageUrl,
-          uploaderId: user.id,
-          teamId,
-          clubId: team?.club_id ?? null,
-        });
-        setPublishedIds((prev) => {
-          const next = new Set(prev);
-          next.add(messageId);
-          return next;
-        });
-        toast.success(
-          result.alreadyPublished
-            ? "Already in the media gallery"
-            : "Published to media gallery",
-        );
-      } catch (err: any) {
-        console.error("[TeamChatPage] publish to gallery failed", err);
-        toast.error(err?.message || "Could not publish to gallery");
-      } finally {
-        setPublishingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(messageId);
-          return next;
-        });
-      }
-    },
-    [user?.id, teamId, team?.club_id, publishingIds, publishedIds],
-  );
+  const {
+    publishingIds,
+    publishedIds,
+    publish: handlePublishToGallery,
+    nudgeAfterSend: nudgeGalleryAfterSend,
+  } = usePublishChatImage({
+    uploaderId: user?.id,
+    teamId: teamId ?? null,
+    clubId: team?.club_id ?? null,
+  });
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
