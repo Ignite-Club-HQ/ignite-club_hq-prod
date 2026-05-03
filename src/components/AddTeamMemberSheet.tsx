@@ -3598,7 +3598,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       disabled={nextDisabled}
                       variant={nextDisabled ? "outline" : "default"}
                     >
-                      {wizardStep === 1 ? "Next: Role" : "Next: Send"}
+                      {wizardStep === 1
+                        ? "Next: Role"
+                        : selectedUser && selectedRole === "parent"
+                          ? "Next: Add Children"
+                          : "Next: Send"}
                     </Button>
                   )}
                 </div>
