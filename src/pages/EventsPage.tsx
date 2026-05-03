@@ -828,6 +828,9 @@ export default function EventsPage() {
                   : (userMemberships?.clubIds || [])
               }
               myTeamIds={userMemberships?.teamIds || []}
+              myDayEvents={(selectedDateEvents || []) as any}
+              viewedEventIds={viewedEventIds}
+              isAdminForEvent={(e) => isAdminForEvent(e as any)}
             />
           )}
         </div>
