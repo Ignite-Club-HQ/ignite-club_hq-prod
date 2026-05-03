@@ -1203,11 +1203,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           setIsSendingNotification(false);
         }
       } else {
-        // No email - copy link to clipboard for sharing
-        try { await navigator.clipboard.writeText(link); } catch {}
+        // No email — show share step. Do NOT auto-write to clipboard here:
+        // the success step has an explicit "Copy Link" button, and clobbering
+        // the clipboard wipes out anything the user just copied (e.g. a phone
+        // number they intended to paste into the SMS/WhatsApp share field).
         void toastInviteSuccess({
-          title: "Member added — link copied!",
-          description: `${nameInput} has been added. Paste the invite link to share it with them.`,
+          title: "Member added",
+          description: `${nameInput} has been added. Use the share options to send the invite link.`,
         });
       }
 
