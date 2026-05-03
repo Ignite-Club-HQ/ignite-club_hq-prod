@@ -118,28 +118,15 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
   // Auto-jump to a role that already has a link the first time we load,
   // so users land on a usable link instead of an empty Generate state.
-  // Non-admins prefer the most recently created link across all roles.
   if (!autoSelected && links) {
     const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
-    let target: RoleVariant | undefined;
-    if (!isAdmin) {
-      const allLinks = order
-        .map((r) => ({ r, row: links[r] }))
-        .filter((x) => x.row);
-      allLinks.sort((a, b) => (b.row!.created_at || "").localeCompare(a.row!.created_at || ""));
-      target = allLinks[0]?.r;
-    } else {
-      target = order.find((r) => links[r]);
-    }
-    if (target && target !== activeRole) {
-      setActiveRole(target);
+    const existing = order.find((r) => links[r]);
+    if (existing && existing !== activeRole) {
+      setActiveRole(existing);
     }
     setAutoSelected(true);
   }
 
-  // `links` is undefined while the query is still loading — guard before indexing
-  // to prevent a render-time TypeError, which manifests as React error #310
-  // ("Rendered fewer hooks than expected") when React aborts the partial render.
   const link = links?.[activeRole] ?? null;
 
   const createOrRotate = useMutation({
