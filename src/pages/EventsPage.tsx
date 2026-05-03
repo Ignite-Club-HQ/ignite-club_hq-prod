@@ -827,7 +827,11 @@ export default function EventsPage() {
                   ? [clubFilter]
                   : (userMemberships?.clubIds || [])
               }
-              myTeamIds={userMemberships?.teamIds || []}
+              myTeamIds={
+                teamFilter
+                  ? [teamFilter]
+                  : (userMemberships?.teamIds || [])
+              }
               myDayEvents={(selectedDateEvents || []) as any}
               viewedEventIds={viewedEventIds}
               isAdminForEvent={(e) => isAdminForEvent(e as any)}
