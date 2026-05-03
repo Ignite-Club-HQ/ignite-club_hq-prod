@@ -3548,7 +3548,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             };
 
             const handleSubmit = () => {
-              if (submitNeedsEmail) return;
+              if (submitNeedsEmail || submitInvalidEmail) return;
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
