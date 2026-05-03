@@ -1,14 +1,15 @@
 import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * Download an image without exposing the backend URL or storage filename
  * to the user. Fetches the image as a blob and saves it under a friendly
  * filename (e.g. "ignite-photo-2026-04-22.jpg").
  *
- * On native (Capacitor): writes the file to the cache directory and opens
- * the OS share sheet so the user can "Save Image" / "Save to Files" without
- * ever seeing the underlying Supabase URL.
+ * On native (Capacitor): writes the file directly to the device's Documents
+ * directory (visible in the Files app on iOS, Documents folder on Android).
+ * No share sheet is shown.
  */
 export async function downloadImage(url: string, friendlyBaseName = "ignite-photo"): Promise<void> {
   const stamp = new Date().toISOString().split("T")[0];
@@ -20,31 +21,30 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       const blob = await response.blob();
       const contentType = blob.type || response.headers.get("content-type") || "";
       const ext = pickExtension(contentType);
-      const filename = `${friendlyBaseName}-${stamp}.${ext}`;
+      const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
 
       const base64 = await blobToBase64(blob);
 
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      const written = await Filesystem.writeFile({
+      await Filesystem.writeFile({
         path: filename,
         data: base64,
-        directory: Directory.Cache,
+        directory: Directory.Documents,
+        recursive: true,
       });
 
-      try {
-        const { Share } = await import("@capacitor/share");
-        await Share.share({
-          title: filename,
-          url: written.uri,
-          dialogTitle: "Save photo",
-        });
-      } catch (shareErr) {
-        console.warn("[downloadImage] Share failed, falling back to open:", shareErr);
-        safeOpenUrl(url);
-      }
+      toast({
+        title: "Photo saved",
+        description: `Saved as ${filename} in your Documents folder`,
+      });
       return;
     } catch (err) {
       console.warn("[downloadImage] native download failed, falling back to open:", err);
+      toast({
+        title: "Download failed",
+        description: "Opening image in browser instead",
+        variant: "destructive",
+      });
       safeOpenUrl(url);
       return;
     }
