@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
+import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -1202,11 +1203,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           setIsSendingNotification(false);
         }
       } else {
-        // No email - copy link to clipboard for sharing
-        try { await navigator.clipboard.writeText(link); } catch {}
+        // No email — show share step. Do NOT auto-write to clipboard here:
+        // the success step has an explicit "Copy Link" button, and clobbering
+        // the clipboard wipes out anything the user just copied (e.g. a phone
+        // number they intended to paste into the SMS/WhatsApp share field).
         void toastInviteSuccess({
-          title: "Member added — link copied!",
-          description: `${nameInput} has been added. Paste the invite link to share it with them.`,
+          title: "Member added",
+          description: `${nameInput} has been added. Use the share options to send the invite link.`,
         });
       }
 
@@ -2098,7 +2101,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="single" className="space-y-4 mt-0">
 
             {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
-            {canBulkInvite && wizardStep === 1 && (
+            {/* Hide the persistent join-link card once the wizard becomes
+                active (a name typed or an existing user picked) so it
+                doesn't visually compete with the one-off invite flow. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
               <>
                 <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
                 <div className="flex items-center gap-3 pt-1">
@@ -2193,6 +2199,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <button
                       key={`top-${opt.value}`}
                       type="button"
+                      role="radio"
+                      aria-checked={selectedRole === opt.value}
+                      aria-pressed={selectedRole === opt.value}
+                      aria-label={`Role: ${opt.label}`}
                       onClick={() => setSelectedRole(opt.value)}
                       className={`p-3 rounded-xl text-center transition-all border ${
                         selectedRole === opt.value
@@ -2226,10 +2236,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search or add member name"
+                      placeholder="Search or add member name (paste a list to add many)"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
+                      onPaste={(e) => {
+                        const text = e.clipboardData.getData("text");
+                        if (!looksLikeMultiRecipient(text)) return;
+                        e.preventDefault();
+                        const recipients = parseRecipients(text);
+                        if (recipients.length < 2) return;
+                        setBulkMembers(recipients.map((r) => ({
+                          id: crypto.randomUUID(),
+                          name: r.name,
+                          email: r.email,
+                          role: getDefaultRole(),
+                          children: [],
+                          selectedUser: null,
+                        })));
+                        setMode("bulk");
+                        toast({
+                          title: `${recipients.length} recipients detected`,
+                          description: "Switched to multi-invite. Review the list and send.",
+                        });
+                      }}
                       onFocus={(e) => {
                         // On iOS the soft keyboard covers the input because the
                         // sheet sits above the keyboard but the input is below
@@ -2998,9 +3028,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       className="h-7 text-xs"
                       onClick={() => {
                         setShowMessageEditor(!showMessageEditor);
-                        if (!showMessageEditor && !customMessage) {
-                          setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                        }
                       }}
                     >
                       {showMessageEditor ? "Hide" : "Add message"}
@@ -3008,10 +3035,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                   {showMessageEditor && (
                     <Textarea
-                      placeholder="Write a personal welcome message..."
+                      placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                       value={customMessage}
                       onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={3}
+                      rows={4}
                       className="text-sm resize-none"
                     />
                   )}
@@ -3280,23 +3307,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Jersey #"
-                              value={child.jerseyNumber}
-                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
-                              className="h-9 text-sm w-24"
-                              maxLength={2}
-                              inputMode="numeric"
-                            />
-                            <Input
-                              placeholder="Birth year"
-                              value={child.yearOfBirth}
-                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                              className="h-9 text-sm w-28"
-                              maxLength={4}
-                            />
-                          </div>
+                          <Collapsible defaultOpen={!!(child.jerseyNumber || child.yearOfBirth)}>
+                            <CollapsibleTrigger asChild>
+                              <button
+                                type="button"
+                                className="group flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                                <span className="italic">Add details now (optional)</span>
+                              </button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-2">
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="Jersey #"
+                                  value={child.jerseyNumber}
+                                  onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                                  className="h-9 text-sm w-24"
+                                  maxLength={2}
+                                  inputMode="numeric"
+                                />
+                                <Input
+                                  placeholder="Birth year"
+                                  value={child.yearOfBirth}
+                                  onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                                  className="h-9 text-sm w-28"
+                                  maxLength={4}
+                                />
+                              </div>
+                              <p className="text-[10px] text-muted-foreground italic mt-1.5 pl-0.5">
+                                Parent can complete this later
+                              </p>
+                            </CollapsibleContent>
+                          </Collapsible>
                           {child.existingChildId && (
                             <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
@@ -3467,9 +3510,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   className="h-7 text-xs"
                   onClick={() => {
                     setShowMessageEditor(!showMessageEditor);
-                    if (!showMessageEditor && !customMessage) {
-                      setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                    }
                   }}
                 >
                   {showMessageEditor ? "Hide" : "Add message"}
@@ -3478,10 +3518,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               {showMessageEditor && (
                 <div className="space-y-1.5">
                   <Textarea
-                    placeholder="Write a personal welcome message..."
+                    placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                     value={customMessage}
                     onChange={(e) => setCustomMessage(e.target.value)}
-                    rows={3}
+                    rows={4}
                     className="text-sm resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -3504,8 +3544,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               || singleChildren.some(c => c.name.trim().length > 0);
             const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
             const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const emailTrimmed = customEmail.trim();
             const submitNeedsEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !customEmail.trim();
+              isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
+            const submitInvalidEmail =
+              isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
@@ -3517,6 +3561,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
               blockedReason = "Enter an email address to send the invite.";
+            } else if (submitInvalidEmail) {
+              blockedReason = "That email doesn't look right — double-check the format.";
             }
 
             const handleNext = () => {
@@ -3541,7 +3587,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             };
 
             const handleSubmit = () => {
-              if (submitNeedsEmail) return;
+              if (submitNeedsEmail || submitInvalidEmail) return;
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
@@ -3578,8 +3624,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Button
                       className="flex-1 h-12 text-base font-semibold"
                       onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail}
-                      variant={submitNeedsEmail ? "outline" : "default"}
+                      disabled={isPending || submitNeedsEmail || submitInvalidEmail}
+                      variant={submitNeedsEmail || submitInvalidEmail ? "outline" : "default"}
                     >
                       {isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -3595,7 +3641,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       disabled={nextDisabled}
                       variant={nextDisabled ? "outline" : "default"}
                     >
-                      {wizardStep === 1 ? "Next: Role" : "Next: Send"}
+                      {wizardStep === 1
+                        ? "Next: Role"
+                        : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
+                          ? "Add a child to continue"
+                          : selectedUser && selectedRole === "parent"
+                            ? "Next: Add Children"
+                            : "Next: Send"}
                     </Button>
                   )}
                 </div>

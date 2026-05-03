@@ -118,7 +118,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
         {latestMessage ? (
           <p className="text-[11px] text-muted-foreground truncate">
             {isSystemMessageLike(latestMessage.text, (latestMessage as any).is_system_message) ? (
-              <span className="italic">{latestMessage.text}</span>
+              <span className="italic">{stripMentionFormatting(latestMessage.text, eventTitleMap)}</span>
             ) : (
               <>
                 <span className="font-medium">

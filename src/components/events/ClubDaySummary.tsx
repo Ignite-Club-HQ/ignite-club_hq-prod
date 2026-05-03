@@ -113,6 +113,13 @@ export function ClubDaySummary({
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(e);
     }
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const at = a.start_time || a.event_date;
+        const bt = b.start_time || b.event_date;
+        return at.localeCompare(bt);
+      });
+    }
     return Array.from(map.entries());
   }, [visible]);
 

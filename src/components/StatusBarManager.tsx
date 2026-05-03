@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
@@ -12,6 +13,15 @@ import { readSafeAreaInsetBottomPx, readSafeAreaInsetTopPx } from '@/lib/iosLayo
  * to prevent interleaved async calls that cause icon color mismatches.
  */
 export function StatusBarManager() {
+  const location = useLocation();
+
+  // Defensive: every route change, force-refresh status bar so a stale
+  // overlay=true state (left over from fullscreen viewer / native sheet)
+  // can never persist and push page content under the system status bar.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) refreshStatusBar();
+  }, [location.pathname]);
+
   useEffect(() => {
     const isNativePlatform = Capacitor.isNativePlatform();
     const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';

@@ -302,7 +302,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         throw new Error("Image must be less than 10MB");
       }
 
-      stablePreviewUrl = URL.createObjectURL(blob);
+      // Use a data URL for the native preview — blob: URLs are unreliable in
+      // Capacitor WebView (especially Android) and sometimes fail to render.
+      try {
+        stablePreviewUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error || new Error("Preview read failed"));
+          reader.readAsDataURL(blob);
+        });
+      } catch (previewErr) {
+        console.warn("[ChatImageInput] data URL preview failed, falling back to blob URL", previewErr);
+        stablePreviewUrl = URL.createObjectURL(blob);
+      }
       dismissIOSKeyboardAccessory();
       setLocalPreview(stablePreviewUrl);
       requestAnimationFrame(restoreNativeLayout);
@@ -333,7 +345,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      if (stablePreviewUrl) {
+      if (stablePreviewUrl && stablePreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
       restoreBodyScrollLock();

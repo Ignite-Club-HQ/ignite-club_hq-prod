@@ -1093,7 +1093,8 @@ export default function MessagesPage() {
   const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
   // Wait for fresh latest-message data before sorting/rendering, so the most recent
   // thread is at the top on first paint (cached `lastActivity` may be stale).
-  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && (!hasAnyProAccess || dmFetched);
+  const proAccessKnown = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
+  const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && proAccessKnown && (!hasAnyProAccess || dmFetched);
   const showSkeletonLoading = isLoadingFreshData || (!freshSortDataReady && !hasCachedData);
 
   // Determine which data to display (prefer fresh, fallback to cached)
@@ -2004,18 +2005,8 @@ export default function MessagesPage() {
           </>
         )}
 
-        {/* Cached-data placeholder while fresh data is loading (prevents wrong sort order) */}
-        {!showSkeletonLoading && !freshSortDataReady && hasCachedData && (
-          <>
-            <MessageSkeleton />
-            <MessageSkeleton />
-            <MessageSkeleton />
-            <MessageSkeleton />
-          </>
-        )}
-
-        {/* Unread Section */}
-        {!showSkeletonLoading && freshSortDataReady && unreadItems.length > 0 && (
+        {/* Unread Section — render with cached items while fresh data loads to avoid flicker */}
+        {!showSkeletonLoading && unreadItems.length > 0 && (
           <>
             <div className="flex items-center gap-2 pb-1.5">
               <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
@@ -2028,7 +2019,7 @@ export default function MessagesPage() {
         )}
 
         {/* Recent Section */}
-        {!showSkeletonLoading && freshSortDataReady && recentItems.length > 0 && (
+        {!showSkeletonLoading && recentItems.length > 0 && (
           <>
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>

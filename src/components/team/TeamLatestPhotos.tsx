@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Image } from "lucide-react";
+import { SecureImage } from "@/components/SecureImage";
 
 interface TeamLatestPhotosProps {
   teamId: string;
@@ -64,11 +65,10 @@ export function TeamLatestPhotos({ teamId, clubId }: TeamLatestPhotosProps) {
               className="shrink-0 w-20 h-20 rounded-lg overflow-hidden border bg-card hover:border-primary/50 transition-colors active:scale-[0.97]"
             >
               {imgSrc ? (
-                <img
+                <SecureImage
                   src={imgSrc}
                   alt={photo.title || "Photo"}
                   className="w-full h-full object-cover"
-                  loading="lazy"
                 />
               ) : (
                 <div className="w-full h-full bg-muted flex items-center justify-center">

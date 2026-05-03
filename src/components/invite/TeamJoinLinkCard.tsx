@@ -116,8 +116,24 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     staleTime: 30_000,
   });
 
+  // Pending invite count for this team — gives admins a sense of traction
+  // alongside the link's joined-count.
+  const { data: pendingCount } = useQuery({
+    queryKey: ["team-pending-invite-count", teamId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("pending_invites")
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", teamId)
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
   // Auto-jump to a role that already has a link the first time we load,
-  // so admins land on a usable link instead of an empty Generate state.
+  // so users land on a usable link instead of an empty Generate state.
   if (!autoSelected && links) {
     const order: RoleVariant[] = ["parent", "player", "coach", "team_admin"];
     const existing = order.find((r) => links[r]);
@@ -127,9 +143,6 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
     setAutoSelected(true);
   }
 
-  // `links` is undefined while the query is still loading — guard before indexing
-  // to prevent a render-time TypeError, which manifests as React error #310
-  // ("Rendered fewer hooks than expected") when React aborts the partial render.
   const link = links?.[activeRole] ?? null;
 
   const createOrRotate = useMutation({
@@ -343,27 +356,35 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       ) : !link ? (
         <div className="space-y-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            disabled={createOrRotate.isPending}
-            onClick={() => {
-              if (isSensitive) setConfirmGenerate(true);
-              else createOrRotate.mutate({ rotate: false, role: activeRole });
-            }}
-          >
-            {createOrRotate.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Link2 className="h-4 w-4 mr-2" />
-            )}
-            Generate {activeRoleLabel.toLowerCase()} link
-          </Button>
-          <p className="text-[11px] text-muted-foreground text-center">
-            Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
-          </p>
+          {isAdmin ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                disabled={createOrRotate.isPending}
+                onClick={() => {
+                  if (isSensitive) setConfirmGenerate(true);
+                  else createOrRotate.mutate({ rotate: false, role: activeRole });
+                }}
+              >
+                {createOrRotate.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Link2 className="h-4 w-4 mr-2" />
+                )}
+                Generate {activeRoleLabel.toLowerCase()} link
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-muted-foreground text-center px-2 py-3">
+              No {activeRoleLabel.toLowerCase()} link yet. Ask a coach or admin to generate one — you'll then be able to share it.
+            </p>
+          )}
           {isError && (
             <button
               type="button"
@@ -435,7 +456,9 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
             <span>
-              {link.uses_count} {link.uses_count === 1 ? "join" : "joins"} · expires{" "}
+              {link.uses_count} {link.uses_count === 1 ? "join" : "joins"}
+              {pendingCount && pendingCount > 0 ? ` · ${pendingCount} pending` : ""}
+              {" · expires "}
               {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
             </span>
             {isAdmin && (
