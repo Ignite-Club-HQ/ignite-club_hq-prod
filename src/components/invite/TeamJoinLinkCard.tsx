@@ -343,27 +343,35 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       ) : !link ? (
         <div className="space-y-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            disabled={createOrRotate.isPending}
-            onClick={() => {
-              if (isSensitive) setConfirmGenerate(true);
-              else createOrRotate.mutate({ rotate: false, role: activeRole });
-            }}
-          >
-            {createOrRotate.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Link2 className="h-4 w-4 mr-2" />
-            )}
-            Generate {activeRoleLabel.toLowerCase()} link
-          </Button>
-          <p className="text-[11px] text-muted-foreground text-center">
-            Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
-          </p>
+          {isAdmin ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                disabled={createOrRotate.isPending}
+                onClick={() => {
+                  if (isSensitive) setConfirmGenerate(true);
+                  else createOrRotate.mutate({ rotate: false, role: activeRole });
+                }}
+              >
+                {createOrRotate.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Link2 className="h-4 w-4 mr-2" />
+                )}
+                Generate {activeRoleLabel.toLowerCase()} link
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-muted-foreground text-center px-2 py-3">
+              No {activeRoleLabel.toLowerCase()} link yet. Ask a coach or admin to generate one — you'll then be able to share it.
+            </p>
+          )}
           {isError && (
             <button
               type="button"
