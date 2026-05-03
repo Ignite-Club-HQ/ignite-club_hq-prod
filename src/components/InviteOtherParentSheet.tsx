@@ -382,7 +382,10 @@ export default function InviteOtherParentSheet({
                     )}
 
                     {!isSearching && searchResults.length > 0 && debouncedName.length >= 2 && (
-                      <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                      <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                        <p className="text-xs font-medium text-muted-foreground px-2 pt-1 pb-0.5">
+                          Tap to link existing user:
+                        </p>
                         {searchResults.map((result) => (
                           <button
                             key={result.id}
@@ -391,7 +394,7 @@ export default function InviteOtherParentSheet({
                               setSelectedUser(result);
                               setParentName(result.display_name || "");
                             }}
-                            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                            className="w-full flex items-center gap-3 p-2 rounded-lg bg-background hover:bg-primary/5 active:bg-primary/10 border border-transparent hover:border-primary/30 transition-colors text-left touch-manipulation"
                           >
                             <Avatar className="h-7 w-7">
                               <AvatarImage src={result.avatar_url || undefined} />
@@ -399,7 +402,8 @@ export default function InviteOtherParentSheet({
                                 {result.display_name?.[0]?.toUpperCase() || "?"}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                            <span className="text-sm font-medium flex-1">{result.display_name || "Unknown"}</span>
+                            <span className="text-[10px] text-primary font-medium uppercase tracking-wide">Link</span>
                           </button>
                         ))}
                         <p className="text-xs text-muted-foreground px-2 pt-1">
