@@ -641,10 +641,12 @@ function CompactCard({ event }: { event: EventItem }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  
+  const compactWhen = formatCompactDateTime(event.event_date);
+
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
-  const urgency = getUrgencyBadge(event.event_date);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -690,44 +692,39 @@ function CompactCard({ event }: { event: EventItem }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
-        {/* Urgency/context row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {urgency ? (
-              <Badge variant="outline" className={`text-[9px] h-[18px] px-1.5 font-semibold border ${urgency.className}`}>
-                {urgency.text}
-              </Badge>
-            ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {dateLabel}
-              </span>
-            )}
+        {/* Cancelled marker only */}
+        {event.is_cancelled && (
+          <div className="flex items-center justify-end">
+            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
           </div>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
-        </div>
+        )}
 
-        {/* Primary: Team · Secondary: Session title */}
+        {/* Primary: Team · Secondary: [icon] Type · Tertiary: Session title */}
         <div className="space-y-1 min-w-0">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`text-[12px] font-normal leading-snug text-muted-foreground flex items-center gap-1 min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <TypeIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="truncate">{displayTitle}</span>
-              </h3>
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1 text-[12px] font-medium text-foreground/90 min-w-0">
+                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                </div>
+                {showSessionSubtitle && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug truncate pl-4">
+                    {displayTitle}
+                  </p>
+                )}
+              </div>
             );
           })()}
         </div>
 
-        {/* Metadata: time strong, no urgency repeat */}
+        {/* Compact date + time on one line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateTime}</span>
-            {!urgency && (
-              <span className="text-muted-foreground">· {dateLabel}</span>
-            )}
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80">
