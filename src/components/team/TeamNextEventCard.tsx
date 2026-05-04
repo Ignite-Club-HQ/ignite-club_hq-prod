@@ -2,9 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, MapPin, Clock, ChevronRight } from "lucide-react";
+import { MapPin, Clock, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
@@ -46,7 +45,6 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
     return null;
   }
 
-  const typeLabel = getEventTypeLabel(nextEvent.type, { miniLeagueId: nextEvent.mini_league_id });
   const eventDate = parseISO(nextEvent.event_date);
   const locationDisplay = nextEvent.location_name || nextEvent.location;
 
@@ -73,9 +71,6 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <TeamChip teamName={(nextEvent as any).teams?.name} fallbackLabel="" size="sm" />
-              <span className="text-[10px] font-semibold text-primary uppercase tracking-wide">
-                {typeLabel}
-              </span>
             </div>
             <p className="font-medium text-sm text-foreground/90 truncate">
               {nextEvent.title}
