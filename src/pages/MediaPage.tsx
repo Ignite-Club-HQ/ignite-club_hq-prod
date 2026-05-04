@@ -1210,7 +1210,7 @@ export default function MediaPage() {
                     }
                   }}
                   onTeamChange={setSelectedTeamId}
-                  showClubFilter={(availableClubs?.length || 0) > 0}
+                  showClubFilter={!activeClubFilter && (availableClubs?.length || 0) > 0}
                   showTeamFilter={(filteredTeams?.length || 0) > 0}
                 />
                 
