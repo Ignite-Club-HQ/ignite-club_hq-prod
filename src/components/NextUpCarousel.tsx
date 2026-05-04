@@ -489,25 +489,57 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             );
           }
 
+          const isGame =
+            event.type === "game" ||
+            event.type === "mini_league" ||
+            !!(event as any).mini_league_id ||
+            !!event.opponent;
+          const isTraining = event.type === "training" && !isGame;
+
           return (
-            <div className="space-y-1">
-              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
-              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1.5 text-[16px] font-semibold text-foreground">
-                  <TypeIcon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
-                </div>
-                {eventDisplay.secondary && (
-                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
-                    {eventDisplay.secondary}
-                  </p>
-                )}
+            <div className="space-y-2">
+              {/* Top row: team chip + type badge */}
+              <div className="flex items-center justify-between gap-2">
+                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="sm" />
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 ${
+                    isGame
+                      ? "bg-destructive/10 text-destructive border-destructive/30"
+                      : isTraining
+                        ? "bg-muted text-muted-foreground border-border/60"
+                        : "bg-muted text-muted-foreground border-border/60"
+                  }`}
+                >
+                  {isGame ? "Match" : isTraining ? "Training" : typeLabel}
+                </Badge>
               </div>
+
+              {/* Main content — centered & dominant for games, calm & left-aligned for training */}
+              {isGame ? (
+                <div className={`text-center py-1 ${event.is_cancelled ? "line-through" : ""}`}>
+                  <h3 className="text-[20px] font-bold leading-tight text-foreground tracking-tight line-clamp-2">
+                    {event.opponent ? `vs ${event.opponent}` : eventDisplay.primary}
+                  </h3>
+                </div>
+              ) : (
+                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                  <div className="flex items-center gap-1.5 text-[16px] font-semibold text-foreground/90">
+                    <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{eventDisplay.primary}</span>
+                  </div>
+                  {eventDisplay.secondary && (
+                    <p className="mt-0.5 text-[12px] text-muted-foreground/80 leading-snug truncate pl-5">
+                      {eventDisplay.secondary}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* Compact date + time on one line, location subtle */}
+        {/* Compact date + time, location subtle */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
@@ -532,6 +564,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             );
           })()}
         </div>
+
+        {/* Subtle divider above RSVP for game cards */}
+        {(event.type === "game" || event.type === "mini_league" || !!(event as any).mini_league_id || !!event.opponent) && !event.is_cancelled && (
+          <div className="border-t border-border/40 -mx-3" />
+        )}
 
         {/* RSVP Buttons */}
         <div className="mt-auto" />
