@@ -7690,6 +7690,7 @@ export type Database = {
       }
     }
     Functions: {
+      _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
@@ -7850,6 +7851,52 @@ export type Database = {
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
+      }
+      claim_eoi_by_token: {
+        Args: { _token: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       claim_eoi_submission: {
         Args: { _token: string }
@@ -8021,6 +8068,10 @@ export type Database = {
         Returns: string
       }
       generate_email_hash: { Args: { email: string }; Returns: string }
+      get_business_contact_email: {
+        Args: { _business_id: string }
+        Returns: string
+      }
       get_club_day_events: {
         Args: { _club_id: string; _day: string }
         Returns: {
@@ -8668,6 +8719,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      send_game_stats_email_rpc: {
+        Args: {
+          _event_date: string
+          _event_id: string
+          _event_title: string
+          _opponent: string
+          _team_id: string
+          _total_game_time: string
+          _total_players: number
+        }
+        Returns: undefined
+      }
       send_message_notification_email: {
         Args: {
           p_context_id: string
@@ -8689,6 +8752,32 @@ export type Database = {
           p_photo_id: string
           p_recipient_user_id: string
           p_uploader_user_id: string
+        }
+        Returns: undefined
+      }
+      send_pitch_board_notification_email_rpc: {
+        Args: {
+          _event_id?: string
+          _notification_message: string
+          _notification_type: string
+          _recipient_user_id: string
+          _team_id: string
+          _team_name: string
+        }
+        Returns: undefined
+      }
+      send_reward_redeemed_email_rpc: {
+        Args: {
+          _club_logo_url?: string
+          _club_name: string
+          _points_spent: number
+          _redeemed_for_child_name?: string
+          _remaining_points: number
+          _reward_description?: string
+          _reward_logo_url?: string
+          _reward_name: string
+          _show_qr_code?: boolean
+          _sponsor_name?: string
         }
         Returns: undefined
       }

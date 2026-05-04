@@ -631,17 +631,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           const eventTitle = eventData?.title || 'a game';
           
           for (const recipientUserId of recipientUserIds) {
-            supabase.functions.invoke('send-pitch-board-notification-email', {
-              body: {
-                recipientUserId,
-                teamId,
-                teamName,
-                notificationType: 'game_linked',
-                notificationMessage: `The pitch board has been linked to "${eventTitle}"`,
-                eventId,
-              },
-            }).catch(err => {
-              console.error('[PitchBoard] Failed to send game linked email:', err);
+            supabase.rpc('send_pitch_board_notification_email_rpc', {
+              _recipient_user_id: recipientUserId,
+              _team_id: teamId,
+              _team_name: teamName,
+              _notification_type: 'game_linked',
+              _notification_message: `The pitch board has been linked to "${eventTitle}"`,
+              _event_id: eventId,
+            }).then((r: any) => {
+              if (r?.error) console.error('[PitchBoard] Failed to send game linked email:', r.error);
             });
           }
         }

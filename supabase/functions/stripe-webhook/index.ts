@@ -68,29 +68,30 @@ serve(async (req) => {
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
     const body = await req.text();
 
-    // SECURITY: Verify webhook signature if secret is configured
-    if (webhookSecret) {
-      if (!signature) {
-        console.error("Missing stripe-signature header - rejecting request");
-        return new Response(
-          JSON.stringify({ error: "Missing stripe-signature header" }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const isValid = await verifyStripeSignature(body, signature, webhookSecret);
-      if (!isValid) {
-        console.error("Invalid webhook signature - rejecting request");
-        return new Response(
-          JSON.stringify({ error: "Invalid webhook signature" }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log("Stripe webhook signature verified successfully");
-    } else {
-      // Log warning but allow processing for backwards compatibility during setup
-      console.warn("WARNING: STRIPE_WEBHOOK_SECRET not configured - signature verification disabled. Configure this secret for production security.");
+    // SECURITY: signature verification is mandatory.
+    if (!webhookSecret) {
+      console.error("STRIPE_WEBHOOK_SECRET not configured — rejecting all webhook requests");
+      return new Response(
+        JSON.stringify({ error: "Webhook not configured" }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    if (!signature) {
+      console.error("Missing stripe-signature header - rejecting request");
+      return new Response(
+        JSON.stringify({ error: "Missing stripe-signature header" }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const isValid = await verifyStripeSignature(body, signature, webhookSecret);
+    if (!isValid) {
+      console.error("Invalid webhook signature - rejecting request");
+      return new Response(
+        JSON.stringify({ error: "Invalid webhook signature" }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    console.log("Stripe webhook signature verified successfully");
 
     const event = JSON.parse(body);
     console.log('Received Stripe webhook event:', event.type);
