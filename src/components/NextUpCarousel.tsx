@@ -498,21 +498,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
           return (
             <div className="space-y-1">
-              {/* Top row: team chip (primary anchor) + type badge */}
+              {/* Top row: team chip (primary anchor) + match-only badge */}
               <div className="flex items-center justify-between gap-2">
                 <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 ${
-                    isGame
-                      ? "bg-destructive/10 text-destructive border-destructive/30"
-                      : isTraining
-                        ? "bg-muted text-muted-foreground border-border/60"
-                        : "bg-muted text-muted-foreground border-border/60"
-                  }`}
-                >
-                  {isGame ? "Match" : isTraining ? "Training" : typeLabel}
-                </Badge>
+                {isGame && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 bg-destructive/10 text-destructive border-destructive/30"
+                  >
+                    Match
+                  </Badge>
+                )}
               </div>
 
               {/* Event title — left-aligned for both, secondary to team chip */}
