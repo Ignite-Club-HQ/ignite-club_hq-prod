@@ -2435,6 +2435,16 @@ export default function EventDetailPage() {
         <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
       )}
 
+      {/* Event Note (coach/admin pinned info, notifies attendees) */}
+      <EventNoteSection
+        eventId={id!}
+        note={(event as any).coach_note}
+        noteUpdatedAt={(event as any).coach_note_updated_at}
+        noteAuthor={(event as any).coach_note_author}
+        canEdit={!!(isAdmin || isAppAdmin)}
+      />
+
+
       {/* Notification Nudge for events */}
       {notificationNudge.shouldShowNudge && !myRsvp && (
         <NotificationNudgeBanner
