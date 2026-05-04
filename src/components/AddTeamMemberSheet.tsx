@@ -3027,6 +3027,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
               </>
             )}
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4 mt-0">
