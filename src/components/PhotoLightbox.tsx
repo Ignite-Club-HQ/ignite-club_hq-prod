@@ -1,14 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download, Share2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
 import { downloadImage } from "@/lib/downloadImage";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
 interface PhotoLightboxProps {
