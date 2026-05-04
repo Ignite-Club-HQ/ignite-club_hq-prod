@@ -3523,6 +3523,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         {/* Sticky CTA footer */}
         <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
           {mode === "single" ? (() => {
+            // When invite-by-name is collapsed (initial state), the bottom
+            // CTA shouldn't render at all — the join-link card is the
+            // primary action and has its own buttons.
+            if (!inviteByNameOpen) return null;
             // Wizard navigation for single-invite flow
             const canAdvanceFromStep1 = !!selectedUser || (nameInput.trim().length > 0);
             const canAdvanceFromStep2 = selectedRole !== "parent"
