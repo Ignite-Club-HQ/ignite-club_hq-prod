@@ -218,6 +218,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
   // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  // Whether the "invite by name" section is expanded. Defaults to collapsed so
+  // the join-link flow is the visually primary action on first open.
+  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  const inviteByNameOpen = inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
