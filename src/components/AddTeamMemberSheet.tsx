@@ -2218,7 +2218,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search or add member name (paste a list to add many)"
+                      placeholder="Search or enter name"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
