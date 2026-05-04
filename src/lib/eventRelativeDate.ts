@@ -61,6 +61,30 @@ export function formatEventContextualDate(dateStr: string) {
   return { label: format(date, "EEE, MMM d"), time };
 }
 
+/**
+ * Compact single-line date+time used on event cards.
+ * Examples: "Today · 3:50 PM", "Tomorrow · 3:50 PM", "Wed · 3:45 PM",
+ * "This Tuesday · 7:00 PM", "Sat 14 Jun · 10:00 AM" (further out).
+ *
+ * Keeps the date context next to the time so users get instant when-recognition
+ * without the previously redundant standalone urgency chip on the card.
+ */
+export function formatCompactDateTime(dateStr: string): string {
+  const date = parseISO(dateStr);
+  const now = new Date();
+  const time = format(date, "h:mm a");
+
+  if (isToday(date)) return `Today · ${time}`;
+  if (isTomorrow(date)) return `Tomorrow · ${time}`;
+
+  const qualifier = getRelativeWeekdayQualifier(date, now);
+  if (qualifier === "this") return `This ${format(date, "EEEE")} · ${time}`;
+  if (qualifier === "next") return `Next ${format(date, "EEEE")} · ${time}`;
+
+  // Far out: "Sat 14 Jun · 10:00 AM" — short weekday + day + month
+  return `${format(date, "EEE d MMM")} · ${time}`;
+}
+
 export function getEventUrgencyBadge(dateStr: string) {
   const date = parseISO(dateStr);
   const now = new Date();
