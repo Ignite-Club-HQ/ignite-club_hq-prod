@@ -153,22 +153,24 @@ export function NextUpHero({ event }: NextUpHeroProps) {
         onClick={() => navigate(`/events/${event.id}`)}
       >
         <CardContent className="p-5 space-y-4">
-          {/* Event title row */}
-          <div className="space-y-1.5">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className={`text-xl font-bold leading-tight ${event.is_cancelled ? "line-through" : ""}`}>
-                {event.title}
-                {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
-              </h3>
-              {event.is_cancelled && (
-                <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
-              )}
-            </div>
-            {event.teams?.name && (
-              <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                {event.teams.name}
-              </Badge>
+          {/* Header: contextual date label */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {dateLabel}
+            </span>
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
             )}
+          </div>
+
+          {/* Primary: Team chip — biggest scanning anchor */}
+          {/* Secondary: Event title */}
+          <div className="space-y-1.5">
+            <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+            <h3 className={`text-lg font-medium leading-snug text-foreground/90 ${event.is_cancelled ? "line-through" : ""}`}>
+              {event.title}
+              {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
+            </h3>
           </div>
 
           {/* Date + Location */}
