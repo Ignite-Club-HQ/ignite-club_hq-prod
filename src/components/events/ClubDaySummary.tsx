@@ -64,6 +64,24 @@ function venueGroupKey(e: ClubDayEvent): string {
   return raw.split(/\s+[-–—]\s+/)[0].trim();
 }
 
+function fromEventCardEvent(e: EventCardEvent): ClubDayEvent {
+  return {
+    id: e.id,
+    title: e.title,
+    type: e.type as "game" | "training",
+    event_date: e.event_date,
+    start_time: (e as any).start_time || null,
+    end_time: (e as any).end_time || null,
+    location_name: e.location_name,
+    address: e.address,
+    suburb: e.suburb,
+    team_id: e.team_id,
+    team_name: e.teams?.name || null,
+    opponent: e.opponent,
+    is_cancelled: e.is_cancelled,
+  };
+}
+
 /**
  * Day summary for a single date. Defaults to showing only events for teams
  * the user belongs to ("My teams"); a toggle switches to a club-wide view
@@ -105,11 +123,20 @@ export function ClubDaySummary({
   });
 
   const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
+  const myVisibleEvents = useMemo(() => {
+    return (myDayEvents || [])
+      .filter((e) => e.team_id && myTeamSet.has(e.team_id) && (e.type === "game" || e.type === "training"))
+      .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
+  }, [myDayEvents, myTeamSet]);
+
   const visible = useMemo(() => {
+    if (scope === "my" && myVisibleEvents.length > 0) {
+      return myVisibleEvents.map(fromEventCardEvent);
+    }
     if (!events) return [] as ClubDayEvent[];
     if (scope === "club") return events;
     return events.filter((e) => e.team_id && myTeamSet.has(e.team_id));
-  }, [events, scope, myTeamSet]);
+  }, [events, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
@@ -209,11 +236,10 @@ export function ClubDaySummary({
       ) : (
         <div className="space-y-3">
           {visible.map((v) => {
-            // Prefer rich EventCard when we have the full event in myDayEvents.
-            // Otherwise (e.g. when a team filter trimmed myDayEvents but the user
-            // is still on "My teams" scope) fall back to the lightweight row so
-            // every team the user belongs to is represented.
-            const rich = myDayEvents?.find((e) => e.id === v.id);
+            // Prefer rich EventCard from the main events query for "My teams".
+            // The club-day RPC is only a fallback/club-wide source and can be
+            // more restrictive than a parent's child-team membership path.
+            const rich = myVisibleEvents.find((e) => e.id === v.id) || myDayEvents?.find((e) => e.id === v.id);
             if (rich) {
               return (
                 <EventCard

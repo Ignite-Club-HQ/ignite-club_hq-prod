@@ -134,19 +134,37 @@ export default function EventsPage() {
       
       // Get unique club IDs (direct club roles + clubs from team roles)
       const clubIds = new Set<string>();
-      const teamIds: string[] = [];
+      const teamIds = new Set<string>();
       
       roles.forEach(r => {
         if (r.club_id) clubIds.add(r.club_id);
-        if (r.team_id) teamIds.push(r.team_id);
+        if (r.team_id) teamIds.add(r.team_id);
       });
+
+      const [{ data: guardianRows }, { data: ownChildren }] = await Promise.all([
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+      ]);
+      const childIds = Array.from(new Set([
+        ...(guardianRows || []).map((g: any) => g.child_id).filter(Boolean),
+        ...(ownChildren || []).map((c: any) => c.id).filter(Boolean),
+      ]));
+      if (childIds.length > 0) {
+        const { data: childTeams } = await supabase
+          .from("child_team_assignments")
+          .select("team_id")
+          .in("child_id", childIds);
+        (childTeams || []).forEach((ct: any) => {
+          if (ct.team_id) teamIds.add(ct.team_id);
+        });
+      }
       
       // Get clubs from teams
-      if (teamIds.length > 0) {
+      if (teamIds.size > 0) {
         const { data: teams } = await supabase
           .from("teams")
           .select("club_id")
-          .in("id", teamIds);
+          .in("id", Array.from(teamIds));
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
@@ -174,12 +192,29 @@ export default function EventsPage() {
       
       if (!roles) return [];
       
-      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id!);
-      const clubRoleClubIds = roles.filter(r => r.club_id && !r.team_id).map(r => r.club_id!);
+      const teamIds = new Set(roles.filter(r => r.team_id).map(r => r.team_id!));
+
+      const [{ data: guardianRows }, { data: ownChildren }] = await Promise.all([
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+      ]);
+      const childIds = Array.from(new Set([
+        ...(guardianRows || []).map((g: any) => g.child_id).filter(Boolean),
+        ...(ownChildren || []).map((c: any) => c.id).filter(Boolean),
+      ]));
+      if (childIds.length > 0) {
+        const { data: childTeams } = await supabase
+          .from("child_team_assignments")
+          .select("team_id")
+          .in("child_id", childIds);
+        (childTeams || []).forEach((ct: any) => {
+          if (ct.team_id) teamIds.add(ct.team_id);
+        });
+      }
       
-      // Only show teams the user has direct access to (via user_roles.team_id)
-      if (teamIds.length === 0) return [];
-      let query = supabase.from("teams").select("id, name, club_id").in("id", teamIds).order("name");
+      // Show teams the user has direct team access to, plus teams for their children.
+      if (teamIds.size === 0) return [];
+      let query = supabase.from("teams").select("id, name, club_id").in("id", Array.from(teamIds)).order("name");
       if (clubFilter) {
         query = query.eq("club_id", clubFilter);
       }
@@ -230,13 +265,16 @@ export default function EventsPage() {
         }
       });
       
-      // Add teams via children (parents/guardians)
+      // Add teams via children (primary parents and guardians)
       step = performance.now();
-      const { data: guardianRows } = await supabase
-        .from("child_guardians")
-        .select("child_id")
-        .eq("guardian_id", user!.id);
-      const childIds = (guardianRows || []).map((g: any) => g.child_id);
+      const [{ data: guardianRows }, { data: ownChildren }] = await Promise.all([
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+      ]);
+      const childIds = Array.from(new Set([
+        ...(guardianRows || []).map((g: any) => g.child_id).filter(Boolean),
+        ...(ownChildren || []).map((c: any) => c.id).filter(Boolean),
+      ]));
       if (childIds.length > 0) {
         const { data: childTeams } = await supabase
           .from("child_team_assignments")
