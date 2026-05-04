@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
-import { detectTeamColor } from "@/lib/teamColor";
+import { TeamChip } from "@/components/events/TeamChip";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -385,60 +385,12 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
-        {/* Row 0: Team / scope chip — colored by detected team colour for fast visual differentiation */}
-        {subtitle && (() => {
-          const teamColor = event.teams?.name ? detectTeamColor(event.teams.name) : null;
-          // Detect very light colours (e.g. White) where coloured text would be unreadable
-          // on a white card. Fall back to foreground text but keep the colour dot.
-          const isLightColor = (hex: string) => {
-            const h = hex.replace("#", "");
-            const r = parseInt(h.substring(0, 2), 16);
-            const g = parseInt(h.substring(2, 4), 16);
-            const b = parseInt(h.substring(4, 6), 16);
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            return luminance > 0.85;
-          };
-          const lightColor = teamColor ? isLightColor(teamColor.hex) : false;
-          const chipStyle = teamColor
-            ? {
-                backgroundColor: lightColor ? undefined : `${teamColor.hex}26`, // ~15% alpha
-                color: lightColor ? undefined : teamColor.hex,
-                borderColor: lightColor ? undefined : `${teamColor.hex}66`, // ~40% alpha
-              }
-            : undefined;
-          return (
-            <div className="flex items-center gap-1.5">
-              <Badge
-                variant="secondary"
-                style={chipStyle}
-                className={
-                  teamColor
-                    ? lightColor
-                      ? "text-[11px] h-5 px-2 font-semibold bg-muted text-foreground border border-border max-w-full truncate inline-flex items-center gap-1.5"
-                      : "text-[11px] h-5 px-2 font-semibold border max-w-full truncate inline-flex items-center gap-1.5"
-                    : "text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
-                }
-              >
-                {teamColor && (
-                  <span
-                    className="inline-block h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: teamColor.hex, boxShadow: `0 0 0 1px ${teamColor.hex}99` }}
-                  />
-                )}
-                {subtitle}
-              </Badge>
-            </div>
-          );
-        })()}
-
-        {/* Row 1: Title + Type badge */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className={`font-bold text-base leading-snug tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-              {displayTitle}
-            </h3>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+        {/* Row 0: Contextual date pill (e.g. "Tomorrow") + type/cancel/new chips */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {formatEventContextualDate(event.event_date).label}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
@@ -455,7 +407,16 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           </div>
         </div>
 
-        {/* Row 2: Date/time + Location */}
+        {/* Primary: Team chip — biggest scanning anchor */}
+        {/* Secondary: Event title — same line/group, lighter weight */}
+        <div className="space-y-1">
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+          <h3 className={`font-medium text-[15px] leading-snug text-foreground/90 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+            {displayTitle}
+          </h3>
+        </div>
+
+        {/* Tertiary: Date/time + Location */}
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
