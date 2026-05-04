@@ -1,14 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download, Share2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 import { isVideoUrl } from "@/lib/videoUtils";
 import { downloadImage } from "@/lib/downloadImage";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
 interface PhotoLightboxProps {
@@ -80,6 +98,7 @@ export function PhotoLightbox({
 }: PhotoLightboxProps) {
   const currentPhoto = photos[currentIndex];
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   
   const {
     scale,
@@ -164,6 +183,43 @@ export function PhotoLightbox({
     }
   };
 
+  const handleShare = async () => {
+    const url = downloadSignedUrl || photoSrc;
+    if (!url) return;
+    const title = currentPhoto.title || "Photo";
+    try {
+      // Native share via Capacitor when available
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { Share } = await import("@capacitor/share");
+      const { Capacitor } = await import("@capacitor/core");
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({ title, text: title, url, dialogTitle: "Share photo" });
+        return;
+      }
+      if (typeof navigator !== "undefined" && (navigator as any).share) {
+        await (navigator as any).share({ title, text: title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+    } catch (err: any) {
+      if (err?.message && /cancel/i.test(err.message)) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard");
+      } catch {
+        safeOpenUrl(url);
+      }
+    }
+  };
+
+  const confirmDelete = () => {
+    if (onDelete && currentPhoto) {
+      onDelete(currentPhoto.id);
+    }
+    setDeleteConfirmOpen(false);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
@@ -189,59 +245,65 @@ export function PhotoLightbox({
             className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/70 to-transparent"
             style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1.75rem) + 0.5rem)" }}
           >
-            {/* Left side - Back button + Delete */}
-            <div className="flex items-center gap-2">
+            {/* Left side - Back navigation only */}
+            <div className="flex items-center">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
                 onClick={onClose}
                 aria-label="Back"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              {canDelete && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                  onClick={() => onDelete(currentPhoto.id)}
-                >
-                  <Trash2 className="h-5 w-5" />
-                </Button>
-              )}
             </div>
-            
-            {/* Right side - Report and Close buttons */}
+
+            {/* Right side - Primary Share + overflow menu */}
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={handleDownload}
-                aria-label="Download photo"
-                title="Download"
+                className="text-white hover:bg-white/20 bg-white/15 ring-1 ring-white/20 rounded-full h-11 w-11"
+                onClick={handleShare}
+                aria-label="Share photo"
+                title="Share"
               >
-                <Download className="h-5 w-5" />
+                <Share2 className="h-5 w-5" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={() => setReportDialogOpen(true)}
-                title="Report photo"
-              >
-                <Flag className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={onClose}
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+                    aria-label="More options"
+                  >
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+                  <DropdownMenuItem onSelect={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setReportDialogOpen(true)}>
+                    <Flag className="h-4 w-4 mr-2" />
+                    Report
+                  </DropdownMenuItem>
+                  {canDelete && onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => setDeleteConfirmOpen(true)}
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -292,6 +354,27 @@ export function PhotoLightbox({
         onClose={() => setReportDialogOpen(false)}
         photoId={currentPhoto.id}
       />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this photo? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
