@@ -3634,7 +3634,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       variant={nextDisabled ? "outline" : "default"}
                     >
                       {wizardStep === 1
-                        ? "Next: Role"
+                        ? (canAdvanceFromStep1 ? "Next: Choose role" : "Enter a name to continue")
                         : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
                           ? "Add a child to continue"
                           : selectedUser && selectedRole === "parent"
