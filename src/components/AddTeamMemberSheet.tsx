@@ -3546,7 +3546,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             // buttons so users aren't left guessing why "Next" is greyed out.
             let blockedReason: string | null = null;
             if (wizardStep === 1 && !canAdvanceFromStep1) {
-              blockedReason = "Search for a member or type a name to continue.";
+              // Don't show a yellow warning on the empty initial state —
+              // the disabled CTA below already communicates what's needed.
+              blockedReason = null;
             } else if (wizardStep === 2 && !canAdvanceFromStep2) {
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
