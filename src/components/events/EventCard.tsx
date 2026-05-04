@@ -384,7 +384,12 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-3.5 pb-3 space-y-2">
+      {/* Right-edge tap affordance — vertically centered, balances left-heavy meta rows */}
+      <ChevronRight
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 pointer-events-none"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3.5 pb-3 pr-8 space-y-2">
         {/* Status chips only — section header already conveys the date.
             "New" badge is suppressed for training events to reduce noise. */}
         {(() => {
