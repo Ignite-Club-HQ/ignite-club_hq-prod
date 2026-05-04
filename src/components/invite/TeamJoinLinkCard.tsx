@@ -300,44 +300,40 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       </div>
 
-      {/* Role selector */}
-      <div className="grid grid-cols-4 gap-1 rounded-md bg-background border border-border p-1">
-        {ROLE_OPTIONS.map((opt) => {
-          const has = !!links?.[opt.value];
-          const isActive = activeRole === opt.value;
-          const sensitive = SENSITIVE_ROLES.includes(opt.value);
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleRoleChange(opt.value)}
-              aria-label={`${opt.label} link — ${sensitive ? "sensitive, grants edit access" : "safe to share"}`}
-              className={`relative px-2 py-1.5 text-xs rounded transition-colors ${
-                isActive
-                  ? "bg-primary text-primary-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <span className="inline-flex items-center gap-1">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    sensitive ? "bg-amber-500" : "bg-emerald-500"
-                  }`}
-                  aria-hidden
-                />
+      {/* Role selector — segmented control */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium text-foreground">Default role for this link</Label>
+        <div
+          role="radiogroup"
+          aria-label="Default role for this link"
+          className="grid grid-cols-4 gap-1 rounded-lg bg-background border border-border p-1"
+        >
+          {ROLE_OPTIONS.map((opt) => {
+            const isActive = activeRole === opt.value;
+            const sensitive = SENSITIVE_ROLES.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => handleRoleChange(opt.value)}
+                aria-label={`${opt.label} link — ${sensitive ? "sensitive, grants edit access" : "safe to share"}`}
+                className={`relative px-2 py-2 text-xs rounded-md transition-colors min-h-[36px] inline-flex items-center justify-center gap-1 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {isActive && <Check className="h-3 w-3" aria-hidden />}
                 {opt.label}
-              </span>
-              {has && (
-                <span
-                  className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ring-1 ring-background ${
-                    isActive ? "bg-primary-foreground" : "bg-sky-500"
-                  }`}
-                  aria-label="Active link"
-                />
-              )}
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Anyone using this link will join as the selected role.
+        </p>
       </div>
 
 
