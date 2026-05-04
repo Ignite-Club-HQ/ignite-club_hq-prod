@@ -36,6 +36,20 @@ export function EventNoteSection({
     if (!editing) setDraft(note ?? "");
   }, [note, editing]);
 
+  const { data: fetchedAuthor } = useQuery({
+    queryKey: ["event-note-author", noteAuthor],
+    enabled: !!noteAuthor && !authorName,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", noteAuthor!)
+        .maybeSingle();
+      return data?.display_name ?? null;
+    },
+  });
+  const displayAuthor = authorName ?? fetchedAuthor ?? null;
+
   const saveMutation = useMutation({
     mutationFn: async (value: string) => {
       const trimmed = value.trim();
