@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
-import { detectTeamColor } from "@/lib/teamColor";
+import { TeamChip } from "@/components/events/TeamChip";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
