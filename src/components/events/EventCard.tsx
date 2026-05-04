@@ -34,6 +34,8 @@ import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArriv
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { abbreviateLocation } from "@/lib/abbreviateLocation";
+import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
