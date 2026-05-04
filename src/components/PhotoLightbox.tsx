@@ -245,59 +245,65 @@ export function PhotoLightbox({
             className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/70 to-transparent"
             style={{ paddingTop: "calc(max(env(safe-area-inset-top), 1.75rem) + 0.5rem)" }}
           >
-            {/* Left side - Back button + Delete */}
-            <div className="flex items-center gap-2">
+            {/* Left side - Back navigation only */}
+            <div className="flex items-center">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
                 onClick={onClose}
                 aria-label="Back"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              {canDelete && onDelete && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                  onClick={() => onDelete(currentPhoto.id)}
-                >
-                  <Trash2 className="h-5 w-5" />
-                </Button>
-              )}
             </div>
-            
-            {/* Right side - Report and Close buttons */}
+
+            {/* Right side - Primary Share + overflow menu */}
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={handleDownload}
-                aria-label="Download photo"
-                title="Download"
+                className="text-white hover:bg-white/20 bg-white/15 ring-1 ring-white/20 rounded-full h-11 w-11"
+                onClick={handleShare}
+                aria-label="Share photo"
+                title="Share"
               >
-                <Download className="h-5 w-5" />
+                <Share2 className="h-5 w-5" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={() => setReportDialogOpen(true)}
-                title="Report photo"
-              >
-                <Flag className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
-                onClick={onClose}
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+                    aria-label="More options"
+                  >
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+                  <DropdownMenuItem onSelect={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setReportDialogOpen(true)}>
+                    <Flag className="h-4 w-4 mr-2" />
+                    Report
+                  </DropdownMenuItem>
+                  {canDelete && onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => setDeleteConfirmOpen(true)}
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
