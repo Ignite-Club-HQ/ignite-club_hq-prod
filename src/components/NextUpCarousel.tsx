@@ -606,17 +606,33 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               </details>
             )}
 
-            {/* Helper text when no RSVP selected — reserved line so the card
-                height stays stable whether or not the user has already RSVPed.
-                Hidden until the RSVP query has settled to avoid a flash. */}
-            <p
-              className={`text-[10px] text-muted-foreground/60 text-center ${
-                heroDataReady && !currentStatus ? "" : "invisible"
-              }`}
-              aria-hidden={!(heroDataReady && !currentStatus)}
-            >
-              Tap to update your attendance
-            </p>
+            {/* Personal-first RSVP summary — "Teddy going + N others" */}
+            {(() => {
+              if (!heroDataReady) {
+                return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
+              }
+              const goingChildNames = (childRsvps || [])
+                .filter((r) => r.status === "going")
+                .map((r) => r.children?.name?.split(" ")[0] || "Child");
+              const summary = buildPersonalRsvpLine({
+                parentStatus: currentStatus,
+                goingChildNames,
+                totalGoing: rsvpSummary?.totalCount || 0,
+              });
+              if (!summary) {
+                return (
+                  <p className="text-[11px] text-muted-foreground/60 text-center">
+                    Be the first to RSVP
+                  </p>
+                );
+              }
+              const personal = goingChildNames.length > 0 || currentStatus === "going";
+              return (
+                <p className={`text-[11px] text-center ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
+                  {summary}
+                </p>
+              );
+            })()}
 
           </div>
         )}
