@@ -12,6 +12,7 @@ import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -167,10 +168,18 @@ export function NextUpHero({ event }: NextUpHeroProps) {
           {/* Secondary: Event title */}
           <div className="space-y-1.5">
             <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
-            <h3 className={`text-lg font-medium leading-snug text-foreground/90 ${event.is_cancelled ? "line-through" : ""}`}>
-              {event.title}
-              {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
-            </h3>
+            {(() => {
+              const TypeIcon = getEventTypeIcon(event.type);
+              return (
+                <h3 className={`text-lg font-medium leading-snug text-foreground/90 flex items-center gap-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+                  <span className="min-w-0">
+                    {event.title}
+                    {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
+                  </span>
+                </h3>
+              );
+            })()}
           </div>
 
           {/* Date + Location */}
