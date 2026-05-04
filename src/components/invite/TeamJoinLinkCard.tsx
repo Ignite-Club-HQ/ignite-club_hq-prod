@@ -453,28 +453,32 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
             </CollapsibleContent>
           </Collapsible>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 pt-1">
             <span>
-              {link.uses_count} {link.uses_count === 1 ? "join" : "joins"}
-              {pendingCount && pendingCount > 0 ? ` · ${pendingCount} pending` : ""}
-              {" · expires "}
-              {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
+              {link.uses_count > 0 && (
+                <>
+                  {link.uses_count} {link.uses_count === 1 ? "join" : "joins"}
+                  {pendingCount && pendingCount > 0 ? ` · ${pendingCount} pending` : ""}
+                  {" · "}
+                </>
+              )}
+              {link.uses_count === 0 && pendingCount && pendingCount > 0 ? `${pendingCount} pending · ` : ""}
+              expires {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
             </span>
             {isAdmin && (
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  className="underline hover:text-foreground transition-colors disabled:opacity-50"
+                  className="hover:text-foreground transition-colors disabled:opacity-50"
                   onClick={() => setConfirmRegenerate(true)}
                   disabled={createOrRotate.isPending}
                 >
-                  <RefreshCw className="h-3 w-3 inline mr-0.5" />
                   Regenerate
                 </button>
                 <span aria-hidden>·</span>
                 <button
                   type="button"
-                  className="underline hover:text-destructive transition-colors disabled:opacity-50"
+                  className="hover:text-destructive transition-colors disabled:opacity-50"
                   onClick={() => revoke.mutate(activeRole)}
                   disabled={revoke.isPending}
                 >
