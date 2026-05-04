@@ -384,12 +384,12 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      {/* Right-edge tap affordance — vertically centered, balances left-heavy meta rows */}
+      {/* Right-edge tap affordance — optically aligned to the title row, not floating mid-card */}
       <ChevronRight
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 pointer-events-none"
+        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none"
         aria-hidden="true"
       />
-      <CardContent className="p-3.5 pb-3 pr-8 space-y-2">
+      <CardContent className="p-3.5 pb-3 pr-8 space-y-1.5">
         {/* Status chips only — section header already conveys the date.
             "New" badge is suppressed for training events to reduce noise. */}
         {(() => {
@@ -437,16 +437,17 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           }
 
+          const isTrainingType = event.type === "training";
           return (
             <div className="space-y-1">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                <div className={`flex items-center gap-1.5 text-[14px] ${isTrainingType ? "font-medium text-foreground/80" : "font-semibold text-foreground"}`}>
+                  <TypeIcon className={`h-3.5 w-3.5 shrink-0 ${isTrainingType ? "opacity-60" : "opacity-80"}`} aria-hidden="true" />
                   <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                 </div>
                 {eventDisplay.secondary && (
-                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                  <p className={`mt-0.5 text-[12px] leading-snug truncate pl-5 ${isTrainingType ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                     {eventDisplay.secondary}
                   </p>
                 )}
@@ -455,11 +456,11 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           );
         })()}
 
-        {/* Compact date + time + location — location promoted to match time weight */}
+        {/* Compact date + time + location — location is the dominant meta line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-            <span className="font-medium text-foreground">{compactWhen}</span>
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+            <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
@@ -473,8 +474,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           })()}
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[13.5px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
               <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
