@@ -98,6 +98,7 @@ export function PhotoLightbox({
 }: PhotoLightboxProps) {
   const currentPhoto = photos[currentIndex];
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   
   const {
     scale,
