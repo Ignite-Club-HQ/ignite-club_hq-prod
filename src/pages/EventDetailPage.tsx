@@ -78,6 +78,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 import { MatchScoreCard } from "@/components/event/MatchScoreCard";
+import { EventNoteSection } from "@/components/event/EventNoteSection";
 
 
 // Lazy load PitchBoard for game events
@@ -2433,6 +2434,16 @@ export default function EventDetailPage() {
       {event.description && (
         <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
       )}
+
+      {/* Event Note (coach/admin pinned info, notifies attendees) */}
+      <EventNoteSection
+        eventId={id!}
+        note={(event as any).coach_note}
+        noteUpdatedAt={(event as any).coach_note_updated_at}
+        noteAuthor={(event as any).coach_note_author}
+        canEdit={!!(isAdmin || isAppAdmin)}
+      />
+
 
       {/* Notification Nudge for events */}
       {notificationNudge.shouldShowNudge && !myRsvp && (

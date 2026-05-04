@@ -2806,6 +2806,9 @@ export type Database = {
           amount: number | null
           arrival_minutes_before: number | null
           club_id: string
+          coach_note: string | null
+          coach_note_author: string | null
+          coach_note_updated_at: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -2847,6 +2850,9 @@ export type Database = {
           amount?: number | null
           arrival_minutes_before?: number | null
           club_id: string
+          coach_note?: string | null
+          coach_note_author?: string | null
+          coach_note_updated_at?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -2888,6 +2894,9 @@ export type Database = {
           amount?: number | null
           arrival_minutes_before?: number | null
           club_id?: string
+          coach_note?: string | null
+          coach_note_author?: string | null
+          coach_note_updated_at?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
