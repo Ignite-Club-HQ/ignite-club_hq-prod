@@ -95,6 +95,7 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   event_cancelled: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '❌' },
   event_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
   event_updated: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
+  event_note: { iconName: 'StickyNote', colorClass: 'text-orange-500', emoji: '📝' },
   rsvp_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '✅' },
   rsvp: { iconName: 'CheckCircle', colorClass: 'text-green-500', emoji: '✅' },
   early_rsvp_points: { iconName: 'Zap', colorClass: 'text-amber-500', emoji: '🎯' },
