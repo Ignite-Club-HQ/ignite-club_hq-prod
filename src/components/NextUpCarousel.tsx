@@ -313,7 +313,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
 
