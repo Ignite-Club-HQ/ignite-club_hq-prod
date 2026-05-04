@@ -233,6 +233,11 @@ export default function MediaPage() {
     setActiveCommentPhotoId(highlightedPhotoId);
   }, [highlightedPhotoId, searchParams]);
 
+  // Auto-open the fullscreen lightbox when deep-linking to a specific photo
+  // (e.g. tapping a "Latest Photos" thumbnail on a team page). Only fires
+  // once per highlighted photo to avoid re-opening if the user closes it.
+  const autoOpenedLightboxRef = useRef<string | null>(null);
+
   // Fast parallel queries - don't block on access check
   // ─── Diagnostic logging for hung-spinner debugging ───
   // Uses console.warn so messages survive the production console silencer.
@@ -651,6 +656,20 @@ export default function MediaPage() {
   }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
+
+  // Auto-open the fullscreen lightbox when arriving via ?photo=ID (e.g. from
+  // the Latest Photos thumbnails on a team page). Wait until the highlighted
+  // photo is present in the filtered list, then open it once.
+  useEffect(() => {
+    if (!highlightedPhotoId) return;
+    if (searchParams.get("comments") === "1") return; // comments flow takes priority
+    if (autoOpenedLightboxRef.current === highlightedPhotoId) return;
+    const idx = photos.findIndex(p => p.id === highlightedPhotoId);
+    if (idx >= 0) {
+      autoOpenedLightboxRef.current = highlightedPhotoId;
+      setLightboxIndex(idx);
+    }
+  }, [highlightedPhotoId, photos, searchParams]);
 
   const clearFilters = () => {
     setSelectedClubId("all");
