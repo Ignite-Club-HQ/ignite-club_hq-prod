@@ -595,29 +595,45 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         let recipientUserIds: string[] = [];
 
         if (isEventGroup) {
-          // Mini-league: only notify the Referee of this specific match
+          // Mini-league: notify Referee + Subs Manager of this specific match
           const groupId = teamId.replace("event-group-", "");
-          const { data: referees } = await supabase
+          const { data: matchDuties } = await supabase
             .from('event_group_duties')
             .select('assigned_to')
             .eq('group_id', groupId)
-            .eq('name', 'Referee')
+            .in('name', ['Referee', 'Subs Manager'])
             .not('assigned_to', 'is', null);
-          
-          recipientUserIds = (referees || [])
+
+          recipientUserIds = (matchDuties || [])
             .map((d: any) => d.assigned_to as string)
-            .filter(uid => uid !== user.id);
+            .filter(uid => uid && uid !== user.id);
         } else {
-          // Regular team: notify coaches/admins
+          // Regular team: notify coaches/admins + Subs Manager for the linked event
           const { data: teamAdmins } = await supabase
             .from('user_roles')
             .select('user_id')
             .eq('team_id', teamId)
             .in('role', ['team_admin', 'coach']);
-          
-          recipientUserIds = (teamAdmins || [])
-            .map((r: any) => r.user_id as string)
-            .filter(uid => uid !== user.id);
+
+          const ids = new Set<string>(
+            (teamAdmins || [])
+              .map((r: any) => r.user_id as string)
+              .filter(uid => uid && uid !== user.id)
+          );
+
+          if (eventId) {
+            const { data: subsManagers } = await supabase
+              .from('duties')
+              .select('assigned_to')
+              .eq('event_id', eventId)
+              .eq('name', 'Subs Manager')
+              .not('assigned_to', 'is', null);
+            (subsManagers || []).forEach((d: any) => {
+              if (d.assigned_to && d.assigned_to !== user.id) ids.add(d.assigned_to as string);
+            });
+          }
+
+          recipientUserIds = Array.from(ids);
         }
 
         if (recipientUserIds.length > 0) {
