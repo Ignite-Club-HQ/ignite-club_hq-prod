@@ -11,6 +11,8 @@ import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
+import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -152,30 +154,39 @@ export function NextUpHero({ event }: NextUpHeroProps) {
         onClick={() => navigate(`/events/${event.id}`)}
       >
         <CardContent className="p-5 space-y-4">
-          {/* Event title row */}
-          <div className="space-y-1.5">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className={`text-xl font-bold leading-tight ${event.is_cancelled ? "line-through" : ""}`}>
-                {event.title}
-                {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
-              </h3>
-              {event.is_cancelled && (
-                <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
-              )}
-            </div>
-            {event.teams?.name && (
-              <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                {event.teams.name}
-              </Badge>
+          {/* Header: contextual date label */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {dateLabel}
+            </span>
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
             )}
+          </div>
+
+          {/* Primary: Team chip — biggest scanning anchor */}
+          {/* Secondary: Event title */}
+          <div className="space-y-1.5">
+            <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+            {(() => {
+              const TypeIcon = getEventTypeIcon(event.type);
+              return (
+                <h3 className={`text-lg font-medium leading-snug text-foreground/90 flex items-center gap-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+                  <span className="min-w-0">
+                    {event.title}
+                    {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
+                  </span>
+                </h3>
+              );
+            })()}
           </div>
 
           {/* Date + Location */}
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
-              <span className="font-medium text-foreground">{dateLabel}</span>
-              <span>at {dateTime}</span>
+              <span className="font-medium text-foreground">{dateTime}</span>
             </div>
             {(event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">

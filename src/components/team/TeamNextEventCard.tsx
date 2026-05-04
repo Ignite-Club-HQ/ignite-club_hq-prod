@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, MapPin, Clock, ChevronRight } from "lucide-react";
+import { MapPin, Clock, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
+import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 
 interface TeamNextEventCardProps {
   teamId: string;
@@ -23,7 +24,7 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("events")
-        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled, arrival_minutes_before, teams (default_match_arrival_minutes)")
+        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled, arrival_minutes_before, teams (name, default_match_arrival_minutes)")
         .eq("team_id", teamId)
         .eq("is_cancelled", false)
         .gte("event_date", today)
@@ -45,7 +46,6 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
     return null;
   }
 
-  const typeLabel = getEventTypeLabel(nextEvent.type, { miniLeagueId: nextEvent.mini_league_id });
   const eventDate = parseISO(nextEvent.event_date);
   const locationDisplay = nextEvent.location_name || nextEvent.location;
 
@@ -71,16 +71,22 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
 
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-primary uppercase tracking-wide">
-                {typeLabel}
-              </span>
+              <TeamChip teamName={(nextEvent as any).teams?.name} fallbackLabel="" size="sm" />
             </div>
-            <p className="font-semibold text-sm truncate">
-              {nextEvent.title}
-              {shouldAppendOpponent(nextEvent) && (
-                <span className="text-muted-foreground font-normal"> vs {nextEvent.opponent}</span>
-              )}
-            </p>
+            {(() => {
+              const TypeIcon = getEventTypeIcon(nextEvent.type, { miniLeagueId: (nextEvent as any).mini_league_id });
+              return (
+                <p className="font-medium text-sm text-foreground/90 flex items-center gap-1.5 min-w-0">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+                  <span className="truncate">
+                    {nextEvent.title}
+                    {shouldAppendOpponent(nextEvent) && (
+                      <span className="text-muted-foreground font-normal"> vs {nextEvent.opponent}</span>
+                    )}
+                  </span>
+                </p>
+              );
+            })()}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
               {nextEvent.start_time && (
                 <span className="flex items-center gap-1">

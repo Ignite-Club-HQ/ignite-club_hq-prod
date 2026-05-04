@@ -12,9 +12,15 @@ import { useToast } from "@/hooks/use-toast";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
-import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
+import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
+import { getEventDisplay } from "@/lib/eventDisplay";
+import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { abbreviateLocation } from "@/lib/abbreviateLocation";
+import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -54,12 +60,6 @@ function formatContextualDate(dateStr: string) {
 function getUrgencyBadge(dateStr: string) {
   return getEventUrgencyBadge(dateStr);
 }
-
-const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/10 text-destructive border-destructive/20",
-  training: "bg-primary/10 text-primary border-primary/20",
-  social: "bg-warning/10 text-warning border-warning/20",
-};
 
 function useChildRsvps(eventId: string, userId: string | undefined) {
   return useQuery({
@@ -315,11 +315,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
-  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
-  const urgency = getUrgencyBadge(event.event_date);
+  const compactWhen = formatCompactDateTime(event.event_date);
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  const eventDisplay = getEventDisplay(event);
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -342,6 +342,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+  const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
@@ -439,9 +440,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30", inactiveHint: "border-primary/40 text-primary hover:bg-primary/5" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning text-warning-foreground shadow-md ring-2 ring-warning/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive text-destructive-foreground shadow-md ring-2 ring-destructive/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90", inactiveHint: "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning/15 text-warning border-warning/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive/15 text-destructive border-destructive/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
   ];
 
   return (
@@ -454,45 +455,68 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
-        {/* Urgency badge + type */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {urgency && (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${urgency.className}`}>
-                {urgency.text}
-              </Badge>
-            )}
-            <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
-              {typeLabel}
-            </Badge>
+        {/* Cancelled marker only — date is now inline with the time row */}
+        {event.is_cancelled && (
+          <div className="flex items-center justify-end">
+            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
           </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-        </div>
+        )}
 
-        {/* Title */}
-        <div>
-          <h3 className={`text-base font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {displayTitle}
-          </h3>
-          {subtitle && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
-          )}
-          {event.is_cancelled && (
-            <Badge variant="destructive" className="mt-1 text-[10px]">Cancelled</Badge>
-          )}
-        </div>
+        {/* Hierarchy differs for social/club events: title is primary, type is secondary.
+            Structured events (training/game) keep team-as-anchor. */}
+        {(() => {
+          const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+          const isSocial = event.type === "social";
+          const hasTeam = !!event.teams?.name;
 
-        {/* Date + Location */}
+          if (isSocial) {
+            return (
+              <div className="space-y-1 min-w-0">
+                <h3 className={`text-[17px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                  {hasTeam && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span className="truncate">{event.teams!.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-1">
+              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[16px] font-semibold text-foreground">
+                  <TypeIcon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
+                </div>
+                {eventDisplay.secondary && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                    {eventDisplay.secondary}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Compact date + time on one line, location subtle */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateLabel}</span>
-            <span className="text-muted-foreground">• {dateTime}</span>
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-2 text-[13px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
@@ -500,8 +524,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[13px] text-warning">
-                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
@@ -602,17 +626,33 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               </details>
             )}
 
-            {/* Helper text when no RSVP selected — reserved line so the card
-                height stays stable whether or not the user has already RSVPed.
-                Hidden until the RSVP query has settled to avoid a flash. */}
-            <p
-              className={`text-[10px] text-muted-foreground/60 text-center ${
-                heroDataReady && !currentStatus ? "" : "invisible"
-              }`}
-              aria-hidden={!(heroDataReady && !currentStatus)}
-            >
-              Tap to update your attendance
-            </p>
+            {/* Personal-first RSVP summary — "Teddy going + N others" */}
+            {(() => {
+              if (!heroDataReady) {
+                return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
+              }
+              const goingChildNames = (childRsvps || [])
+                .filter((r) => r.status === "going")
+                .map((r) => r.children?.name?.split(" ")[0] || "Child");
+              const summary = buildPersonalRsvpLine({
+                parentStatus: currentStatus,
+                goingChildNames,
+                totalGoing: rsvpSummary?.totalCount || 0,
+              });
+              if (!summary) {
+                return (
+                  <p className="text-[11px] text-muted-foreground/60 text-center">
+                    Be the first to RSVP
+                  </p>
+                );
+              }
+              const personal = goingChildNames.length > 0 || currentStatus === "going";
+              return (
+                <p className={`text-[11px] text-center ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
+                  {summary}
+                </p>
+              );
+            })()}
 
           </div>
         )}
@@ -625,11 +665,12 @@ function CompactCard({ event }: { event: EventItem }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
-  const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
-  const urgency = getUrgencyBadge(event.event_date);
+  const compactWhen = formatCompactDateTime(event.event_date);
+
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  const eventDisplay = getEventDisplay(event);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -675,42 +716,67 @@ function CompactCard({ event }: { event: EventItem }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
-        {/* Urgency + type badge row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {urgency && (
-              <Badge variant="outline" className={`text-[9px] h-[18px] px-1.5 font-semibold border ${urgency.className}`}>
-                {urgency.text}
-              </Badge>
-            )}
-            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-semibold border ${typeBadgeStyles[event.type] || ""}`}>
-              {typeLabel}
-            </Badge>
+        {/* Cancelled marker only */}
+        {event.is_cancelled && (
+          <div className="flex items-center justify-end">
+            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
           </div>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
-        </div>
+        )}
 
-        {/* Title */}
-        <div>
-          <h3 className={`font-bold text-[14px] leading-snug truncate ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {displayTitle}
-          </h3>
-          {subtitle && (
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-          )}
-        </div>
+        {/* Social/club events lead with the event name; structured events lead with team. */}
+        {(() => {
+          const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+          const isSocial = event.type === "social";
+          const hasTeam = !!event.teams?.name;
 
-        {/* Metadata */}
-        <div className="space-y-1">
+          if (isSocial) {
+            return (
+              <div className="space-y-0.5 min-w-0">
+                <h3 className={`text-[14px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground min-w-0">
+                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                  {hasTeam && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span className="truncate">{event.teams!.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-1 min-w-0">
+              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1 text-[13px] font-semibold text-foreground min-w-0">
+                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{eventDisplay.primary}</span>
+                </div>
+                {eventDisplay.secondary && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug truncate pl-4">
+                    {eventDisplay.secondary}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Compact date + time on one line */}
+        <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateLabel}</span>
-            <span className="text-muted-foreground">• {dateTime}</span>
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-1.5 text-[12px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {

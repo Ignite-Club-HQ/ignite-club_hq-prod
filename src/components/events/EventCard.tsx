@@ -29,10 +29,14 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { formatEventContextualDate } from "@/lib/eventRelativeDate";
+import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
-import { detectTeamColor } from "@/lib/teamColor";
+import { getEventDisplay } from "@/lib/eventDisplay";
+import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { abbreviateLocation } from "@/lib/abbreviateLocation";
+import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -62,12 +66,6 @@ interface EventCardProps {
   isAdmin: boolean;
   hasViewed?: boolean;
 }
-
-const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/10 text-destructive border-destructive/20",
-  training: "bg-primary/10 text-primary border-primary/20",
-  social: "bg-warning/10 text-warning border-warning/20",
-};
 
 function formatContextualDate(dateStr: string) {
   const { label, time } = formatEventContextualDate(dateStr);
@@ -111,11 +109,13 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   const isRecurring = event.is_recurring || event.parent_event_id;
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(",")[0];
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(",")[0]);
   const displayTitle = formatEventTitle(event);
+  const eventDisplay = getEventDisplay(event);
+  const compactWhen = formatCompactDateTime(event.event_date);
 
-  // Subtitle: team name for team events, "Club event" for club-wide
-  const subtitle = event.teams?.name || (event.team_id ? null : "Club event");
+
+
 
   const { data: hasPro } = useQuery({
     queryKey: ["event-pro-status", event.team_id, event.club_id],
@@ -384,216 +384,126 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-4 pb-3 space-y-2.5">
-        {/* Row 0: Team / scope chip — colored by detected team colour for fast visual differentiation */}
-        {subtitle && (() => {
-          const teamColor = event.teams?.name ? detectTeamColor(event.teams.name) : null;
-          // Detect very light colours (e.g. White) where coloured text would be unreadable
-          // on a white card. Fall back to foreground text but keep the colour dot.
-          const isLightColor = (hex: string) => {
-            const h = hex.replace("#", "");
-            const r = parseInt(h.substring(0, 2), 16);
-            const g = parseInt(h.substring(2, 4), 16);
-            const b = parseInt(h.substring(4, 6), 16);
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            return luminance > 0.85;
-          };
-          const lightColor = teamColor ? isLightColor(teamColor.hex) : false;
-          const chipStyle = teamColor
-            ? {
-                backgroundColor: lightColor ? undefined : `${teamColor.hex}26`, // ~15% alpha
-                color: lightColor ? undefined : teamColor.hex,
-                borderColor: lightColor ? undefined : `${teamColor.hex}66`, // ~40% alpha
-              }
-            : undefined;
-          return (
-            <div className="flex items-center gap-1.5">
-              <Badge
-                variant="secondary"
-                style={chipStyle}
-                className={
-                  teamColor
-                    ? lightColor
-                      ? "text-[11px] h-5 px-2 font-semibold bg-muted text-foreground border border-border max-w-full truncate inline-flex items-center gap-1.5"
-                      : "text-[11px] h-5 px-2 font-semibold border max-w-full truncate inline-flex items-center gap-1.5"
-                    : "text-[11px] h-5 px-2 font-semibold bg-primary/10 text-primary border border-primary/20 max-w-full truncate"
-                }
-              >
-                {teamColor && (
-                  <span
-                    className="inline-block h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: teamColor.hex, boxShadow: `0 0 0 1px ${teamColor.hex}99` }}
-                  />
-                )}
-                {subtitle}
-              </Badge>
-            </div>
-          );
-        })()}
-
-        {/* Row 1: Title + Type badge */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className={`font-bold text-base leading-snug tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-              {displayTitle}
-            </h3>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+      <CardContent className="p-3.5 pb-3 space-y-2">
+        {/* Status chips only — section header already conveys the date */}
+        {(hasPro && isAdmin && !hasViewed && !event.is_cancelled) || event.is_cancelled ? (
+          <div className="flex items-center justify-end gap-1.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
                 New
               </Badge>
             )}
-            {event.is_cancelled ? (
+            {event.is_cancelled && (
               <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
-            ) : (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
-                {typeLabel}
-              </Badge>
             )}
           </div>
-        </div>
+        ) : null}
 
-        {/* Row 2: Date/time + Location */}
-        <div className="space-y-1">
+        {/* Social/club events lead with the event name; structured events lead with team. */}
+        {(() => {
+          const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: event.mini_league_id });
+          const isSocial = event.type === "social";
+          const hasTeam = !!event.teams?.name;
+
+          if (isSocial) {
+            return (
+              <div className="space-y-0.5 min-w-0">
+                <h3 className={`text-[15px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground min-w-0">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                  {hasTeam && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span className="truncate">{event.teams!.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-1">
+              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
+                </div>
+                {eventDisplay.secondary && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                    {eventDisplay.secondary}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Compact date + time on one line — restores date context without a separate chip */}
+        <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[13px] text-warning">
-                <Clock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
                 <span>Arrive by {arrivalTime} ({mins} min before)</span>
               </div>
             );
           })()}
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-2 text-[13px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
 
-        {/* Row 3: RSVP Section - Personal + Global */}
+        {/* RSVP summary only — Schedule = browse, no action buttons */}
         {!event.is_cancelled && (() => {
-          const { goingNames, maybeNames, notGoingNames } = buildFamilyRsvpSummary(
-            currentRsvpStatus, undefined, childRsvps
-          );
-          const hasPersonalRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
-          const totalGoing = attendanceCounts?.going || 0;
-          const totalMaybe = attendanceCounts?.maybe || 0;
+          const goingChildNames = (childRsvps || [])
+            .filter((r) => r.status === "going")
+            .map((r) => r.children?.name?.split(" ")[0] || "Child");
+          const summary = buildPersonalRsvpLine({
+            parentStatus: currentRsvpStatus,
+            goingChildNames,
+            totalGoing: attendanceCounts?.going || 0,
+          });
 
-          if (!hasPersonalRsvp) {
+          if (!summary) {
             return (
-              <div className="pt-2 border-t border-border/40 space-y-1.5">
-                {/* Global attendance even without personal RSVP */}
-                {totalGoing > 0 && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Users className="h-3 w-3 shrink-0" />
-                    <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-muted-foreground/70 font-medium">Tap to RSVP</span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
-                </div>
+              <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
             );
           }
 
-          // Check if the parent (You) has actually RSVP'd
-          const parentHasRsvpd = currentRsvpStatus !== null;
-          const hasChildRsvps = childRsvps && childRsvps.length > 0;
-
-          // Build child status groups (exclude "You")
-          const childGoing = goingNames.filter(n => n !== "You");
-          const childMaybe = maybeNames.filter(n => n !== "You");
-          const childNotGoing = notGoingNames.filter(n => n !== "You");
-
-          // Build child display parts
-          const childParts: string[] = [];
-          if (childGoing.length > 0) {
-            const names = childGoing.length <= 3 ? childGoing.join(", ") : `${childGoing.slice(0, 2).join(", ")} +${childGoing.length - 2}`;
-            childParts.push(`${names} going`);
-          }
-          if (childMaybe.length > 0) {
-            const names = childMaybe.length <= 3 ? childMaybe.join(", ") : `${childMaybe.slice(0, 2).join(", ")} +${childMaybe.length - 2}`;
-            childParts.push(`${names} maybe`);
-          }
-          if (childNotGoing.length > 0) {
-            const names = childNotGoing.length <= 3 ? childNotGoing.join(", ") : `${childNotGoing.slice(0, 2).join(", ")} +${childNotGoing.length - 2}`;
-            childParts.push(`${names} not going`);
-          }
-
-          // Determine the icon and color based on the best status across the household
-          const bestIcon = goingNames.length > 0
-            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-            : maybeNames.length > 0
-            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
-            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
-
-          // Build the display text
-          let statusText: React.ReactNode;
-          if (parentHasRsvpd) {
-            // Parent has responded - show "You: Going/Maybe/Not going"
-            const primaryStatus = currentRsvpStatus === "going"
-              ? "Going"
-              : currentRsvpStatus === "maybe"
-              ? "Maybe"
-              : "Not going";
-            const personalStatusColor = currentRsvpStatus === "going"
-              ? "text-primary"
-              : currentRsvpStatus === "maybe"
-              ? "text-warning"
-              : "text-destructive";
-            statusText = (
-              <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
-                You: {primaryStatus}
-                {childParts.length > 0 && (
-                  <span className="font-normal text-foreground/70">
-                    {" · "}{childParts.join(" · ")}
-                  </span>
-                )}
-              </span>
-            );
-          } else {
-            // Parent hasn't responded - only show child statuses
-            const childStatusColor = childGoing.length > 0
-              ? "text-primary"
-              : childMaybe.length > 0
-              ? "text-warning"
-              : "text-destructive";
-            statusText = (
-              <span className={`text-[12px] font-semibold ${childStatusColor} truncate`}>
-                {childParts.join(" · ")}
-              </span>
-            );
-          }
+          const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="pt-2 border-t border-border/40 space-y-1">
-              {/* Line 1: Personal / household RSVP */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {bestIcon}
-                  {statusText}
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {personal ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                ) : (
+                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                )}
+                <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                  {summary}
+                </span>
               </div>
-
-              {/* Line 2: Global attendance */}
-              {totalGoing > 0 && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3 shrink-0" />
-                  <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
-                </div>
-              )}
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
             </div>
           );
         })()}
