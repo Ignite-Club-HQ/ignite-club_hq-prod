@@ -8,6 +8,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { shouldAppendOpponent } from "@/lib/eventTitle";
+import { TeamChip } from "@/components/events/TeamChip";
 
 interface TeamNextEventCardProps {
   teamId: string;
