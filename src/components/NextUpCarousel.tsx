@@ -568,10 +568,6 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           })()}
         </div>
 
-        {/* Subtle divider above RSVP for game cards */}
-        {(event.type === "game" || event.type === "mini_league" || !!(event as any).mini_league_id || !!event.opponent) && !event.is_cancelled && (
-          <div className="border-t border-border/40 -mx-3" />
-        )}
 
         {/* RSVP Buttons */}
         <div className="mt-auto" />
