@@ -56,6 +56,15 @@ function venueLabel(e: ClubDayEvent): string {
 }
 
 /**
+ * Strip pitch/field suffixes like " - P2 MINI 4V4", " — Pitch 3", " - Field 1"
+ * so multiple pitches at the same venue group together.
+ */
+function venueGroupKey(e: ClubDayEvent): string {
+  const raw = venueLabel(e);
+  return raw.split(/\s+[-–—]\s+/)[0].trim();
+}
+
+/**
  * Day summary for a single date. Defaults to showing only events for teams
  * the user belongs to ("My teams"); a toggle switches to a club-wide view
  * (all teams) where events are grouped by venue/location.
