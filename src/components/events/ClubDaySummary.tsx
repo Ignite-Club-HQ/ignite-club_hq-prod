@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { MapPin, Clock, Trophy, Dumbbell, Users, Building2 } from "lucide-react";
+import { MapPin, Clock, Dumbbell, Users, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -207,69 +207,27 @@ export function ClubDaySummary({
           ))}
         </div>
       ) : (
-        <>
-          {myDayEvents && myDayEvents.length > 0 ? (
-            <div className="space-y-3">
-              {myDayEvents
-                .filter((e) => visible.some((v) => v.id === e.id))
-                .map((e) => (
-                  <EventCard
-                    key={e.id}
-                    event={e}
-                    isAdmin={isAdminForEvent ? isAdminForEvent(e) : false}
-                    hasViewed={viewedEventIds ? viewedEventIds.has(e.id) : true}
-                  />
-                ))}
-            </div>
-          ) : (
-            <>
-              {games.length > 0 && (
-                <SummarySection
-                  title="Games"
-                  icon={<Trophy className="h-4 w-4" />}
-                  accent="text-destructive"
-                  events={games}
+        <div className="space-y-3">
+          {visible.map((v) => {
+            // Prefer rich EventCard when we have the full event in myDayEvents.
+            // Otherwise (e.g. when a team filter trimmed myDayEvents but the user
+            // is still on "My teams" scope) fall back to the lightweight row so
+            // every team the user belongs to is represented.
+            const rich = myDayEvents?.find((e) => e.id === v.id);
+            if (rich) {
+              return (
+                <EventCard
+                  key={v.id}
+                  event={rich}
+                  isAdmin={isAdminForEvent ? isAdminForEvent(rich) : false}
+                  hasViewed={viewedEventIds ? viewedEventIds.has(v.id) : true}
                 />
-              )}
-              {trainings.length > 0 && (
-                <SummarySection
-                  title="Training"
-                  icon={<Dumbbell className="h-4 w-4" />}
-                  accent="text-primary"
-                  events={trainings}
-                />
-              )}
-            </>
-          )}
-        </>
+              );
+            }
+            return <DayEventRow key={v.id} event={v} />;
+          })}
+        </div>
       )}
-    </div>
-  );
-}
-
-function SummarySection({
-  title,
-  icon,
-  accent,
-  events,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  accent: string;
-  events: ClubDayEvent[];
-}) {
-  return (
-    <div className="space-y-2">
-      <div className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", accent)}>
-        {icon}
-        <span>{title}</span>
-        <span className="text-muted-foreground">({events.length})</span>
-      </div>
-      <div className="space-y-2">
-        {events.map((e) => (
-          <DayEventRow key={e.id} event={e} />
-        ))}
-      </div>
     </div>
   );
 }
