@@ -892,6 +892,53 @@ export default function EventDetailPage() {
   // Create set of paid user IDs for quick lookup
   const paidUserIds = new Set(payments?.map(p => p.user_id) || []);
 
+  // Match awards: captain, POTM, goalkeepers — used to show inline icons next to attendees
+  const isGameEvent = event?.type === "game" && !!event?.team_id;
+  const { data: matchCaptainRow } = useQuery({
+    queryKey: ["match-captain", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("match_captains")
+        .select("user_id, child_id")
+        .eq("event_id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: potmRow } = useQuery({
+    queryKey: ["player-of-match", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("player_of_match")
+        .select("user_id, child_id")
+        .eq("event_id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: goalkeeperRows = [] } = useQuery({
+    queryKey: ["match-goalkeepers", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("match_goalkeepers" as any)
+        .select("user_id, child_id")
+        .eq("event_id", id!);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+  const captainUserId = matchCaptainRow?.user_id || null;
+  const captainChildId = matchCaptainRow?.child_id || null;
+  const potmUserId = potmRow?.user_id || null;
+  const potmChildId = potmRow?.child_id || null;
+  const gkUserIds = new Set((goalkeeperRows as any[]).map((g) => g.user_id).filter(Boolean));
+  const gkChildIds = new Set((goalkeeperRows as any[]).map((g) => g.child_id).filter(Boolean));
+
   // Check if event has a price (social events only)
   const eventPrice = event?.type === "social" ? event?.amount : null;
   const showPaymentStatus = eventPrice && eventPrice > 0;
