@@ -29,16 +29,18 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
   const [open, setOpen] = useState(false);
 
   const { data: keepers = [], isLoading } = useQuery({
-    queryKey: ["match-goalkeepers", eventId],
+    queryKey: ["match-goalkeepers", eventId, (rsvps || []).length],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("match_goalkeepers" as any)
-        .select(`*, children:child_id (id, name)`)
+        .select(`*`)
         .eq("event_id", eventId);
       if (error) throw error;
       const rows: any[] = data || [];
       const userIds = rows.map((r) => r.user_id).filter(Boolean);
-      let profileMap = new Map<string, any>();
+      const childIds = rows.map((r) => r.child_id).filter(Boolean);
+      const profileMap = new Map<string, any>();
+      const childMap = new Map<string, any>();
       if (userIds.length) {
         const { data: profs } = await supabase
           .from("profiles")
@@ -46,7 +48,24 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
           .in("id", userIds);
         (profs || []).forEach((p: any) => profileMap.set(p.id, p));
       }
-      return rows.map((r) => ({ ...r, profiles: r.user_id ? profileMap.get(r.user_id) : null }));
+      if (childIds.length) {
+        const { data: kids } = await supabase
+          .from("children")
+          .select("id, name")
+          .in("id", childIds);
+        (kids || []).forEach((c: any) => childMap.set(c.id, c));
+      }
+      // Fallback to rsvp-embedded child names if RLS blocks direct children read
+      (rsvps || []).forEach((r: any) => {
+        if (r.child_id && r.children && !childMap.has(r.child_id)) {
+          childMap.set(r.child_id, r.children);
+        }
+      });
+      return rows.map((r) => ({
+        ...r,
+        profiles: r.user_id ? profileMap.get(r.user_id) : null,
+        children: r.child_id ? childMap.get(r.child_id) : null,
+      }));
     },
   });
 
