@@ -710,38 +710,32 @@ function CompactCard({ event }: { event: EventItem }) {
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
 
-        {/* Title */}
-        <div>
+        {/* Primary: Team · Secondary: Session title */}
+        <div className="space-y-1 min-w-0">
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`font-bold text-[14px] leading-snug flex items-center gap-1.5 min-w-0 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+              <h3 className={`text-[12px] font-normal leading-snug text-muted-foreground flex items-center gap-1 min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <TypeIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
                 <span className="truncate">{displayTitle}</span>
               </h3>
             );
           })()}
-          {subtitle && (
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-          )}
         </div>
 
-        {/* Metadata */}
-        <div className="space-y-1">
+        {/* Metadata: time strong, no urgency repeat */}
+        <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            {urgency ? (
-              <span className="font-medium text-foreground">{dateTime}</span>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">{dateLabel}</span>
-                <span className="text-muted-foreground">• {dateTime}</span>
-              </>
+            <span className="font-medium text-foreground">{dateTime}</span>
+            {!urgency && (
+              <span className="text-muted-foreground">· {dateLabel}</span>
             )}
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
