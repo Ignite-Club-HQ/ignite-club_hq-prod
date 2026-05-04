@@ -55,18 +55,18 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
   if (isMiniLeague) {
     // Mini-league: only notify the Referee of this specific match
     const groupId = teamId!.replace('event-group-', '');
-    const { data: referees } = await supabase
+    const { data: matchDutyAssignees } = await supabase
       .from('event_group_duties')
       .select('assigned_to')
       .eq('group_id', groupId)
-      .eq('name', 'Referee')
+      .in('name', ['Referee', 'Subs Manager'])
       .not('assigned_to', 'is', null);
 
-    referees?.forEach((d: any) => {
+    matchDutyAssignees?.forEach((d: any) => {
       if (d.assigned_to) userIds.add(d.assigned_to);
     });
 
-    console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} referee(s) found`);
+    console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} duty assignee(s) found`);
   } else {
     if (teamId) {
       const { data, error } = await supabase
