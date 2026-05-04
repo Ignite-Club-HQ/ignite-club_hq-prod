@@ -3,7 +3,7 @@ import { useSignedPhotoUrl, resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import { isVideoUrl } from "@/lib/videoUtils";
 
 interface LazyImageProps {
-  src: string;
+  src?: string | null;
   alt: string;
   className?: string;
   priority?: boolean;
@@ -21,37 +21,38 @@ function getLqipUrl(src: string): string {
 }
 
 export function LazyImage({ src, alt, className = "", priority = false }: LazyImageProps) {
+  const safeSrc = src || "";
   const [isLoaded, setIsLoaded] = useState(false);
   const [lqipLoaded, setLqipLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
   const [retrySrc, setRetrySrc] = useState<string | null>(null);
   const [retryAttempts, setRetryAttempts] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
-  const prevSrcRef = useRef(src);
+  const prevSrcRef = useRef(safeSrc);
 
   // Only request a signed URL once the image is actually in view (or marked priority).
   // This prevents dozens of parallel createSignedUrl calls when scrolling a long
   // gallery feed — that bottleneck was causing many of them to time out and fall
   // back to public URLs that 400 because the photos bucket is private.
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(
-    isInView || priority ? src : null,
+    safeSrc && (isInView || priority) ? safeSrc : null,
   );
 
-  const baseSrc = signedUrl || src;
+  const baseSrc = signedUrl || safeSrc;
   const effectiveSrc = retrySrc || baseSrc;
   const lqipUrl = getLqipUrl(effectiveSrc);
   const hasLqip = lqipUrl !== effectiveSrc && !effectiveSrc.includes('token=');
 
   // Reset loading state when src changes
   useEffect(() => {
-    if (prevSrcRef.current !== src) {
+    if (prevSrcRef.current !== safeSrc) {
       setIsLoaded(false);
       setLqipLoaded(false);
       setRetrySrc(null);
       setRetryAttempts(0);
-      prevSrcRef.current = src;
+      prevSrcRef.current = safeSrc;
     }
-  }, [src]);
+  }, [safeSrc]);
 
   useEffect(() => {
     if (priority) {
@@ -81,18 +82,18 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
     }
 
     return () => observer.disconnect();
-  }, [priority, src]);
+  }, [priority, safeSrc]);
 
-  const showAsVideo = isVideoUrl(src);
+  const showAsVideo = isVideoUrl(safeSrc);
 
   // On load failure, force a fresh signed URL once. Old photos in the feed
   // sometimes render with a stale fallback URL when the initial signed-URL
   // request timed out under load.
   const handleError = async () => {
-    if (retryAttempts >= 1 || !src) return;
+    if (retryAttempts >= 1 || !safeSrc) return;
     setRetryAttempts((n) => n + 1);
     try {
-      const fresh = await resolveSignedUrl(src);
+      const fresh = await resolveSignedUrl(safeSrc);
       // Cache-bust to force a new request even if URL is identical.
       const bust = `${fresh}${fresh.includes("?") ? "&" : "?"}r=${Date.now()}`;
       setRetrySrc(bust);
