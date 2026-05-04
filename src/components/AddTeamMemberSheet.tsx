@@ -1687,6 +1687,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setMode("single");
     setWizardStep(1);
     setNameConfirmed(false);
+    setInviteByNameExpanded(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
