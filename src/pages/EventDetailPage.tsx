@@ -118,6 +118,9 @@ const AttendeeCard = ({
   onChangeStatus,
   currentStatus,
   memberRole,
+  isCaptain,
+  isPotm,
+  isGoalkeeper,
 }: {
   rsvp: any; 
   hasPaid?: boolean;
@@ -129,6 +132,9 @@ const AttendeeCard = ({
   onChangeStatus?: (status: RsvpStatus) => void;
   currentStatus?: RsvpStatus;
   memberRole?: string;
+  isCaptain?: boolean;
+  isPotm?: boolean;
+  isGoalkeeper?: boolean;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
@@ -138,6 +144,26 @@ const AttendeeCard = ({
       ? rsvp.children?.name 
       : rsvp.profiles?.display_name;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
+
+  const matchIcons = (isCaptain || isPotm || isGoalkeeper) ? (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      {isCaptain && (
+        <span title="Captain" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+          <Shield className="h-3 w-3" />
+        </span>
+      )}
+      {isGoalkeeper && (
+        <span title="Goalkeeper" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+          <Hand className="h-3 w-3" />
+        </span>
+      )}
+      {isPotm && (
+        <span title="Player of the Match" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+          <Trophy className="h-3 w-3" />
+        </span>
+      )}
+    </span>
+  ) : null;
 
   return (
     <AttendanceRow
@@ -155,6 +181,7 @@ const AttendeeCard = ({
       secondaryLine={rsvp.notes || null}
       rightSlot={
         <>
+          {matchIcons}
           {showPrice && hasPaid && (
             <Badge variant="default" className="text-[10px] h-5 px-1.5 bg-primary shrink-0">
               <Check className="h-3 w-3 mr-0.5" />
