@@ -186,8 +186,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
-              <span className="font-medium text-foreground">{dateLabel}</span>
-              <span>at {dateTime}</span>
+              <span className="font-medium text-foreground">{dateTime}</span>
             </div>
             {(event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">

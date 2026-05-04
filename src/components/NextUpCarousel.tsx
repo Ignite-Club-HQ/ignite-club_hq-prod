@@ -485,8 +485,14 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateLabel}</span>
-            <span className="text-muted-foreground">• {dateTime}</span>
+            {urgency ? (
+              <span className="font-medium text-foreground">{dateTime}</span>
+            ) : (
+              <>
+                <span className="font-medium text-foreground">{dateLabel}</span>
+                <span className="text-muted-foreground">• {dateTime}</span>
+              </>
+            )}
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -709,8 +715,14 @@ function CompactCard({ event }: { event: EventItem }) {
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateLabel}</span>
-            <span className="text-muted-foreground">• {dateTime}</span>
+            {urgency ? (
+              <span className="font-medium text-foreground">{dateTime}</span>
+            ) : (
+              <>
+                <span className="font-medium text-foreground">{dateLabel}</span>
+                <span className="text-muted-foreground">• {dateTime}</span>
+              </>
+            )}
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
