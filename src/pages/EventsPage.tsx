@@ -177,20 +177,11 @@ export default function EventsPage() {
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id!);
       const clubRoleClubIds = roles.filter(r => r.club_id && !r.team_id).map(r => r.club_id!);
       
-      let query = supabase.from("teams").select("id, name, club_id").order("name");
-      
+      // Only show teams the user has direct access to (via user_roles.team_id)
+      if (teamIds.length === 0) return [];
+      let query = supabase.from("teams").select("id, name, club_id").in("id", teamIds).order("name");
       if (clubFilter) {
-        // If club is selected, show all teams in that club if user is club admin, else only their teams
-        const isClubAdmin = clubRoleClubIds.includes(clubFilter);
-        if (isClubAdmin) {
-          query = query.eq("club_id", clubFilter);
-        } else {
-          query = query.eq("club_id", clubFilter).in("id", teamIds);
-        }
-      } else {
-        // No club filter - show all user's teams
-        if (teamIds.length === 0) return [];
-        query = query.in("id", teamIds);
+        query = query.eq("club_id", clubFilter);
       }
       
       const { data: teams } = await query;
