@@ -290,7 +290,12 @@ export function PhotoLightbox({
             </div>
 
             {/* Right side - Primary Share + overflow menu */}
-            <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-2 touch-auto"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <Button
                 variant="ghost"
                 size="icon"
@@ -301,7 +306,7 @@ export function PhotoLightbox({
               >
                 <Share2 className="h-5 w-5" />
               </Button>
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -312,7 +317,7 @@ export function PhotoLightbox({
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+                <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
                   <DropdownMenuItem onSelect={handleDownload}>
                     <Download className="h-4 w-4 mr-2" />
                     Download
