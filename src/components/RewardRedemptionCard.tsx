@@ -415,20 +415,17 @@ export default function RewardRedemptionCard() {
 
       // Send email notification
       try {
-        await supabase.functions.invoke('send-reward-redeemed-email', {
-          body: {
-            recipientUserId: user!.id,
-            rewardName: reward.name,
-            pointsSpent: reward.points_required,
-            remainingPoints: Math.max(0, pointsSource.points - reward.points_required),
-            clubName: club?.name || 'Your Club',
-            rewardDescription: reward.description,
-            sponsorName,
-            showQrCode: reward.show_qr_code,
-            clubLogoUrl: club?.logo_url,
-            rewardLogoUrl: reward.logo_url,
-            redeemedForChildName: childName || undefined,
-          },
+        await supabase.rpc('send_reward_redeemed_email_rpc', {
+          _reward_name: reward.name,
+          _points_spent: reward.points_required,
+          _remaining_points: Math.max(0, pointsSource.points - reward.points_required),
+          _club_name: club?.name || 'Your Club',
+          _reward_description: reward.description ?? null,
+          _sponsor_name: sponsorName ?? null,
+          _show_qr_code: !!reward.show_qr_code,
+          _club_logo_url: club?.logo_url ?? null,
+          _reward_logo_url: reward.logo_url ?? null,
+          _redeemed_for_child_name: childName || null,
         });
       } catch (emailErr) {
         console.error("Failed to send reward redeemed email:", emailErr);
