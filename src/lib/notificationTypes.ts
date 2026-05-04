@@ -20,6 +20,7 @@ export const EVENT_NOTIFICATION_TYPES = [
   'event_cancelled',
   'event_reminder',
   'event_updated',
+  'event_note',
   'rsvp_reminder',
   'duty_assigned'
 ] as const;
