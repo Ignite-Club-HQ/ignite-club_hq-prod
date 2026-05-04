@@ -215,13 +215,29 @@ export function PhotoLightbox({
       console.warn("Web share failed:", err);
     }
 
-    // Clipboard fallback
+    // Clipboard fallback (modern API + legacy execCommand)
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard");
+        return;
+      }
+    } catch (err) {
+      console.warn("Clipboard write failed:", err);
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
       toast.success("Link copied to clipboard");
       return;
     } catch (err) {
-      console.warn("Clipboard write failed:", err);
+      console.warn("execCommand copy failed:", err);
     }
 
     // Last resort
