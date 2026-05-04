@@ -15,6 +15,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
+import { TeamChip } from "@/components/events/TeamChip";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
