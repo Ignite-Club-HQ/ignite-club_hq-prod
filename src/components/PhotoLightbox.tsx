@@ -29,6 +29,8 @@ import { downloadImage } from "@/lib/downloadImage";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error ?? "");
+
 interface PhotoLightboxProps {
   isOpen: boolean;
   onClose: () => void;
@@ -131,8 +133,6 @@ export function PhotoLightbox({
     resetZoom();
   }, [currentIndex, resetZoom]);
 
-  if (!currentPhoto) return null;
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") handlePrev();
     if (e.key === "ArrowRight") handleNext();
@@ -169,8 +169,10 @@ export function PhotoLightbox({
     }
   };
 
-  const photoSrc = currentPhoto.file_url || currentPhoto.image_url || '';
+  const photoSrc = currentPhoto?.file_url || currentPhoto?.image_url || '';
   const { signedUrl: downloadSignedUrl } = useSignedPhotoUrl(photoSrc);
+
+  if (!currentPhoto) return null;
 
   const handleDownload = async () => {
     const url = downloadSignedUrl || photoSrc;
@@ -199,19 +201,22 @@ export function PhotoLightbox({
         await Share.share({ title, text: title, url, dialogTitle: "Share photo" });
         return;
       }
-    } catch (err: any) {
-      if (err?.message && /cancel|abort/i.test(err.message)) return;
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      if (/cancel|abort/i.test(message)) return;
       console.warn("Native share failed:", err);
     }
 
     // Web Share API
     try {
-      if (typeof navigator !== "undefined" && typeof (navigator as any).share === "function") {
-        await (navigator as any).share({ title, text: title, url });
+      const webNavigator = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
+      if (typeof navigator !== "undefined" && typeof webNavigator.share === "function") {
+        await webNavigator.share({ title, text: title, url });
         return;
       }
-    } catch (err: any) {
-      if (err?.name === "AbortError" || /cancel|abort/i.test(err?.message || "")) return;
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      if ((err instanceof DOMException && err.name === "AbortError") || /cancel|abort/i.test(message)) return;
       console.warn("Web share failed:", err);
     }
 
@@ -290,7 +295,12 @@ export function PhotoLightbox({
             </div>
 
             {/* Right side - Primary Share + overflow menu */}
-            <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-2 touch-auto"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               <Button
                 variant="ghost"
                 size="icon"
@@ -301,7 +311,7 @@ export function PhotoLightbox({
               >
                 <Share2 className="h-5 w-5" />
               </Button>
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -312,7 +322,7 @@ export function PhotoLightbox({
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+                <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
                   <DropdownMenuItem onSelect={handleDownload}>
                     <Download className="h-4 w-4 mr-2" />
                     Download
