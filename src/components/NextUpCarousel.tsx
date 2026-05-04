@@ -338,6 +338,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+  const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
