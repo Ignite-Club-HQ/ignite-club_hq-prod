@@ -314,9 +314,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
+  const compactWhen = formatCompactDateTime(event.event_date);
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
-  const urgency = getUrgencyBadge(event.event_date);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  // Hide secondary session title if it just repeats the type label (e.g. "Training" / "Tuesday training")
+  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
