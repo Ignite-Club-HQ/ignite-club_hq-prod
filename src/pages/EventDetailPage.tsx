@@ -78,6 +78,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 import { MatchScoreCard } from "@/components/event/MatchScoreCard";
+import { EventNoteSection } from "@/components/event/EventNoteSection";
 
 
 // Lazy load PitchBoard for game events
