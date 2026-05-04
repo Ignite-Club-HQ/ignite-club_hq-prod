@@ -15,6 +15,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
+import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
@@ -318,8 +319,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
-  // Hide secondary session title if it just repeats the type label (e.g. "Training" / "Tuesday training")
-  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
+  const eventDisplay = getEventDisplay(event);
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -493,13 +493,13 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             <div className="space-y-1">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground/90">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="min-w-0 truncate">{typeLabel}</span>
+                <div className="flex items-center gap-1.5 text-[16px] font-semibold text-foreground">
+                  <TypeIcon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                 </div>
-                {showSessionSubtitle && (
+                {eventDisplay.secondary && (
                   <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
-                    {displayTitle}
+                    {eventDisplay.secondary}
                   </p>
                 )}
               </div>
@@ -670,7 +670,7 @@ function CompactCard({ event }: { event: EventItem }) {
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
-  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
+  const eventDisplay = getEventDisplay(event);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -753,13 +753,13 @@ function CompactCard({ event }: { event: EventItem }) {
             <div className="space-y-1 min-w-0">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1 text-[12px] font-medium text-foreground/90 min-w-0">
+                <div className="flex items-center gap-1 text-[13px] font-semibold text-foreground min-w-0">
                   <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="truncate">{typeLabel}</span>
+                  <span className="truncate">{eventDisplay.primary}</span>
                 </div>
-                {showSessionSubtitle && (
+                {eventDisplay.secondary && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug truncate pl-4">
-                    {displayTitle}
+                    {eventDisplay.secondary}
                   </p>
                 )}
               </div>
