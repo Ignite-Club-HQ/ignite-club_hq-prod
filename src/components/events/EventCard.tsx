@@ -382,13 +382,10 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-4 pb-3 space-y-2.5">
-        {/* Row 0: Contextual date + status chips */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {formatEventContextualDate(event.event_date).label}
-          </span>
-          <div className="flex items-center gap-1.5 shrink-0">
+      <CardContent className="p-3.5 pb-3 space-y-2">
+        {/* Status chips only — section header already conveys the date */}
+        {(hasPro && isAdmin && !hasViewed && !event.is_cancelled) || event.is_cancelled ? (
+          <div className="flex items-center justify-end gap-1.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
@@ -399,162 +396,83 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
             )}
           </div>
-        </div>
+        ) : null}
 
-        {/* Primary: Team chip — biggest scanning anchor */}
-        {/* Secondary: Event title — same line/group, lighter weight */}
+        {/* Primary: Team — biggest scanning anchor */}
+        {/* Secondary: Session title — smaller, muted */}
         <div className="space-y-1">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: event.mini_league_id });
             return (
-              <h3 className={`font-medium text-[15px] leading-snug text-foreground/90 flex items-center gap-1.5 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-                <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden="true" />
-                <span className="min-w-0">{displayTitle}</span>
+              <h3 className={`text-[13px] font-normal leading-snug text-muted-foreground flex items-center gap-1.5 ${event.is_cancelled ? "line-through" : ""}`}>
+                <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                <span className="min-w-0 truncate">{displayTitle}</span>
               </h3>
             );
           })()}
         </div>
 
-        {/* Tertiary: Date/time + Location */}
-        <div className="space-y-1">
+        {/* Tertiary: Time (strong) + Location (subtle) */}
+        <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
+            <span className="font-medium text-foreground">{eventTimeOnly}</span>
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[13px] text-warning">
-                <Clock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
                 <span>Arrive by {arrivalTime} ({mins} min before)</span>
               </div>
             );
           })()}
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/80">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
 
-        {/* Row 3: RSVP Section - Personal + Global */}
+        {/* RSVP summary only — Schedule = browse, no action buttons */}
         {!event.is_cancelled && (() => {
-          const { goingNames, maybeNames, notGoingNames } = buildFamilyRsvpSummary(
-            currentRsvpStatus, undefined, childRsvps
-          );
-          const hasPersonalRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
-          const totalGoing = attendanceCounts?.going || 0;
-          const totalMaybe = attendanceCounts?.maybe || 0;
+          const goingChildNames = (childRsvps || [])
+            .filter((r) => r.status === "going")
+            .map((r) => r.children?.name?.split(" ")[0] || "Child");
+          const summary = buildPersonalRsvpLine({
+            parentStatus: currentRsvpStatus,
+            goingChildNames,
+            totalGoing: attendanceCounts?.going || 0,
+          });
 
-          if (!hasPersonalRsvp) {
+          if (!summary) {
             return (
-              <div className="pt-2 border-t border-border/40 space-y-1.5">
-                {/* Global attendance even without personal RSVP */}
-                {totalGoing > 0 && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Users className="h-3 w-3 shrink-0" />
-                    <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-muted-foreground/70 font-medium">Tap to RSVP</span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
-                </div>
+              <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
             );
           }
 
-          // Check if the parent (You) has actually RSVP'd
-          const parentHasRsvpd = currentRsvpStatus !== null;
-          const hasChildRsvps = childRsvps && childRsvps.length > 0;
-
-          // Build child status groups (exclude "You")
-          const childGoing = goingNames.filter(n => n !== "You");
-          const childMaybe = maybeNames.filter(n => n !== "You");
-          const childNotGoing = notGoingNames.filter(n => n !== "You");
-
-          // Build child display parts
-          const childParts: string[] = [];
-          if (childGoing.length > 0) {
-            const names = childGoing.length <= 3 ? childGoing.join(", ") : `${childGoing.slice(0, 2).join(", ")} +${childGoing.length - 2}`;
-            childParts.push(`${names} going`);
-          }
-          if (childMaybe.length > 0) {
-            const names = childMaybe.length <= 3 ? childMaybe.join(", ") : `${childMaybe.slice(0, 2).join(", ")} +${childMaybe.length - 2}`;
-            childParts.push(`${names} maybe`);
-          }
-          if (childNotGoing.length > 0) {
-            const names = childNotGoing.length <= 3 ? childNotGoing.join(", ") : `${childNotGoing.slice(0, 2).join(", ")} +${childNotGoing.length - 2}`;
-            childParts.push(`${names} not going`);
-          }
-
-          // Determine the icon and color based on the best status across the household
-          const bestIcon = goingNames.length > 0
-            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-            : maybeNames.length > 0
-            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
-            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
-
-          // Build the display text
-          let statusText: React.ReactNode;
-          if (parentHasRsvpd) {
-            // Parent has responded - show "You: Going/Maybe/Not going"
-            const primaryStatus = currentRsvpStatus === "going"
-              ? "Going"
-              : currentRsvpStatus === "maybe"
-              ? "Maybe"
-              : "Not going";
-            const personalStatusColor = currentRsvpStatus === "going"
-              ? "text-primary"
-              : currentRsvpStatus === "maybe"
-              ? "text-warning"
-              : "text-destructive";
-            statusText = (
-              <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
-                You: {primaryStatus}
-                {childParts.length > 0 && (
-                  <span className="font-normal text-foreground/70">
-                    {" · "}{childParts.join(" · ")}
-                  </span>
-                )}
-              </span>
-            );
-          } else {
-            // Parent hasn't responded - only show child statuses
-            const childStatusColor = childGoing.length > 0
-              ? "text-primary"
-              : childMaybe.length > 0
-              ? "text-warning"
-              : "text-destructive";
-            statusText = (
-              <span className={`text-[12px] font-semibold ${childStatusColor} truncate`}>
-                {childParts.join(" · ")}
-              </span>
-            );
-          }
+          const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="pt-2 border-t border-border/40 space-y-1">
-              {/* Line 1: Personal / household RSVP */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {bestIcon}
-                  {statusText}
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {personal ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                ) : (
+                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                )}
+                <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                  {summary}
+                </span>
               </div>
-
-              {/* Line 2: Global attendance */}
-              {totalGoing > 0 && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3 shrink-0" />
-                  <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
-                </div>
-              )}
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
             </div>
           );
         })()}
