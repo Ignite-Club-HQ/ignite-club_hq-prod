@@ -657,6 +657,20 @@ export default function MediaPage() {
 
   const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all" || dateRange.from || dateRange.to;
 
+  // Auto-open the fullscreen lightbox when arriving via ?photo=ID (e.g. from
+  // the Latest Photos thumbnails on a team page). Wait until the highlighted
+  // photo is present in the filtered list, then open it once.
+  useEffect(() => {
+    if (!highlightedPhotoId) return;
+    if (searchParams.get("comments") === "1") return; // comments flow takes priority
+    if (autoOpenedLightboxRef.current === highlightedPhotoId) return;
+    const idx = photos.findIndex(p => p.id === highlightedPhotoId);
+    if (idx >= 0) {
+      autoOpenedLightboxRef.current = highlightedPhotoId;
+      setLightboxIndex(idx);
+    }
+  }, [highlightedPhotoId, photos, searchParams]);
+
   const clearFilters = () => {
     setSelectedClubId("all");
     setSelectedTeamId("all");
