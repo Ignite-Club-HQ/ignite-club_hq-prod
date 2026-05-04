@@ -394,40 +394,42 @@ export default function TeamJoinLinkCard({ teamId, teamName }: TeamJoinLinkCardP
         </div>
       ) : (
         <>
-          <button
+          <Button
             type="button"
-            onClick={handleCopy}
-            aria-label="Copy join link"
-            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
+            className="w-full h-11 text-sm font-semibold"
+            onClick={handleShare}
           >
-            {copied ? (
-              <>
-                <Check className="h-4 w-4 text-primary" />
-                <span className="text-primary">Link copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" />
-                <span>Copy link</span>
-              </>
-            )}
-          </button>
+            <Share2 className="h-4 w-4 mr-2" />
+            Share link
+          </Button>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="default" className="flex-1 min-w-[7rem]" onClick={handleShare}>
-              <Share2 className="h-3.5 w-3.5 mr-1.5" />
-              Share
-            </Button>
-            <Button
+          <div className="flex gap-2">
+            <button
               type="button"
-              size="sm"
-              variant="outline"
-              className="flex-1 min-w-[7rem]"
-              onClick={() => setShowQR((v) => !v)}
+              onClick={handleCopy}
+              aria-label="Copy join link"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 transition-colors min-h-[40px]"
             >
-              <QrCode className="h-3.5 w-3.5 mr-1.5" />
+              {copied ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-primary">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy link</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowQR((v) => !v)}
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 transition-colors min-h-[40px]"
+            >
+              <QrCode className="h-3.5 w-3.5" />
               {showQR ? "Hide QR" : "Show QR"}
-            </Button>
+            </button>
           </div>
 
           <Collapsible open={showQR}>
