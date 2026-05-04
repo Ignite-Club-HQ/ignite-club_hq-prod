@@ -3520,7 +3520,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         </Tabs>
         </div>
 
-        {/* Sticky CTA footer */}
+        {/* Sticky CTA footer — hidden entirely when invite-by-name is collapsed */}
+        {(mode !== "single" || inviteByNameOpen) && (
         <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
           {mode === "single" ? (() => {
             // When invite-by-name is collapsed (initial state), the bottom
