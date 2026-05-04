@@ -466,15 +466,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
         </div>
 
-        {/* Primary: Team chip · Secondary: Event title */}
+        {/* Primary: Team (large, prominent) · Secondary: Session title (muted) */}
         <div className="space-y-1">
-          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`text-[14px] font-medium leading-snug text-foreground/90 flex items-center gap-1.5 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
-                <span className="min-w-0">{displayTitle}</span>
+              <h3 className={`text-[13px] font-normal leading-snug text-muted-foreground flex items-center gap-1.5 ${event.is_cancelled ? "line-through" : ""}`}>
+                <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                <span className="min-w-0 truncate">{displayTitle}</span>
               </h3>
             );
           })()}
@@ -483,22 +483,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           )}
         </div>
 
-        {/* Date + Location */}
+        {/* Time (strong) + Location (subtle) — never repeat the urgency label */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            {urgency ? (
-              <span className="font-medium text-foreground">{dateTime}</span>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">{dateLabel}</span>
-                <span className="text-muted-foreground">• {dateTime}</span>
-              </>
+            <span className="font-medium text-foreground">{dateTime}</span>
+            {!urgency && (
+              <span className="text-muted-foreground">· {dateLabel}</span>
             )}
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/80">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
@@ -507,8 +503,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[13px] text-warning">
-                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
