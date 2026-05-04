@@ -183,6 +183,43 @@ export function PhotoLightbox({
     }
   };
 
+  const handleShare = async () => {
+    const url = downloadSignedUrl || photoSrc;
+    if (!url) return;
+    const title = currentPhoto.title || "Photo";
+    try {
+      // Native share via Capacitor when available
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { Share } = await import("@capacitor/share");
+      const { Capacitor } = await import("@capacitor/core");
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({ title, text: title, url, dialogTitle: "Share photo" });
+        return;
+      }
+      if (typeof navigator !== "undefined" && (navigator as any).share) {
+        await (navigator as any).share({ title, text: title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+    } catch (err: any) {
+      if (err?.message && /cancel/i.test(err.message)) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard");
+      } catch {
+        safeOpenUrl(url);
+      }
+    }
+  };
+
+  const confirmDelete = () => {
+    if (onDelete && currentPhoto) {
+      onDelete(currentPhoto.id);
+    }
+    setDeleteConfirmOpen(false);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
