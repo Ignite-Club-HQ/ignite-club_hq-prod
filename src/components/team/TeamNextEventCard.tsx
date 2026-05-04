@@ -24,7 +24,7 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("events")
-        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled, arrival_minutes_before, teams (default_match_arrival_minutes)")
+        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled, arrival_minutes_before, teams (name, default_match_arrival_minutes)")
         .eq("team_id", teamId)
         .eq("is_cancelled", false)
         .gte("event_date", today)
