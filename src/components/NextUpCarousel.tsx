@@ -12,11 +12,12 @@ import { useToast } from "@/hooks/use-toast";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
-import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
+import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { abbreviateLocation } from "@/lib/abbreviateLocation";
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
