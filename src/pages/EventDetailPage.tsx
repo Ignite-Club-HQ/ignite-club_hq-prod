@@ -2994,12 +2994,19 @@ export default function EventDetailPage() {
             isAdmin={isAdmin || isAppAdmin || false}
             rsvps={rsvps || []}
           />
-          <MatchGoalkeepersSelector
-            eventId={id!}
-            teamId={event.team_id}
-            isAdmin={isAdmin || isAppAdmin || false}
-            rsvps={rsvps || []}
-          />
+          {(() => {
+            const sport = (event.clubs?.sport || '').toLowerCase();
+            const hasGoalkeeper = ['soccer','football','futsal','netball','hockey','handball','water polo','waterpolo','lacrosse','rugby'].some(k => sport.includes(k));
+            if (!hasGoalkeeper) return null;
+            return (
+              <MatchGoalkeepersSelector
+                eventId={id!}
+                teamId={event.team_id}
+                isAdmin={isAdmin || isAppAdmin || false}
+                rsvps={rsvps || []}
+              />
+            );
+          })()}
           <PlayerOfMatchSelector
             eventId={id!}
             clubId={event.club_id}
