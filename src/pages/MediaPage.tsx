@@ -233,6 +233,11 @@ export default function MediaPage() {
     setActiveCommentPhotoId(highlightedPhotoId);
   }, [highlightedPhotoId, searchParams]);
 
+  // Auto-open the fullscreen lightbox when deep-linking to a specific photo
+  // (e.g. tapping a "Latest Photos" thumbnail on a team page). Only fires
+  // once per highlighted photo to avoid re-opening if the user closes it.
+  const autoOpenedLightboxRef = useRef<string | null>(null);
+
   // Fast parallel queries - don't block on access check
   // ─── Diagnostic logging for hung-spinner debugging ───
   // Uses console.warn so messages survive the production console silencer.
