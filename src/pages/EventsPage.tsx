@@ -303,7 +303,7 @@ export default function EventsPage() {
   );
 
   const { data: events, isLoading, isFetching } = useQuery({
-    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
+    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
       diagLog("events:start", { hasMemberships: !!userMemberships });
@@ -392,8 +392,13 @@ export default function EventsPage() {
         }
       });
 
-      const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
-      const finalEvents = filterRecurringEvents(filteredData) as Event[];
+      // In calendar view we render a specific day, so showing every recurring
+      // occurrence is desirable. The 3-per-series cap is only meant for the
+      // upcoming list view (to avoid flooding with months of future trainings).
+      const finalEvents =
+        viewMode === "calendar"
+          ? (filteredData as Event[])
+          : ((await import("@/lib/filterRecurringEvents")).filterRecurringEvents(filteredData) as Event[]);
 
       // Cache for offline use
       cacheEventsList(eventsScopeKey, finalEvents);
