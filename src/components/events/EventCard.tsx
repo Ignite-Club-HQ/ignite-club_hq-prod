@@ -108,8 +108,9 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   const isRecurring = event.is_recurring || event.parent_event_id;
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(",")[0];
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(",")[0]);
   const displayTitle = formatEventTitle(event);
+  const eventTimeOnly = formatEventContextualDate(event.event_date).time;
 
   // Subtitle: team name for team events, "Club event" for club-wide
   const subtitle = event.teams?.name || (event.team_id ? null : "Club event");
