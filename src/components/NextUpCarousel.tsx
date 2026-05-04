@@ -739,14 +739,18 @@ function CompactCard({ event }: { event: EventItem }) {
 
   return (
     <Card
-      className="cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm transition-all min-w-[220px] w-[65vw] max-w-[280px] shrink-0"
+      className="relative cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm transition-all min-w-[220px] w-[65vw] max-w-[280px] shrink-0"
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      <CardContent className="p-3.5 space-y-2.5">
+      <ChevronRight
+        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3.5 pr-7 space-y-2">
         {/* Cancelled marker only */}
         {event.is_cancelled && (
           <div className="flex items-center justify-end">
@@ -780,16 +784,17 @@ function CompactCard({ event }: { event: EventItem }) {
             );
           }
 
+          const isTrainingType = event.type === "training";
           return (
             <div className="space-y-1 min-w-0">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1 text-[13px] font-semibold text-foreground min-w-0">
-                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                <div className={`flex items-center gap-1 text-[13px] min-w-0 ${isTrainingType ? "font-medium text-foreground/75" : "font-semibold text-foreground"}`}>
+                  <TypeIcon className={`h-3 w-3 shrink-0 ${isTrainingType ? "opacity-55" : "opacity-80"}`} aria-hidden="true" />
                   <span className="truncate">{eventDisplay.primary}</span>
                 </div>
                 {eventDisplay.secondary && (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug truncate pl-4">
+                  <p className={`mt-0.5 text-[11px] leading-snug truncate pl-4 ${isTrainingType ? "text-muted-foreground/65" : "text-muted-foreground"}`}>
                     {eventDisplay.secondary}
                   </p>
                 )}
@@ -801,13 +806,13 @@ function CompactCard({ event }: { event: EventItem }) {
         {/* Compact date + time on one line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
-            <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{compactWhen}</span>
+            <Clock className="h-3 w-3 shrink-0 text-muted-foreground/45" aria-hidden="true" />
+            <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12px]">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/80" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-1.5 text-[12.5px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
