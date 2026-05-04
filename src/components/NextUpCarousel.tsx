@@ -514,9 +514,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/80">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-              <span className="truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-2 text-[13px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
@@ -774,9 +774,9 @@ function CompactCard({ event }: { event: EventItem }) {
             <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-              <span className="truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-1.5 text-[12px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
