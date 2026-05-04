@@ -17,6 +17,7 @@ import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 import PlayerOfMatchSelector from "@/components/PlayerOfMatchSelector";
 import MatchCaptainSelector from "@/components/MatchCaptainSelector";
+import MatchGoalkeepersSelector from "@/components/MatchGoalkeepersSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
