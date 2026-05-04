@@ -493,9 +493,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
           if (!summary) {
             return (
-              <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+              <div className="pt-1.5 border-t border-border/40">
                 <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
             );
           }
@@ -503,18 +502,15 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                {personal ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                ) : (
-                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                )}
-                <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                  {summary}
-                </span>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+            <div className="flex items-center pt-1.5 border-t border-border/40 gap-1.5 min-w-0">
+              {personal ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              ) : (
+                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+              <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {summary}
+              </span>
             </div>
           );
         })()}
