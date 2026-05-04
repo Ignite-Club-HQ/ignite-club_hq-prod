@@ -2789,6 +2789,24 @@ export default function EventDetailPage() {
                 memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
                   ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
                   : undefined}
+                isCaptain={
+                  isGameEvent && (
+                    (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
+                    (!!rsvp.child_id && rsvp.child_id === captainChildId)
+                  )
+                }
+                isPotm={
+                  isGameEvent && (
+                    (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
+                    (!!rsvp.child_id && rsvp.child_id === potmChildId)
+                  )
+                }
+                isGoalkeeper={
+                  isGameEvent && (
+                    (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
+                    (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
+                  )
+                }
               />
             ))}
             {includeGuests && eventGuests?.map((guest: any) => (
