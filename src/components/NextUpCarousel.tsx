@@ -462,12 +462,36 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           </div>
         )}
 
-        {/* Primary: Team · Secondary: [icon] Type label · Tertiary: Session title (if distinct) */}
-        <div className="space-y-1">
-          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
-          {(() => {
-            const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+        {/* Hierarchy differs for social/club events: title is primary, type is secondary.
+            Structured events (training/game) keep team-as-anchor. */}
+        {(() => {
+          const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+          const isSocial = event.type === "social";
+          const hasTeam = !!event.teams?.name;
+
+          if (isSocial) {
             return (
+              <div className="space-y-1 min-w-0">
+                <h3 className={`text-[17px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                  {hasTeam && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span className="truncate">{event.teams!.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-1">
+              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground/90">
                   <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
@@ -479,9 +503,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   </p>
                 )}
               </div>
-            );
-          })()}
-        </div>
+            </div>
+          );
+        })()}
 
         {/* Compact date + time on one line, location subtle */}
         <div className="space-y-0.5">
@@ -699,12 +723,35 @@ function CompactCard({ event }: { event: EventItem }) {
           </div>
         )}
 
-        {/* Primary: Team · Secondary: [icon] Type · Tertiary: Session title */}
-        <div className="space-y-1 min-w-0">
-          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
-          {(() => {
-            const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+        {/* Social/club events lead with the event name; structured events lead with team. */}
+        {(() => {
+          const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
+          const isSocial = event.type === "social";
+          const hasTeam = !!event.teams?.name;
+
+          if (isSocial) {
             return (
+              <div className="space-y-0.5 min-w-0">
+                <h3 className={`text-[14px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                  {displayTitle}
+                </h3>
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground min-w-0">
+                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                  {hasTeam && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span className="truncate">{event.teams!.name}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-1 min-w-0">
+              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
                 <div className="flex items-center gap-1 text-[12px] font-medium text-foreground/90 min-w-0">
                   <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
@@ -716,9 +763,9 @@ function CompactCard({ event }: { event: EventItem }) {
                   </p>
                 )}
               </div>
-            );
-          })()}
-        </div>
+            </div>
+          );
+        })()}
 
         {/* Compact date + time on one line */}
         <div className="space-y-0.5">
