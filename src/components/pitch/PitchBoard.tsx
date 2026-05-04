@@ -2274,15 +2274,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const isEventGroup = teamId.startsWith("event-group-");
 
       if (isEventGroup) {
-        // Mini-league: only notify the Referee of this specific match
+        // Mini-league: notify Referee + Subs Manager of this specific match
         const groupId = teamId.replace("event-group-", "");
-        const { data: referees } = await supabase
+        const { data: matchDuties } = await supabase
           .from("event_group_duties")
           .select("assigned_to")
           .eq("group_id", groupId)
-          .eq("name", "Referee")
+          .in("name", ["Referee", "Subs Manager"])
           .not("assigned_to", "is", null);
-        referees?.forEach(d => {
+        matchDuties?.forEach(d => {
           if (d.assigned_to) recipientIds.add(d.assigned_to);
         });
       } else {
