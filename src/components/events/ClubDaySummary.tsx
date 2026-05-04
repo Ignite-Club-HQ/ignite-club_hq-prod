@@ -207,41 +207,26 @@ export function ClubDaySummary({
           ))}
         </div>
       ) : (
-        <>
-          {myDayEvents && myDayEvents.length > 0 ? (
-            <div className="space-y-3">
-              {myDayEvents
-                .filter((e) => visible.some((v) => v.id === e.id))
-                .map((e) => (
-                  <EventCard
-                    key={e.id}
-                    event={e}
-                    isAdmin={isAdminForEvent ? isAdminForEvent(e) : false}
-                    hasViewed={viewedEventIds ? viewedEventIds.has(e.id) : true}
-                  />
-                ))}
-            </div>
-          ) : (
-            <>
-              {games.length > 0 && (
-                <SummarySection
-                  title="Games"
-                  icon={<Trophy className="h-4 w-4" />}
-                  accent="text-destructive"
-                  events={games}
+        <div className="space-y-3">
+          {visible.map((v) => {
+            // Prefer rich EventCard when we have the full event in myDayEvents.
+            // Otherwise (e.g. when a team filter trimmed myDayEvents but the user
+            // is still on "My teams" scope) fall back to the lightweight row so
+            // every team the user belongs to is represented.
+            const rich = myDayEvents?.find((e) => e.id === v.id);
+            if (rich) {
+              return (
+                <EventCard
+                  key={v.id}
+                  event={rich}
+                  isAdmin={isAdminForEvent ? isAdminForEvent(rich) : false}
+                  hasViewed={viewedEventIds ? viewedEventIds.has(v.id) : true}
                 />
-              )}
-              {trainings.length > 0 && (
-                <SummarySection
-                  title="Training"
-                  icon={<Dumbbell className="h-4 w-4" />}
-                  accent="text-primary"
-                  events={trainings}
-                />
-              )}
-            </>
-          )}
-        </>
+              );
+            }
+            return <DayEventRow key={v.id} event={v} />;
+          })}
+        </div>
       )}
     </div>
   );
