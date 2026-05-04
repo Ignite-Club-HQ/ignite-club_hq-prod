@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
+import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 import { abbreviateLocation } from "@/lib/abbreviateLocation";
@@ -110,8 +111,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(",")[0]);
   const displayTitle = formatEventTitle(event);
+  const eventDisplay = getEventDisplay(event);
   const compactWhen = formatCompactDateTime(event.event_date);
-  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
 
 
@@ -429,13 +430,13 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             <div className="space-y-1">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground/90">
+                <div className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
                   <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="min-w-0 truncate">{typeLabel}</span>
+                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                 </div>
-                {showSessionSubtitle && (
+                {eventDisplay.secondary && (
                   <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
-                    {displayTitle}
+                    {eventDisplay.secondary}
                   </p>
                 )}
               </div>
