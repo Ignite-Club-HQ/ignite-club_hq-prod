@@ -223,6 +223,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
   const inviteByNameOpen = inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
+  // Reset to collapsed each time the sheet is opened so the join-link flow
+  // remains the primary action on every reopen.
+  useEffect(() => {
+    if (open) setInviteByNameExpanded(false);
+  }, [open]);
+
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
   // the role buttons into view so the user can see what they're picking on
