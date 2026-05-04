@@ -114,11 +114,11 @@ export function ClubDaySummary({
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
 
-  // Group by venue for club view
+  // Group by venue (without pitch/field suffix) for club view
   const byVenue = useMemo(() => {
     const map = new Map<string, ClubDayEvent[]>();
     for (const e of visible) {
-      const k = venueLabel(e);
+      const k = venueGroupKey(e);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(e);
     }
