@@ -607,13 +607,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
                   <Baby className="h-3.5 w-3.5 text-primary" />
                   <span>Children's RSVP</span>
-                  {childRsvps && childRsvps.length > 0 ? (
-                    <span className="text-[10px] text-muted-foreground ml-auto mr-1">
-                      {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
-                      {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
-                    </span>
-                  ) : null}
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0 ml-auto" />
                 </summary>
                 <div className="space-y-2 px-2.5 pb-2.5">
                   {childrenOnEvent.map((child) => {
