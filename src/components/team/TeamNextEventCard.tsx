@@ -72,11 +72,12 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
 
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-primary uppercase tracking-wide">
+              <TeamChip teamName={(nextEvent as any).teams?.name} fallbackLabel="" size="sm" />
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-wide">
                 {typeLabel}
               </span>
             </div>
-            <p className="font-semibold text-sm truncate">
+            <p className="font-medium text-sm text-foreground/90 truncate">
               {nextEvent.title}
               {shouldAppendOpponent(nextEvent) && (
                 <span className="text-muted-foreground font-normal"> vs {nextEvent.opponent}</span>
