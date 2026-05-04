@@ -385,20 +385,26 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-3.5 pb-3 space-y-2">
-        {/* Status chips only — section header already conveys the date */}
-        {(hasPro && isAdmin && !hasViewed && !event.is_cancelled) || event.is_cancelled ? (
-          <div className="flex items-center justify-end gap-1.5">
-            {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
-              <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
-                <Eye className="h-3 w-3" />
-                New
-              </Badge>
-            )}
-            {event.is_cancelled && (
-              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
-            )}
-          </div>
-        ) : null}
+        {/* Status chips only — section header already conveys the date.
+            "New" badge is suppressed for training events to reduce noise. */}
+        {(() => {
+          const isTraining = event.type === "training";
+          const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
+          if (!showNew && !event.is_cancelled) return null;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {showNew && (
+                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
+                  <Eye className="h-3 w-3" />
+                  New
+                </Badge>
+              )}
+              {event.is_cancelled && (
+                <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Social/club events lead with the event name; structured events lead with team. */}
         {(() => {
