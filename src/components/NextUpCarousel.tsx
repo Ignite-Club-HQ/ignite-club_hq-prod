@@ -56,12 +56,6 @@ function getUrgencyBadge(dateStr: string) {
   return getEventUrgencyBadge(dateStr);
 }
 
-const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/10 text-destructive border-destructive/20",
-  training: "bg-primary/10 text-primary border-primary/20",
-  social: "bg-warning/10 text-warning border-warning/20",
-};
-
 function useChildRsvps(eventId: string, userId: string | undefined) {
   return useQuery({
     queryKey: ["child-rsvps-card", eventId, userId],
@@ -316,8 +310,6 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
-  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
@@ -467,9 +459,6 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 {dateLabel}
               </span>
             )}
-            <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
-              {typeLabel}
-            </Badge>
           </div>
           <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
         </div>
@@ -629,7 +618,6 @@ function CompactCard({ event }: { event: EventItem }) {
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
-  const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
@@ -678,17 +666,18 @@ function CompactCard({ event }: { event: EventItem }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
-        {/* Urgency + type badge row */}
+        {/* Urgency/context row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            {urgency && (
+            {urgency ? (
               <Badge variant="outline" className={`text-[9px] h-[18px] px-1.5 font-semibold border ${urgency.className}`}>
                 {urgency.text}
               </Badge>
+            ) : (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {dateLabel}
+              </span>
             )}
-            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-semibold border ${typeBadgeStyles[event.type] || ""}`}>
-              {typeLabel}
-            </Badge>
           </div>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
