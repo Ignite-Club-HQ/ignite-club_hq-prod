@@ -455,13 +455,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
-        {/* Urgency badge + type */}
+        {/* Row 0: Urgency / contextual chip + arrow */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {urgency && (
+            {urgency ? (
               <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${urgency.className}`}>
                 {urgency.text}
               </Badge>
+            ) : (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {dateLabel}
+              </span>
             )}
             <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
               {typeLabel}
@@ -470,14 +474,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
         </div>
 
-        {/* Title */}
-        <div>
-          <h3 className={`text-base font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+        {/* Primary: Team chip · Secondary: Event title */}
+        <div className="space-y-1">
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+          <h3 className={`text-[14px] font-medium leading-snug text-foreground/90 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
             {displayTitle}
           </h3>
-          {subtitle && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
-          )}
           {event.is_cancelled && (
             <Badge variant="destructive" className="mt-1 text-[10px]">Cancelled</Badge>
           )}
