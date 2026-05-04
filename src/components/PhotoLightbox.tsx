@@ -133,8 +133,6 @@ export function PhotoLightbox({
     resetZoom();
   }, [currentIndex, resetZoom]);
 
-  if (!currentPhoto) return null;
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") handlePrev();
     if (e.key === "ArrowRight") handleNext();
