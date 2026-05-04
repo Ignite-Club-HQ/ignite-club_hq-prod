@@ -56,6 +56,15 @@ function venueLabel(e: ClubDayEvent): string {
 }
 
 /**
+ * Strip pitch/field suffixes like " - P2 MINI 4V4", " — Pitch 3", " - Field 1"
+ * so multiple pitches at the same venue group together.
+ */
+function venueGroupKey(e: ClubDayEvent): string {
+  const raw = venueLabel(e);
+  return raw.split(/\s+[-–—]\s+/)[0].trim();
+}
+
+/**
  * Day summary for a single date. Defaults to showing only events for teams
  * the user belongs to ("My teams"); a toggle switches to a club-wide view
  * (all teams) where events are grouped by venue/location.
@@ -105,11 +114,11 @@ export function ClubDaySummary({
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
 
-  // Group by venue for club view
+  // Group by venue (without pitch/field suffix) for club view
   const byVenue = useMemo(() => {
     const map = new Map<string, ClubDayEvent[]>();
     for (const e of visible) {
-      const k = venueLabel(e);
+      const k = venueGroupKey(e);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(e);
     }

@@ -595,29 +595,45 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         let recipientUserIds: string[] = [];
 
         if (isEventGroup) {
-          // Mini-league: only notify the Referee of this specific match
+          // Mini-league: notify Referee + Subs Manager of this specific match
           const groupId = teamId.replace("event-group-", "");
-          const { data: referees } = await supabase
+          const { data: matchDuties } = await supabase
             .from('event_group_duties')
             .select('assigned_to')
             .eq('group_id', groupId)
-            .eq('name', 'Referee')
+            .in('name', ['Referee', 'Subs Manager'])
             .not('assigned_to', 'is', null);
-          
-          recipientUserIds = (referees || [])
+
+          recipientUserIds = (matchDuties || [])
             .map((d: any) => d.assigned_to as string)
-            .filter(uid => uid !== user.id);
+            .filter(uid => uid && uid !== user.id);
         } else {
-          // Regular team: notify coaches/admins
+          // Regular team: notify coaches/admins + Subs Manager for the linked event
           const { data: teamAdmins } = await supabase
             .from('user_roles')
             .select('user_id')
             .eq('team_id', teamId)
             .in('role', ['team_admin', 'coach']);
-          
-          recipientUserIds = (teamAdmins || [])
-            .map((r: any) => r.user_id as string)
-            .filter(uid => uid !== user.id);
+
+          const ids = new Set<string>(
+            (teamAdmins || [])
+              .map((r: any) => r.user_id as string)
+              .filter(uid => uid && uid !== user.id)
+          );
+
+          if (eventId) {
+            const { data: subsManagers } = await supabase
+              .from('duties')
+              .select('assigned_to')
+              .eq('event_id', eventId)
+              .eq('name', 'Subs Manager')
+              .not('assigned_to', 'is', null);
+            (subsManagers || []).forEach((d: any) => {
+              if (d.assigned_to && d.assigned_to !== user.id) ids.add(d.assigned_to as string);
+            });
+          }
+
+          recipientUserIds = Array.from(ids);
         }
 
         if (recipientUserIds.length > 0) {
@@ -631,17 +647,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           const eventTitle = eventData?.title || 'a game';
           
           for (const recipientUserId of recipientUserIds) {
-            supabase.functions.invoke('send-pitch-board-notification-email', {
-              body: {
-                recipientUserId,
-                teamId,
-                teamName,
-                notificationType: 'game_linked',
-                notificationMessage: `The pitch board has been linked to "${eventTitle}"`,
-                eventId,
-              },
-            }).catch(err => {
-              console.error('[PitchBoard] Failed to send game linked email:', err);
+            supabase.rpc('send_pitch_board_notification_email_rpc', {
+              _recipient_user_id: recipientUserId,
+              _team_id: teamId,
+              _team_name: teamName,
+              _notification_type: 'game_linked',
+              _notification_message: `The pitch board has been linked to "${eventTitle}"`,
+              _event_id: eventId,
+            }).then((r: any) => {
+              if (r?.error) console.error('[PitchBoard] Failed to send game linked email:', r.error);
             });
           }
         }
@@ -2276,15 +2290,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const isEventGroup = teamId.startsWith("event-group-");
 
       if (isEventGroup) {
-        // Mini-league: only notify the Referee of this specific match
+        // Mini-league: notify Referee + Subs Manager of this specific match
         const groupId = teamId.replace("event-group-", "");
-        const { data: referees } = await supabase
+        const { data: matchDuties } = await supabase
           .from("event_group_duties")
           .select("assigned_to")
           .eq("group_id", groupId)
-          .eq("name", "Referee")
+          .in("name", ["Referee", "Subs Manager"])
           .not("assigned_to", "is", null);
-        referees?.forEach(d => {
+        matchDuties?.forEach(d => {
           if (d.assigned_to) recipientIds.add(d.assigned_to);
         });
       } else {

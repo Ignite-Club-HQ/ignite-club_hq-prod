@@ -19,24 +19,35 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
       const blob = await response.blob();
-      const contentType = blob.type || response.headers.get("content-type") || "";
+      const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
       const ext = pickExtension(contentType);
       const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
 
       const base64 = await blobToBase64(blob);
 
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      await Filesystem.writeFile({
+      // Write to Cache directory (always writable on iOS & Android without permissions)
+      const written = await Filesystem.writeFile({
         path: filename,
         data: base64,
-        directory: Directory.Documents,
+        directory: Directory.Cache,
         recursive: true,
       });
 
-      toast({
-        title: "Photo saved",
-        description: `Saved as ${filename} in your Documents folder`,
-      });
+      // Use the native Share sheet so the user can save to Photos / Files / etc.
+      try {
+        const { Share } = await import("@capacitor/share");
+        await Share.share({
+          title: "Save photo",
+          url: written.uri,
+          dialogTitle: "Save photo",
+        });
+        toast({ title: "Photo ready", description: "Choose where to save it" });
+      } catch (shareErr: any) {
+        // User cancelled share sheet — not an error
+        if (String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) return;
+        throw shareErr;
+      }
       return;
     } catch (err) {
       console.warn("[downloadImage] native download failed, falling back to open:", err);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -218,6 +218,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
   // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  // Whether the "invite by name" section is expanded. Defaults to collapsed so
+  // the join-link flow is the visually primary action on first open.
+  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  const inviteByNameOpen = inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
+
+  // Reset to collapsed each time the sheet is opened so the join-link flow
+  // remains the primary action on every reopen.
+  useEffect(() => {
+    if (open) setInviteByNameExpanded(false);
+  }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
@@ -1683,6 +1693,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setMode("single");
     setWizardStep(1);
     setNameConfirmed(false);
+    setInviteByNameExpanded(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
@@ -2100,57 +2111,46 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
-            {/* Hide the persistent join-link card once the wizard becomes
-                active (a name typed or an existing user picked) so it
-                doesn't visually compete with the one-off invite flow. */}
+            {/* Persistent team join link — primary action on first open. */}
             {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <>
-                <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">or</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Invite by name</h3>
-                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person via email or SMS.</p>
-                </div>
-              </>
+              <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
             )}
 
-            {/* Wizard stepper header */}
-            <div className="flex items-center justify-between gap-2 px-1 pb-1">
-              {[
-                { n: 1 as const, label: "Person" },
-                { n: 2 as const, label: "Role" },
-                { n: 3 as const, label: "Send" },
-              ].map((s, idx, arr) => (
-                <div key={s.n} className="flex items-center gap-2 flex-1">
-                  <div
-                    className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold border transition-colors ${
-                      wizardStep === s.n
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : wizardStep > s.n
-                          ? "bg-primary/15 text-primary border-primary/40"
-                          : "bg-muted text-muted-foreground border-border"
-                    }`}
-                  >
-                    {wizardStep > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}
-                  </div>
-                  <span
-                    className={`text-xs font-medium ${
-                      wizardStep === s.n ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                  {idx < arr.length - 1 && (
-                    <div className={`h-px flex-1 ${wizardStep > s.n ? "bg-primary/40" : "bg-border"}`} />
-                  )}
+            {/* Secondary "Invite by name" toggle — collapsed by default. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && (
+              <button
+                type="button"
+                onClick={() => setInviteByNameExpanded(true)}
+                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  Invite a specific person
+                </span>
+                <span className="text-xs text-muted-foreground">Email or SMS</span>
+              </button>
+            )}
+
+            {/* Invite-by-name body (form + wizard) — only when expanded */}
+            {inviteByNameOpen && (
+              <>
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
+              <div className="flex items-start justify-between gap-2 pt-1">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold">Invite by name</h3>
+                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
                 </div>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setInviteByNameExpanded(false)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
+                  aria-label="Collapse invite by name"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                  Hide
+                </button>
+              </div>
+            )}
 
             {/* Step recap chips — show selections from earlier steps so the
                 user has context on steps 2/3 without tapping Back. Tappable
@@ -2236,7 +2236,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search or add member name (paste a list to add many)"
+                      placeholder="Search or enter name"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10 h-12 text-base"
@@ -2290,6 +2290,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </Button>
                   )}
                 </div>
+                <p className="text-[11px] text-muted-foreground">You can paste multiple names.</p>
 
                 {isSearching && (
                   <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
@@ -3045,6 +3046,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
               </>
             )}
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4 mt-0">
@@ -3535,9 +3538,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         </Tabs>
         </div>
 
-        {/* Sticky CTA footer */}
+        {/* Sticky CTA footer — hidden entirely when invite-by-name is collapsed */}
+        {(mode !== "single" || inviteByNameOpen) && (
         <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
           {mode === "single" ? (() => {
+            // When invite-by-name is collapsed (initial state), the bottom
+            // CTA shouldn't render at all — the join-link card is the
+            // primary action and has its own buttons.
+            if (!inviteByNameOpen) return null;
             // Wizard navigation for single-invite flow
             const canAdvanceFromStep1 = !!selectedUser || (nameInput.trim().length > 0);
             const canAdvanceFromStep2 = selectedRole !== "parent"
@@ -3556,7 +3564,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             // buttons so users aren't left guessing why "Next" is greyed out.
             let blockedReason: string | null = null;
             if (wizardStep === 1 && !canAdvanceFromStep1) {
-              blockedReason = "Search for a member or type a name to continue.";
+              // Don't show a yellow warning on the empty initial state —
+              // the disabled CTA below already communicates what's needed.
+              blockedReason = null;
             } else if (wizardStep === 2 && !canAdvanceFromStep2) {
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
@@ -3642,7 +3652,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       variant={nextDisabled ? "outline" : "default"}
                     >
                       {wizardStep === 1
-                        ? "Next: Role"
+                        ? (canAdvanceFromStep1 ? "Next: Choose role" : "Enter a name to continue")
                         : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
                           ? "Add a child to continue"
                           : selectedUser && selectedRole === "parent"
@@ -3670,6 +3680,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </Button>
           )}
         </div>
+        )}
       </SheetContent>
     </Sheet>
   );

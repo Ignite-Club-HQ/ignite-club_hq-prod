@@ -205,16 +205,14 @@ export function useGameStats() {
       };
 
       try {
-        await supabase.functions.invoke('send-game-stats-email', {
-          body: {
-            eventId,
-            teamId,
-            eventTitle: eventTitle || 'Game',
-            eventDate: eventDate || new Date().toLocaleDateString(),
-            opponent: opponent || '',
-            totalPlayers: players.length,
-            totalGameTime: formatTime(totalGameTime),
-          },
+        await supabase.rpc('send_game_stats_email_rpc', {
+          _event_id: eventId,
+          _team_id: teamId,
+          _event_title: eventTitle || 'Game',
+          _event_date: eventDate || new Date().toLocaleDateString(),
+          _opponent: opponent || '',
+          _total_players: players.length,
+          _total_game_time: formatTime(totalGameTime),
         });
       } catch (emailErr) {
         console.error("Failed to send game stats email:", emailErr);

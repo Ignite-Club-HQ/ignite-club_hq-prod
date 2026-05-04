@@ -45,12 +45,7 @@ export function useClaimEoi() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (token: string) => {
-      const { data, error } = await supabase
-        .from("eoi_submissions")
-        .update({ claimed_at: new Date().toISOString() })
-        .eq("claim_token", token)
-        .select()
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("claim_eoi_by_token", { _token: token });
       if (error) throw error;
       return data;
     },
