@@ -33,6 +33,7 @@ import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
+import { getEventTypeIcon } from "@/lib/eventTypeIcon";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -401,9 +402,15 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
         {/* Secondary: Event title — same line/group, lighter weight */}
         <div className="space-y-1">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
-          <h3 className={`font-medium text-[15px] leading-snug text-foreground/90 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-            {displayTitle}
-          </h3>
+          {(() => {
+            const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: event.mini_league_id });
+            return (
+              <h3 className={`font-medium text-[15px] leading-snug text-foreground/90 flex items-center gap-1.5 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+                <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+                <span className="min-w-0">{displayTitle}</span>
+              </h3>
+            );
+          })()}
         </div>
 
         {/* Tertiary: Date/time + Location */}
