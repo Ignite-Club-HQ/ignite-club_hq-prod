@@ -2104,57 +2104,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* Persistent team join link — visible to admins/coaches; coexists with one-off invites below */}
-            {/* Hide the persistent join-link card once the wizard becomes
-                active (a name typed or an existing user picked) so it
-                doesn't visually compete with the one-off invite flow. */}
+            {/* Persistent team join link — primary action on first open. */}
             {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <>
-                <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">or</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Invite by name</h3>
-                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person via email or SMS.</p>
-                </div>
-              </>
+              <TeamJoinLinkCard teamId={teamId} teamName={teamName} />
             )}
 
-            {/* Wizard stepper header */}
-            <div className="flex items-center justify-between gap-2 px-1 pb-1">
-              {[
-                { n: 1 as const, label: "Person" },
-                { n: 2 as const, label: "Role" },
-                { n: 3 as const, label: "Send" },
-              ].map((s, idx, arr) => (
-                <div key={s.n} className="flex items-center gap-2 flex-1">
-                  <div
-                    className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold border transition-colors ${
-                      wizardStep === s.n
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : wizardStep > s.n
-                          ? "bg-primary/15 text-primary border-primary/40"
-                          : "bg-muted text-muted-foreground border-border"
-                    }`}
-                  >
-                    {wizardStep > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}
-                  </div>
-                  <span
-                    className={`text-xs font-medium ${
-                      wizardStep === s.n ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                  {idx < arr.length - 1 && (
-                    <div className={`h-px flex-1 ${wizardStep > s.n ? "bg-primary/40" : "bg-border"}`} />
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* Secondary "Invite by name" toggle — collapsed by default. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && (
+              <button
+                type="button"
+                onClick={() => setInviteByNameExpanded(true)}
+                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  Invite a specific person
+                </span>
+                <span className="text-xs text-muted-foreground">Email or SMS</span>
+              </button>
+            )}
+
+            {/* Invite-by-name body (form + wizard) — only when expanded */}
+            {inviteByNameOpen && (
+              <>
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
+              <div className="space-y-0.5 pt-1">
+                <h3 className="text-sm font-semibold">Invite by name</h3>
+                <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
+              </div>
+            )}
 
             {/* Step recap chips — show selections from earlier steps so the
                 user has context on steps 2/3 without tapping Back. Tappable
