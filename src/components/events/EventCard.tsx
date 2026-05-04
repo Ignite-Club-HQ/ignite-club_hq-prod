@@ -29,7 +29,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { formatEventContextualDate } from "@/lib/eventRelativeDate";
+import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
@@ -110,7 +110,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(",")[0]);
   const displayTitle = formatEventTitle(event);
-  const eventTimeOnly = formatEventContextualDate(event.event_date).time;
+  const compactWhen = formatCompactDateTime(event.event_date);
+  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
 
 
@@ -398,26 +399,32 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           </div>
         ) : null}
 
-        {/* Primary: Team — biggest scanning anchor */}
-        {/* Secondary: Session title — smaller, muted */}
+        {/* Primary: Team · Secondary: [icon] Type · Tertiary: Session title (if distinct) */}
         <div className="space-y-1">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: event.mini_league_id });
             return (
-              <h3 className={`text-[13px] font-normal leading-snug text-muted-foreground flex items-center gap-1.5 ${event.is_cancelled ? "line-through" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="min-w-0 truncate">{displayTitle}</span>
-              </h3>
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground/90">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{typeLabel}</span>
+                </div>
+                {showSessionSubtitle && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                    {displayTitle}
+                  </p>
+                )}
+              </div>
             );
           })()}
         </div>
 
-        {/* Tertiary: Time (strong) + Location (subtle) */}
+        {/* Compact date + time on one line — restores date context without a separate chip */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{eventTimeOnly}</span>
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);

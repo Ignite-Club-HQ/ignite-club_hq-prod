@@ -12,11 +12,12 @@ import { useToast } from "@/hooks/use-toast";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
-import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
+import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { abbreviateLocation } from "@/lib/abbreviateLocation";
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
@@ -313,9 +314,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
+  const compactWhen = formatCompactDateTime(event.event_date);
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
-  const urgency = getUrgencyBadge(event.event_date);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  // Hide secondary session title if it just repeats the type label (e.g. "Training" / "Tuesday training")
+  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -451,47 +455,39 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
-        {/* Row 0: Urgency / contextual chip + arrow */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {urgency ? (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${urgency.className}`}>
-                {urgency.text}
-              </Badge>
-            ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {dateLabel}
-              </span>
-            )}
+        {/* Cancelled marker only — date is now inline with the time row */}
+        {event.is_cancelled && (
+          <div className="flex items-center justify-end">
+            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
           </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
-        </div>
+        )}
 
-        {/* Primary: Team (large, prominent) · Secondary: Session title (muted) */}
+        {/* Primary: Team · Secondary: [icon] Type label · Tertiary: Session title (if distinct) */}
         <div className="space-y-1">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`text-[13px] font-normal leading-snug text-muted-foreground flex items-center gap-1.5 ${event.is_cancelled ? "line-through" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="min-w-0 truncate">{displayTitle}</span>
-              </h3>
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground/90">
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{typeLabel}</span>
+                </div>
+                {showSessionSubtitle && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                    {displayTitle}
+                  </p>
+                )}
+              </div>
             );
           })()}
-          {event.is_cancelled && (
-            <Badge variant="destructive" className="mt-1 text-[10px]">Cancelled</Badge>
-          )}
         </div>
 
-        {/* Time (strong) + Location (subtle) — never repeat the urgency label */}
+        {/* Compact date + time on one line, location subtle */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateTime}</span>
-            {!urgency && (
-              <span className="text-muted-foreground">· {dateLabel}</span>
-            )}
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[12px] text-muted-foreground/80">
@@ -645,10 +641,12 @@ function CompactCard({ event }: { event: EventItem }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  
+  const compactWhen = formatCompactDateTime(event.event_date);
+
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
-  const urgency = getUrgencyBadge(event.event_date);
+  const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
+  const showSessionSubtitle = !!displayTitle && displayTitle.toLowerCase().trim() !== typeLabel.toLowerCase().trim();
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -694,44 +692,39 @@ function CompactCard({ event }: { event: EventItem }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
-        {/* Urgency/context row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {urgency ? (
-              <Badge variant="outline" className={`text-[9px] h-[18px] px-1.5 font-semibold border ${urgency.className}`}>
-                {urgency.text}
-              </Badge>
-            ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {dateLabel}
-              </span>
-            )}
+        {/* Cancelled marker only */}
+        {event.is_cancelled && (
+          <div className="flex items-center justify-end">
+            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
           </div>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
-        </div>
+        )}
 
-        {/* Primary: Team · Secondary: Session title */}
+        {/* Primary: Team · Secondary: [icon] Type · Tertiary: Session title */}
         <div className="space-y-1 min-w-0">
           <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`text-[12px] font-normal leading-snug text-muted-foreground flex items-center gap-1 min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <TypeIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="truncate">{displayTitle}</span>
-              </h3>
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1 text-[12px] font-medium text-foreground/90 min-w-0">
+                  <TypeIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
+                  <span className="truncate">{typeLabel}</span>
+                </div>
+                {showSessionSubtitle && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug truncate pl-4">
+                    {displayTitle}
+                  </p>
+                )}
+              </div>
             );
           })()}
         </div>
 
-        {/* Metadata: time strong, no urgency repeat */}
+        {/* Compact date + time on one line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{dateTime}</span>
-            {!urgency && (
-              <span className="text-muted-foreground">· {dateLabel}</span>
-            )}
+            <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80">
