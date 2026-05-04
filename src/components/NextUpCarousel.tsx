@@ -447,14 +447,19 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   return (
     <Card
-      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`relative shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
+      {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
+      <ChevronRight
+        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3 pr-7 space-y-1.5 flex-1 flex flex-col">
         {/* Cancelled marker only — date is now inline with the time row */}
         {event.is_cancelled && (
           <div className="flex items-center justify-end">
@@ -523,12 +528,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 </div>
               ) : (
                 <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[15px] font-medium text-foreground/85 leading-snug">
-                    <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+                  <div className="flex items-center gap-1.5 text-[14px] font-medium text-foreground/75 leading-snug">
+                    <TypeIcon className="h-4 w-4 shrink-0 opacity-55" aria-hidden="true" />
                     <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                   </div>
                   {eventDisplay.secondary && (
-                    <p className="mt-0.5 text-[12px] text-muted-foreground/80 leading-snug truncate pl-5">
+                    <p className="mt-0.5 text-[12px] text-muted-foreground/65 leading-snug truncate pl-5">
                       {eventDisplay.secondary}
                     </p>
                   )}
@@ -538,15 +543,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           );
         })()}
 
-        {/* Compact date + time + location — location promoted to match time weight */}
+        {/* Compact date + time + location — location is the dominant meta line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-            <span className="font-medium text-foreground">{compactWhen}</span>
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+            <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[13.5px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
               <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
