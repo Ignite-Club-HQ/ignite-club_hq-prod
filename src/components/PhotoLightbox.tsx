@@ -185,32 +185,63 @@ export function PhotoLightbox({
 
   const handleShare = async () => {
     const url = downloadSignedUrl || photoSrc;
-    if (!url) return;
+    if (!url) {
+      toast.error("Nothing to share");
+      return;
+    }
     const title = currentPhoto.title || "Photo";
+
+    // Native share via Capacitor
     try {
-      // Native share via Capacitor when available
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { Share } = await import("@capacitor/share");
       const { Capacitor } = await import("@capacitor/core");
       if (Capacitor.isNativePlatform()) {
+        const { Share } = await import("@capacitor/share");
         await Share.share({ title, text: title, url, dialogTitle: "Share photo" });
         return;
       }
-      if (typeof navigator !== "undefined" && (navigator as any).share) {
+    } catch (err: any) {
+      if (err?.message && /cancel|abort/i.test(err.message)) return;
+      console.warn("Native share failed:", err);
+    }
+
+    // Web Share API
+    try {
+      if (typeof navigator !== "undefined" && typeof (navigator as any).share === "function") {
         await (navigator as any).share({ title, text: title, url });
         return;
       }
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard");
     } catch (err: any) {
-      if (err?.message && /cancel/i.test(err.message)) return;
-      try {
+      if (err?.name === "AbortError" || /cancel|abort/i.test(err?.message || "")) return;
+      console.warn("Web share failed:", err);
+    }
+
+    // Clipboard fallback (modern API + legacy execCommand)
+    try {
+      if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied to clipboard");
-      } catch {
-        safeOpenUrl(url);
+        return;
       }
+    } catch (err) {
+      console.warn("Clipboard write failed:", err);
     }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      toast.success("Link copied to clipboard");
+      return;
+    } catch (err) {
+      console.warn("execCommand copy failed:", err);
+    }
+
+    // Last resort
+    safeOpenUrl(url);
   };
 
   const confirmDelete = () => {
