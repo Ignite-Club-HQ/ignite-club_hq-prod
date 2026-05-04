@@ -660,7 +660,7 @@ export default function EventsPage() {
                 selectedTeamId={teamFilter || "all"}
                 onClubChange={handleClubChange}
                 onTeamChange={handleTeamChange}
-                showClubFilter={(userClubs?.length || 0) > 1}
+                showClubFilter={!activeClubFilter && (userClubs?.length || 0) > 1}
                 showTeamFilter={(userTeams?.length || 0) > 0}
                 getSportEmoji={getSportEmoji}
               />
