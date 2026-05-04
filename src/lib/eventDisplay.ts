@@ -17,6 +17,8 @@ interface EventDisplayInput {
   type?: string | null;
   opponent?: string | null;
   mini_league_id?: string | null;
+  teams?: { name?: string | null } | null;
+  clubs?: { name?: string | null } | null;
 }
 
 const NOISY_PREFIX_RE =
@@ -58,7 +60,21 @@ export function getEventDisplay(event: EventDisplayInput): EventDisplay {
   const type = event.type || "";
   const typeLabel = getEventTypeLabel(type, { miniLeagueId: event.mini_league_id });
   const cleaned = cleanTitle(event.title);
-  const opponent = event.opponent?.trim() || "";
+  let opponent = event.opponent?.trim() || "";
+
+  // Fallback: derive opponent from a "Team A vs Team B" title when the
+  // structured field is empty. Pick the side that isn't the team/club name.
+  if (!opponent && cleaned && MATCHUP_SEPARATOR_RE.test(cleaned)) {
+    const [left, right] = cleaned.split(MATCHUP_SEPARATOR_RE).map((s) => s.trim());
+    const ownNames = [event.teams?.name, event.clubs?.name]
+      .map((n) => (n || "").toLowerCase().trim())
+      .filter(Boolean);
+    const isOwn = (s: string) =>
+      ownNames.some((n) => s.toLowerCase().includes(n) || n.includes(s.toLowerCase()));
+    if (left && right) {
+      opponent = isOwn(left) && !isOwn(right) ? right : isOwn(right) && !isOwn(left) ? left : right;
+    }
+  }
 
   // A. Game / Match Day
   if (type === "game" || type === "mini_league" || event.mini_league_id) {
