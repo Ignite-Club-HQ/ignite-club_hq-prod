@@ -17,6 +17,8 @@ import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArriv
 import { formatEventTitle } from "@/lib/eventTitle";
 import { TeamChip } from "@/components/events/TeamChip";
 import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { abbreviateLocation } from "@/lib/abbreviateLocation";
+import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -311,7 +313,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
 
@@ -336,6 +338,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+  const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
@@ -433,9 +436,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30", inactiveHint: "border-primary/40 text-primary hover:bg-primary/5" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning text-warning-foreground shadow-md ring-2 ring-warning/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive text-destructive-foreground shadow-md ring-2 ring-destructive/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90", inactiveHint: "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning/15 text-warning border-warning/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive/15 text-destructive border-destructive/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
   ];
 
   return (
@@ -464,15 +467,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
         </div>
 
-        {/* Primary: Team chip · Secondary: Event title */}
+        {/* Primary: Team (large, prominent) · Secondary: Session title (muted) */}
         <div className="space-y-1">
-          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`text-[14px] font-medium leading-snug text-foreground/90 flex items-center gap-1.5 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
-                <span className="min-w-0">{displayTitle}</span>
+              <h3 className={`text-[13px] font-normal leading-snug text-muted-foreground flex items-center gap-1.5 ${event.is_cancelled ? "line-through" : ""}`}>
+                <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                <span className="min-w-0 truncate">{displayTitle}</span>
               </h3>
             );
           })()}
@@ -481,22 +484,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           )}
         </div>
 
-        {/* Date + Location */}
+        {/* Time (strong) + Location (subtle) — never repeat the urgency label */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            {urgency ? (
-              <span className="font-medium text-foreground">{dateTime}</span>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">{dateLabel}</span>
-                <span className="text-muted-foreground">• {dateTime}</span>
-              </>
+            <span className="font-medium text-foreground">{dateTime}</span>
+            {!urgency && (
+              <span className="text-muted-foreground">· {dateLabel}</span>
             )}
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground/80">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
@@ -505,8 +504,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[13px] text-warning">
-                <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                 <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
@@ -607,17 +606,33 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               </details>
             )}
 
-            {/* Helper text when no RSVP selected — reserved line so the card
-                height stays stable whether or not the user has already RSVPed.
-                Hidden until the RSVP query has settled to avoid a flash. */}
-            <p
-              className={`text-[10px] text-muted-foreground/60 text-center ${
-                heroDataReady && !currentStatus ? "" : "invisible"
-              }`}
-              aria-hidden={!(heroDataReady && !currentStatus)}
-            >
-              Tap to update your attendance
-            </p>
+            {/* Personal-first RSVP summary — "Teddy going + N others" */}
+            {(() => {
+              if (!heroDataReady) {
+                return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
+              }
+              const goingChildNames = (childRsvps || [])
+                .filter((r) => r.status === "going")
+                .map((r) => r.children?.name?.split(" ")[0] || "Child");
+              const summary = buildPersonalRsvpLine({
+                parentStatus: currentStatus,
+                goingChildNames,
+                totalGoing: rsvpSummary?.totalCount || 0,
+              });
+              if (!summary) {
+                return (
+                  <p className="text-[11px] text-muted-foreground/60 text-center">
+                    Be the first to RSVP
+                  </p>
+                );
+              }
+              const personal = goingChildNames.length > 0 || currentStatus === "going";
+              return (
+                <p className={`text-[11px] text-center ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
+                  {summary}
+                </p>
+              );
+            })()}
 
           </div>
         )}
@@ -630,8 +645,8 @@ function CompactCard({ event }: { event: EventItem }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
-  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
+  
+  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
 
@@ -695,38 +710,32 @@ function CompactCard({ event }: { event: EventItem }) {
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
 
-        {/* Title */}
-        <div>
+        {/* Primary: Team · Secondary: Session title */}
+        <div className="space-y-1 min-w-0">
+          <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
           {(() => {
             const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
             return (
-              <h3 className={`font-bold text-[14px] leading-snug flex items-center gap-1.5 min-w-0 ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+              <h3 className={`text-[12px] font-normal leading-snug text-muted-foreground flex items-center gap-1 min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <TypeIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
                 <span className="truncate">{displayTitle}</span>
               </h3>
             );
           })()}
-          {subtitle && (
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-          )}
         </div>
 
-        {/* Metadata */}
-        <div className="space-y-1">
+        {/* Metadata: time strong, no urgency repeat */}
+        <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-[12px]">
             <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            {urgency ? (
-              <span className="font-medium text-foreground">{dateTime}</span>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">{dateLabel}</span>
-                <span className="text-muted-foreground">• {dateTime}</span>
-              </>
+            <span className="font-medium text-foreground">{dateTime}</span>
+            {!urgency && (
+              <span className="text-muted-foreground">· {dateLabel}</span>
             )}
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
