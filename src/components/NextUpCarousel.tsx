@@ -435,9 +435,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30", inactiveHint: "border-primary/40 text-primary hover:bg-primary/5" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning text-warning-foreground shadow-md ring-2 ring-warning/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive text-destructive-foreground shadow-md ring-2 ring-destructive/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90", inactiveHint: "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning/15 text-warning border-warning/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive/15 text-destructive border-destructive/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
   ];
 
   return (
