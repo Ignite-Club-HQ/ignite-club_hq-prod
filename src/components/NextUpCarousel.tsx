@@ -497,10 +497,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           const isTraining = event.type === "training" && !isGame;
 
           return (
-            <div className="space-y-2">
-              {/* Top row: team chip + type badge */}
+            <div className="space-y-1">
+              {/* Top row: team chip (primary anchor) + type badge */}
               <div className="flex items-center justify-between gap-2">
-                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="sm" />
+                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
                 <Badge
                   variant="outline"
                   className={`text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 ${
@@ -515,16 +515,19 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 </Badge>
               </div>
 
-              {/* Main content — centered & dominant for games, calm & left-aligned for training */}
+              {/* Event title — left-aligned for both, secondary to team chip */}
               {isGame ? (
-                <div className={`text-center py-1 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <h3 className="text-[20px] font-bold leading-tight text-foreground tracking-tight line-clamp-2">
-                    {event.opponent ? `vs ${event.opponent}` : eventDisplay.primary}
-                  </h3>
+                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                  <div className="flex items-center gap-1.5 text-[15px] font-medium text-foreground/85 leading-snug">
+                    <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+                    <span className="min-w-0 truncate">
+                      {event.opponent ? `vs ${event.opponent}` : eventDisplay.primary}
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[16px] font-semibold text-foreground/90">
+                  <div className="flex items-center gap-1.5 text-[15px] font-medium text-foreground/85 leading-snug">
                     <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
                     <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                   </div>
