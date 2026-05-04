@@ -3720,6 +3720,51 @@ export type Database = {
           },
         ]
       }
+      match_goalkeepers: {
+        Row: {
+          assigned_by: string | null
+          child_id: string | null
+          created_at: string
+          event_id: string
+          id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          assigned_by?: string | null
+          child_id?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          assigned_by?: string | null
+          child_id?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_goalkeepers_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_goalkeepers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_message_reads: {
         Row: {
           id: string
