@@ -3660,6 +3660,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </Button>
           )}
         </div>
+        )}
       </SheetContent>
     </Sheet>
   );
