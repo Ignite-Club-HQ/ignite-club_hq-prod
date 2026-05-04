@@ -6,7 +6,7 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
@@ -17,6 +17,7 @@ import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 import PlayerOfMatchSelector from "@/components/PlayerOfMatchSelector";
 import MatchCaptainSelector from "@/components/MatchCaptainSelector";
+import MatchGoalkeepersSelector from "@/components/MatchGoalkeepersSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,6 +118,9 @@ const AttendeeCard = ({
   onChangeStatus,
   currentStatus,
   memberRole,
+  isCaptain,
+  isPotm,
+  isGoalkeeper,
 }: {
   rsvp: any; 
   hasPaid?: boolean;
@@ -128,6 +132,9 @@ const AttendeeCard = ({
   onChangeStatus?: (status: RsvpStatus) => void;
   currentStatus?: RsvpStatus;
   memberRole?: string;
+  isCaptain?: boolean;
+  isPotm?: boolean;
+  isGoalkeeper?: boolean;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
@@ -137,6 +144,26 @@ const AttendeeCard = ({
       ? rsvp.children?.name 
       : rsvp.profiles?.display_name;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
+
+  const matchIcons = (isCaptain || isPotm || isGoalkeeper) ? (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      {isCaptain && (
+        <span title="Captain" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400">
+          <Shield className="h-3 w-3" />
+        </span>
+      )}
+      {isGoalkeeper && (
+        <span title="Goalkeeper" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+          <Hand className="h-3 w-3" />
+        </span>
+      )}
+      {isPotm && (
+        <span title="Player of the Match" className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+          <Trophy className="h-3 w-3" />
+        </span>
+      )}
+    </span>
+  ) : null;
 
   return (
     <AttendanceRow
@@ -154,6 +181,7 @@ const AttendeeCard = ({
       secondaryLine={rsvp.notes || null}
       rightSlot={
         <>
+          {matchIcons}
           {showPrice && hasPaid && (
             <Badge variant="default" className="text-[10px] h-5 px-1.5 bg-primary shrink-0">
               <Check className="h-3 w-3 mr-0.5" />
@@ -863,6 +891,53 @@ export default function EventDetailPage() {
 
   // Create set of paid user IDs for quick lookup
   const paidUserIds = new Set(payments?.map(p => p.user_id) || []);
+
+  // Match awards: captain, POTM, goalkeepers — used to show inline icons next to attendees
+  const isGameEvent = event?.type === "game" && !!event?.team_id;
+  const { data: matchCaptainRow } = useQuery({
+    queryKey: ["match-captain", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("match_captains")
+        .select("user_id, child_id")
+        .eq("event_id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: potmRow } = useQuery({
+    queryKey: ["player-of-match", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("player_of_match")
+        .select("user_id, child_id")
+        .eq("event_id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const { data: goalkeeperRows = [] } = useQuery({
+    queryKey: ["match-goalkeepers", id],
+    enabled: !!id && isGameEvent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("match_goalkeepers" as any)
+        .select("user_id, child_id")
+        .eq("event_id", id!);
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+  const captainUserId = matchCaptainRow?.user_id || null;
+  const captainChildId = matchCaptainRow?.child_id || null;
+  const potmUserId = potmRow?.user_id || null;
+  const potmChildId = potmRow?.child_id || null;
+  const gkUserIds = new Set((goalkeeperRows as any[]).map((g) => g.user_id).filter(Boolean));
+  const gkChildIds = new Set((goalkeeperRows as any[]).map((g) => g.child_id).filter(Boolean));
 
   // Check if event has a price (social events only)
   const eventPrice = event?.type === "social" ? event?.amount : null;
@@ -2714,6 +2789,24 @@ export default function EventDetailPage() {
                 memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
                   ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0]
                   : undefined}
+                isCaptain={
+                  isGameEvent && (
+                    (!!rsvp.user_id && rsvp.user_id === captainUserId) ||
+                    (!!rsvp.child_id && rsvp.child_id === captainChildId)
+                  )
+                }
+                isPotm={
+                  isGameEvent && (
+                    (!!rsvp.user_id && rsvp.user_id === potmUserId) ||
+                    (!!rsvp.child_id && rsvp.child_id === potmChildId)
+                  )
+                }
+                isGoalkeeper={
+                  isGameEvent && (
+                    (!!rsvp.user_id && gkUserIds.has(rsvp.user_id)) ||
+                    (!!rsvp.child_id && gkChildIds.has(rsvp.child_id))
+                  )
+                }
               />
             ))}
             {includeGuests && eventGuests?.map((guest: any) => (
@@ -2901,6 +2994,18 @@ export default function EventDetailPage() {
             isAdmin={isAdmin || isAppAdmin || false}
             rsvps={rsvps || []}
           />
+          {(() => {
+            const sport = (event as any)?.clubs?.sport?.toLowerCase?.() || "";
+            const showGk = !sport || ["soccer", "football", "futsal"].includes(sport);
+            return showGk ? (
+              <MatchGoalkeepersSelector
+                eventId={id!}
+                teamId={event.team_id}
+                isAdmin={isAdmin || isAppAdmin || false}
+                rsvps={rsvps || []}
+              />
+            ) : null;
+          })()}
           <PlayerOfMatchSelector
             eventId={id!}
             clubId={event.club_id}
