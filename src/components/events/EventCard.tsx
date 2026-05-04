@@ -112,8 +112,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const displayTitle = formatEventTitle(event);
   const eventTimeOnly = formatEventContextualDate(event.event_date).time;
 
-  // Subtitle: team name for team events, "Club event" for club-wide
-  const subtitle = event.teams?.name || (event.team_id ? null : "Club event");
+
+
 
   const { data: hasPro } = useQuery({
     queryKey: ["event-pro-status", event.team_id, event.club_id],

@@ -645,7 +645,7 @@ function CompactCard({ event }: { event: EventItem }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
-  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
+  
   const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
   const urgency = getUrgencyBadge(event.event_date);
   const displayTitle = formatEventTitle(event);
