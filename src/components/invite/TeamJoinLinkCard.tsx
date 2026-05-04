@@ -6,6 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   AlertDialog,
