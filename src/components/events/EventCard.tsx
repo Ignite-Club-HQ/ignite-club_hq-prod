@@ -63,12 +63,6 @@ interface EventCardProps {
   hasViewed?: boolean;
 }
 
-const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/10 text-destructive border-destructive/20",
-  training: "bg-primary/10 text-primary border-primary/20",
-  social: "bg-warning/10 text-warning border-warning/20",
-};
-
 function formatContextualDate(dateStr: string) {
   const { label, time } = formatEventContextualDate(dateStr);
   return `${label} · ${time}`;
@@ -385,7 +379,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
-        {/* Row 0: Contextual date pill (e.g. "Tomorrow") + type/cancel/new chips */}
+        {/* Row 0: Contextual date + status chips */}
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {formatEventContextualDate(event.event_date).label}
@@ -397,12 +391,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
                 New
               </Badge>
             )}
-            {event.is_cancelled ? (
+            {event.is_cancelled && (
               <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
-            ) : (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
-                {typeLabel}
-              </Badge>
             )}
           </div>
         </div>

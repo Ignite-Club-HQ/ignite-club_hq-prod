@@ -152,9 +152,8 @@ export function MyTeamsScroll() {
         if (data) {
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
-              const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : "Social";
               map[event.team_id] = {
-                title: typeLabel,
+                title: event.title,
                 dateLabel: formatShortDate(event.event_date),
               };
             }
@@ -175,9 +174,8 @@ export function MyTeamsScroll() {
         if (data) {
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
-              const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : "Event";
               map[event.mini_league_id] = {
-                title: typeLabel,
+                title: event.title,
                 dateLabel: formatShortDate(event.event_date),
               };
             }
