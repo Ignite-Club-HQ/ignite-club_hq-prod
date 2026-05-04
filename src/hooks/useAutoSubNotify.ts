@@ -49,35 +49,54 @@ export function useAutoSubNotify(
 
       try {
         const recipientIds = new Set<string>();
+        const isEventGroup = teamId.startsWith("event-group-");
 
-        const { data: roles, error } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("team_id", teamId)
-          .in("role", ["team_admin", "coach"]);
-        if (error) {
-          console.error("[AutoSubNotify] role lookup failed:", error);
-        } else {
-          (roles ?? []).forEach((r) => {
-            if (r.user_id) recipientIds.add(r.user_id as string);
-          });
-        }
-
-        // Include anyone with the "Subs Manager" duty for the linked event —
-        // they're effectively running the board today even without a coach role.
-        if (linkedEventId) {
-          const { data: subsManagers, error: dutyErr } = await supabase
-            .from("duties")
+        if (isEventGroup) {
+          // Mini-league match: notify Referee + Subs Manager assignees for this group
+          const groupId = teamId.replace("event-group-", "");
+          const { data: matchDuties, error: dutyErr } = await supabase
+            .from("event_group_duties")
             .select("assigned_to")
-            .eq("event_id", linkedEventId)
-            .eq("name", "Subs Manager")
+            .eq("group_id", groupId)
+            .in("name", ["Referee", "Subs Manager"])
             .not("assigned_to", "is", null);
           if (dutyErr) {
-            console.error("[AutoSubNotify] subs-manager lookup failed:", dutyErr);
+            console.error("[AutoSubNotify] mini-league duty lookup failed:", dutyErr);
           } else {
-            (subsManagers ?? []).forEach((d: any) => {
+            (matchDuties ?? []).forEach((d: any) => {
               if (d.assigned_to) recipientIds.add(d.assigned_to as string);
             });
+          }
+        } else {
+          const { data: roles, error } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("team_id", teamId)
+            .in("role", ["team_admin", "coach"]);
+          if (error) {
+            console.error("[AutoSubNotify] role lookup failed:", error);
+          } else {
+            (roles ?? []).forEach((r) => {
+              if (r.user_id) recipientIds.add(r.user_id as string);
+            });
+          }
+
+          // Include anyone with the "Subs Manager" duty for the linked event —
+          // they're effectively running the board today even without a coach role.
+          if (linkedEventId) {
+            const { data: subsManagers, error: dutyErr } = await supabase
+              .from("duties")
+              .select("assigned_to")
+              .eq("event_id", linkedEventId)
+              .eq("name", "Subs Manager")
+              .not("assigned_to", "is", null);
+            if (dutyErr) {
+              console.error("[AutoSubNotify] subs-manager lookup failed:", dutyErr);
+            } else {
+              (subsManagers ?? []).forEach((d: any) => {
+                if (d.assigned_to) recipientIds.add(d.assigned_to as string);
+              });
+            }
           }
         }
 
