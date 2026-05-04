@@ -197,9 +197,9 @@ export function EventNoteSection({
           )}
         </div>
         <p className="text-sm whitespace-pre-line">{note}</p>
-        {(authorName || noteUpdatedAt) && (
+        {(displayAuthor || noteUpdatedAt) && (
           <p className="text-xs text-muted-foreground">
-            {authorName ? `By ${authorName}` : "Posted"}
+            {displayAuthor ? `By ${displayAuthor}` : "Posted"}
             {noteUpdatedAt &&
               ` · ${formatDistanceToNow(new Date(noteUpdatedAt), { addSuffix: true })}`}
           </p>
