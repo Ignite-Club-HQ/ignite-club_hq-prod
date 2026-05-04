@@ -2272,6 +2272,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </Button>
                   )}
                 </div>
+                <p className="text-[11px] text-muted-foreground">You can paste multiple names.</p>
 
                 {isSearching && (
                   <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
