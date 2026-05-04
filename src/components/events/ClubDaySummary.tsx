@@ -232,33 +232,6 @@ export function ClubDaySummary({
   );
 }
 
-function SummarySection({
-  title,
-  icon,
-  accent,
-  events,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  accent: string;
-  events: ClubDayEvent[];
-}) {
-  return (
-    <div className="space-y-2">
-      <div className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", accent)}>
-        {icon}
-        <span>{title}</span>
-        <span className="text-muted-foreground">({events.length})</span>
-      </div>
-      <div className="space-y-2">
-        {events.map((e) => (
-          <DayEventRow key={e.id} event={e} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVenue?: boolean }) {
   const navigate = useNavigate();
   const time = event.start_time
