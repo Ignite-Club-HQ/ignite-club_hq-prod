@@ -2994,6 +2994,18 @@ export default function EventDetailPage() {
             isAdmin={isAdmin || isAppAdmin || false}
             rsvps={rsvps || []}
           />
+          {(() => {
+            const sport = (event as any)?.clubs?.sport?.toLowerCase?.() || "";
+            const showGk = !sport || ["soccer", "football", "futsal"].includes(sport);
+            return showGk ? (
+              <MatchGoalkeepersSelector
+                eventId={id!}
+                teamId={event.team_id}
+                isAdmin={isAdmin || isAppAdmin || false}
+                rsvps={rsvps || []}
+              />
+            ) : null;
+          })()}
           <PlayerOfMatchSelector
             eventId={id!}
             clubId={event.club_id}
