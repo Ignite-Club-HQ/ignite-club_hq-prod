@@ -384,7 +384,12 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-3.5 pb-3 space-y-2">
+      {/* Right-edge tap affordance — vertically centered, balances left-heavy meta rows */}
+      <ChevronRight
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 pointer-events-none"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3.5 pb-3 pr-8 space-y-2">
         {/* Status chips only — section header already conveys the date.
             "New" badge is suppressed for training events to reduce noise. */}
         {(() => {
@@ -488,9 +493,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
           if (!summary) {
             return (
-              <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+              <div className="pt-1.5 border-t border-border/40">
                 <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
             );
           }
@@ -498,18 +502,15 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                {personal ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                ) : (
-                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                )}
-                <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                  {summary}
-                </span>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+            <div className="flex items-center pt-1.5 border-t border-border/40 gap-1.5 min-w-0">
+              {personal ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              ) : (
+                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+              <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {summary}
+              </span>
             </div>
           );
         })()}
