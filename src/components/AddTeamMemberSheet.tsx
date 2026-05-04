@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -2129,9 +2129,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             {inviteByNameOpen && (
               <>
             {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <div className="space-y-0.5 pt-1">
-                <h3 className="text-sm font-semibold">Invite by name</h3>
-                <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
+              <div className="flex items-start justify-between gap-2 pt-1">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold">Invite by name</h3>
+                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInviteByNameExpanded(false)}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
+                  aria-label="Collapse invite by name"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                  Hide
+                </button>
               </div>
             )}
 
