@@ -538,16 +538,16 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           );
         })()}
 
-        {/* Compact date + time, location subtle */}
+        {/* Compact date + time + location — location promoted to match time weight */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
             <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
@@ -607,13 +607,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
                   <Baby className="h-3.5 w-3.5 text-primary" />
                   <span>Children's RSVP</span>
-                  {childRsvps && childRsvps.length > 0 ? (
-                    <span className="text-[10px] text-muted-foreground ml-auto mr-1">
-                      {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
-                      {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
-                    </span>
-                  ) : null}
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0 ml-auto" />
                 </summary>
                 <div className="space-y-2 px-2.5 pb-2.5">
                   {childrenOnEvent.map((child) => {

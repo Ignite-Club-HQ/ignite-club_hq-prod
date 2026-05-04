@@ -455,10 +455,10 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           );
         })()}
 
-        {/* Compact date + time on one line — restores date context without a separate chip */}
+        {/* Compact date + time + location — location promoted to match time weight */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
             <span className="font-medium text-foreground">{compactWhen}</span>
           </div>
           {event.type === "game" && (() => {
@@ -474,8 +474,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           })()}
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
