@@ -8613,14 +8613,18 @@ export type Database = {
         Args: { _amount: number; _child_id: string; _club_id: string }
         Returns: number
       }
-      increment_child_ignite_points: {
-        Args: { _amount: number; _child_id: string }
-        Returns: number
-      }
-      increment_ignite_points: {
-        Args: { _amount: number; _user_id: string }
-        Returns: number
-      }
+      increment_child_ignite_points:
+        | { Args: { _amount: number; _child_id: string }; Returns: number }
+        | {
+            Args: { _amount: number; _child_id: string; _club_id: string }
+            Returns: number
+          }
+      increment_ignite_points:
+        | { Args: { _amount: number; _user_id: string }; Returns: number }
+        | {
+            Args: { _amount: number; _club_id: string; _user_id: string }
+            Returns: number
+          }
       increment_user_club_points: {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
