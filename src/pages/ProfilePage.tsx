@@ -609,7 +609,11 @@ export default function ProfilePage() {
           // Use the most recent history entry's balance_after as the source of truth
           // for the displayed balance. This stays in sync with the activity feed even
           // when the auth-context profile cache hasn't refreshed yet.
-          const profileBalance = profile?.ignite_points || 0;
+          // When a club is active, source-of-truth is the per-club balance from
+          // user_club_points. Otherwise we fall back to the legacy global total.
+          const profileBalance = activeClubFilter
+            ? activeClubPoints
+            : (profile?.ignite_points || 0);
           const latestHistoryBalance =
             pointsHistoryData && pointsHistoryData.length > 0
               ? (pointsHistoryData[0] as any).balance_after ?? null
