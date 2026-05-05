@@ -15,14 +15,58 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
   const stamp = new Date().toISOString().split("T")[0];
 
   if (Capacitor.isNativePlatform()) {
+    const platform = Capacitor.getPlatform(); // "ios" | "android"
     try {
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
 
-      // Try server-side download first (no CORS, works with signed URLs on iOS).
       const urlExt = guessExtensionFromUrl(url);
       let filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${urlExt}`;
-      let writtenUri: string | null = null;
 
+      // ---- Android: save directly to the public Pictures/Ignite folder so
+      // the photo shows up in Gallery / Google Photos. No share sheet.
+      if (platform === "android") {
+        try {
+          const targetPath = `Pictures/Ignite/${filename}`;
+          let writtenUri: string | null = null;
+          try {
+            const dl: any = await (Filesystem as any).downloadFile({
+              url,
+              path: targetPath,
+              directory: Directory.ExternalStorage,
+              recursive: true,
+            });
+            writtenUri = dl?.path || dl?.uri || null;
+          } catch (dlErr) {
+            console.warn("[downloadImage] Android downloadFile failed, trying fetch:", dlErr);
+          }
+
+          if (!writtenUri) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+            const blob = await response.blob();
+            const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+            const ext = pickExtension(contentType);
+            filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+            const base64 = await blobToBase64(blob);
+            const written = await Filesystem.writeFile({
+              path: `Pictures/Ignite/${filename}`,
+              data: base64,
+              directory: Directory.ExternalStorage,
+              recursive: true,
+            });
+            writtenUri = written.uri;
+          }
+
+          toast({ title: "Saved to Photos", description: "Find it in your gallery under Ignite" });
+          return;
+        } catch (androidErr) {
+          console.warn("[downloadImage] Android external save failed, falling back to share sheet:", androidErr);
+          // fall through to the iOS-style share-sheet path below
+        }
+      }
+
+      // ---- iOS (and Android fallback): write to cache then open share sheet
+      let writtenUri: string | null = null;
       try {
         const dl: any = await (Filesystem as any).downloadFile({
           url,
