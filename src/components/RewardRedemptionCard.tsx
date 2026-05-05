@@ -1204,7 +1204,7 @@ export default function RewardRedemptionCard() {
                             <Badge variant="outline" className="text-xs">{currentPoints} pts</Badge>
                           </div>
                         </SelectItem>
-                        {children.map(child => (
+                        {childrenScoped.map(child => (
                           <SelectItem key={child.id} value={child.id}>
                             <div className="flex items-center gap-2">
                               <Users className="h-3 w-3" />
