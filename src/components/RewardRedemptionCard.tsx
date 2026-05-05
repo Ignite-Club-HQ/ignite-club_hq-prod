@@ -564,24 +564,36 @@ export default function RewardRedemptionCard() {
     }
   };
 
-  // Per-club balance for the active/selected club. When multiple clubs and
-  // none picked yet, fall back to 0 (the user must pick a club to redeem).
+  // Per-club balance for the active/selected club. When no club is in context,
+  // fall back to 0 (the user must pick a club to redeem).
   const contextClubId = selectedClubId || activeClubFilter || (userClubs.length === 1 ? (userClubs[0] as any).id : null);
   const { data: userClubBalance = 0 } = useUserClubPoints(user?.id, contextClubId);
   const currentPoints = contextClubId ? userClubBalance : 0;
 
-  // Override each child's displayed balance with their per-club balance for
-  // the context club (so affordability checks below are per-club).
-  const childClubBalancesQueries = children.map(c => useAllChildClubPoints(c.id));
+  // Fetch per-club balances for all children in this club (single query keyed
+  // on club). Falls back to 0 when there is no context club.
+  const childIds = useMemo(() => children.map(c => c.id).sort(), [children]);
+  const { data: childClubRows = [] } = useQuery({
+    queryKey: ["children-club-points", contextClubId, childIds],
+    queryFn: async () => {
+      if (!contextClubId || childIds.length === 0) return [] as Array<{ child_id: string; points: number }>;
+      const { data } = await supabase
+        .from("child_club_points")
+        .select("child_id, points")
+        .eq("club_id", contextClubId)
+        .in("child_id", childIds);
+      return (data ?? []) as Array<{ child_id: string; points: number }>;
+    },
+    enabled: !!contextClubId && childIds.length > 0,
+    staleTime: 1000 * 30,
+  });
   const childrenScoped = useMemo(() => {
-    return children.map((c, i) => {
+    return children.map(c => {
       if (!contextClubId) return { ...c, ignite_points: 0 };
-      const rows = childClubBalancesQueries[i]?.data ?? [];
-      const row = rows.find(r => r.club_id === contextClubId);
+      const row = childClubRows.find(r => r.child_id === c.id);
       return { ...c, ignite_points: row?.points ?? 0 };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, contextClubId, JSON.stringify(childClubBalancesQueries.map(q => q.data))]);
+  }, [children, contextClubId, childClubRows]);
 
   const pendingRedemptions = redemptions.filter(r => r.status === "pending");
   const hasClubs = userClubs.length > 0;
