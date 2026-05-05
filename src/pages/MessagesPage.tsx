@@ -177,7 +177,7 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
-  const [localClubFilter, setLocalClubFilter] = useState("all");
+  const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
