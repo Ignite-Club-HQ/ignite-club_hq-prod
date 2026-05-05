@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
       const { data: newPointsResult, error: rpcError } = await supabase.rpc('increment_ignite_points', {
         _user_id: duty.assigned_to,
         _amount: 10,
+        _club_id: club?.id ?? null,
       });
 
       if (rpcError) {
