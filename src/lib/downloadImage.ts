@@ -30,9 +30,11 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
         try {
           const { Media } = await import("@capacitor-community/media");
           const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
+          const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
           await Media.savePhoto({
             path: url,
             fileName: baseName,
+            albumIdentifier,
           });
           toast({ title: "Photo downloaded", description: "Saved to your photos" });
           return;
@@ -176,4 +178,37 @@ function guessExtensionFromUrl(url: string): string {
     if (m) return m[1] === "jpeg" ? "jpg" : m[1];
   } catch {}
   return "jpg";
+}
+
+async function ensureAndroidMediaAlbum(
+  Media: {
+    getAlbums: () => Promise<{ albums?: Array<{ name?: string; identifier?: string }> }>;
+    createAlbum: (options: { name: string }) => Promise<void>;
+    getAlbumsPath?: () => Promise<{ path?: string }>;
+  },
+  albumName: string,
+): Promise<string> {
+  const findAlbum = async () => {
+    const { albums = [] } = await Media.getAlbums();
+    const albumsPath = Media.getAlbumsPath ? (await Media.getAlbumsPath().catch(() => ({ path: undefined }))).path : undefined;
+    return albums.find((album) =>
+      album.name === albumName &&
+      album.identifier &&
+      (!albumsPath || album.identifier.startsWith(albumsPath))
+    ) || albums.find((album) => album.name === albumName && album.identifier);
+  };
+
+  const existing = await findAlbum();
+  if (existing?.identifier) return existing.identifier;
+
+  try {
+    await Media.createAlbum({ name: albumName });
+  } catch (err: any) {
+    const message = String(err?.message || err).toLowerCase();
+    if (!message.includes("already exists")) throw err;
+  }
+
+  const created = await findAlbum();
+  if (!created?.identifier) throw new Error("Could not prepare Android photo album");
+  return created.identifier;
 }
