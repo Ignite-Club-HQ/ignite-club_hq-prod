@@ -15,48 +15,107 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
   const stamp = new Date().toISOString().split("T")[0];
 
   if (Capacitor.isNativePlatform()) {
+    const platform = Capacitor.getPlatform(); // "ios" | "android"
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-      const blob = await response.blob();
-      const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-      const ext = pickExtension(contentType);
-      const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-
-      const base64 = await blobToBase64(blob);
-
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      // Write to Cache directory (always writable on iOS & Android without permissions)
-      const written = await Filesystem.writeFile({
-        path: filename,
-        data: base64,
-        directory: Directory.Cache,
-        recursive: true,
-      });
 
-      // Use the native Share sheet so the user can save to Photos / Files / etc.
+      const urlExt = guessExtensionFromUrl(url);
+      let filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${urlExt}`;
+
+      // ---- Android: save directly to the public Pictures/Ignite folder so
+      // the photo shows up in Gallery / Google Photos. No share sheet.
+      if (platform === "android") {
+        try {
+          const targetPath = `Pictures/Ignite/${filename}`;
+          let writtenUri: string | null = null;
+          try {
+            const dl: any = await (Filesystem as any).downloadFile({
+              url,
+              path: targetPath,
+              directory: Directory.ExternalStorage,
+              recursive: true,
+            });
+            writtenUri = dl?.path || dl?.uri || null;
+          } catch (dlErr) {
+            console.warn("[downloadImage] Android downloadFile failed, trying fetch:", dlErr);
+          }
+
+          if (!writtenUri) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+            const blob = await response.blob();
+            const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+            const ext = pickExtension(contentType);
+            filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+            const base64 = await blobToBase64(blob);
+            const written = await Filesystem.writeFile({
+              path: `Pictures/Ignite/${filename}`,
+              data: base64,
+              directory: Directory.ExternalStorage,
+              recursive: true,
+            });
+            writtenUri = written.uri;
+          }
+
+          toast({ title: "Saved to Photos", description: "Find it in your gallery under Ignite" });
+          return;
+        } catch (androidErr) {
+          console.warn("[downloadImage] Android external save failed, falling back to share sheet:", androidErr);
+          // fall through to the iOS-style share-sheet path below
+        }
+      }
+
+      // ---- iOS (and Android fallback): write to cache then open share sheet
+      let writtenUri: string | null = null;
+      try {
+        const dl: any = await (Filesystem as any).downloadFile({
+          url,
+          path: filename,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        writtenUri = dl?.path || dl?.uri || null;
+      } catch (dlErr) {
+        console.warn("[downloadImage] Filesystem.downloadFile failed, trying fetch:", dlErr);
+      }
+
+      if (!writtenUri) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+        const blob = await response.blob();
+        const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+        const ext = pickExtension(contentType);
+        filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+        const base64 = await blobToBase64(blob);
+        const written = await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        writtenUri = written.uri;
+      }
+
       try {
         const { Share } = await import("@capacitor/share");
         await Share.share({
           title: "Save photo",
-          url: written.uri,
+          url: writtenUri,
           dialogTitle: "Save photo",
         });
         toast({ title: "Photo ready", description: "Choose where to save it" });
       } catch (shareErr: any) {
-        // User cancelled share sheet — not an error
         if (String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) return;
         throw shareErr;
       }
       return;
     } catch (err) {
-      console.warn("[downloadImage] native download failed, falling back to open:", err);
+      console.warn("[downloadImage] native download failed:", err);
       toast({
         title: "Download failed",
-        description: "Opening image in browser instead",
+        description: "Please try again",
         variant: "destructive",
       });
-      safeOpenUrl(url);
       return;
     }
   }
@@ -107,5 +166,14 @@ function pickExtension(contentType: string): string {
   if (ct.includes("heic")) return "heic";
   if (ct.includes("heif")) return "heif";
   if (ct.includes("svg")) return "svg";
+  return "jpg";
+}
+
+function guessExtensionFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const m = path.match(/\.(png|webp|gif|heic|heif|svg|jpg|jpeg)(?:$|\?)/);
+    if (m) return m[1] === "jpeg" ? "jpg" : m[1];
+  } catch {}
   return "jpg";
 }
