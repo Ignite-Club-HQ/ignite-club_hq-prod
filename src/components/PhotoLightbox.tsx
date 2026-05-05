@@ -135,6 +135,18 @@ export function PhotoLightbox({
     resetZoom();
   }, [currentIndex, resetZoom]);
 
+  // Force white status-bar icons on the black viewer chrome while open,
+  // restore the app theme's status bar on close. Without this, light-mode
+  // users get dark icons that disappear against the black lightbox bg.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!Capacitor.isNativePlatform()) return;
+    applyStatusBarForViewer();
+    return () => {
+      refreshStatusBar();
+    };
+  }, [isOpen]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") handlePrev();
     if (e.key === "ArrowRight") handleNext();
