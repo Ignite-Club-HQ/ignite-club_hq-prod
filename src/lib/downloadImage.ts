@@ -124,3 +124,12 @@ function pickExtension(contentType: string): string {
   if (ct.includes("svg")) return "svg";
   return "jpg";
 }
+
+function guessExtensionFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const m = path.match(/\.(png|webp|gif|heic|heif|svg|jpg|jpeg)(?:$|\?)/);
+    if (m) return m[1] === "jpeg" ? "jpg" : m[1];
+  } catch {}
+  return "jpg";
+}
