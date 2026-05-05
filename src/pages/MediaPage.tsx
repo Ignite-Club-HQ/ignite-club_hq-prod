@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
