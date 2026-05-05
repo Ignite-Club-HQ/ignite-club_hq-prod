@@ -4680,6 +4680,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          club_id: string | null
           created_at: string
           id: string
           is_read: boolean
@@ -4690,6 +4691,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          club_id?: string | null
           created_at?: string
           id?: string
           is_read?: boolean
@@ -4700,6 +4702,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          club_id?: string | null
           created_at?: string
           id?: string
           is_read?: boolean
@@ -8151,6 +8154,10 @@ export type Database = {
         Returns: string
       }
       deny_role_request: { Args: { p_request_id: string }; Returns: undefined }
+      derive_notification_club_id: {
+        Args: { _related_id: string; _type: string }
+        Returns: string
+      }
       dismiss_accepted_pending_invites: {
         Args: { p_club_id?: string; p_team_id?: string }
         Returns: number
