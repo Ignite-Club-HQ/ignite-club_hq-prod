@@ -22,46 +22,49 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       const urlExt = guessExtensionFromUrl(url);
       let filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${urlExt}`;
 
-      // ---- Android: save directly to the public Pictures/Ignite folder so
-      // the photo shows up in Gallery / Google Photos. No share sheet.
+      // ---- Android: fetch the image to a blob and write it to the app's
+      // Documents directory (always writable on Android 10+ scoped storage,
+      // no runtime permissions required). Then open the share sheet so the
+      // user can save to Photos / Files / Drive — this is the only reliable
+      // way to land in the system Gallery without a MediaStore plugin.
       if (platform === "android") {
         try {
-          const targetPath = `Pictures/Ignite/${filename}`;
-          let writtenUri: string | null = null;
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+          const blob = await response.blob();
+          const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+          const ext = pickExtension(contentType);
+          filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+          const base64 = await blobToBase64(blob);
+          const written = await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+
           try {
-            const dl: any = await (Filesystem as any).downloadFile({
-              url,
-              path: targetPath,
-              directory: Directory.ExternalStorage,
-              recursive: true,
+            const { Share } = await import("@capacitor/share");
+            await Share.share({
+              title: "Save photo",
+              url: written.uri,
+              dialogTitle: "Save photo",
             });
-            writtenUri = dl?.path || dl?.uri || null;
-          } catch (dlErr) {
-            console.warn("[downloadImage] Android downloadFile failed, trying fetch:", dlErr);
+            toast({ title: "Photo ready", description: "Choose where to save it" });
+          } catch (shareErr: any) {
+            const msg = String(shareErr?.message || shareErr).toLowerCase();
+            if (msg.includes("cancel")) return;
+            throw shareErr;
           }
-
-          if (!writtenUri) {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-            const blob = await response.blob();
-            const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-            const ext = pickExtension(contentType);
-            filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-            const base64 = await blobToBase64(blob);
-            const written = await Filesystem.writeFile({
-              path: `Pictures/Ignite/${filename}`,
-              data: base64,
-              directory: Directory.ExternalStorage,
-              recursive: true,
-            });
-            writtenUri = written.uri;
-          }
-
-          toast({ title: "Saved to Photos", description: "Find it in your gallery under Ignite" });
           return;
         } catch (androidErr) {
-          console.warn("[downloadImage] Android external save failed, falling back to share sheet:", androidErr);
-          // fall through to the iOS-style share-sheet path below
+          console.warn("[downloadImage] Android save failed:", androidErr);
+          toast({
+            title: "Download failed",
+            description: "Please try again",
+            variant: "destructive",
+          });
+          return;
         }
       }
 
