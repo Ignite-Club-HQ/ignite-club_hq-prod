@@ -1907,13 +1907,13 @@ export default function HomePage() {
               </div>
 
               {/* Primary: progress to next reward */}
-              {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold ? (
+              {minRewardThreshold !== null && (myPoints) < minRewardThreshold ? (
                 <div>
                   <p className="text-base font-semibold leading-tight">
-                    {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
+                    {minRewardThreshold - (myPoints)} points to next reward
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {profile?.ignite_points || 0} total points
+                    {myPoints} total points
                   </p>
                 </div>
               ) : minRewardThreshold !== null ? (
@@ -1922,11 +1922,11 @@ export default function HomePage() {
                     🎉 Rewards available!
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {profile?.ignite_points || 0} total points
+                    {myPoints} total points
                   </p>
                 </div>
               ) : (
-                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+                <p className="text-2xl font-bold leading-tight">{myPoints}</p>
               )}
 
               {/* Pending claim */}
@@ -1962,8 +1962,8 @@ export default function HomePage() {
           </div>
 
           {/* Progress bar */}
-          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (() => {
-            const currentPoints = profile?.ignite_points || 0;
+          {minRewardThreshold !== null && (myPoints) < minRewardThreshold && (() => {
+            const currentPoints = myPoints;
             const progress = Math.min(100, (currentPoints / minRewardThreshold) * 100);
             const isClose = progress >= 70;
             return (
@@ -2008,7 +2008,7 @@ export default function HomePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 pt-1">
                 {userChildren.map((child: any) => {
-                  const childPoints = child.ignite_points || 0;
+                  const childPoints = childPointsFor(child);
                   const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
                   const childHasReward = childPoints >= minRewardThreshold;
                   return (
@@ -2069,7 +2069,7 @@ export default function HomePage() {
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
               {selectedRewardClubId 
-                ? `You have ${profile?.ignite_points || 0} points${userChildren.length > 0 ? " (+ children's points)" : ""}`
+                ? `You have ${myPoints} points${userChildren.length > 0 ? " (+ children's points)" : ""}`
                 : "Choose a club to view rewards"
               }
             </ResponsiveDialogDescription>
@@ -2106,9 +2106,9 @@ export default function HomePage() {
             ) : (
               <div className="space-y-2">
                 {availableRewards.map((reward: any) => {
-                  const currentPoints = profile?.ignite_points || 0;
+                  const currentPoints = myPoints;
                   const canAfford = currentPoints >= reward.points_required ||
-                    userChildren.some((c: any) => c.ignite_points >= reward.points_required);
+                    userChildren.some((c: any) => childPointsFor(c) >= reward.points_required);
                   
                   return (
                     <button
@@ -2174,7 +2174,7 @@ export default function HomePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           
-          {userChildren.filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
+          {userChildren.filter((child: any) => childPointsFor(child) >= (selectedReward?.points_required || 0)).length > 0 && (
             <div className="space-y-2 py-2">
               <Label>Redeem for</Label>
               <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
@@ -2183,13 +2183,13 @@ export default function HomePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="myself">
-                    Myself ({profile?.ignite_points || 0} pts)
+                    Myself ({myPoints} pts)
                   </SelectItem>
                   {userChildren
-                    .filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0))
+                    .filter((child: any) => childPointsFor(child) >= (selectedReward?.points_required || 0))
                     .map((child: any) => (
                     <SelectItem key={child.id} value={child.id}>
-                      {child.name} ({child.ignite_points} pts)
+                      {child.name} ({childPointsFor(child)} pts)
                     </SelectItem>
                   ))}
                 </SelectContent>
