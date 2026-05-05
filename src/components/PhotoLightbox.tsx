@@ -186,11 +186,14 @@ export function PhotoLightbox({
   };
 
   const handleShare = async () => {
-    const url = downloadSignedUrl || photoSrc;
-    if (!url) {
+    if (!currentPhoto?.id) {
       toast.error("Nothing to share");
       return;
     }
+    // Always share the branded /share URL (rich preview + redirect),
+    // never the raw Supabase signed storage URL.
+    const { getShareUrl } = await import("@/lib/shareUtils");
+    const url = getShareUrl("photo", currentPhoto.id);
     const title = currentPhoto.title || "Photo";
 
     // Native share via Capacitor
