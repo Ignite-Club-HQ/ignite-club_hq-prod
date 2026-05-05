@@ -62,10 +62,11 @@ export default function AwardPointsDialog({
     mutationFn: async () => {
       const previousPoints = currentPoints;
       
-      // Atomic points increment via DB function
-      const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+      // Atomic points increment via DB function (scoped to this club)
+      const { data: newPoints, error: updateError } = await (supabase.rpc as any)('increment_ignite_points', {
         _user_id: memberId,
         _amount: points,
+        _club_id: clubId,
       });
 
       if (updateError) throw updateError;
