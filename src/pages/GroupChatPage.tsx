@@ -290,6 +290,10 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Sync active club to this group's owning club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(group?.club_id);
+
   // Check if user is admin (team/club admin or app admin) - run all checks in parallel
   const { data: isAdmin } = useQuery({
     queryKey: ["group-chat-admin", groupId, user?.id, group?.team_id, group?.club_id],
