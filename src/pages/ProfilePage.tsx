@@ -50,6 +50,12 @@ export default function ProfilePage() {
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
+  // Per-club balance for the active club. When no club is selected (All Clubs
+  // mode), fall back to the legacy global total on the profile below.
+  const { data: activeClubPoints = 0 } = useUserClubPoints(
+    user?.id ?? null,
+    activeClubFilter,
+  );
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
