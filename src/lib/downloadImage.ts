@@ -73,7 +73,6 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       let writtenUri: string | null = null;
       try {
         const dl: any = await (Filesystem as any).downloadFile({
-          url,
           url: resolvedUrl,
           path: filename,
           directory: Directory.Cache,
