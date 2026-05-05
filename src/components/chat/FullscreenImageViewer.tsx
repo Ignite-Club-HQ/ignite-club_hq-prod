@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Download, Flag, ShieldAlert, Share2, MoreVertical } from "lucide-react";
+import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +9,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { safeOpenUrl } from "@/lib/safeOpenUrl";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { downloadImage } from "@/lib/downloadImage";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
