@@ -249,7 +249,12 @@ export default function TeamChatPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  // Sync active club to this team's owning club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(team?.club_id);
+
   // Check if user is admin (team_admin, coach, club_admin, or app_admin) - parallelize queries
+
   const { data: isAdmin } = useQuery({
     queryKey: ["team-chat-admin", teamId, user?.id, team?.club_id],
     queryFn: async () => {
