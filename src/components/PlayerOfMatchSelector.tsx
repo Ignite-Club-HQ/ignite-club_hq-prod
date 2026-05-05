@@ -167,9 +167,10 @@ export default function PlayerOfMatchSelector({
       if (pointsToAward > 0) {
         if (userId) {
           // Atomic points increment
-          const { data: newBalance, error: updateError } = await supabase.rpc('increment_ignite_points', {
+          const { data: newBalance, error: updateError } = await (supabase.rpc as any)('increment_ignite_points', {
             _user_id: userId,
             _amount: pointsToAward,
+            _club_id: clubId,
           });
 
           if (updateError) throw updateError;
