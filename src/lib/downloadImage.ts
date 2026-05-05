@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "@/hooks/use-toast";
+import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 
 /**
  * Download an image without exposing the backend URL or storage filename
@@ -13,13 +14,14 @@ import { toast } from "@/hooks/use-toast";
  */
 export async function downloadImage(url: string, friendlyBaseName = "ignite-photo"): Promise<void> {
   const stamp = new Date().toISOString().split("T")[0];
+  const resolvedUrl = await resolveSignedUrl(url);
 
   if (Capacitor.isNativePlatform()) {
     const platform = Capacitor.getPlatform(); // "ios" | "android"
     try {
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
 
-      const urlExt = guessExtensionFromUrl(url);
+      const urlExt = guessExtensionFromUrl(resolvedUrl);
       let filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${urlExt}`;
 
       // ---- Android: save directly to the media library. Capacitor Filesystem
@@ -32,7 +34,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
           const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
           await Media.savePhoto({
-            path: url,
+            path: resolvedUrl,
             fileName: baseName,
             albumIdentifier,
           });
@@ -41,7 +43,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
         } catch (androidErr) {
           console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
           try {
-            const response = await fetch(url);
+            const response = await fetch(resolvedUrl);
             if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
             const blob = await response.blob();
             const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
@@ -72,6 +74,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       try {
         const dl: any = await (Filesystem as any).downloadFile({
           url,
+          url: resolvedUrl,
           path: filename,
           directory: Directory.Cache,
           recursive: true,
@@ -82,7 +85,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
       }
 
       if (!writtenUri) {
-        const response = await fetch(url);
+        const response = await fetch(resolvedUrl);
         if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
         const blob = await response.blob();
         const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
@@ -123,7 +126,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
   }
 
   try {
-    const response = await fetch(url, { credentials: "omit" });
+    const response = await fetch(resolvedUrl, { credentials: "omit" });
     if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
     const blob = await response.blob();
 
@@ -142,7 +145,7 @@ export async function downloadImage(url: string, friendlyBaseName = "ignite-phot
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   } catch (err) {
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
-    safeOpenUrl(url);
+    safeOpenUrl(resolvedUrl);
   }
 }
 
