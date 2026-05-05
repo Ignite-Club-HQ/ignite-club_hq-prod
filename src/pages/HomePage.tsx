@@ -64,6 +64,7 @@ import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
+import { useUserClubPoints, useChildrenClubPoints } from "@/hooks/useClubPoints";
 import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
