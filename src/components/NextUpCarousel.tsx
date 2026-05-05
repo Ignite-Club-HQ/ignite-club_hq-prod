@@ -1,7 +1,7 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -677,11 +677,13 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   </p>
                 );
               }
-              const personal = goingChildNames.length > 0 || currentStatus === "going";
+              const isChildGoing = goingChildNames.length > 0;
+              const personal = isChildGoing || currentStatus === "going";
               return (
-                <p className={`text-[11px] text-center ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
-                  {summary}
-                </p>
+                <div className={`flex items-center justify-center gap-1 text-[11px] ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
+                  {isChildGoing && <User className="h-3 w-3 shrink-0" />}
+                  <span>{summary}</span>
+                </div>
               );
             })()}
 
