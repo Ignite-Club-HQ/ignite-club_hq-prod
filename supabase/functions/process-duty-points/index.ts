@@ -460,6 +460,7 @@ Deno.serve(async (req) => {
       const { data: childNewPts, error: childRpcErr } = await supabase.rpc('increment_child_ignite_points', {
         _child_id: rsvp.child_id,
         _amount: childAttendancePts,
+        _club_id: club?.id ?? null,
       });
 
       if (childRpcErr) {
