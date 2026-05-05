@@ -328,9 +328,10 @@ export default function PlayerOfMatchSelector({
         }
       } else if (playerOfMatch.child_id) {
         // Atomic deduction for child
-        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+        const { data: childNewBalance } = await (supabase.rpc as any)('increment_child_ignite_points', {
           _child_id: playerOfMatch.child_id,
           _amount: -pointsToDeduct,
+          _club_id: clubId,
         });
 
         if (pointsToDeduct > 0) {
