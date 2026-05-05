@@ -82,9 +82,10 @@ export async function awardEarlyRsvpPoints({
     let previousPoints: number;
 
     if (childId) {
-      const { data: newPoints, error: updateError } = await supabase.rpc('increment_child_ignite_points', {
+      const { data: newPoints, error: updateError } = await (supabase.rpc as any)('increment_child_ignite_points', {
         _child_id: childId,
         _amount: EARLY_RSVP_POINTS,
+        _club_id: clubId,
       });
 
       if (updateError) {
@@ -96,9 +97,10 @@ export async function awardEarlyRsvpPoints({
       balanceAfter = newPoints || 0;
       previousPoints = balanceAfter - EARLY_RSVP_POINTS;
     } else {
-      const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+      const { data: newPoints, error: updateError } = await (supabase.rpc as any)('increment_ignite_points', {
         _user_id: userId,
         _amount: EARLY_RSVP_POINTS,
+        _club_id: clubId,
       });
 
       if (updateError) {

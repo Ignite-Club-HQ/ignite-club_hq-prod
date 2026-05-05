@@ -39,6 +39,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { recordPointsHistory } from "@/lib/pointsHistory";
+import { useUserClubPoints } from "@/hooks/useClubPoints";
 
 interface ClubReward {
   id: string;
@@ -334,24 +335,38 @@ export default function RewardRedemptionCard() {
 
   const redeemMutation = useMutation({
     mutationFn: async ({ reward, forChildId }: { reward: ClubReward; forChildId: string | null }) => {
-      // Determine whose points to use
+      // Determine whose points to use — and verify against the per-club balance,
+      // since reward points are scoped to each club.
       let pointsSource: { id: string; points: number; isChild: boolean };
       let childName: string | null = null;
-      
+
       if (forChildId) {
         const child = children.find(c => c.id === forChildId);
         if (!child) throw new Error("Child not found");
-        if (child.ignite_points < reward.points_required) {
-          throw new Error(`${child.name} doesn't have enough points`);
+        const { data: clubPts } = await supabase
+          .from("child_club_points")
+          .select("points")
+          .eq("child_id", forChildId)
+          .eq("club_id", reward.club_id)
+          .maybeSingle();
+        const childClubPoints = clubPts?.points ?? 0;
+        if (childClubPoints < reward.points_required) {
+          throw new Error(`${child.name} doesn't have enough points at this club`);
         }
-        pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+        pointsSource = { id: forChildId, points: childClubPoints, isChild: true };
         childName = child.name;
       } else {
-        const currentPoints = profile?.ignite_points || 0;
-        if (currentPoints < reward.points_required) {
-          throw new Error("Not enough points");
+        const { data: clubPts } = await supabase
+          .from("user_club_points")
+          .select("points")
+          .eq("user_id", user!.id)
+          .eq("club_id", reward.club_id)
+          .maybeSingle();
+        const userClubPoints = clubPts?.points ?? 0;
+        if (userClubPoints < reward.points_required) {
+          throw new Error("Not enough points at this club");
         }
-        pointsSource = { id: user!.id, points: currentPoints, isChild: false };
+        pointsSource = { id: user!.id, points: userClubPoints, isChild: false };
       }
 
       // Create redemption record with optional child_id
@@ -367,11 +382,12 @@ export default function RewardRedemptionCard() {
 
       if (redemptionError) throw redemptionError;
 
-      // Deduct points atomically from the appropriate source
+      // Deduct points atomically from the appropriate source — scoped to this club
       if (pointsSource.isChild) {
-        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+        const { data: childNewBalance } = await (supabase.rpc as any)('increment_child_ignite_points', {
           _child_id: pointsSource.id,
           _amount: -reward.points_required,
+          _club_id: reward.club_id,
         });
 
         await recordPointsHistory({
@@ -384,9 +400,10 @@ export default function RewardRedemptionCard() {
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-        const { data: newBalance } = await supabase.rpc('increment_ignite_points', {
+        const { data: newBalance } = await (supabase.rpc as any)('increment_ignite_points', {
           _user_id: user!.id,
           _amount: -reward.points_required,
+          _club_id: reward.club_id,
         });
 
         await recordPointsHistory({
@@ -547,7 +564,37 @@ export default function RewardRedemptionCard() {
     }
   };
 
-  const currentPoints = profile?.ignite_points || 0;
+  // Per-club balance for the active/selected club. When no club is in context,
+  // fall back to 0 (the user must pick a club to redeem).
+  const contextClubId = selectedClubId || activeClubFilter || (userClubs.length === 1 ? (userClubs[0] as any).id : null);
+  const { data: userClubBalance = 0 } = useUserClubPoints(user?.id, contextClubId);
+  const currentPoints = contextClubId ? userClubBalance : 0;
+
+  // Fetch per-club balances for all children in this club (single query keyed
+  // on club). Falls back to 0 when there is no context club.
+  const childIds = useMemo(() => children.map(c => c.id).sort(), [children]);
+  const { data: childClubRows = [] } = useQuery({
+    queryKey: ["children-club-points", contextClubId, childIds],
+    queryFn: async () => {
+      if (!contextClubId || childIds.length === 0) return [] as Array<{ child_id: string; points: number }>;
+      const { data } = await supabase
+        .from("child_club_points")
+        .select("child_id, points")
+        .eq("club_id", contextClubId)
+        .in("child_id", childIds);
+      return (data ?? []) as Array<{ child_id: string; points: number }>;
+    },
+    enabled: !!contextClubId && childIds.length > 0,
+    staleTime: 1000 * 30,
+  });
+  const childrenScoped = useMemo(() => {
+    return children.map(c => {
+      if (!contextClubId) return { ...c, ignite_points: 0 };
+      const row = childClubRows.find(r => r.child_id === c.id);
+      return { ...c, ignite_points: row?.points ?? 0 };
+    });
+  }, [children, contextClubId, childClubRows]);
+
   const pendingRedemptions = redemptions.filter(r => r.status === "pending");
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
@@ -577,8 +624,8 @@ export default function RewardRedemptionCard() {
 
   // Determine the focus context: the active child (if any) or the user themselves.
   const activeChild = useMemo(
-    () => (activeChildId ? children.find(c => c.id === activeChildId) ?? null : null),
-    [activeChildId, children]
+    () => (activeChildId ? childrenScoped.find(c => c.id === activeChildId) ?? null : null),
+    [activeChildId, childrenScoped]
   );
   const focusName = activeChild?.name ?? (profile?.display_name || "You");
   const focusPoints = activeChild?.ignite_points ?? currentPoints;
@@ -948,7 +995,7 @@ export default function RewardRedemptionCard() {
               </div>
               <Badge variant="outline" className="tabular-nums">{currentPoints} pts</Badge>
             </button>
-            {children.map(child => {
+            {childrenScoped.map(child => {
               const initials = child.name
                 .split(/\s+/).map(n => n[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
               return (
@@ -1015,7 +1062,7 @@ export default function RewardRedemptionCard() {
                 {/* Featured reward first */}
                 {availableRewards.filter(r => r.is_default).map((reward) => {
                   const canAffordSelf = currentPoints >= reward.points_required;
-                  const canAffordAnyChild = children.some(c => c.ignite_points >= reward.points_required);
+                  const canAffordAnyChild = childrenScoped.some(c => c.ignite_points >= reward.points_required);
                   const canAfford = canAffordSelf || canAffordAnyChild;
                   return (
                     <div
@@ -1070,7 +1117,7 @@ export default function RewardRedemptionCard() {
                 {/* Other rewards */}
                 {availableRewards.filter(r => !r.is_default).map((reward) => {
                   const canAffordSelf = currentPoints >= reward.points_required;
-                  const canAffordAnyChild = children.some(c => c.ignite_points >= reward.points_required);
+                  const canAffordAnyChild = childrenScoped.some(c => c.ignite_points >= reward.points_required);
                   const canAfford = canAffordSelf || canAffordAnyChild;
                   return (
                     <div
@@ -1143,7 +1190,7 @@ export default function RewardRedemptionCard() {
                   <strong>{selectedReward?.points_required} points</strong>.
                 </p>
                 
-                {children.filter(c => c.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
+                {childrenScoped.filter(c => c.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="redeem-for" className="text-foreground">Redeem for:</Label>
                     <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
@@ -1157,7 +1204,7 @@ export default function RewardRedemptionCard() {
                             <Badge variant="outline" className="text-xs">{currentPoints} pts</Badge>
                           </div>
                         </SelectItem>
-                        {children.map(child => (
+                        {childrenScoped.map(child => (
                           <SelectItem key={child.id} value={child.id}>
                             <div className="flex items-center gap-2">
                               <Users className="h-3 w-3" />
@@ -1193,7 +1240,7 @@ export default function RewardRedemptionCard() {
               disabled={redeemMutation.isPending || (
                 selectedRedeemFor === "myself" 
                   ? currentPoints < (selectedReward?.points_required || 0)
-                  : (children.find(c => c.id === selectedRedeemFor)?.ignite_points || 0) < (selectedReward?.points_required || 0)
+                  : (childrenScoped.find(c => c.id === selectedRedeemFor)?.ignite_points || 0) < (selectedReward?.points_required || 0)
               )}
             >
               {redeemMutation.isPending ? (
