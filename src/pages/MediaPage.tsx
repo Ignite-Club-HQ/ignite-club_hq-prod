@@ -160,9 +160,9 @@ export default function MediaPage() {
     }
   }, []);
 
-  // Filter state - default to active club filter if set
-  const [selectedClubId, setSelectedClubId] = useState<string>("all");
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+  // Filter state - default to active club filter if set; persists across tab navigation
+  const [selectedClubId, setSelectedClubId] = usePersistedFilter("media.selectedClubId", "all");
+  const [selectedTeamId, setSelectedTeamId] = usePersistedFilter("media.selectedTeamId", "all");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
