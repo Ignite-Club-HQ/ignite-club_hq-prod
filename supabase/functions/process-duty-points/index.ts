@@ -309,6 +309,7 @@ Deno.serve(async (req) => {
       const { data: newPtsResult, error: attRpcError } = await supabase.rpc('increment_ignite_points', {
         _user_id: rsvp.user_id,
         _amount: attendancePts,
+        _club_id: club?.id ?? null,
       });
 
       if (attRpcError) {
