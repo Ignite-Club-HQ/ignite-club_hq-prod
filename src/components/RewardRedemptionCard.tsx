@@ -1062,7 +1062,7 @@ export default function RewardRedemptionCard() {
                 {/* Featured reward first */}
                 {availableRewards.filter(r => r.is_default).map((reward) => {
                   const canAffordSelf = currentPoints >= reward.points_required;
-                  const canAffordAnyChild = children.some(c => c.ignite_points >= reward.points_required);
+                  const canAffordAnyChild = childrenScoped.some(c => c.ignite_points >= reward.points_required);
                   const canAfford = canAffordSelf || canAffordAnyChild;
                   return (
                     <div
@@ -1117,7 +1117,7 @@ export default function RewardRedemptionCard() {
                 {/* Other rewards */}
                 {availableRewards.filter(r => !r.is_default).map((reward) => {
                   const canAffordSelf = currentPoints >= reward.points_required;
-                  const canAffordAnyChild = children.some(c => c.ignite_points >= reward.points_required);
+                  const canAffordAnyChild = childrenScoped.some(c => c.ignite_points >= reward.points_required);
                   const canAfford = canAffordSelf || canAffordAnyChild;
                   return (
                     <div
@@ -1190,7 +1190,7 @@ export default function RewardRedemptionCard() {
                   <strong>{selectedReward?.points_required} points</strong>.
                 </p>
                 
-                {children.filter(c => c.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
+                {childrenScoped.filter(c => c.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="redeem-for" className="text-foreground">Redeem for:</Label>
                     <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
@@ -1240,7 +1240,7 @@ export default function RewardRedemptionCard() {
               disabled={redeemMutation.isPending || (
                 selectedRedeemFor === "myself" 
                   ? currentPoints < (selectedReward?.points_required || 0)
-                  : (children.find(c => c.id === selectedRedeemFor)?.ignite_points || 0) < (selectedReward?.points_required || 0)
+                  : (childrenScoped.find(c => c.id === selectedRedeemFor)?.ignite_points || 0) < (selectedReward?.points_required || 0)
               )}
             >
               {redeemMutation.isPending ? (
