@@ -41,6 +41,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { HighlightedText } from "@/components/vault/HighlightedText";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { removePhotoFromCache } from "@/lib/mediaCache";
+import { downloadImage } from "@/lib/downloadImage";
 import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -2555,6 +2556,7 @@ export default function VaultPage() {
   const downloadFile = async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch file (${response.status})`);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -2567,6 +2569,11 @@ export default function VaultPage() {
     } catch (error) {
       toast.error("Failed to download file");
     }
+  };
+
+  const downloadPhotoFile = async (url: string, filename?: string) => {
+    const friendlyName = (filename || "ignite-photo").replace(/\.[^.]+$/, "") || "ignite-photo";
+    await downloadImage(url, friendlyName);
   };
 
   const exportCurrentFolder = async () => {
@@ -2593,7 +2600,7 @@ export default function VaultPage() {
       for (const photo of photosToExport) {
         if (signal.aborted) throw new Error("Export cancelled");
         const filename = photo.title || `photo-${photo.id}.jpg`;
-        await downloadFile(photo.file_url, filename);
+        await downloadPhotoFile(photo.file_url, filename);
         downloadCount++;
         setExportProgress({ current: downloadCount, total: totalFiles });
         // Small delay between downloads to avoid browser blocking
