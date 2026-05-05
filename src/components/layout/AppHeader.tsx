@@ -523,6 +523,7 @@ export function AppHeader() {
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
     },
   });
 
