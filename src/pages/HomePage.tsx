@@ -616,17 +616,29 @@ export default function HomePage() {
     mutationFn: async ({ reward, forChildId }: { reward: any; forChildId: string | null }) => {
       let pointsSource: { id: string; points: number; isChild: boolean };
       let childName: string | null = null;
-      
+      const rewardClubId: string = reward.club_id;
+
       if (forChildId) {
         const child = userChildren.find(c => c.id === forChildId);
         if (!child) throw new Error("Child not found");
-        if (child.ignite_points < reward.points_required) {
+        // Always check the per-club balance for the reward's club, regardless
+        // of which club is currently selected in the header.
+        const { data: childBalance } = await supabase.rpc(
+          "get_child_club_points",
+          { _child_id: forChildId, _club_id: rewardClubId },
+        );
+        const childPoints = (childBalance as number | null) ?? 0;
+        if (childPoints < reward.points_required) {
           throw new Error(`${child.name} doesn't have enough points`);
         }
-        pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+        pointsSource = { id: forChildId, points: childPoints, isChild: true };
         childName = child.name;
       } else {
-        const currentPoints = profile?.ignite_points || 0;
+        const { data: userBalance } = await supabase.rpc(
+          "get_user_club_points",
+          { _user_id: user!.id, _club_id: rewardClubId },
+        );
+        const currentPoints = (userBalance as number | null) ?? 0;
         if (currentPoints < reward.points_required) {
           throw new Error("Not enough points");
         }
@@ -638,7 +650,7 @@ export default function HomePage() {
         .insert({
           user_id: user!.id,
           reward_id: reward.id,
-          club_id: reward.club_id,
+          club_id: rewardClubId,
           points_spent: reward.points_required,
           child_id: forChildId,
         });
@@ -648,16 +660,20 @@ export default function HomePage() {
       const remainingPoints = pointsSource.points - reward.points_required;
 
       if (pointsSource.isChild) {
-        const { error: updateError } = await supabase
-          .from("children")
-          .update({ ignite_points: remainingPoints })
-          .eq("id", pointsSource.id);
-        if (updateError) throw updateError;
+        // Decrement per-club balance via RPC (also keeps legacy mirror in sync).
+        const { error: rpcError } = await supabase.rpc(
+          "increment_child_ignite_points",
+          {
+            _child_id: pointsSource.id,
+            _amount: -reward.points_required,
+            _club_id: rewardClubId,
+          } as any,
+        );
+        if (rpcError) throw rpcError;
 
-        // Record in points history for child
         await recordPointsHistory({
           childId: pointsSource.id,
-          clubId: reward.club_id,
+          clubId: rewardClubId,
           amount: -reward.points_required,
           balanceAfter: remainingPoints,
           sourceType: 'redemption',
@@ -665,18 +681,19 @@ export default function HomePage() {
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-         const { error: updateError } = await supabase
-           .from("profiles")
-           .update({
-             ignite_points: remainingPoints,
-           })
-           .eq("id", user!.id);
-        if (updateError) throw updateError;
+        const { error: rpcError } = await supabase.rpc(
+          "increment_ignite_points",
+          {
+            _user_id: pointsSource.id,
+            _amount: -reward.points_required,
+            _club_id: rewardClubId,
+          } as any,
+        );
+        if (rpcError) throw rpcError;
 
-        // Record in points history
         await recordPointsHistory({
           userId: user!.id,
-          clubId: reward.club_id,
+          clubId: rewardClubId,
           amount: -reward.points_required,
           balanceAfter: remainingPoints,
           sourceType: 'redemption',
