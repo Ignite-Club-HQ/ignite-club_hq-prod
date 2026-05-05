@@ -624,8 +624,8 @@ export default function RewardRedemptionCard() {
 
   // Determine the focus context: the active child (if any) or the user themselves.
   const activeChild = useMemo(
-    () => (activeChildId ? children.find(c => c.id === activeChildId) ?? null : null),
-    [activeChildId, children]
+    () => (activeChildId ? childrenScoped.find(c => c.id === activeChildId) ?? null : null),
+    [activeChildId, childrenScoped]
   );
   const focusName = activeChild?.name ?? (profile?.display_name || "You");
   const focusPoints = activeChild?.ignite_points ?? currentPoints;
