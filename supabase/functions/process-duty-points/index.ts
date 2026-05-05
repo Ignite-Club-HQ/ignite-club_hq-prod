@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
       const { data: newPointsResult, error: rpcError } = await supabase.rpc('increment_ignite_points', {
         _user_id: duty.assigned_to,
         _amount: 10,
+        _club_id: club?.id ?? null,
       });
 
       if (rpcError) {
@@ -308,6 +309,7 @@ Deno.serve(async (req) => {
       const { data: newPtsResult, error: attRpcError } = await supabase.rpc('increment_ignite_points', {
         _user_id: rsvp.user_id,
         _amount: attendancePts,
+        _club_id: club?.id ?? null,
       });
 
       if (attRpcError) {
@@ -458,6 +460,7 @@ Deno.serve(async (req) => {
       const { data: childNewPts, error: childRpcErr } = await supabase.rpc('increment_child_ignite_points', {
         _child_id: rsvp.child_id,
         _amount: childAttendancePts,
+        _club_id: club?.id ?? null,
       });
 
       if (childRpcErr) {

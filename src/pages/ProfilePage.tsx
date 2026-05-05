@@ -21,6 +21,7 @@ import { ProfileTeamHistory } from "@/components/profile/ProfileTeamHistory";
 import { PointsActivityFeed, type PointsActivityItem } from "@/components/profile/PointsActivityFeed";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useUserClubPoints } from "@/hooks/useClubPoints";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -49,6 +50,12 @@ export default function ProfilePage() {
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
+  // Per-club balance for the active club. When no club is selected (All Clubs
+  // mode), fall back to the legacy global total on the profile below.
+  const { data: activeClubPoints = 0 } = useUserClubPoints(
+    user?.id ?? null,
+    activeClubFilter,
+  );
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
@@ -599,12 +606,17 @@ export default function ProfilePage() {
       <div ref={pointsHistoryRef}>
       {hasProAccess ? (
         (() => {
-          // Use the most recent history entry's balance_after as the source of truth
-          // for the displayed balance. This stays in sync with the activity feed even
-          // when the auth-context profile cache hasn't refreshed yet.
-          const profileBalance = profile?.ignite_points || 0;
+          // When a club is active, the per-club table (`user_club_points`) is the
+          // sole source of truth — `balance_after` rows in `points_history` are a
+          // legacy snapshot of the GLOBAL balance at the time of the entry and
+          // can't be trusted in a per-club view (they may include points earned
+          // at other clubs). Only fall back to history's `balance_after` in
+          // "All Clubs" mode, where the legacy global total is meaningful.
+          const profileBalance = activeClubFilter
+            ? activeClubPoints
+            : (profile?.ignite_points || 0);
           const latestHistoryBalance =
-            pointsHistoryData && pointsHistoryData.length > 0
+            !activeClubFilter && pointsHistoryData && pointsHistoryData.length > 0
               ? (pointsHistoryData[0] as any).balance_after ?? null
               : null;
           const balance =

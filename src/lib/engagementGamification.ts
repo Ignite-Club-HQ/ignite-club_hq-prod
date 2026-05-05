@@ -164,10 +164,11 @@ export async function checkEngagementStreak({
 
     if (!awarded) return; // Already awarded this week
 
-    // Increment points
-    const { data: newPoints } = await supabase.rpc('increment_ignite_points', {
+    // Increment points — scoped to the club
+    const { data: newPoints } = await (supabase.rpc as any)('increment_ignite_points', {
       _user_id: userId,
       _amount: bonusPoints,
+      _club_id: clubId,
     });
 
     const balanceAfter = newPoints || 0;

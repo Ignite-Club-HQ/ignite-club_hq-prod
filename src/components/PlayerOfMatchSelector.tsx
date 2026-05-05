@@ -167,9 +167,10 @@ export default function PlayerOfMatchSelector({
       if (pointsToAward > 0) {
         if (userId) {
           // Atomic points increment
-          const { data: newBalance, error: updateError } = await supabase.rpc('increment_ignite_points', {
+          const { data: newBalance, error: updateError } = await (supabase.rpc as any)('increment_ignite_points', {
             _user_id: userId,
             _amount: pointsToAward,
+            _club_id: clubId,
           });
 
           if (updateError) throw updateError;
@@ -209,9 +210,10 @@ export default function PlayerOfMatchSelector({
           });
         } else if (childId) {
           // Atomic child points increment
-          const { data: childNewBalance, error: childUpdateError } = await supabase.rpc('increment_child_ignite_points', {
+          const { data: childNewBalance, error: childUpdateError } = await (supabase.rpc as any)('increment_child_ignite_points', {
             _child_id: childId,
             _amount: pointsToAward,
+            _club_id: clubId,
           });
 
           if (childUpdateError) throw childUpdateError;
@@ -306,9 +308,10 @@ export default function PlayerOfMatchSelector({
       // Deduct points
       if (playerOfMatch.user_id) {
         // Atomic deduction
-        const { data: newBalance } = await supabase.rpc('increment_ignite_points', {
+        const { data: newBalance } = await (supabase.rpc as any)('increment_ignite_points', {
           _user_id: playerOfMatch.user_id,
           _amount: -pointsToDeduct,
+          _club_id: clubId,
         });
 
         if (pointsToDeduct > 0) {
@@ -325,9 +328,10 @@ export default function PlayerOfMatchSelector({
         }
       } else if (playerOfMatch.child_id) {
         // Atomic deduction for child
-        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+        const { data: childNewBalance } = await (supabase.rpc as any)('increment_child_ignite_points', {
           _child_id: playerOfMatch.child_id,
           _amount: -pointsToDeduct,
+          _club_id: clubId,
         });
 
         if (pointsToDeduct > 0) {

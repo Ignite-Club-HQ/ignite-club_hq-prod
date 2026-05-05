@@ -74,7 +74,7 @@ function LogoClubThemeDropdown() {
   const { user, signOut } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
-    queryKey: ["all-user-clubs-for-theme", user?.id],
+    queryKey: ["all-user-clubs-for-theme-v2", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -105,7 +105,7 @@ function LogoClubThemeDropdown() {
 
       if (!clubIds.length) return [];
 
-      // Fetch clubs with subscription info
+      // Fetch clubs with subscription info (exclude soft-deleted clubs)
       const { data: clubs } = await supabase
         .from("clubs")
         .select(`
@@ -118,7 +118,8 @@ function LogoClubThemeDropdown() {
           theme_primary_l,
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
-        .in("id", clubIds);
+        .in("id", clubIds)
+        .is("deleted_at", null);
 
       if (!clubs) return [];
 

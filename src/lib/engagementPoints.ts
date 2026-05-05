@@ -96,10 +96,11 @@ export async function awardEngagementPoints({
       return false; // Already awarded or daily cap reached
     }
 
-    // Atomic points increment
-    const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+    // Atomic points increment — scoped to this club
+    const { data: newPoints, error: updateError } = await (supabase.rpc as any)('increment_ignite_points', {
       _user_id: userId,
       _amount: config.points,
+      _club_id: clubId,
     });
 
     if (updateError) {

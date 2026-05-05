@@ -1524,8 +1524,8 @@ export default function ClubDetailPage() {
         </Accordion>
       )}
 
-      {/* Mini Leagues Section - hidden for class-mode clubs */}
-      {!club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
+      {/* Mini Leagues Section - soccer/football only, hidden for class-mode clubs */}
+      {isSoccerClub && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
         <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           <AccordionItem value="mini-leagues" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">

@@ -126,17 +126,20 @@ export default function ManageTeamRolesPage() {
 
   const resetPointsMutation = useMutation({
     mutationFn: async (userId: string) => {
-      // Get current points first to know how much to deduct
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("ignite_points")
-        .eq("id", userId)
-        .single();
-      const currentPoints = profile?.ignite_points || 0;
+      // Per-club balance: only reset points for THIS team's club.
+      const { data: t } = await supabase
+        .from("teams").select("club_id").eq("id", teamId!).maybeSingle();
+      const clubId = (t as any)?.club_id;
+      if (!clubId) throw new Error("Team has no club");
+      const { data: row } = await supabase
+        .from("user_club_points")
+        .select("points").eq("user_id", userId).eq("club_id", clubId).maybeSingle();
+      const currentPoints = row?.points || 0;
       if (currentPoints > 0) {
-        const { error } = await supabase.rpc('increment_ignite_points', {
+        const { error } = await (supabase.rpc as any)('increment_ignite_points', {
           _user_id: userId,
           _amount: -currentPoints,
+          _club_id: clubId,
         });
         if (error) throw error;
       }
