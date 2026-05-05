@@ -438,17 +438,21 @@ export function AppHeader() {
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
-      // First mark all unread as read
-      await supabase
+      // First mark all unread (scoped to active club if filter active) as read
+      const markQ = supabase
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", user.id)
         .eq("is_read", false);
-      // Then delete all notifications
-      const { error } = await supabase
+      if (activeClubFilter) markQ.eq("club_id", activeClubFilter);
+      await markQ;
+      // Then delete notifications (scoped to active club if filter active)
+      const delQ = supabase
         .from("notifications")
         .delete()
         .eq("user_id", user.id);
+      if (activeClubFilter) delQ.eq("club_id", activeClubFilter);
+      const { error } = await delQ;
       if (error) throw error;
     },
     onMutate: () => {
@@ -459,6 +463,7 @@ export function AppHeader() {
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
       setNotificationsOpen(false);
       // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
@@ -466,21 +471,44 @@ export function AppHeader() {
   });
 
   const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
-    queryKey: ["recent-notifications", user?.id],
+    queryKey: ["recent-notifications", user?.id, activeClubFilter],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("notifications")
         .select("id, message, type, created_at, is_read, related_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(5);
+      if (activeClubFilter) q = q.eq("club_id", activeClubFilter);
+      const { data, error } = await q;
       if (error) throw error;
       return data;
     },
     enabled: !!user?.id,
     staleTime: 0,
   });
+
+  // Per-club unread count (only when a club filter is active)
+  const { data: clubUnreadCount = 0 } = useQuery({
+    queryKey: ["club-unread-count", user?.id, activeClubFilter],
+    queryFn: async () => {
+      if (!user?.id || !activeClubFilter) return 0;
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("club_id", activeClubFilter)
+        .eq("is_read", false);
+      return count || 0;
+    },
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  });
+
+  // Effective unread count: club-scoped when a filter is on, otherwise global
+  const unreadCount = activeClubFilter ? clubUnreadCount : globalUnreadCount;
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
