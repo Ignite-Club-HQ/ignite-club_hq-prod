@@ -210,9 +210,10 @@ export default function PlayerOfMatchSelector({
           });
         } else if (childId) {
           // Atomic child points increment
-          const { data: childNewBalance, error: childUpdateError } = await supabase.rpc('increment_child_ignite_points', {
+          const { data: childNewBalance, error: childUpdateError } = await (supabase.rpc as any)('increment_child_ignite_points', {
             _child_id: childId,
             _amount: pointsToAward,
+            _club_id: clubId,
           });
 
           if (childUpdateError) throw childUpdateError;
