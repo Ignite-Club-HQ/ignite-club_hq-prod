@@ -129,6 +129,10 @@ export default function ClubAdminChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Sync active club to this conversation's club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(conversation?.club_id);
+
   // Fetch club details
   const { data: club } = useQuery({
     queryKey: ["club-detail-chat", conversation?.club_id],
