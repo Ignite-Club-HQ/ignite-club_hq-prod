@@ -716,6 +716,49 @@ export type Database = {
           },
         ]
       }
+      child_club_points: {
+        Row: {
+          child_id: string
+          club_id: string
+          points: number
+          updated_at: string
+        }
+        Insert: {
+          child_id: string
+          club_id: string
+          points?: number
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string
+          club_id?: string
+          points?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_club_points_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_club_points_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_club_points_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_guardians: {
         Row: {
           child_id: string
@@ -7268,6 +7311,42 @@ export type Database = {
           },
         ]
       }
+      user_club_points: {
+        Row: {
+          club_id: string
+          points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          club_id: string
+          points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          club_id?: string
+          points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_club_points_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_club_points_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_passkeys: {
         Row: {
           counter: number
@@ -8126,6 +8205,10 @@ export type Database = {
         Args: { _business_id: string }
         Returns: string
       }
+      get_child_club_points: {
+        Args: { _child_id: string; _club_id: string }
+        Returns: number
+      }
       get_club_day_events: {
         Args: { _club_id: string; _day: string }
         Returns: {
@@ -8474,6 +8557,10 @@ export type Database = {
           id: string
         }[]
       }
+      get_user_club_points: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: number
+      }
       get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -8522,12 +8609,20 @@ export type Database = {
         Args: { _platform?: string; _user_agent?: string }
         Returns: undefined
       }
+      increment_child_club_points: {
+        Args: { _amount: number; _child_id: string; _club_id: string }
+        Returns: number
+      }
       increment_child_ignite_points: {
         Args: { _amount: number; _child_id: string }
         Returns: number
       }
       increment_ignite_points: {
         Args: { _amount: number; _user_id: string }
+        Returns: number
+      }
+      increment_user_club_points: {
+        Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
       is_blocked_by: {
