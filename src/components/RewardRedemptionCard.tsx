@@ -564,7 +564,11 @@ export default function RewardRedemptionCard() {
     }
   };
 
-  const currentPoints = profile?.ignite_points || 0;
+  // Per-club balance for the active/selected club. When multiple clubs and
+  // none picked yet, fall back to the global profile balance for display.
+  const contextClubId = selectedClubId || activeClubFilter || (userClubs.length === 1 ? (userClubs[0] as any).id : null);
+  const { data: userClubBalance = 0 } = useUserClubPoints(user?.id, contextClubId);
+  const currentPoints = contextClubId ? userClubBalance : 0;
   const pendingRedemptions = redemptions.filter(r => r.status === "pending");
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
