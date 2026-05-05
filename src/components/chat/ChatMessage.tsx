@@ -745,7 +745,10 @@ export const ChatMessage = memo(function ChatMessage({
       ) : (
         <button
           type="button"
-          onClick={onAuthorClick}
+          onClick={(e) => {
+            if (preventIfGuarded(e)) return;
+            onAuthorClick?.();
+          }}
           disabled={!onAuthorClick}
           className="shrink-0 rounded-full disabled:cursor-default"
           aria-label={displayName ? `Open ${displayName} profile actions` : "Open profile actions"}
@@ -762,7 +765,10 @@ export const ChatMessage = memo(function ChatMessage({
         {(isClubAnnouncement || (!isOwn && hasName)) && (
           <button
             type="button"
-            onClick={onAuthorClick}
+            onClick={(e) => {
+              if (preventIfGuarded(e)) return;
+              onAuthorClick?.();
+            }}
             disabled={!onAuthorClick || isClubAnnouncement}
             className={`text-xs mb-1 text-left ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground disabled:cursor-default"}`}
           >

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { MapPin, Clock, Trophy, Dumbbell, Users, Building2 } from "lucide-react";
+import { MapPin, Clock, Dumbbell, Users, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,24 @@ function venueGroupKey(e: ClubDayEvent): string {
   return raw.split(/\s+[-–—]\s+/)[0].trim();
 }
 
+function fromEventCardEvent(e: EventCardEvent): ClubDayEvent {
+  return {
+    id: e.id,
+    title: e.title,
+    type: e.type as "game" | "training",
+    event_date: e.event_date,
+    start_time: (e as any).start_time || null,
+    end_time: (e as any).end_time || null,
+    location_name: e.location_name,
+    address: e.address,
+    suburb: e.suburb,
+    team_id: e.team_id,
+    team_name: e.teams?.name || null,
+    opponent: e.opponent,
+    is_cancelled: e.is_cancelled,
+  };
+}
+
 /**
  * Day summary for a single date. Defaults to showing only events for teams
  * the user belongs to ("My teams"); a toggle switches to a club-wide view
@@ -105,11 +123,20 @@ export function ClubDaySummary({
   });
 
   const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
+  const myVisibleEvents = useMemo(() => {
+    return (myDayEvents || [])
+      .filter((e) => e.team_id && myTeamSet.has(e.team_id) && (e.type === "game" || e.type === "training"))
+      .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
+  }, [myDayEvents, myTeamSet]);
+
   const visible = useMemo(() => {
+    if (scope === "my" && myVisibleEvents.length > 0) {
+      return myVisibleEvents.map(fromEventCardEvent);
+    }
     if (!events) return [] as ClubDayEvent[];
     if (scope === "club") return events;
     return events.filter((e) => e.team_id && myTeamSet.has(e.team_id));
-  }, [events, scope, myTeamSet]);
+  }, [events, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
@@ -207,69 +234,26 @@ export function ClubDaySummary({
           ))}
         </div>
       ) : (
-        <>
-          {myDayEvents && myDayEvents.length > 0 ? (
-            <div className="space-y-3">
-              {myDayEvents
-                .filter((e) => visible.some((v) => v.id === e.id))
-                .map((e) => (
-                  <EventCard
-                    key={e.id}
-                    event={e}
-                    isAdmin={isAdminForEvent ? isAdminForEvent(e) : false}
-                    hasViewed={viewedEventIds ? viewedEventIds.has(e.id) : true}
-                  />
-                ))}
-            </div>
-          ) : (
-            <>
-              {games.length > 0 && (
-                <SummarySection
-                  title="Games"
-                  icon={<Trophy className="h-4 w-4" />}
-                  accent="text-destructive"
-                  events={games}
+        <div className="space-y-3">
+          {visible.map((v) => {
+            // Prefer rich EventCard from the main events query for "My teams".
+            // The club-day RPC is only a fallback/club-wide source and can be
+            // more restrictive than a parent's child-team membership path.
+            const rich = myVisibleEvents.find((e) => e.id === v.id) || myDayEvents?.find((e) => e.id === v.id);
+            if (rich) {
+              return (
+                <EventCard
+                  key={v.id}
+                  event={rich}
+                  isAdmin={isAdminForEvent ? isAdminForEvent(rich) : false}
+                  hasViewed={viewedEventIds ? viewedEventIds.has(v.id) : true}
                 />
-              )}
-              {trainings.length > 0 && (
-                <SummarySection
-                  title="Training"
-                  icon={<Dumbbell className="h-4 w-4" />}
-                  accent="text-primary"
-                  events={trainings}
-                />
-              )}
-            </>
-          )}
-        </>
+              );
+            }
+            return <DayEventRow key={v.id} event={v} />;
+          })}
+        </div>
       )}
-    </div>
-  );
-}
-
-function SummarySection({
-  title,
-  icon,
-  accent,
-  events,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  accent: string;
-  events: ClubDayEvent[];
-}) {
-  return (
-    <div className="space-y-2">
-      <div className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", accent)}>
-        {icon}
-        <span>{title}</span>
-        <span className="text-muted-foreground">({events.length})</span>
-      </div>
-      <div className="space-y-2">
-        {events.map((e) => (
-          <DayEventRow key={e.id} event={e} />
-        ))}
-      </div>
     </div>
   );
 }

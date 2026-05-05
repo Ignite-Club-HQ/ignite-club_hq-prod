@@ -36,15 +36,15 @@ export function buildPersonalRsvpLine({
   if (firstChild) {
     const others = Math.max(totalGoing - 1, 0);
     return others > 0
-      ? `${firstChild} going + ${others} ${others === 1 ? "other" : "others"}`
-      : `${firstChild} going`;
+      ? `👦 ${firstChild} + ${others} going`
+      : `👦 ${firstChild} going`;
   }
 
   // Otherwise lead with "You" if the user themselves is going
   if (parentStatus === "going") {
     const others = Math.max(totalGoing - 1, 0);
     return others > 0
-      ? `You going + ${others} ${others === 1 ? "other" : "others"}`
+      ? `You + ${others} going`
       : "You going";
   }
 

@@ -384,21 +384,32 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-3.5 pb-3 space-y-2">
-        {/* Status chips only — section header already conveys the date */}
-        {(hasPro && isAdmin && !hasViewed && !event.is_cancelled) || event.is_cancelled ? (
-          <div className="flex items-center justify-end gap-1.5">
-            {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
-              <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
-                <Eye className="h-3 w-3" />
-                New
-              </Badge>
-            )}
-            {event.is_cancelled && (
-              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
-            )}
-          </div>
-        ) : null}
+      {/* Right-edge tap affordance — optically aligned to the title row, not floating mid-card */}
+      <ChevronRight
+        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3.5 pb-3 pr-8 space-y-1.5">
+        {/* Status chips only — section header already conveys the date.
+            "New" badge is suppressed for training events to reduce noise. */}
+        {(() => {
+          const isTraining = event.type === "training";
+          const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
+          if (!showNew && !event.is_cancelled) return null;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {showNew && (
+                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
+                  <Eye className="h-3 w-3" />
+                  New
+                </Badge>
+              )}
+              {event.is_cancelled && (
+                <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Social/club events lead with the event name; structured events lead with team. */}
         {(() => {
@@ -426,16 +437,17 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           }
 
+          const isTrainingType = event.type === "training";
           return (
             <div className="space-y-1">
               <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
+                <div className={`flex items-center gap-1.5 text-[14px] ${isTrainingType ? "font-medium text-foreground/80" : "font-semibold text-foreground"}`}>
+                  <TypeIcon className={`h-3.5 w-3.5 shrink-0 ${isTrainingType ? "opacity-60" : "opacity-80"}`} aria-hidden="true" />
                   <span className="min-w-0 truncate">{eventDisplay.primary}</span>
                 </div>
                 {eventDisplay.secondary && (
-                  <p className="mt-0.5 text-[12px] text-muted-foreground leading-snug truncate pl-5">
+                  <p className={`mt-0.5 text-[12px] leading-snug truncate pl-5 ${isTrainingType ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                     {eventDisplay.secondary}
                   </p>
                 )}
@@ -444,11 +456,11 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           );
         })()}
 
-        {/* Compact date + time on one line — restores date context without a separate chip */}
+        {/* Compact date + time + location — location is the dominant meta line */}
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            <span className="font-medium text-foreground">{compactWhen}</span>
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+            <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
@@ -462,9 +474,9 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           })()}
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-center gap-2 text-[13.5px]">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
+              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
@@ -482,9 +494,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
           if (!summary) {
             return (
-              <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+              <div className="pt-1.5 border-t border-border/40">
                 <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
             );
           }
@@ -492,18 +503,15 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                {personal ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                ) : (
-                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                )}
-                <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                  {summary}
-                </span>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+            <div className="flex items-center pt-1.5 border-t border-border/40 gap-1.5 min-w-0">
+              {personal ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              ) : (
+                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+              <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {summary}
+              </span>
             </div>
           );
         })()}
