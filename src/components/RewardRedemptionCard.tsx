@@ -39,7 +39,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { recordPointsHistory } from "@/lib/pointsHistory";
-import { useUserClubPoints, useAllChildClubPoints } from "@/hooks/useClubPoints";
+import { useUserClubPoints } from "@/hooks/useClubPoints";
 
 interface ClubReward {
   id: string;
