@@ -731,6 +731,9 @@ export default function HomePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
       queryClient.invalidateQueries({ queryKey: ["user-children-home"] });
+      queryClient.invalidateQueries({ queryKey: ["user-club-points"] });
+      queryClient.invalidateQueries({ queryKey: ["children-club-points"] });
+      queryClient.invalidateQueries({ queryKey: ["points-history"] });
       refreshProfile();
       setConfirmRedeemDialogOpen(false);
       setSelectedReward(null);
