@@ -36,8 +36,8 @@ export function buildPersonalRsvpLine({
   if (firstChild) {
     const others = Math.max(totalGoing - 1, 0);
     return others > 0
-      ? `👦 ${firstChild} + ${others} going`
-      : `👦 ${firstChild} going`;
+      ? `${firstChild} + ${others} going`
+      : `${firstChild} going`;
   }
 
   // Otherwise lead with "You" if the user themselves is going
