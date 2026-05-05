@@ -294,50 +294,60 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       onClick={scale === 1 ? onClose : undefined}
       onDoubleClick={handleDoubleClick}
     >
-      <Button
-        size="icon"
-        variant="ghost"
-        className="absolute right-4 text-white hover:bg-white/20 z-10"
-        style={{ top: `calc(${safeTop} + 0.5rem)` }}
-        onClick={(e) => { e.stopPropagation(); onClose(); }}
-      >
-        <X className="h-6 w-6" />
-      </Button>
-
       <div
-        className="absolute left-4 flex gap-2 z-10"
-        style={{ top: `calc(${safeTop} + 0.5rem)` }}
+        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/70 to-transparent"
+        style={{ paddingTop: `calc(${safeTop} + 0.5rem)` }}
+        onClick={(e) => e.stopPropagation()}
       >
+        {/* Left: back/close */}
         <Button
-          size="icon"
           variant="ghost"
-          className="text-white hover:bg-white/20"
-          onClick={(e) => { e.stopPropagation(); void downloadImage(effectiveSrc, "ignite-photo"); }}
+          size="icon"
+          className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          aria-label="Back"
         >
-          <Download className="h-6 w-6" />
+          <ArrowLeft className="h-5 w-5" />
         </Button>
-        {showActions && onReport && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-white hover:bg-white/20"
-            onClick={(e) => { e.stopPropagation(); onReport(); }}
-            title="Report image"
-          >
-            <Flag className="h-5 w-5" />
-          </Button>
-        )}
-        {showActions && onBlockUser && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-white hover:bg-white/20"
-            onClick={(e) => { e.stopPropagation(); onBlockUser(); }}
-            title="Block user"
-          >
-            <ShieldAlert className="h-5 w-5" />
-          </Button>
-        )}
+
+        {/* Right: overflow menu */}
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20 bg-black/40 rounded-full h-11 w-11"
+              aria-label="More options"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
+            <DropdownMenuItem onSelect={() => { void downloadImage(effectiveSrc, "ignite-photo"); }}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </DropdownMenuItem>
+            {showActions && onReport && (
+              <DropdownMenuItem onSelect={() => onReport()}>
+                <Flag className="h-4 w-4 mr-2" />
+                Report
+              </DropdownMenuItem>
+            )}
+            {showActions && onBlockUser && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => onBlockUser()}
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                >
+                  <ShieldAlert className="h-4 w-4 mr-2" />
+                  Block user
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {!loaded && (
