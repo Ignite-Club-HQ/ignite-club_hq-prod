@@ -29,18 +29,18 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user via getUser (works with all token types)
+    // Verify JWT via getClaims (lightweight, no auth-server round-trip).
     const token = authHeader.replace(/^[Bb]earer\s+/, "");
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !userData?.user?.id) {
-      console.error("Auth getUser error:", userError?.message);
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error("Auth getClaims error:", claimsError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = userData.user.id;
+    const userId = claimsData.claims.sub as string;
 
     
 
