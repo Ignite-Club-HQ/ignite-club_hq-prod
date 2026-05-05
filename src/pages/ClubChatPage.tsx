@@ -225,7 +225,12 @@ export default function ClubChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Sync active club to this chat's club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(clubId);
+
   // Check if user is app admin (global override)
+
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
