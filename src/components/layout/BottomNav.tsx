@@ -30,7 +30,29 @@ const MAX_IOS_NATIVE_BOTTOM_INSET_PX = 60;
 const DEFAULT_NAV_GUARD_MS = 900;
 
 export function BottomNav() {
-  const { unreadMessagesCount, user } = useAuth();
+  const { unreadMessagesCount: globalMessagesCount, user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
+
+  // Per-club message unread count: count message-type notifications scoped to active club
+  const { data: clubMessagesCount = 0 } = useQuery({
+    queryKey: ["club-messages-unread", user?.id, activeClubFilter],
+    queryFn: async () => {
+      if (!user?.id || !activeClubFilter) return 0;
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("club_id", activeClubFilter)
+        .eq("is_read", false)
+        .in("type", MESSAGE_NOTIFICATION_TYPES);
+      return count || 0;
+    },
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  });
+
+  const unreadMessagesCount = activeClubFilter ? clubMessagesCount : globalMessagesCount;
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
