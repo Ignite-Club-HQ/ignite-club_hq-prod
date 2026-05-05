@@ -21,6 +21,7 @@ import { ProfileTeamHistory } from "@/components/profile/ProfileTeamHistory";
 import { PointsActivityFeed, type PointsActivityItem } from "@/components/profile/PointsActivityFeed";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useUserClubPoints } from "@/hooks/useClubPoints";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 
 import igniteIcon from "@/assets/ignite-icon.png";
