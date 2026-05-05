@@ -74,7 +74,7 @@ function LogoClubThemeDropdown() {
   const { user, signOut } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
-    queryKey: ["all-user-clubs-for-theme", user?.id],
+    queryKey: ["all-user-clubs-for-theme-v2", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
 
