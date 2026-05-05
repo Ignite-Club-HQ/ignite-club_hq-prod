@@ -566,7 +566,34 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
-  // Handle opening rewards dialog
+  // ---- Per-club reward balances ------------------------------------------------
+  // Reward points are stored per-club. When the user has selected a club via the
+  // header switcher (`activeClubFilter`), points displays scope to that club.
+  // When no club is selected ("All Clubs" mode), fall back to the legacy global
+  // totals on profiles/children — this preserves the multi-club summary view.
+  const childIdsForPoints = useMemo(
+    () => userChildren.map((c: any) => c.id),
+    [userChildren],
+  );
+  const { data: userClubPoints = 0 } = useUserClubPoints(
+    user?.id ?? null,
+    activeClubFilter,
+  );
+  const { data: childrenClubPointsMap } = useChildrenClubPoints(
+    childIdsForPoints,
+    activeClubFilter,
+  );
+
+  // Resolved balances used for display + redemption gating.
+  const myPoints = activeClubFilter
+    ? userClubPoints
+    : (profile?.ignite_points || 0);
+  const childPointsFor = (child: any): number => {
+    if (activeClubFilter) {
+      return childrenClubPointsMap?.get(child.id) ?? 0;
+    }
+    return child.ignite_points || 0;
+  };
   const handleBrowseRewards = () => {
     const proClubs = rewardClubs.filter((club: any) => isAppAdmin || club.hasPro);
     
