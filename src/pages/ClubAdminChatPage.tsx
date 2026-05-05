@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
+import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useParams, useNavigate } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
@@ -127,6 +128,10 @@ export default function ClubAdminChatPage() {
     enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Sync active club to this conversation's club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(conversation?.club_id);
 
   // Fetch club details
   const { data: club } = useQuery({
