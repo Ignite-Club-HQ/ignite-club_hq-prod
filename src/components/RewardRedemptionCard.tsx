@@ -565,10 +565,24 @@ export default function RewardRedemptionCard() {
   };
 
   // Per-club balance for the active/selected club. When multiple clubs and
-  // none picked yet, fall back to the global profile balance for display.
+  // none picked yet, fall back to 0 (the user must pick a club to redeem).
   const contextClubId = selectedClubId || activeClubFilter || (userClubs.length === 1 ? (userClubs[0] as any).id : null);
   const { data: userClubBalance = 0 } = useUserClubPoints(user?.id, contextClubId);
   const currentPoints = contextClubId ? userClubBalance : 0;
+
+  // Override each child's displayed balance with their per-club balance for
+  // the context club (so affordability checks below are per-club).
+  const childClubBalancesQueries = children.map(c => useAllChildClubPoints(c.id));
+  const childrenScoped = useMemo(() => {
+    return children.map((c, i) => {
+      if (!contextClubId) return { ...c, ignite_points: 0 };
+      const rows = childClubBalancesQueries[i]?.data ?? [];
+      const row = rows.find(r => r.club_id === contextClubId);
+      return { ...c, ignite_points: row?.points ?? 0 };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [children, contextClubId, JSON.stringify(childClubBalancesQueries.map(q => q.data))]);
+
   const pendingRedemptions = redemptions.filter(r => r.status === "pending");
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
