@@ -995,7 +995,7 @@ export default function RewardRedemptionCard() {
               </div>
               <Badge variant="outline" className="tabular-nums">{currentPoints} pts</Badge>
             </button>
-            {children.map(child => {
+            {childrenScoped.map(child => {
               const initials = child.name
                 .split(/\s+/).map(n => n[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
               return (
