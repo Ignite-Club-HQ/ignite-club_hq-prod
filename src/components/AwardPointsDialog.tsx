@@ -134,6 +134,8 @@ export default function AwardPointsDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-members-roles", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["user-club-points", memberId, clubId] });
+      queryClient.invalidateQueries({ queryKey: ["user-club-points-all", memberId] });
       setOpen(false);
       setPoints(10);
       setReason("");
