@@ -193,10 +193,8 @@ export default function MediaPage() {
     } else if (activeClubFilter) {
       setSelectedClubId(activeClubFilter);
       setSelectedTeamId("all");
-    } else {
-      setSelectedClubId("all");
-      setSelectedTeamId("all");
     }
+    // Otherwise: leave persisted filter intact across tab navigation
   }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
