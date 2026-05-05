@@ -2906,7 +2906,11 @@ export default function VaultPage() {
       // Single file - just download
       const item = photosToExport[0] || filesToExport[0];
       if (item) {
-        await downloadFile(item.file_url, item.title || item.name || 'file');
+        if (photosToExport[0]) {
+          await downloadPhotoFile(item.file_url, item.title || `photo-${item.id}.jpg`);
+        } else {
+          await downloadFile(item.file_url, item.name || 'file');
+        }
         toast.success("Downloaded file");
       }
     }
@@ -4076,7 +4080,7 @@ export default function VaultPage() {
                 setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id, team_id: file.team_id });
                 setMoveFileDialogOpen(true);
               }}
-              onDownloadPhoto={downloadFile}
+              onDownloadPhoto={downloadPhotoFile}
               selectionMode={selectionMode}
               selectedPhotos={selectedPhotos}
               selectedFiles={selectedFiles}
@@ -4153,7 +4157,7 @@ export default function VaultPage() {
                 setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id, team_id: file.team_id });
                 setMoveFileDialogOpen(true);
               }}
-              onDownloadPhoto={downloadFile}
+              onDownloadPhoto={downloadPhotoFile}
               selectionMode={selectionMode}
               selectedPhotos={selectedPhotos}
               selectedFiles={selectedFiles}
@@ -4198,7 +4202,7 @@ export default function VaultPage() {
               setRenamePhotoName(photo.title || "");
             }}
             onRenameFile={() => {}}
-            onDownloadPhoto={downloadFile}
+            onDownloadPhoto={downloadPhotoFile}
             selectionMode={selectionMode}
             selectedPhotos={selectedPhotos}
             selectedFiles={selectedFiles}
