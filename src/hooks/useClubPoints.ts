@@ -68,6 +68,34 @@ export function useAllUserClubPoints(userId: string | null | undefined) {
 }
 
 /**
+ * Read per-club points for many children at once, scoped to a single club.
+ * Returns a Map of childId -> points (0 if no row exists).
+ */
+export function useChildrenClubPoints(
+  childIds: string[] | null | undefined,
+  clubId: string | null | undefined,
+) {
+  const ids = (childIds ?? []).filter(Boolean);
+  const key = ids.slice().sort().join(",");
+  return useQuery({
+    queryKey: ["children-club-points", key, clubId],
+    queryFn: async () => {
+      const map = new Map<string, number>();
+      if (!clubId || ids.length === 0) return map;
+      const { data } = await supabase
+        .from("child_club_points")
+        .select("child_id, points")
+        .eq("club_id", clubId)
+        .in("child_id", ids);
+      (data ?? []).forEach((r: any) => map.set(r.child_id, r.points ?? 0));
+      return map;
+    },
+    enabled: !!clubId && ids.length > 0,
+    staleTime: 1000 * 30,
+  });
+}
+
+/**
  * Bulk-read a child's points across every club they belong to.
  */
 export function useAllChildClubPoints(childId: string | null | undefined) {

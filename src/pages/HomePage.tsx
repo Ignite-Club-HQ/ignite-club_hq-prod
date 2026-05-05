@@ -64,6 +64,7 @@ import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
+import { useUserClubPoints, useChildrenClubPoints } from "@/hooks/useClubPoints";
 import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
@@ -565,7 +566,34 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
-  // Handle opening rewards dialog
+  // ---- Per-club reward balances ------------------------------------------------
+  // Reward points are stored per-club. When the user has selected a club via the
+  // header switcher (`activeClubFilter`), points displays scope to that club.
+  // When no club is selected ("All Clubs" mode), fall back to the legacy global
+  // totals on profiles/children — this preserves the multi-club summary view.
+  const childIdsForPoints = useMemo(
+    () => userChildren.map((c: any) => c.id),
+    [userChildren],
+  );
+  const { data: userClubPoints = 0 } = useUserClubPoints(
+    user?.id ?? null,
+    activeClubFilter,
+  );
+  const { data: childrenClubPointsMap } = useChildrenClubPoints(
+    childIdsForPoints,
+    activeClubFilter,
+  );
+
+  // Resolved balances used for display + redemption gating.
+  const myPoints = activeClubFilter
+    ? userClubPoints
+    : (profile?.ignite_points || 0);
+  const childPointsFor = (child: any): number => {
+    if (activeClubFilter) {
+      return childrenClubPointsMap?.get(child.id) ?? 0;
+    }
+    return child.ignite_points || 0;
+  };
   const handleBrowseRewards = () => {
     const proClubs = rewardClubs.filter((club: any) => isAppAdmin || club.hasPro);
     
@@ -588,17 +616,29 @@ export default function HomePage() {
     mutationFn: async ({ reward, forChildId }: { reward: any; forChildId: string | null }) => {
       let pointsSource: { id: string; points: number; isChild: boolean };
       let childName: string | null = null;
-      
+      const rewardClubId: string = reward.club_id;
+
       if (forChildId) {
         const child = userChildren.find(c => c.id === forChildId);
         if (!child) throw new Error("Child not found");
-        if (child.ignite_points < reward.points_required) {
+        // Always check the per-club balance for the reward's club, regardless
+        // of which club is currently selected in the header.
+        const { data: childBalance } = await supabase.rpc(
+          "get_child_club_points",
+          { _child_id: forChildId, _club_id: rewardClubId },
+        );
+        const childPoints = (childBalance as number | null) ?? 0;
+        if (childPoints < reward.points_required) {
           throw new Error(`${child.name} doesn't have enough points`);
         }
-        pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+        pointsSource = { id: forChildId, points: childPoints, isChild: true };
         childName = child.name;
       } else {
-        const currentPoints = profile?.ignite_points || 0;
+        const { data: userBalance } = await supabase.rpc(
+          "get_user_club_points",
+          { _user_id: user!.id, _club_id: rewardClubId },
+        );
+        const currentPoints = (userBalance as number | null) ?? 0;
         if (currentPoints < reward.points_required) {
           throw new Error("Not enough points");
         }
@@ -610,7 +650,7 @@ export default function HomePage() {
         .insert({
           user_id: user!.id,
           reward_id: reward.id,
-          club_id: reward.club_id,
+          club_id: rewardClubId,
           points_spent: reward.points_required,
           child_id: forChildId,
         });
@@ -620,16 +660,20 @@ export default function HomePage() {
       const remainingPoints = pointsSource.points - reward.points_required;
 
       if (pointsSource.isChild) {
-        const { error: updateError } = await supabase
-          .from("children")
-          .update({ ignite_points: remainingPoints })
-          .eq("id", pointsSource.id);
-        if (updateError) throw updateError;
+        // Decrement per-club balance via RPC (also keeps legacy mirror in sync).
+        const { error: rpcError } = await supabase.rpc(
+          "increment_child_ignite_points",
+          {
+            _child_id: pointsSource.id,
+            _amount: -reward.points_required,
+            _club_id: rewardClubId,
+          } as any,
+        );
+        if (rpcError) throw rpcError;
 
-        // Record in points history for child
         await recordPointsHistory({
           childId: pointsSource.id,
-          clubId: reward.club_id,
+          clubId: rewardClubId,
           amount: -reward.points_required,
           balanceAfter: remainingPoints,
           sourceType: 'redemption',
@@ -637,18 +681,19 @@ export default function HomePage() {
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-         const { error: updateError } = await supabase
-           .from("profiles")
-           .update({
-             ignite_points: remainingPoints,
-           })
-           .eq("id", user!.id);
-        if (updateError) throw updateError;
+        const { error: rpcError } = await supabase.rpc(
+          "increment_ignite_points",
+          {
+            _user_id: pointsSource.id,
+            _amount: -reward.points_required,
+            _club_id: rewardClubId,
+          } as any,
+        );
+        if (rpcError) throw rpcError;
 
-        // Record in points history
         await recordPointsHistory({
           userId: user!.id,
-          clubId: reward.club_id,
+          clubId: rewardClubId,
           amount: -reward.points_required,
           balanceAfter: remainingPoints,
           sourceType: 'redemption',
@@ -686,6 +731,9 @@ export default function HomePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
       queryClient.invalidateQueries({ queryKey: ["user-children-home"] });
+      queryClient.invalidateQueries({ queryKey: ["user-club-points"] });
+      queryClient.invalidateQueries({ queryKey: ["children-club-points"] });
+      queryClient.invalidateQueries({ queryKey: ["points-history"] });
       refreshProfile();
       setConfirmRedeemDialogOpen(false);
       setSelectedReward(null);
@@ -1859,13 +1907,13 @@ export default function HomePage() {
               </div>
 
               {/* Primary: progress to next reward */}
-              {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold ? (
+              {minRewardThreshold !== null && (myPoints) < minRewardThreshold ? (
                 <div>
                   <p className="text-base font-semibold leading-tight">
-                    {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
+                    {minRewardThreshold - (myPoints)} points to next reward
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {profile?.ignite_points || 0} total points
+                    {myPoints} total points
                   </p>
                 </div>
               ) : minRewardThreshold !== null ? (
@@ -1874,11 +1922,11 @@ export default function HomePage() {
                     🎉 Rewards available!
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {profile?.ignite_points || 0} total points
+                    {myPoints} total points
                   </p>
                 </div>
               ) : (
-                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+                <p className="text-2xl font-bold leading-tight">{myPoints}</p>
               )}
 
               {/* Pending claim */}
@@ -1914,8 +1962,8 @@ export default function HomePage() {
           </div>
 
           {/* Progress bar */}
-          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (() => {
-            const currentPoints = profile?.ignite_points || 0;
+          {minRewardThreshold !== null && (myPoints) < minRewardThreshold && (() => {
+            const currentPoints = myPoints;
             const progress = Math.min(100, (currentPoints / minRewardThreshold) * 100);
             const isClose = progress >= 70;
             return (
@@ -1960,7 +2008,7 @@ export default function HomePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 pt-1">
                 {userChildren.map((child: any) => {
-                  const childPoints = child.ignite_points || 0;
+                  const childPoints = childPointsFor(child);
                   const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
                   const childHasReward = childPoints >= minRewardThreshold;
                   return (
@@ -2021,7 +2069,7 @@ export default function HomePage() {
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
               {selectedRewardClubId 
-                ? `You have ${profile?.ignite_points || 0} points${userChildren.length > 0 ? " (+ children's points)" : ""}`
+                ? `You have ${myPoints} points${userChildren.length > 0 ? " (+ children's points)" : ""}`
                 : "Choose a club to view rewards"
               }
             </ResponsiveDialogDescription>
@@ -2058,9 +2106,9 @@ export default function HomePage() {
             ) : (
               <div className="space-y-2">
                 {availableRewards.map((reward: any) => {
-                  const currentPoints = profile?.ignite_points || 0;
+                  const currentPoints = myPoints;
                   const canAfford = currentPoints >= reward.points_required ||
-                    userChildren.some((c: any) => c.ignite_points >= reward.points_required);
+                    userChildren.some((c: any) => childPointsFor(c) >= reward.points_required);
                   
                   return (
                     <button
@@ -2126,7 +2174,7 @@ export default function HomePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           
-          {userChildren.filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
+          {userChildren.filter((child: any) => childPointsFor(child) >= (selectedReward?.points_required || 0)).length > 0 && (
             <div className="space-y-2 py-2">
               <Label>Redeem for</Label>
               <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
@@ -2135,13 +2183,13 @@ export default function HomePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="myself">
-                    Myself ({profile?.ignite_points || 0} pts)
+                    Myself ({myPoints} pts)
                   </SelectItem>
                   {userChildren
-                    .filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0))
+                    .filter((child: any) => childPointsFor(child) >= (selectedReward?.points_required || 0))
                     .map((child: any) => (
                     <SelectItem key={child.id} value={child.id}>
-                      {child.name} ({child.ignite_points} pts)
+                      {child.name} ({childPointsFor(child)} pts)
                     </SelectItem>
                   ))}
                 </SelectContent>

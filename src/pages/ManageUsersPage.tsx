@@ -542,22 +542,22 @@ export default function ManageUsersPage() {
       reason: string;
       clubId: string;
     }) => {
-      // Get current points
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("ignite_points")
-        .eq("id", userId)
-        .single();
-      if (profileError) throw profileError;
+      // Use the per-club RPC so the awarded points land on the correct club's
+      // balance (and the legacy global mirror stays in sync). The RPC clamps
+      // negative results to zero internally.
+      const { data: newTotal, error: rpcError } = await supabase.rpc(
+        "increment_ignite_points",
+        {
+          _user_id: userId,
+          _amount: points,
+          _club_id: clubId,
+        } as any,
+      );
+      if (rpcError) throw rpcError;
 
-      const currentPoints = profile?.ignite_points || 0;
-      const newPoints = Math.max(0, currentPoints + points);
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ ignite_points: newPoints })
-        .eq("id", userId);
-      if (updateError) throw updateError;
+      // For email/notification + threshold check we need the prior balance.
+      const newPoints = (newTotal as number | null) ?? 0;
+      const currentPoints = Math.max(0, newPoints - points);
 
       const clubName = allClubs?.find(c => c.id === clubId)?.name || "Admin";
 
