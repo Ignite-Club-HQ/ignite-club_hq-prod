@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2, Clock } from "lucide-react";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
@@ -177,7 +178,7 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
-  const [localClubFilter, setLocalClubFilter] = useState("all");
+  const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
@@ -160,9 +161,9 @@ export default function MediaPage() {
     }
   }, []);
 
-  // Filter state - default to active club filter if set
-  const [selectedClubId, setSelectedClubId] = useState<string>("all");
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+  // Filter state - default to active club filter if set; persists across tab navigation
+  const [selectedClubId, setSelectedClubId] = usePersistedFilter("media.selectedClubId", "all");
+  const [selectedTeamId, setSelectedTeamId] = usePersistedFilter("media.selectedTeamId", "all");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
@@ -193,10 +194,8 @@ export default function MediaPage() {
     } else if (activeClubFilter) {
       setSelectedClubId(activeClubFilter);
       setSelectedTeamId("all");
-    } else {
-      setSelectedClubId("all");
-      setSelectedTeamId("all");
     }
+    // Otherwise: leave persisted filter intact across tab navigation
   }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
