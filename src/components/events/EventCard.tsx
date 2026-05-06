@@ -98,7 +98,7 @@ function buildFamilyRsvpSummary(
   return { goingNames, maybeNames, notGoingNames };
 }
 
-export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) {
+export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: EventCardProps) {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -115,6 +115,26 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
   const compactWhen = formatCompactDateTime(event.event_date);
+
+  // Team / type visual identity — drives the left color rail and accent tints.
+  const teamRailColor = getTeamRailColor(event.teams?.name);
+  const typeAccent = getEventTypeAccent(event.type, {
+    miniLeagueId: event.mini_league_id,
+    opponent: event.opponent,
+  });
+  const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+  // "Today" boost — full-strength rail; otherwise dim slightly so today reads first.
+  const isToday = (() => {
+    try {
+      const today = new Date();
+      const evt = new Date(event.event_date);
+      return today.toDateString() === evt.toDateString();
+    } catch { return false; }
+  })();
+  const railOpacity = isToday ? 1 : 0.7;
+  const railHex = teamRailColor || `hsl(var(--primary))`;
+  // Zebra: barely-perceptible alternation for stacked lists
+  const zebraBg = stackIndex % 2 === 1 ? "bg-card/60" : "bg-card";
 
 
 
