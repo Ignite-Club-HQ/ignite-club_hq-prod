@@ -256,10 +256,6 @@ function showOpenDownloadedPhotoToast(
   });
 }
 
-function normalizeNativeFilePath(filePath: string): string {
-  if (/^[a-z]+:\/\//i.test(filePath) || filePath.startsWith("content://")) return filePath;
-  return `file://${filePath}`;
-}
 
 function pickContentTypeFromExtension(ext: string): string {
   switch (ext.toLowerCase()) {
