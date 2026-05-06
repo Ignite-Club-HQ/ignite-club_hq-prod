@@ -327,7 +327,19 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               Download
             </DropdownMenuItem>
             {showActions && onReport && (
-              <DropdownMenuItem onSelect={() => { setTimeout(() => onReport(), 0); }}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  onClose();
+                  // Wait two RAFs + a tick so iOS body-scroll-lock styles are
+                  // fully released before the Drawer/Dialog opens — otherwise
+                  // Vaul renders offscreen on top of `position: fixed` body.
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => onReport(), 60);
+                    });
+                  });
+                }}
+              >
                 <Flag className="h-4 w-4 mr-2" />
                 Report
               </DropdownMenuItem>
@@ -336,7 +348,14 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => { setTimeout(() => onBlockUser(), 0); }}
+                  onSelect={() => {
+                    onClose();
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                        setTimeout(() => onBlockUser(), 60);
+                      });
+                    });
+                  }}
                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                 >
                   <ShieldAlert className="h-4 w-4 mr-2" />
