@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -336,59 +336,107 @@ const AllReactionsContent = memo(function AllReactionsContent({
     return acc;
   }, {} as Record<string, Reaction[]>);
 
+  const types = Object.keys(reactionsByType);
+  const [activeType, setActiveType] = useState<string | "all">("all");
+
+  // Reset filter when popover reopens
+  useLayoutEffect(() => {
+    if (isOpen) setActiveType("all");
+  }, [isOpen]);
+
   const getUserName = (userId: string) => {
     return users.find(u => u.id === userId)?.display_name || "";
   };
 
+  const visibleReactions =
+    activeType === "all"
+      ? reactions
+      : reactionsByType[activeType] ?? [];
+
+  const totalCount = reactions.length;
+
   return (
-    <PopoverContent 
-      className="w-auto max-w-[calc(100vw-2rem)] p-3 bg-popover border z-50" 
-      align="end" 
+    <PopoverContent
+      className="w-[244px] max-w-[calc(100vw-1.5rem)] p-0 overflow-hidden rounded-2xl border border-border/40 bg-popover/95 backdrop-blur-xl shadow-[0_8px_28px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_28px_-8px_rgba(0,0,0,0.6)] z-50"
+      align="end"
       side="top"
-      sideOffset={8}
+      sideOffset={6}
       collisionPadding={12}
       avoidCollisions
       onOpenAutoFocus={(e) => e.preventDefault()}
     >
-      <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
-        <p className="text-xs font-medium text-muted-foreground">Reactions</p>
-        {Object.entries(reactionsByType).map(([type, typeReactions]) => {
+      {/* Filter chips */}
+      <div className="flex items-center gap-1 px-2 pt-2 pb-1.5 overflow-x-auto scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setActiveType("all")}
+          className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium leading-none shrink-0 transition-colors ${
+            activeType === "all"
+              ? "bg-foreground/[0.08] text-foreground"
+              : "text-muted-foreground hover:bg-foreground/[0.04]"
+          }`}
+        >
+          <span>All</span>
+          <span className="tabular-nums opacity-70">{totalCount}</span>
+        </button>
+        {types.map((type) => {
           const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
-          const userReaction = typeReactions.find((r) => r.user_id === currentUserId);
-          
+          const count = reactionsByType[type].length;
+          const active = activeType === type;
           return (
-            <div key={type} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">{emoji}</span>
-                <span className="text-xs text-muted-foreground">({typeReactions.length})</span>
-              </div>
-              <div className="pl-6 flex flex-col gap-0.5">
-                {typeReactions.map((r) => (
-                  <p key={r.id} className="text-sm">
-                    {getUserName(r.user_id)}
-                    {r.user_id === currentUserId && " (you)"}
-                  </p>
-                ))}
-              </div>
-              {userReaction && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-6 h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReactionClick(type, userReaction.id);
-                    onClose();
-                  }}
-                >
-                  Remove your {emoji}
-                </Button>
-              )}
-            </div>
+            <button
+              key={type}
+              type="button"
+              onClick={() => setActiveType(type)}
+              className={`inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full text-[11px] font-medium leading-none shrink-0 transition-colors ${
+                active
+                  ? "bg-foreground/[0.08] text-foreground"
+                  : "text-muted-foreground hover:bg-foreground/[0.04]"
+              }`}
+            >
+              <span className="text-[13px] leading-none">{emoji}</span>
+              <span className="tabular-nums opacity-80">{count}</span>
+            </button>
           );
         })}
-        {users.length === 0 && (
-          <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+
+      <div className="h-px bg-border/40 mx-2" />
+
+      {/* Reactor list */}
+      <div className="max-h-[244px] overflow-y-auto py-1">
+        {visibleReactions.map((r) => {
+          const isMe = r.user_id === currentUserId;
+          const name = getUserName(r.user_id) || (users.length === 0 ? "…" : "Unknown");
+          const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={(e) => {
+                if (!isMe) return;
+                e.stopPropagation();
+                onReactionClick(r.reaction_type, r.id);
+                onClose();
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                isMe ? "hover:bg-foreground/[0.04] cursor-pointer" : "cursor-default"
+              }`}
+            >
+              <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
+                {name}
+                {isMe && (
+                  <span className="ml-1 text-[11px] text-muted-foreground">
+                    {`· tap to remove`}
+                  </span>
+                )}
+              </span>
+              <span className="text-[14px] leading-none">{emoji}</span>
+            </button>
+          );
+        })}
+        {visibleReactions.length === 0 && (
+          <p className="px-3 py-2 text-[12px] text-muted-foreground">No reactions</p>
         )}
       </div>
     </PopoverContent>
