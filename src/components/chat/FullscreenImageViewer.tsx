@@ -416,11 +416,10 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
             </DropdownMenuItem>
             {showActions && onReport && (
               <DropdownMenuItem
-                onSelect={() => {
+                onSelect={(e) => {
+                  e.preventDefault();
+                  installTapShield();
                   onClose();
-                  // Wait two RAFs + a tick so iOS body-scroll-lock styles are
-                  // fully released before the Drawer/Dialog opens — otherwise
-                  // Vaul renders offscreen on top of `position: fixed` body.
                   requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                       setTimeout(() => onReport(), 60);
@@ -436,7 +435,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => {
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    installTapShield();
                     onClose();
                     requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
