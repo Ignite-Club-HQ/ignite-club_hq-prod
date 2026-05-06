@@ -199,11 +199,29 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       description: filename,
       action: {
         label: "Open",
-        onClick: () => {
-          // Use same-tab navigation instead of a popup/new tab. Mobile browsers
-          // and preview iframes can silently block `window.open`, even from a
-          // toast button, while direct navigation is always user-gesture safe.
-          window.location.assign(blobUrl);
+        onClick: (event) => {
+          try {
+            event?.preventDefault?.();
+            event?.stopPropagation?.();
+          } catch {}
+          // Open the downloaded image in a new tab via a synchronously-clicked
+          // anchor. This preserves the user-gesture context (so popup blockers
+          // and iframe sandboxes allow it) and works where window.open and
+          // location.assign get silently blocked.
+          try {
+            const opener = document.createElement("a");
+            opener.href = blobUrl;
+            opener.target = "_blank";
+            opener.rel = "noopener";
+            document.body.appendChild(opener);
+            opener.click();
+            document.body.removeChild(opener);
+          } catch (openErr) {
+            console.warn("[downloadImage] open in new tab failed:", openErr);
+            try {
+              window.location.assign(blobUrl);
+            } catch {}
+          }
         },
       },
     });
