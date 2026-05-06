@@ -130,16 +130,16 @@ export function ChatSendButton({
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          "flex items-center justify-center h-9 w-9 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-30 disabled:bg-muted disabled:text-muted-foreground transition-all duration-150 ease-out select-none touch-none",
+          "flex items-center justify-center h-9 w-9 shrink-0 rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:bg-primary/85 disabled:bg-muted disabled:text-muted-foreground/60 disabled:shadow-none transition-all duration-150 ease-out select-none touch-none",
           pressing && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           className,
         )}
       >
         {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-[17px] w-[17px] animate-spin" />
         ) : (
           // Optical nudge: Send icon's visual mass sits right-of-center, so shift left ~1px
-          <Send className="h-4 w-4 -ml-px" />
+          <Send className="h-[17px] w-[17px] -ml-px" />
         )}
       </button>
     </div>
