@@ -1292,13 +1292,13 @@ export default function DirectMessagePage() {
                   }}
                   onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                   placeholder="Type a message..."
-                  disabled={sendMessageMutation.isPending}
+                  disabled={false}
                   onGifSelect={setDmImageUrl}
                 />
                 <ChatSendButton
                   onSend={handleSend}
                   onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-                  disabled={(!message.trim() && !dmImageUrl) || sendMessageMutation.isPending}
+                  disabled={!message.trim() && !dmImageUrl}
                   loading={sendMessageMutation.isPending}
                   canSend={!!message.trim() || !!dmImageUrl}
                 />
