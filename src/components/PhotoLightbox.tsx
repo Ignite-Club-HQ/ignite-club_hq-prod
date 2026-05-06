@@ -274,7 +274,8 @@ export function PhotoLightbox({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent 
         className="!max-w-none !max-h-none !w-screen !h-[100dvh] p-0 bg-black border-none rounded-none [&>button]:hidden !translate-x-[-50%] !translate-y-[-50%]"
         onKeyDown={handleKeyDown}
@@ -344,7 +345,11 @@ export function PhotoLightbox({
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setReportDialogOpen(true)}>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setReportDialogOpen(true);
+                    }}
+                  >
                     <Flag className="h-4 w-4 mr-2" />
                     Report
                   </DropdownMenuItem>
@@ -406,33 +411,35 @@ export function PhotoLightbox({
         </div>
       </DialogContent>
 
-      {/* Report Dialog */}
-      <ReportPhotoDialog
-        isOpen={reportDialogOpen}
-        onClose={() => setReportDialogOpen(false)}
-        photoId={currentPhoto.id}
-      />
-
-      {/* Delete confirmation */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this photo? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
+
+    {/* Report Dialog */}
+    <ReportPhotoDialog
+      isOpen={reportDialogOpen}
+      onClose={() => setReportDialogOpen(false)}
+      photoId={currentPhoto.id}
+    />
+
+    {/* Delete confirmation */}
+    <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this photo? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
