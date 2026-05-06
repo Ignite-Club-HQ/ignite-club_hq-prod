@@ -416,34 +416,35 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       />
       {/* Right-edge tap affordance — optically aligned to the title row, not floating mid-card */}
       <ChevronRight
-        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none"
+        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none"
         aria-hidden="true"
       />
-      <CardContent className="p-3.5 pb-3 pr-8 pl-4 space-y-2">
+      <CardContent className="p-3.5 pb-3 pr-9 pl-4 space-y-1.5">
         {/* Status chips only — section header already conveys the date.
-            "New" badge is suppressed for training events to reduce noise. */}
+            "New" badge is suppressed for training events to reduce noise.
+            Positioned with extra right padding so the chevron isn't crowded. */}
         {(() => {
           const isTraining = event.type === "training";
           const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
           if (!showNew && !event.is_cancelled && !isToday) return null;
           return (
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="flex items-center justify-end gap-1.5 -mr-3">
               {isToday && !event.is_cancelled && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] h-5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+                  className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
                 >
                   Today
                 </Badge>
               )}
               {showNew && (
-                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
-                  <Eye className="h-3 w-3" />
+                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[9.5px] h-[18px] px-1.5">
+                  <Eye className="h-2.5 w-2.5" />
                   New
                 </Badge>
               )}
               {event.is_cancelled && (
-                <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+                <Badge variant="destructive" className="text-[9.5px] h-[18px] px-1.5">Cancelled</Badge>
               )}
             </div>
           );
