@@ -327,7 +327,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               Download
             </DropdownMenuItem>
             {showActions && onReport && (
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onReport(), 0); }}>
+              <DropdownMenuItem onSelect={() => { setTimeout(() => onReport(), 0); }}>
                 <Flag className="h-4 w-4 mr-2" />
                 Report
               </DropdownMenuItem>
@@ -336,7 +336,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={(e) => { e.preventDefault(); setTimeout(() => onBlockUser(), 0); }}
+                  onSelect={() => { setTimeout(() => onBlockUser(), 0); }}
                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                 >
                   <ShieldAlert className="h-4 w-4 mr-2" />
