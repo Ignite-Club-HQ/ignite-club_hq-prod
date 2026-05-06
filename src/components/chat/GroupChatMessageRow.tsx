@@ -436,7 +436,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none transition-all duration-100 overflow-hidden ${
-                  isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
+                  isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
