@@ -73,7 +73,14 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         }
       }
 
-      // ---- iOS (and Android fallback): write to cache then open share sheet
+      if (platform === "ios") {
+        const { Media } = await import("@capacitor-community/media");
+        await Media.savePhoto({ path: resolvedUrl });
+        toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+        return;
+      }
+
+      // ---- Other native fallback: write to cache then open share sheet
       let writtenUri: string | null = null;
       try {
         const dl: any = await (Filesystem as any).downloadFile({
