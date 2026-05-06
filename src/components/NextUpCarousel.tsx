@@ -321,6 +321,21 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
 
+  // Team / type visual identity — same system as schedule cards.
+  const teamRailHex = getTeamRailColor(event.teams?.name) || `hsl(var(--primary))`;
+  const typeAccent = getEventTypeAccent(event.type, {
+    miniLeagueId: (event as any).mini_league_id,
+    opponent: event.opponent,
+  });
+  const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+  const isToday = (() => {
+    try {
+      const today = new Date();
+      const evt = new Date(event.event_date);
+      return today.toDateString() === evt.toDateString();
+    } catch { return false; }
+  })();
+
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
     queryFn: async () => {
