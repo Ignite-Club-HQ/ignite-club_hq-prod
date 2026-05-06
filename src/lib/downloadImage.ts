@@ -105,6 +105,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       const finalUri = writtenUri;
+      if (!finalUri) {
+        toast.error("Download failed", { id: toastId, description: "Could not save file" });
+        return;
+      }
       toast.success("Photo downloaded", {
         id: toastId,
         description: "Tap Open to save or share",
@@ -115,8 +119,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
               const { Share } = await import("@capacitor/share");
               await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
             } catch (shareErr: any) {
-              if (!String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) {
+              const msg = String(shareErr?.message || shareErr);
+              if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
+                toast.error("Could not open file", { description: msg });
               }
             }
           },
@@ -147,13 +153,22 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    // Keep blob URL alive so the toast "Open" action still works after the download.
+    // Revoke it after a longer delay (toast lifetime + buffer).
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     toast.success("Photo downloaded", {
       id: toastId,
       description: filename,
       action: {
         label: "Open",
-        onClick: () => safeOpenUrl(blobUrl),
+        onClick: () => {
+          // Open synchronously inside the click handler so popup blockers allow it.
+          const win = window.open(blobUrl, "_blank", "noopener");
+          if (!win) {
+            // Popup blocked — navigate the current tab as a fallback.
+            window.location.href = blobUrl;
+          }
+        },
       },
     });
   } catch (err) {
