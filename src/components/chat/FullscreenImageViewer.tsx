@@ -373,17 +373,28 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
                   }
                   swallow(ev);
                 };
-                document.addEventListener("click", docSwallow, { capture: true });
-                document.addEventListener("contextmenu", docSwallow, { capture: true });
-                document.addEventListener("touchend", docSwallow, { capture: true, passive: false });
-                document.addEventListener("mouseup", docSwallow, { capture: true });
+                const docEvents: Array<[string, AddEventListenerOptions]> = [
+                  ["click", { capture: true }],
+                  ["contextmenu", { capture: true }],
+                  ["touchstart", { capture: true, passive: false }],
+                  ["touchmove", { capture: true, passive: false }],
+                  ["touchend", { capture: true, passive: false }],
+                  ["touchcancel", { capture: true, passive: false }],
+                  ["pointerdown", { capture: true }],
+                  ["pointerup", { capture: true }],
+                  ["pointercancel", { capture: true }],
+                  ["mousedown", { capture: true }],
+                  ["mouseup", { capture: true }],
+                ];
+                docEvents.forEach(([evt, opts]) =>
+                  document.addEventListener(evt, docSwallow, opts),
+                );
                 document.body.appendChild(shield);
                 window.setTimeout(() => {
                   shield.remove();
-                  document.removeEventListener("click", docSwallow, { capture: true } as any);
-                  document.removeEventListener("contextmenu", docSwallow, { capture: true } as any);
-                  document.removeEventListener("touchend", docSwallow, { capture: true } as any);
-                  document.removeEventListener("mouseup", docSwallow, { capture: true } as any);
+                  docEvents.forEach(([evt, opts]) =>
+                    document.removeEventListener(evt, docSwallow, opts as any),
+                  );
                 }, 700);
                 void downloadImage(effectiveSrc, "ignite-photo");
               }}
