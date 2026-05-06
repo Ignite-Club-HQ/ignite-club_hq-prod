@@ -181,7 +181,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
     const contentType = blob.type || response.headers.get("content-type") || "";
     const ext = pickExtension(contentType);
-    const filename = `${friendlyBaseName}-${stamp}.${ext}`;
+    const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
 
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
