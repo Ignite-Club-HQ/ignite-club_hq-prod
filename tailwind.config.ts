@@ -61,6 +61,10 @@ export default {
         warning: "hsl(var(--warning))",
         info: "hsl(var(--info))",
         "pitch-green": "hsl(var(--pitch-green))",
+        "chat-bubble-own": {
+          DEFAULT: "hsl(var(--chat-bubble-own))",
+          foreground: "hsl(var(--chat-bubble-own-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
