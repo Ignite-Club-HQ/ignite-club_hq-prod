@@ -12,6 +12,7 @@
         "@capacitor-firebase/messaging": "^8.0.1",
         "@capacitor/android": "^8.0.0",
         "@capacitor/app": "^8.0.0",
+        "@capacitor/app-launcher": "^8.0.1",
         "@capacitor/browser": "^8.0.1",
         "@capacitor/camera": "^8.0.1",
         "@capacitor/cli": "^8.0.0",
@@ -333,6 +334,8 @@
     "@capacitor/android": ["@capacitor/android@8.0.0", "", { "peerDependencies": { "@capacitor/core": "^8.0.0" } }, "sha512-FrBSvVAC5JuLaYHNyDnwQny0/SYnP+xDQbc/KA4wInmRkMXLDv22fkx9aBJIDrxjuUVd+jsRih4SAt8FgMEzCw=="],
 
     "@capacitor/app": ["@capacitor/app@8.0.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-OwzIkUs4w433Bu9WWAEbEYngXEfJXZ9Wmdb8eoaqzYBgB0W9/3Ed/mh6sAYPNBAZlpyarmewgP7Nb+d3Vrh+xA=="],
+
+    "@capacitor/app-launcher": ["@capacitor/app-launcher@8.0.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/app-launcher/-/app-launcher-8.0.1.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-23D8zi74sn7kxvISix8qYwgqdxGJN+4NImcNGvHen98LB1zb4eZfkJvFvp7pwntxGw4OjIE7yuf4wbzZxQHpog=="],
 
     "@capacitor/browser": ["@capacitor/browser@8.0.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-cCEYK9DGJvamfCKOh95QP+VafApblySDR/eodOcl1Qt+d/Y+NNPzc8NYm/dztQlRf3aMLJ7ne1HrRCfu2UOMnw=="],
 
