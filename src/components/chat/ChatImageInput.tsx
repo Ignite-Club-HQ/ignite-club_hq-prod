@@ -643,10 +643,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   e.preventDefault();
                 }
               }}
-              className={`inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+              className={`inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
                 menuOpen
-                  ? "bg-accent text-foreground"
-                  : "text-foreground/60 hover:text-foreground hover:bg-accent active:bg-accent/80"
+                  ? "bg-muted/70 text-foreground/80"
+                  : "text-foreground/55 hover:text-foreground hover:bg-muted/60 active:bg-muted/70"
               }`}
             >
               <Plus
@@ -666,7 +666,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             // up while the attachment tray is open.
             onOpenAutoFocus={(e) => e.preventDefault()}
             onCloseAutoFocus={(e) => e.preventDefault()}
-            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-2xl border border-border/40 shadow-md bg-popover/92 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
               type Action = {
