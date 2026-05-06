@@ -38,12 +38,41 @@ function cleanTitle(raw?: string | null): string {
   return t;
 }
 
-function isRedundant(secondary: string, primary: string, typeLabel: string): boolean {
+function normalizeForCompare(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\bunder\s*(\d+)\b/g, "u$1") // "Under 12" → "u12"
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function isRedundant(
+  secondary: string,
+  primary: string,
+  typeLabel: string,
+  teamName?: string | null,
+): boolean {
   if (!secondary) return true;
   const s = secondary.toLowerCase().trim();
   if (s === primary.toLowerCase().trim()) return true;
   if (s === typeLabel.toLowerCase().trim()) return true;
-  // e.g. "Tuesday training" alongside primary "Training" is fine; but "Training" alone is redundant.
+
+  // Suppress "{team} {type}" style titles (e.g. "U8 Blue Training",
+  // "Under 12 Blue Training") when team is already shown as the card title
+  // and type is the primary line. This is the most common duplication.
+  if (teamName) {
+    const ns = normalizeForCompare(secondary);
+    const nteam = normalizeForCompare(teamName);
+    const ntype = normalizeForCompare(typeLabel);
+    const nprimary = normalizeForCompare(primary);
+    if (nteam && (ns === `${nteam} ${ntype}` || ns === `${nteam} ${nprimary}` || ns === nteam)) {
+      return true;
+    }
+    // Also catch reversed order "training u8 blue"
+    if (nteam && (ns === `${ntype} ${nteam}` || ns === `${nprimary} ${nteam}`)) {
+      return true;
+    }
+  }
   return false;
 }
 
