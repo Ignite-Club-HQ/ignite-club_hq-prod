@@ -745,7 +745,8 @@ function CompactCard({ event }: { event: EventItem }) {
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const compactWhen = formatCompactDateTime(event.event_date);
 
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  // Full location — keep pitch/court details visible.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0] || "";
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
