@@ -325,7 +325,19 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
+          <DropdownMenuContent
+            align="end"
+            sideOffset={8}
+            className="z-[1000002] min-w-[180px]"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+          >
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault();
