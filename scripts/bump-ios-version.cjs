@@ -46,12 +46,21 @@ function nextBuildNumber(currentBuild) {
   const yyyy = today.getUTCFullYear();
   const mm = String(today.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(today.getUTCDate()).padStart(2, '0');
-  const datePrefix = `${yyyy}${mm}${dd}`;
-  if (currentBuild && currentBuild.startsWith(datePrefix)) {
-    const counter = parseInt(currentBuild.slice(8), 10) || 0;
-    return `${datePrefix}${String(counter + 1).padStart(3, '0')}`;
+  const hh = String(today.getUTCHours()).padStart(2, '0');
+  const mi = String(today.getUTCMinutes()).padStart(2, '0');
+  const ss = String(today.getUTCSeconds()).padStart(2, '0');
+  // Use a 14-digit YYYYMMDDHHMMSS timestamp so build numbers always increase
+  // monotonically. Apple/App Store Connect rejects builds whose CFBundleVersion
+  // is numerically <= a previously-uploaded build for the same marketing
+  // version, and a shorter date+counter (e.g. 20260506001) is *smaller* than
+  // an existing 20260501155532, which causes "version error" rejections.
+  let candidate = `${yyyy}${mm}${dd}${hh}${mi}${ss}`;
+  // Guarantee strict monotonic growth even if clocks drift / re-runs occur in
+  // the same second.
+  if (currentBuild && /^\d+$/.test(currentBuild) && BigInt(candidate) <= BigInt(currentBuild)) {
+    candidate = (BigInt(currentBuild) + 1n).toString();
   }
-  return `${datePrefix}001`;
+  return candidate;
 }
 
 // --- parse args ---
