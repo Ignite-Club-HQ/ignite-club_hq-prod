@@ -1610,7 +1610,7 @@ export default function TeamChatPage() {
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
             clubId={team?.club_id}
             teamId={teamId}
             showEventPicker={true}
