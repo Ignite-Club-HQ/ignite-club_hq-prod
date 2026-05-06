@@ -285,7 +285,9 @@ export default function ClubAdminChatPage() {
     );
   }, [messagesData]);
 
-  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() =>
+    conversationId ? getCachedClubAdminMessages(conversationId) : undefined,
+  );
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
   const showLoading =
