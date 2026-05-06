@@ -82,7 +82,11 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = dl?.path || dl?.uri || null;
+        writtenUri = dl?.uri || null;
+        if (!writtenUri) {
+          const uriResult = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+          writtenUri = uriResult.uri;
+        }
       } catch (dlErr) {
         console.warn("[downloadImage] Filesystem.downloadFile failed, trying fetch:", dlErr);
       }
@@ -101,7 +105,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = written.uri;
+        writtenUri = written.uri || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
       }
 
       const finalUri = writtenUri;
@@ -117,7 +121,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           onClick: async () => {
             try {
               const { Share } = await import("@capacitor/share");
-              await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
+              await Share.share({
+                title: "Save photo",
+                text: "Save photo",
+                url: finalUri,
+                files: [finalUri],
+                dialogTitle: "Save photo",
+              });
             } catch (shareErr: any) {
               const msg = String(shareErr?.message || shareErr);
               if (!msg.toLowerCase().includes("cancel")) {
