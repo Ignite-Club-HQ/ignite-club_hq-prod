@@ -1452,7 +1452,7 @@ export default function ClubChatPage() {
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
-              disabled={sendMutation.isPending}
+              disabled={false}
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
