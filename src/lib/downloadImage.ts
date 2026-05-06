@@ -46,12 +46,12 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const { Media } = await import("@capacitor-community/media");
           const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
-          await Media.savePhoto({
+          const saved = await Media.savePhoto({
             path: resolvedUrl,
             fileName: baseName,
             albumIdentifier,
-          });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+          }) as { filePath?: string };
+          showOpenDownloadedPhotoToast(toastId, saved.filePath || null, "Saved to your photos", pickContentTypeFromExtension(urlExt));
           return;
         } catch (androidErr) {
           console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
@@ -62,13 +62,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const ext = pickExtension(contentType);
           filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
           const base64 = await blobToBase64(blob);
-          await Filesystem.writeFile({
+          const written = await Filesystem.writeFile({
             path: filename,
             data: base64,
             directory: Directory.Documents,
             recursive: true,
           });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to app documents" });
+          showOpenDownloadedPhotoToast(toastId, written.uri || null, "Saved to app documents", contentType);
           return;
         }
       }
