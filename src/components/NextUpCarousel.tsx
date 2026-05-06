@@ -19,7 +19,7 @@ import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { abbreviateLocation } from "@/lib/abbreviateLocation";
+
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
