@@ -85,7 +85,7 @@ export interface ChatMessageProps {
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
 }
 
-export const ChatMessage = memo(function ChatMessage({
+function ChatMessageInner({
   id,
   text,
   imageUrl,
