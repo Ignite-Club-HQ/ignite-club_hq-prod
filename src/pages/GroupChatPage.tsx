@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
+import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
@@ -288,6 +289,10 @@ export default function GroupChatPage() {
     enabled: !!groupId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Sync active club to this group's owning club so push-launched threads
+  // don't leave the user inside the wrong club context.
+  useSyncActiveClubToChat(group?.club_id);
 
   // Check if user is admin (team/club admin or app admin) - run all checks in parallel
   const { data: isAdmin } = useQuery({
