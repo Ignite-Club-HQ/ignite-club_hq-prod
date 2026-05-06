@@ -1632,7 +1632,7 @@ export default function TeamChatPage() {
               else stopTyping();
             }}
             onKeyPress={handleKeyPress}
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
             teamId={teamId}
             clubId={team.club_id}
             onGifSelect={setImageUrl}
