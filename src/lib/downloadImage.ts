@@ -181,7 +181,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
     const contentType = blob.type || response.headers.get("content-type") || "";
     const ext = pickExtension(contentType);
-    const filename = `${friendlyBaseName}-${stamp}.${ext}`;
+    const filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
 
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -197,15 +197,6 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     toast.success("Photo downloaded", {
       id: toastId,
       description: filename,
-      action: {
-        label: "Open",
-        onClick: () => {
-          // Use same-tab navigation instead of a popup/new tab. Mobile browsers
-          // and preview iframes can silently block `window.open`, even from a
-          // toast button, while direct navigation is always user-gesture safe.
-          window.location.assign(blobUrl);
-        },
-      },
     });
   } catch (err) {
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
@@ -218,7 +209,7 @@ function showOpenDownloadedPhotoToast(
   toastId: string | number,
   filePath: string | null,
   description: string,
-  contentType: string,
+  _contentType: string,
 ) {
   toast.success("Photo downloaded", {
     id: toastId,
@@ -226,18 +217,38 @@ function showOpenDownloadedPhotoToast(
     action: filePath
       ? {
           label: "Open",
-          onClick: async () => {
+          onClick: async (event) => {
             try {
-              const { FileOpener } = await import("@capacitor-community/file-opener");
-              await FileOpener.open({
-                filePath: normalizeNativeFilePath(filePath),
-                contentType,
-                openWithDefault: true,
-              });
+              event?.preventDefault?.();
+              event?.stopPropagation?.();
+            } catch {}
+            // Launch the system Gallery / Photos app. We don't try to open the
+            // exact saved file by path: Android's MediaStore returns paths /
+            // content URIs that FileOpener typically can't resolve across
+            // scoped-storage boundaries. Opening the gallery is reliable and
+            // surfaces the brand-new photo at the top of the user's library.
+            try {
+              const { AppLauncher } = await import("@capacitor/app-launcher");
+              // Try the standard gallery intent first, then fall back to known
+              // gallery package URLs.
+              const candidates = [
+                "content://media/external/images/media",
+                "content://media/internal/images/media",
+              ];
+              for (const url of candidates) {
+                try {
+                  const opened = await AppLauncher.openUrl({ url });
+                  if (opened?.completed) return;
+                } catch {
+                  // try next
+                }
+              }
+              throw new Error("No gallery app could be launched");
             } catch (openErr: any) {
-              const msg = String(openErr?.message || openErr);
-              console.warn("[downloadImage] file open failed:", openErr);
-              toast.error("Could not open photo", { description: msg });
+              console.warn("[downloadImage] gallery launch failed:", openErr);
+              toast.error("Could not open gallery", {
+                description: "Open your Photos app from the home screen",
+              });
             }
           },
         }
@@ -245,10 +256,6 @@ function showOpenDownloadedPhotoToast(
   });
 }
 
-function normalizeNativeFilePath(filePath: string): string {
-  if (/^[a-z]+:\/\//i.test(filePath) || filePath.startsWith("content://")) return filePath;
-  return `file://${filePath}`;
-}
 
 function pickContentTypeFromExtension(ext: string): string {
   switch (ext.toLowerCase()) {
