@@ -260,7 +260,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <div className="flex flex-wrap gap-1 -mt-1.5">
+        <div className="relative z-10 flex flex-wrap gap-1 mt-1">
           {Object.entries(reactionCounts).map(([type, { count, reactions: typeReactions }]) => {
             const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
             const userReaction = typeReactions.find((r) => r.user_id === currentUserId);
