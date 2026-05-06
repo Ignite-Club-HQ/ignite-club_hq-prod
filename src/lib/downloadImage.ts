@@ -76,7 +76,28 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       if (platform === "ios") {
         const { Media } = await import("@capacitor-community/media");
         await Media.savePhoto({ path: resolvedUrl });
-        toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+        toast.success("Photo downloaded", {
+          id: toastId,
+          description: "Saved to your photos",
+          action: {
+            label: "Open",
+            onClick: async () => {
+              try {
+                const { AppLauncher } = await import("@capacitor/app-launcher");
+                // iOS Photos app URL scheme
+                const opened = await AppLauncher.openUrl({ url: "photos-redirect://" });
+                if (!opened?.completed) {
+                  await AppLauncher.openUrl({ url: "photos://" });
+                }
+              } catch (openErr: any) {
+                console.warn("[downloadImage] open Photos failed:", openErr);
+                toast.error("Could not open Photos", {
+                  description: "Open the Photos app from your home screen",
+                });
+              }
+            },
+          },
+        });
         return;
       }
 
