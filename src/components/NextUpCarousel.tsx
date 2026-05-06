@@ -19,7 +19,7 @@ import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { abbreviateLocation } from "@/lib/abbreviateLocation";
+
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -316,7 +316,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const compactWhen = formatCompactDateTime(event.event_date);
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  // Full location — venue + pitch/court is critical info; never abbreviate or truncate.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0] || "";
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
@@ -500,23 +501,23 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       />
       {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
       <ChevronRight
-        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
         aria-hidden="true"
       />
-      <CardContent className="p-3.5 pl-4 pr-7 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + cancelled marker */}
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
+        {/* Status row: Today badge + cancelled marker — compact, doesn't crowd chevron */}
         {(isToday || event.is_cancelled) && (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 -mr-3">
             {isToday && !event.is_cancelled && (
               <Badge
                 variant="outline"
-                className="text-[10px] h-5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+                className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
               >
                 Today
               </Badge>
             )}
             {event.is_cancelled && (
-              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+              <Badge variant="destructive" className="text-[9.5px] h-[18px] px-1.5">Cancelled</Badge>
             )}
           </div>
         )}
@@ -587,20 +588,20 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           );
         })()}
 
-        {/* TERTIARY (still highly visible): time + location on a shared row, fixed-priority */}
-        <div className="space-y-1 pt-0.5">
-          <div className="flex items-center gap-3 text-[13.5px] text-foreground">
-            <span className="flex items-center gap-1.5 shrink-0 font-semibold">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              {compactWhen}
-            </span>
-            {locationDisplay && (
-              <span className="flex items-center gap-1.5 min-w-0 text-foreground/90">
-                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                <span className="truncate font-medium">{locationDisplay}</span>
-              </span>
-            )}
+        {/* TERTIARY (still highly visible): time + location.
+            Location gets its OWN line so long pitch/court names stay fully visible —
+            this is the question parents/coaches open the app to answer. */}
+        <div className="space-y-0.5 pt-0.5">
+          <div className="flex items-center gap-1.5 text-[13.5px] text-foreground font-semibold">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <span className="min-w-0">{compactWhen}</span>
           </div>
+          {locationDisplay && (
+            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+              <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
+            </div>
+          )}
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
@@ -744,7 +745,8 @@ function CompactCard({ event }: { event: EventItem }) {
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const compactWhen = formatCompactDateTime(event.event_date);
 
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  // Full location — keep pitch/court details visible.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0] || "";
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
@@ -856,9 +858,9 @@ function CompactCard({ event }: { event: EventItem }) {
             <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12.5px]">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-start gap-1.5 text-[12.5px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
+              <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
