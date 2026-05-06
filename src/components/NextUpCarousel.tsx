@@ -454,36 +454,74 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
   });
 
+  // RSVP buttons: outline by default, fill with semantic tint when selected.
+  // Lower contrast than the previous solid-primary going button so the team identity
+  // and event details remain the strongest things on the card.
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90", inactiveHint: "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning/15 text-warning border-warning/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive/15 text-destructive border-destructive/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    {
+      status: "going",
+      label: "Going",
+      icon: <Check className="h-3.5 w-3.5" />,
+      activeClass: "bg-primary/15 text-primary border-primary/50 shadow-sm hover:bg-primary/20",
+      inactiveHint: "border-border/70 text-foreground/80 hover:bg-primary/5 hover:border-primary/30 hover:text-primary",
+    },
+    {
+      status: "maybe",
+      label: "Maybe",
+      icon: <HelpCircle className="h-3.5 w-3.5" />,
+      activeClass: "bg-warning/15 text-warning border-warning/45",
+      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+    },
+    {
+      status: "not_going",
+      label: "Can't go",
+      icon: <X className="h-3.5 w-3.5" />,
+      activeClass: "bg-destructive/15 text-destructive border-destructive/45",
+      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+    },
   ];
+
+  const isMatchDay = !!(event as any).mini_league_id;
 
   return (
     <Card
-      className={`relative shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
+      {/* Team color rail — primary recognition cue, identical system to the schedule cards */}
+      <span
+        className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
+        style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
+        aria-hidden="true"
+      />
       {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
       <ChevronRight
         className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
         aria-hidden="true"
       />
-      <CardContent className="p-3 pr-7 space-y-1.5 flex-1 flex flex-col">
-        {/* Cancelled marker only — date is now inline with the time row */}
-        {event.is_cancelled && (
-          <div className="flex items-center justify-end">
-            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+      <CardContent className="p-3.5 pl-4 pr-7 space-y-2 flex-1 flex flex-col">
+        {/* Status row: Today badge + cancelled marker */}
+        {(isToday || event.is_cancelled) && (
+          <div className="flex items-center justify-end gap-1.5">
+            {isToday && !event.is_cancelled && (
+              <Badge
+                variant="outline"
+                className="text-[10px] h-5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+              >
+                Today
+              </Badge>
+            )}
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+            )}
           </div>
         )}
 
-        {/* Hierarchy differs for social/club events: title is primary, type is secondary.
-            Structured events (training/game) keep team-as-anchor. */}
+        {/* HIERARCHY: Team identity first (title-weight), then event context, then logistics */}
         {(() => {
           const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
           const isSocial = event.type === "social";
@@ -492,16 +530,16 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           if (isSocial) {
             return (
               <div className="space-y-1 min-w-0">
-                <h3 className={`text-[17px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                <h3 className={`text-[17px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
-                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="truncate">{typeLabel}</span>
+                <div className="flex items-center gap-1.5 text-[12px]">
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`font-medium ${typeAccentClasses.text}`}>{typeLabel}</span>
                   {hasTeam && (
                     <>
                       <span className="text-border">·</span>
-                      <span className="truncate">{event.teams!.name}</span>
+                      <span className="text-muted-foreground truncate">{event.teams!.name}</span>
                     </>
                   )}
                 </div>
@@ -514,69 +552,62 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             event.type === "mini_league" ||
             !!(event as any).mini_league_id ||
             !!event.opponent;
-          const isTraining = event.type === "training" && !isGame;
 
           return (
-            <div className="space-y-1">
-              {/* Top row: team chip (primary anchor) + match-only badge */}
-              <div className="flex items-center justify-between gap-2">
-                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
-                {isGame && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 bg-destructive/10 text-destructive border-destructive/30"
-                  >
-                    Match
-                  </Badge>
+            <div className="space-y-1.5">
+              {isMatchDay && (
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${typeAccentClasses.text}`}>
+                  Match Day
+                </span>
+              )}
+              {/* PRIMARY: team identity as title */}
+              <TeamChip
+                teamName={event.teams?.name}
+                fallbackLabel={event.team_id ? "" : "Club event"}
+                size="lg"
+                asTitle
+              />
+              {/* SECONDARY: event context */}
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[14px] font-medium leading-snug">
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`min-w-0 truncate ${typeAccent === "default" ? "text-foreground/85" : typeAccentClasses.text}`}>
+                    {isGame
+                      ? (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary)
+                      : eventDisplay.primary}
+                  </span>
+                </div>
+                {!isGame && eventDisplay.secondary && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground/80 leading-snug truncate pl-5">
+                    {eventDisplay.secondary}
+                  </p>
                 )}
               </div>
-
-              {/* Event title — left-aligned for both, secondary to team chip */}
-              {isGame ? (
-                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[15px] font-medium text-foreground/85 leading-snug">
-                    <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
-                    <span className="min-w-0 truncate">
-                      {event.opponent ? `vs ${event.opponent}` : eventDisplay.primary}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[14px] font-medium text-foreground/75 leading-snug">
-                    <TypeIcon className="h-4 w-4 shrink-0 opacity-55" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{eventDisplay.primary}</span>
-                  </div>
-                  {eventDisplay.secondary && (
-                    <p className="mt-0.5 text-[12px] text-muted-foreground/65 leading-snug truncate pl-5">
-                      {eventDisplay.secondary}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           );
         })()}
 
-        {/* Compact date + time + location — location is the dominant meta line */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
-            <span className="font-normal text-foreground/80">{compactWhen}</span>
+        {/* TERTIARY (still highly visible): time + location on a shared row, fixed-priority */}
+        <div className="space-y-1 pt-0.5">
+          <div className="flex items-center gap-3 text-[13.5px] text-foreground">
+            <span className="flex items-center gap-1.5 shrink-0 font-semibold">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              {compactWhen}
+            </span>
+            {locationDisplay && (
+              <span className="flex items-center gap-1.5 min-w-0 text-foreground/90">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                <span className="truncate font-medium">{locationDisplay}</span>
+              </span>
+            )}
           </div>
-          {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13.5px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
-            </div>
-          )}
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-1.5 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
                 <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
