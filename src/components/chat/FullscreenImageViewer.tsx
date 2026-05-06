@@ -326,18 +326,50 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               onSelect={(e) => {
                 e.preventDefault();
                 // Shield underlying chat from the synthetic tap-through that
-                // Radix Dropdown emits on Android when it closes — without
-                // this, the touch falls through to the chat bubble below and
-                // triggers its long-press action sheet (View Image / Reply
-                // / Pin / Delete) right after Download is tapped.
+                // Radix Dropdown emits when it closes — on Android the touch,
+                // on iOS the synthesized mousedown/mouseup/click sequence —
+                // falls through to the chat bubble below and triggers its
+                // long-press action sheet (View Image / Reply / Pin / Delete).
+                // We install a fullscreen overlay that swallows EVERY pointer
+                // event class for ~600ms so neither platform can leak the tap.
                 const shield = document.createElement("div");
+                shield.setAttribute("data-tap-shield", "1");
                 shield.style.cssText =
-                  "position:fixed;inset:0;z-index:2147483647;background:transparent;touch-action:none;";
-                shield.addEventListener("touchstart", (ev) => ev.preventDefault(), { passive: false });
-                shield.addEventListener("touchend", (ev) => ev.preventDefault(), { passive: false });
-                shield.addEventListener("click", (ev) => ev.preventDefault());
+                  "position:fixed;inset:0;z-index:2147483647;background:transparent;touch-action:none;-webkit-user-select:none;user-select:none;";
+                const swallow = (ev: Event) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  (ev as any).stopImmediatePropagation?.();
+                };
+                const events = [
+                  "touchstart", "touchmove", "touchend", "touchcancel",
+                  "pointerdown", "pointermove", "pointerup", "pointercancel",
+                  "mousedown", "mousemove", "mouseup", "click", "contextmenu",
+                ];
+                events.forEach((evt) =>
+                  shield.addEventListener(evt, swallow, { passive: false, capture: true }),
+                );
+                // Also block at the document/capture phase for the same window,
+                // in case the synthetic event targets the underlying node
+                // directly (iOS WKWebView dispatches the synthesized click on
+                // the original hit-test target, not necessarily the shield).
+                const docSwallow = (ev: Event) => {
+                  const t = ev.target as Node | null;
+                  if (t && shield.contains(t)) return;
+                  swallow(ev);
+                };
+                document.addEventListener("click", docSwallow, { capture: true });
+                document.addEventListener("contextmenu", docSwallow, { capture: true });
+                document.addEventListener("touchend", docSwallow, { capture: true, passive: false });
+                document.addEventListener("mouseup", docSwallow, { capture: true });
                 document.body.appendChild(shield);
-                window.setTimeout(() => shield.remove(), 600);
+                window.setTimeout(() => {
+                  shield.remove();
+                  document.removeEventListener("click", docSwallow, { capture: true } as any);
+                  document.removeEventListener("contextmenu", docSwallow, { capture: true } as any);
+                  document.removeEventListener("touchend", docSwallow, { capture: true } as any);
+                  document.removeEventListener("mouseup", docSwallow, { capture: true } as any);
+                }, 700);
                 void downloadImage(effectiveSrc, "ignite-photo");
               }}
             >
