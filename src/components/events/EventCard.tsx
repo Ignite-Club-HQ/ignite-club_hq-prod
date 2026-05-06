@@ -515,20 +515,19 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
         })()}
 
         {/* TERTIARY (still highly visible): time + location.
-            Time ALWAYS gets fixed width so location truncates first — never the other way. */}
-        <div className="space-y-1 pt-0.5">
-          <div className="flex items-center gap-3 text-[13.5px] text-foreground">
-            <span className="flex items-center gap-1.5 shrink-0 font-semibold">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              {compactWhen}
-            </span>
-            {locationDisplay && (
-              <span className="flex items-center gap-1.5 min-w-0 text-foreground/90">
-                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                <span className="truncate font-medium">{locationDisplay}</span>
-              </span>
-            )}
+            Location gets its OWN line so long pitch/court names are never
+            truncated — that's operationally critical info for sport. */}
+        <div className="space-y-0.5 pt-0.5">
+          <div className="flex items-center gap-1.5 text-[13.5px] text-foreground font-semibold">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <span className="min-w-0">{compactWhen}</span>
           </div>
+          {locationDisplay && (
+            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+              <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
+            </div>
+          )}
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
