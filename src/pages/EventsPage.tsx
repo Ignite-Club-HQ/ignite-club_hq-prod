@@ -880,7 +880,7 @@ export default function EventsPage() {
                 <TabsTrigger value="past" className="flex-1">Past</TabsTrigger>
               </TabsList>
 
-          <TabsContent value="upcoming" className="mt-4 space-y-3">
+          <TabsContent value="upcoming" className="mt-4 space-y-2">
             {upcomingEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
@@ -889,13 +889,13 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              upcomingEvents?.map((event) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
+              upcomingEvents?.map((event, idx) => (
+                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
               ))
             )}
           </TabsContent>
 
-          <TabsContent value="past" className="mt-4 space-y-3">
+          <TabsContent value="past" className="mt-4 space-y-2">
             {pastEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
@@ -903,8 +903,8 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              pastEvents?.map((event) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
+              pastEvents?.map((event, idx) => (
+                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
               ))
             )}
           </TabsContent>

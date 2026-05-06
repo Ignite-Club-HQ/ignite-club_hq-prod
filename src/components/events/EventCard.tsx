@@ -33,8 +33,8 @@ import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRel
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
-import { TeamChip } from "@/components/events/TeamChip";
-import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
+import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { abbreviateLocation } from "@/lib/abbreviateLocation";
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
@@ -65,6 +65,8 @@ interface EventCardProps {
   event: EventCardEvent;
   isAdmin: boolean;
   hasViewed?: boolean;
+  /** Index in stacked list — used for subtle zebra tinting to break the wall-of-cards effect. */
+  stackIndex?: number;
 }
 
 function formatContextualDate(dateStr: string) {
@@ -96,7 +98,7 @@ function buildFamilyRsvpSummary(
   return { goingNames, maybeNames, notGoingNames };
 }
 
-export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) {
+export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: EventCardProps) {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -113,6 +115,26 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
   const compactWhen = formatCompactDateTime(event.event_date);
+
+  // Team / type visual identity — drives the left color rail and accent tints.
+  const teamRailColor = getTeamRailColor(event.teams?.name);
+  const typeAccent = getEventTypeAccent(event.type, {
+    miniLeagueId: event.mini_league_id,
+    opponent: event.opponent,
+  });
+  const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+  // "Today" boost — full-strength rail; otherwise dim slightly so today reads first.
+  const isToday = (() => {
+    try {
+      const today = new Date();
+      const evt = new Date(event.event_date);
+      return today.toDateString() === evt.toDateString();
+    } catch { return false; }
+  })();
+  const railOpacity = isToday ? 1 : 0.7;
+  const railHex = teamRailColor || `hsl(var(--primary))`;
+  // Zebra: barely-perceptible alternation for stacked lists
+  const zebraBg = stackIndex % 2 === 1 ? "bg-card/60" : "bg-card";
 
 
 
@@ -377,27 +399,41 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   return (
     <Card
-      className={`group relative transition-all cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm ${event.is_cancelled ? "opacity-50" : ""} select-none`}
+      className={`group relative overflow-hidden transition-all cursor-pointer border-border/50 hover:border-primary/40 hover:shadow-md shadow-sm ${zebraBg} ${event.is_cancelled ? "opacity-50" : ""} select-none`}
       onClick={handleCardClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
+      {/* Team color rail — primary recognition cue. Today = full strength, future = dimmed. */}
+      <span
+        className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
+        style={{ backgroundColor: railHex, opacity: railOpacity }}
+        aria-hidden="true"
+      />
       {/* Right-edge tap affordance — optically aligned to the title row, not floating mid-card */}
       <ChevronRight
         className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none"
         aria-hidden="true"
       />
-      <CardContent className="p-3.5 pb-3 pr-8 space-y-1.5">
+      <CardContent className="p-3.5 pb-3 pr-8 pl-4 space-y-2">
         {/* Status chips only — section header already conveys the date.
             "New" badge is suppressed for training events to reduce noise. */}
         {(() => {
           const isTraining = event.type === "training";
           const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
-          if (!showNew && !event.is_cancelled) return null;
+          if (!showNew && !event.is_cancelled && !isToday) return null;
           return (
             <div className="flex items-center justify-end gap-1.5">
+              {isToday && !event.is_cancelled && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] h-5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+                >
+                  Today
+                </Badge>
+              )}
               {showNew && (
                 <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                   <Eye className="h-3 w-3" />
@@ -411,25 +447,30 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           );
         })()}
 
-        {/* Social/club events lead with the event name; structured events lead with team. */}
+        {/* HIERARCHY:
+            1. TEAM (title-weight, with color dot) — primary scanning anchor
+            2. EVENT CONTEXT (type icon + opponent / training label) — secondary
+            3. LOGISTICS (time + location) — kept high-contrast, full-size
+            Social/club-wide events flip 1↔2 since the title carries the meaning. */}
         {(() => {
           const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: event.mini_league_id });
           const isSocial = event.type === "social";
           const hasTeam = !!event.teams?.name;
+          const isMatchDay = !!event.mini_league_id;
 
           if (isSocial) {
             return (
-              <div className="space-y-0.5 min-w-0">
-                <h3 className={`text-[15px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+              <div className="space-y-1 min-w-0">
+                <h3 className={`text-[15px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
-                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground min-w-0">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="truncate">{typeLabel}</span>
+                <div className="flex items-center gap-1.5 text-[12px] min-w-0">
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`font-medium ${typeAccentClasses.text}`}>{typeLabel}</span>
                   {hasTeam && (
                     <>
                       <span className="text-border">·</span>
-                      <span className="truncate">{event.teams!.name}</span>
+                      <span className="text-muted-foreground truncate">{event.teams!.name}</span>
                     </>
                   )}
                 </div>
@@ -437,17 +478,31 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           }
 
-          const isTrainingType = event.type === "training";
           return (
-            <div className="space-y-1">
-              <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="lg" />
+            <div className="space-y-1.5">
+              {/* Match Day eyebrow — only competitive events earn extra vertical space */}
+              {isMatchDay && (
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${typeAccentClasses.text}`}>
+                  Match Day
+                </span>
+              )}
+              {/* PRIMARY: team identity as title */}
+              <TeamChip
+                teamName={event.teams?.name}
+                fallbackLabel={event.team_id ? "" : "Club event"}
+                size="md"
+                asTitle
+              />
+              {/* SECONDARY: event context */}
               <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                <div className={`flex items-center gap-1.5 text-[14px] ${isTrainingType ? "font-medium text-foreground/80" : "font-semibold text-foreground"}`}>
-                  <TypeIcon className={`h-3.5 w-3.5 shrink-0 ${isTrainingType ? "opacity-60" : "opacity-80"}`} aria-hidden="true" />
-                  <span className="min-w-0 truncate">{eventDisplay.primary}</span>
+                <div className={`flex items-center gap-1.5 text-[13px] font-medium`}>
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`min-w-0 truncate ${typeAccent === "default" ? "text-foreground/80" : typeAccentClasses.text}`}>
+                    {eventDisplay.primary}
+                  </span>
                 </div>
                 {eventDisplay.secondary && (
-                  <p className={`mt-0.5 text-[12px] leading-snug truncate pl-5 ${isTrainingType ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
+                  <p className="mt-0.5 text-[12px] leading-snug truncate pl-5 text-muted-foreground">
                     {eventDisplay.secondary}
                   </p>
                 )}
@@ -456,29 +511,32 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           );
         })()}
 
-        {/* Compact date + time + location — location is the dominant meta line */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
-            <span className="font-normal text-foreground/80">{compactWhen}</span>
+        {/* TERTIARY (still highly visible): time + location.
+            Time ALWAYS gets fixed width so location truncates first — never the other way. */}
+        <div className="space-y-1 pt-0.5">
+          <div className="flex items-center gap-3 text-[13.5px] text-foreground">
+            <span className="flex items-center gap-1.5 shrink-0 font-semibold">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              {compactWhen}
+            </span>
+            {locationDisplay && (
+              <span className="flex items-center gap-1.5 min-w-0 text-foreground/90">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                <span className="truncate font-medium">{locationDisplay}</span>
+              </span>
+            )}
           </div>
           {event.type === "game" && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
-                <span>Arrive by {arrivalTime} ({mins} min before)</span>
+              <div className="flex items-center gap-1.5 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
+                <span className="font-medium">Arrive by {arrivalTime} ({mins} min before)</span>
               </div>
             );
           })()}
-          {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13.5px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
-            </div>
-          )}
         </div>
 
         {/* RSVP summary only — Schedule = browse, no action buttons */}
@@ -494,8 +552,9 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
           if (!summary) {
             return (
-              <div className="pt-1.5 border-t border-border/40">
-                <span className="text-[11px] text-muted-foreground/60">Tap to RSVP</span>
+              <div className="flex items-center gap-1.5 pt-2 mt-1 border-t border-border/40 min-w-0">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                <span className="text-[12px] font-medium text-primary/90">Tap to RSVP</span>
               </div>
             );
           }
@@ -503,11 +562,11 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
           return (
-            <div className="flex items-center pt-1.5 border-t border-border/40 gap-1.5 min-w-0">
+            <div className="flex items-center pt-2 mt-1 border-t border-border/40 gap-1.5 min-w-0">
               {personal ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
               ) : (
-                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               )}
               <span className={`text-[12px] truncate ${personal ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                 {summary}

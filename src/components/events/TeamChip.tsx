@@ -7,6 +7,11 @@ interface TeamChipProps {
   fallbackLabel?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
+  /**
+   * When true, renders the team identity as a primary title (no chip background,
+   * larger weight) — meant to be the strongest scanning anchor on event cards.
+   */
+  asTitle?: boolean;
 }
 
 function isLightHex(hex: string) {
@@ -22,10 +27,35 @@ function isLightHex(hex: string) {
  * Team identity chip used across all event cards. The team is the primary
  * scanning anchor — it should be the most prominent text on the card.
  */
-export function TeamChip({ teamName, fallbackLabel = "Club event", size = "md", className = "" }: TeamChipProps) {
+export function TeamChip({ teamName, fallbackLabel = "Club event", size = "md", className = "", asTitle = false }: TeamChipProps) {
   const label = teamName || fallbackLabel;
   const teamColor = teamName ? detectTeamColor(teamName) : null;
   const lightColor = teamColor ? isLightHex(teamColor.hex) : false;
+
+  // ── Title variant: no chip background, larger weight, just dot + name ──
+  if (asTitle) {
+    const titleSize =
+      size === "lg"
+        ? "text-[17px]"
+        : size === "sm"
+          ? "text-[13px]"
+          : "text-[15px]";
+    const dotSize = size === "lg" ? "h-2.5 w-2.5" : "h-2 w-2";
+    return (
+      <h3
+        className={`font-bold leading-tight text-foreground inline-flex items-center gap-2 min-w-0 max-w-full ${titleSize} ${className}`}
+      >
+        {teamColor && (
+          <span
+            className={`inline-block rounded-full shrink-0 ${dotSize}`}
+            style={{ backgroundColor: teamColor.hex, boxShadow: `0 0 0 1.5px ${teamColor.hex}66` }}
+            aria-hidden="true"
+          />
+        )}
+        <span className="truncate">{label}</span>
+      </h3>
+    );
+  }
 
   const sizeClass =
     size === "lg"
@@ -63,4 +93,15 @@ export function TeamChip({ teamName, fallbackLabel = "Club event", size = "md", 
       <span className="truncate">{label}</span>
     </Badge>
   );
+}
+
+/**
+ * Returns the team color hex for use as a left rail / accent on a card.
+ * Falls back to null when no color can be detected — callers should default
+ * to `--primary` in that case.
+ */
+export function getTeamRailColor(teamName?: string | null): string | null {
+  if (!teamName) return null;
+  const c = detectTeamColor(teamName);
+  return c?.hex || null;
 }
