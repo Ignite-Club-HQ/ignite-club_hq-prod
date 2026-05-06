@@ -1119,7 +1119,7 @@ export default function BroadcastChatPage() {
             />
           )}
           <ScheduledMessagesBanner target={scheduleTarget} />
-          <div className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-visible px-2 py-1">
+          <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
