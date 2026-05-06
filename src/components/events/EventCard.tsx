@@ -111,7 +111,9 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
   const isRecurring = event.is_recurring || event.parent_event_id;
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id });
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(",")[0]);
+  // Location: full visibility — pitch/court details are operationally critical.
+  // Do NOT abbreviate; let the dedicated row wrap if needed.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(",")[0] || "";
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
   const compactWhen = formatCompactDateTime(event.event_date);
