@@ -51,33 +51,24 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
             fileName: baseName,
             albumIdentifier,
           });
-          toast({ title: "Photo downloaded", description: "Saved to your photos" });
+          toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
           return;
         } catch (androidErr) {
           console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
-          try {
-            const response = await fetch(resolvedUrl);
-            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-            const blob = await response.blob();
-            const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-            const ext = pickExtension(contentType);
-            filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-            const base64 = await blobToBase64(blob);
-            await Filesystem.writeFile({
-              path: filename,
-              data: base64,
-              directory: Directory.Documents,
-              recursive: true,
-            });
-            toast({ title: "Photo downloaded", description: "Saved to app documents" });
-          } catch (fallbackErr) {
-            console.warn("[downloadImage] Android document fallback failed:", fallbackErr);
-            toast({
-              title: "Download failed",
-              description: "Please try again",
-              variant: "destructive",
-            });
-          }
+          const response = await fetch(resolvedUrl);
+          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+          const blob = await response.blob();
+          const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+          const ext = pickExtension(contentType);
+          filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+          const base64 = await blobToBase64(blob);
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+          toast.success("Photo downloaded", { id: toastId, description: "Saved to app documents" });
           return;
         }
       }
@@ -113,26 +104,28 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         writtenUri = written.uri;
       }
 
-      try {
-        const { Share } = await import("@capacitor/share");
-        await Share.share({
-          title: "Save photo",
-          url: writtenUri,
-          dialogTitle: "Save photo",
-        });
-        toast({ title: "Photo ready", description: "Choose where to save it" });
-      } catch (shareErr: any) {
-        if (String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) return;
-        throw shareErr;
-      }
+      const finalUri = writtenUri;
+      toast.success("Photo downloaded", {
+        id: toastId,
+        description: "Tap Open to save or share",
+        action: {
+          label: "Open",
+          onClick: async () => {
+            try {
+              const { Share } = await import("@capacitor/share");
+              await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
+            } catch (shareErr: any) {
+              if (!String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) {
+                console.warn("[downloadImage] share failed:", shareErr);
+              }
+            }
+          },
+        },
+      });
       return;
     } catch (err) {
       console.warn("[downloadImage] native download failed:", err);
-      toast({
-        title: "Download failed",
-        description: "Please try again",
-        variant: "destructive",
-      });
+      toast.error("Download failed", { id: toastId, description: "Please try again" });
       return;
     }
   }
@@ -155,9 +148,18 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    toast.success("Photo downloaded", {
+      id: toastId,
+      description: filename,
+      action: {
+        label: "Open",
+        onClick: () => safeOpenUrl(blobUrl),
+      },
+    });
   } catch (err) {
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
     safeOpenUrl(resolvedUrl);
+    toast.success("Photo opened in new tab", { id: toastId });
   }
 }
 
