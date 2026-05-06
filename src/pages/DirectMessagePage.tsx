@@ -1268,7 +1268,7 @@ export default function DirectMessagePage() {
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-                <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
+                <div className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-visible px-2 py-1">
                 {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}
