@@ -1123,7 +1123,7 @@ export default function BroadcastChatPage() {
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
-              disabled={sendMutation.isPending}
+              disabled={false}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
               showBoardPicker={true}
