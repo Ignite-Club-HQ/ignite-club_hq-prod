@@ -72,23 +72,23 @@ export function NotificationNudgeBanner({
   };
 
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg text-sm ${className}`}>
-      <Bell className="h-4 w-4 text-primary shrink-0" />
-      <p className="flex-1 text-foreground/80 text-xs">{message}</p>
+    <div className={`flex items-center gap-2 px-2.5 py-1.5 bg-primary/[0.06] border border-primary/15 rounded-lg text-xs ${className}`}>
+      <Bell className="h-3.5 w-3.5 text-primary/80 shrink-0" />
+      <p className="flex-1 text-foreground/70 text-[12px] leading-snug">{message}</p>
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 px-2 text-xs text-primary hover:text-primary font-medium shrink-0"
+        className="h-6 px-2 text-[11px] text-primary hover:text-primary font-medium shrink-0"
         onClick={handleEnable}
       >
         Enable
       </Button>
       <button
         onClick={onDismiss}
-        className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
+        className="text-muted-foreground/70 hover:text-foreground p-0.5 shrink-0"
         aria-label="Dismiss"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-3 w-3" />
       </button>
     </div>
   );
