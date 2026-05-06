@@ -183,7 +183,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           className="h-8 w-8 shrink-0 rounded-full text-foreground/55 hover:text-foreground hover:bg-accent/70 active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
           disabled={disabled}
         >
-          <Smile className="h-[18px] w-[18px] -translate-y-[1px]" strokeWidth={2} aria-hidden="true" />
+          <Smile className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
