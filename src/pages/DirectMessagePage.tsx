@@ -1273,7 +1273,7 @@ export default function DirectMessagePage() {
                   <ChatImageInput
                     imageUrl={dmImageUrl}
                     onImageUploaded={setDmImageUrl}
-                    disabled={sendMessageMutation.isPending}
+                    disabled={false}
                     clubId={sharedClubId || undefined}
                     showEventPicker={!!sharedClubId}
                     onEventSelect={() => setEventPickerOpen(true)}
