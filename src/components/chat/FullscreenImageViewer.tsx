@@ -358,8 +358,19 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
                 // directly (iOS WKWebView dispatches the synthesized click on
                 // the original hit-test target, not necessarily the shield).
                 const docSwallow = (ev: Event) => {
-                  const t = ev.target as Node | null;
+                  const t = ev.target as HTMLElement | null;
                   if (t && shield.contains(t)) return;
+                  // Allow the programmatic download anchor click that
+                  // downloadImage() fires on web — without this, the shield's
+                  // capture-phase click swallow would cancel the download.
+                  if (
+                    ev.type === "click" &&
+                    t &&
+                    (t.tagName === "A") &&
+                    (t as HTMLAnchorElement).hasAttribute("download")
+                  ) {
+                    return;
+                  }
                   swallow(ev);
                 };
                 document.addEventListener("click", docSwallow, { capture: true });
