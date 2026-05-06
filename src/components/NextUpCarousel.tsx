@@ -858,9 +858,9 @@ function CompactCard({ event }: { event: EventItem }) {
             <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12.5px]">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-start gap-1.5 text-[12.5px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
+              <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
