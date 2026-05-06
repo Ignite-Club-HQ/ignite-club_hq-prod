@@ -666,7 +666,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             // up while the attachment tray is open.
             onOpenAutoFocus={(e) => e.preventDefault()}
             onCloseAutoFocus={(e) => e.preventDefault()}
-            className="w-[calc(100vw-16px)] max-w-[420px] p-2 rounded-2xl border-border/60 shadow-lg bg-popover/95 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-2xl border border-border/40 shadow-md bg-popover/92 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
               type Action = {
@@ -683,7 +683,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 key: "photo",
                 label: "Photo / Video",
                 hint: "Camera roll",
-                icon: <ImagePlus className="h-[20px] w-[20px]" strokeWidth={2} />,
+                icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                 tone: "primary",
                 disabled: disabled || uploading,
                 onClick: (e) => {
@@ -696,7 +696,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "file",
                   label: "File or Folder",
                   hint: "Device or vault",
-                  icon: <Paperclip className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
                   onClick: () => {
@@ -710,7 +710,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "event",
                   label: "Share Event",
                   hint: "Training or game",
-                  icon: <CalendarPlus className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
@@ -724,7 +724,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "poll",
                   label: "Create Poll",
                   hint: "Ask the group",
-                  icon: <BarChart3 className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
@@ -738,7 +738,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "board",
                   label: "Live Board",
                   hint: "Track match live",
-                  icon: <Trophy className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <Trophy className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
@@ -757,21 +757,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                       onPointerDown={(e) => e.preventDefault()}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={a.onClick}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-accent/40 hover:bg-accent active:bg-accent active:scale-[0.98] transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[56px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-left"
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-transparent hover:bg-muted/50 active:bg-muted/70 active:scale-[0.98] transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 text-left"
                       aria-label={a.label}
                     >
                       <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                          a.tone === "primary"
-                            ? "bg-primary/15 text-primary"
-                            : "bg-background/80 text-foreground/80"
-                        }`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
                       >
                         {a.icon}
                       </div>
                       <div className="flex flex-col leading-tight min-w-0">
-                        <span className="text-[13px] font-medium text-foreground truncate">{a.label}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{a.hint}</span>
+                        <span className="text-[13px] font-medium text-foreground/90 truncate">{a.label}</span>
+                        <span className="text-[11px] text-muted-foreground/80 truncate">{a.hint}</span>
                       </div>
                     </button>
                   ))}
