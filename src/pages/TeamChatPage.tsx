@@ -1411,7 +1411,8 @@ export default function TeamChatPage() {
       : team.clubs.name
     : onlineLabel || undefined;
 
-  if (loadingTeam) {
+  // Only block on the metadata fetch if we have nothing cached to render the header with.
+  if (loadingTeam && !team) {
     return <PageLoading message="Loading team chat..." />;
   }
 
