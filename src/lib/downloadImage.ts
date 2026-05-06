@@ -179,12 +179,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       action: {
         label: "Open",
         onClick: () => {
-          // Open synchronously inside the click handler so popup blockers allow it.
-          const win = window.open(blobUrl, "_blank", "noopener");
-          if (!win) {
-            // Popup blocked — navigate the current tab as a fallback.
-            window.location.href = blobUrl;
-          }
+          // Use same-tab navigation instead of a popup/new tab. Mobile browsers
+          // and preview iframes can silently block `window.open`, even from a
+          // toast button, while direct navigation is always user-gesture safe.
+          window.location.assign(blobUrl);
         },
       },
     });
