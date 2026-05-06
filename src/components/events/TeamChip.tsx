@@ -48,7 +48,12 @@ export function TeamChip({ teamName, fallbackLabel = "Club event", size = "md", 
         {teamColor && (
           <span
             className={`inline-block rounded-full shrink-0 ${dotSize}`}
-            style={{ backgroundColor: teamColor.hex, boxShadow: `0 0 0 1.5px ${teamColor.hex}66` }}
+            style={{
+              backgroundColor: teamColor.hex,
+              boxShadow: lightColor
+                ? `0 0 0 1px hsl(var(--border)), 0 0 0 2px hsl(var(--background))`
+                : `0 0 0 1.5px ${teamColor.hex}66`,
+            }}
             aria-hidden="true"
           />
         )}
