@@ -1473,7 +1473,7 @@ export default function ClubChatPage() {
                 else stopTyping();
               }}
               onKeyPress={handleKeyPress}
-              disabled={sendMutation.isPending}
+              disabled={false}
               clubId={clubId}
               onGifSelect={setImageUrl}
             />
@@ -1483,7 +1483,7 @@ export default function ClubChatPage() {
                 handleSend();
               }}
               onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-              disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
+              disabled={!message.trim() && !imageUrl && !pendingPollId}
               loading={sendMutation.isPending}
               canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
             />
