@@ -46,12 +46,12 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const { Media } = await import("@capacitor-community/media");
           const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
-          await Media.savePhoto({
+          const saved = await Media.savePhoto({
             path: resolvedUrl,
             fileName: baseName,
             albumIdentifier,
-          });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+          }) as { filePath?: string };
+          showOpenDownloadedPhotoToast(toastId, saved.filePath || null, "Saved to your photos", pickContentTypeFromExtension(urlExt));
           return;
         } catch (androidErr) {
           console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
@@ -62,18 +62,46 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const ext = pickExtension(contentType);
           filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
           const base64 = await blobToBase64(blob);
-          await Filesystem.writeFile({
+          const written = await Filesystem.writeFile({
             path: filename,
             data: base64,
             directory: Directory.Documents,
             recursive: true,
           });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to app documents" });
+          showOpenDownloadedPhotoToast(toastId, written.uri || null, "Saved to app documents", contentType);
           return;
         }
       }
 
-      // ---- iOS (and Android fallback): write to cache then open share sheet
+      if (platform === "ios") {
+        const { Media } = await import("@capacitor-community/media");
+        await Media.savePhoto({ path: resolvedUrl });
+        toast.success("Photo downloaded", {
+          id: toastId,
+          description: "Saved to your photos",
+          action: {
+            label: "Open",
+            onClick: async () => {
+              try {
+                const { AppLauncher } = await import("@capacitor/app-launcher");
+                // iOS Photos app URL scheme
+                const opened = await AppLauncher.openUrl({ url: "photos-redirect://" });
+                if (!opened?.completed) {
+                  await AppLauncher.openUrl({ url: "photos://" });
+                }
+              } catch (openErr: any) {
+                console.warn("[downloadImage] open Photos failed:", openErr);
+                toast.error("Could not open Photos", {
+                  description: "Open the Photos app from your home screen",
+                });
+              }
+            },
+          },
+        });
+        return;
+      }
+
+      // ---- Other native fallback: write to cache then open share sheet
       let writtenUri: string | null = null;
       try {
         const dl: any = await (Filesystem as any).downloadFile({
@@ -82,7 +110,11 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = dl?.path || dl?.uri || null;
+        writtenUri = dl?.uri || null;
+        if (!writtenUri) {
+          const uriResult = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+          writtenUri = uriResult.uri;
+        }
       } catch (dlErr) {
         console.warn("[downloadImage] Filesystem.downloadFile failed, trying fetch:", dlErr);
       }
@@ -101,10 +133,14 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = written.uri;
+        writtenUri = written.uri || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
       }
 
       const finalUri = writtenUri;
+      if (!finalUri) {
+        toast.error("Download failed", { id: toastId, description: "Could not save file" });
+        return;
+      }
       toast.success("Photo downloaded", {
         id: toastId,
         description: "Tap Open to save or share",
@@ -113,10 +149,18 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           onClick: async () => {
             try {
               const { Share } = await import("@capacitor/share");
-              await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
+              await Share.share({
+                title: "Save photo",
+                text: "Save photo",
+                url: finalUri,
+                files: [finalUri],
+                dialogTitle: "Save photo",
+              });
             } catch (shareErr: any) {
-              if (!String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) {
+              const msg = String(shareErr?.message || shareErr);
+              if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
+                toast.error("Could not open file", { description: msg });
               }
             }
           },
@@ -147,19 +191,81 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    // Keep blob URL alive so the toast "Open" action still works after the download.
+    // Revoke it after a longer delay (toast lifetime + buffer).
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     toast.success("Photo downloaded", {
       id: toastId,
       description: filename,
       action: {
         label: "Open",
-        onClick: () => safeOpenUrl(blobUrl),
+        onClick: () => {
+          // Use same-tab navigation instead of a popup/new tab. Mobile browsers
+          // and preview iframes can silently block `window.open`, even from a
+          // toast button, while direct navigation is always user-gesture safe.
+          window.location.assign(blobUrl);
+        },
       },
     });
   } catch (err) {
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
     safeOpenUrl(resolvedUrl);
     toast.success("Photo opened in new tab", { id: toastId });
+  }
+}
+
+function showOpenDownloadedPhotoToast(
+  toastId: string | number,
+  filePath: string | null,
+  description: string,
+  contentType: string,
+) {
+  toast.success("Photo downloaded", {
+    id: toastId,
+    description,
+    action: filePath
+      ? {
+          label: "Open",
+          onClick: async () => {
+            try {
+              const { FileOpener } = await import("@capacitor-community/file-opener");
+              await FileOpener.open({
+                filePath: normalizeNativeFilePath(filePath),
+                contentType,
+                openWithDefault: true,
+              });
+            } catch (openErr: any) {
+              const msg = String(openErr?.message || openErr);
+              console.warn("[downloadImage] file open failed:", openErr);
+              toast.error("Could not open photo", { description: msg });
+            }
+          },
+        }
+      : undefined,
+  });
+}
+
+function normalizeNativeFilePath(filePath: string): string {
+  if (/^[a-z]+:\/\//i.test(filePath) || filePath.startsWith("content://")) return filePath;
+  return `file://${filePath}`;
+}
+
+function pickContentTypeFromExtension(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    case "svg":
+      return "image/svg+xml";
+    default:
+      return "image/jpeg";
   }
 }
 
