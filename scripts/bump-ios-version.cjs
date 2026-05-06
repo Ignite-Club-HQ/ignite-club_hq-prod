@@ -12,8 +12,8 @@
  *   node scripts/bump-ios-version.js 1.2.20          # explicit version
  *   node scripts/bump-ios-version.js 1.2.20 20260501120000  # explicit version + build
  *
- * Build number defaults to YYYYMMDD + 3-digit counter. If the existing build
- * already matches today's date, the counter is incremented; otherwise reset to 001.
+ * Build number is a 14-digit UTC timestamp (YYYYMMDDHHMMSS) so it always
+ * increases monotonically — required by App Store Connect.
  */
 const fs = require('fs');
 const path = require('path');
