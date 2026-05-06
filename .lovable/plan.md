@@ -1,121 +1,74 @@
-# Invite UX Overhaul — Focused Plan
+# Event Card Refinement — Next Up + Schedule
 
-Goal: Make adding team members and getting them to join dramatically simpler, while reducing the regression risk in `AddTeamMemberSheet.tsx` (currently 3,587 lines).
+A focused refinement of the existing Ignite card system. Not a redesign — the dark, rounded, premium feel stays. We strengthen team identity and event-type differentiation without touching the prominence of date/time, location, or RSVP controls.
 
-Benchmarked against Spond, TeamSnap, Heja. Scope sequenced so each phase ships independent value without breaking existing flows.
+## Audit Summary
 
-**Decisions locked in:**
-- ❌ **No server-side SMS** — keep email (Resend) + manual `sms:` / `wa.me` share links as today.
-- ✅ **Persistent join link** defaults: 30-day expiry, unlimited uses, role = parent.
-- ✅ **One-off invites coexist** with the join link (one-off stays default for known recipients; join link for broadcast).
-- ✅ **Coach fills child details upfront, but optional** — collapsed under an "Add details now (optional)" disclosure.
+**Where the current cards fall short**
+- Team identity lives inside a small chip that competes with metadata text. Two cards from the same club look near-identical at a glance.
+- The event-type icon (Trophy/Dumbbell) is muted-foreground sized 3.5 — visually invisible.
+- All cards share the same flat surface: same border, same radius, same left edge. Stacked on the Schedule page they form a "wall of cards".
+- Big primary RSVP buttons (Going/Maybe/Can't) on Next Up cards out-shout the event itself.
+- Empty state ("Tap to RSVP") is a thin dashed ghost — feels broken next to populated cards.
+- Title duplication: chip says "U8 Blue", line below says "U8 Blue Training".
 
----
+## New Hierarchy (applies to both surfaces)
 
-## Phase 1 — Unified Recipient Input
+```
+[Color rail]  TEAM NAME ............................ [Date pill]
+              ──────────────────────────────────────
+              [Type icon] vs Opponent  ·  match badge
+              ──────────────────────────────────────
+              🕒 5:30 PM – 6:30 PM      📍 Pitch 4, Bridgewater
+              ──────────────────────────────────────
+              [RSVP row — full width, lower contrast]
+```
 
-**Problem:** Single vs Bulk tabs force a mode decision before any data is entered. Different fields appear depending on the tab, doubling UI surface area.
+- **Color rail**: 4px left border tinted by `detectTeamColor(team.name)`. Falls back to `--primary` when no color detected. Single strongest recognition cue, costs almost no vertical space.
+- **Team name**: promoted to title weight (`text-base font-semibold`) with the team color dot inline. Replaces the current chip-as-title pattern.
+- **Type row**: icon scaled up to `h-4 w-4`, tinted with type accent (game = amber, training = sky, social = violet). Removes redundant "U8 Blue Training" string via `getEventDisplay` (already wired).
+- **Logistics row**: time + location stay at `text-sm`, foreground color, with the existing icons. **No size or contrast reduction here.** Location truncates with `max-w-[55%]` so time never gets pushed off.
+- **RSVP row**: keeps full tap targets (h-9, full-width split) but switches from filled primary to **outline + tinted-when-selected**. Selected state uses success/warning/destructive at 15% bg + 100% text. Empty state replaces "Tap to RSVP" ghost with the same 3-button row pre-rendered, just unselected — consistent silhouette.
 
-**Change:**
-- Replace Single/Bulk tabs with **one smart input** that accepts:
-  - Names only (`Alex Smith`)
-  - Name + email (`Alex Smith <alex@example.com>`)
-  - Comma-, newline-, semicolon-, or tab-separated lists for multiple recipients (spreadsheet paste works)
-- Render each parsed recipient as a removable **chip** with inline edit.
-- Role + delivery selection happen once for the whole batch (already the case downstream).
+## Type Differentiation
 
-**New files:**
-- `src/components/invite/RecipientInput.tsx`
-- `src/components/invite/recipientParser.ts` + `.test.ts`
+Subtle, premium, not childish:
+- **Game**: amber color rail blend on the date pill, Trophy icon tinted amber.
+- **Training**: team color rail only, Dumbbell icon in muted-foreground.
+- **Social**: violet rail accent, PartyPopper icon violet.
+- **Match Day / Mini-League**: adds a small "MATCH DAY" uppercase eyebrow above the team name in amber; only badge that earns extra vertical space.
 
-**Edits:**
-- `AddTeamMemberSheet.tsx` — remove Single/Bulk tab block and `mode` state; render `RecipientInput`. Keep all downstream submit logic (it already iterates an array).
+## Schedule Page Rhythm
 
-**Acceptance:**
-- Single recipient flow has the same number of taps as today (or fewer).
-- Pasting 20 names from a spreadsheet creates 20 chips in one action.
+Stacked-card monotony fix:
+- Group header per date (already exists via `ScheduleDateStrip`) gets a slightly heavier divider.
+- Cards within the same day get a tighter `space-y-2` (was `space-y-3`) and **alternate** subtle background tint between `bg-card` and `bg-card/60` — a barely-perceptible zebra that breaks the wall-of-cards effect without looking striped.
+- Today's events get a left rail brightness boost (`opacity-100` vs `opacity-70` for future days) so "what's today" pops while scrolling.
 
----
+## Next Up Carousel Specifics
 
-## Phase 2 — Persistent Team Join Link + QR
+- Card min-height stays (prevents jolt) but internal padding tightens from `p-4` to `p-3.5`.
+- Big "Going / Maybe / Can't" buttons drop from `h-10 default` to `h-9 outline`. Selected fills with status tint.
+- Children RSVP accordion chevron moves inline with the row label so it stops creating a fourth visual block.
+- Carousel dots remain.
 
-**Problem:** No way for a coach to drop a single link into an existing WhatsApp group or print a QR for sign-up night. Every invite today is one-to-one.
+## Files Changed
 
-**Change:**
-- New table `team_join_tokens` (`team_id`, `token`, `created_by`, `expires_at`, `max_uses`, `revoked_at`, `default_role`).
-- **Defaults:** 30-day expiry, unlimited uses, `default_role = 'parent'`. Admin can override at generation time.
-- New **"Team Join Link"** card surfaced on:
-  - Team detail page (admins/coaches only)
-  - Inside `AddTeamMemberSheet` as a "Share a link" section (coexists with one-off — one-off stays the primary CTA)
-- Card shows: copy link button, QR code (`qrcode.react`), "Revoke & regenerate", current usage count.
-- Joining via the link routes through the existing invite acceptance flow but creates a fresh `invites` row on consumption (keeps audit trail and child-linking intact).
+- `src/components/events/TeamChip.tsx` — add `asTitle` variant (larger, no chip background, just dot + name).
+- `src/components/events/EventCard.tsx` — restructure header, add color rail, alternate-bg prop, lower-contrast RSVP buttons, unified empty state.
+- `src/components/NextUpCarousel.tsx` — same hierarchy applied to the carousel card body; RSVP button restyle; remove title duplication.
+- `src/pages/EventsPage.tsx` — pass index to `EventCard` for zebra tint, tighten `space-y`.
+- `src/lib/eventTypeIcon.tsx` — add `getEventTypeAccent(type)` returning a semantic token class for tinting.
+- `src/index.css` — add `--event-game`, `--event-training`, `--event-social` semantic tokens (HSL) so accents are theme-aware.
 
-**New files:**
-- `src/components/invite/TeamJoinLinkCard.tsx`
-- `src/components/invite/TeamJoinQRCode.tsx`
-- Migration: `team_join_tokens` table + RLS (admin/coach create/revoke; public can resolve token by hash for join page)
-- Edge function: `consume-team-join-token` (validates token, checks expiry/revoke/uses, creates invite row, returns redirect)
+## What is NOT changing
+- Date/time text size and color — unchanged.
+- Location text size and color — unchanged.
+- RSVP tap-target height stays ≥ 36px and full row width.
+- No removal of any data shown today.
+- No new fonts, no new radii, no layout framework swap.
 
-**Edits:**
-- Routing: add `/join/team/:token` (or extend existing short-invite redirect)
-- Team header / `EditTeamPage.tsx` — surface card behind admin/coach role check
-- `AddTeamMemberSheet.tsx` — add collapsible "Share a link" section below the one-off form
-
-**Acceptance:**
-- Coach posts one link in WhatsApp; 15 parents join without further coach input.
-- Revocation invalidates the link immediately.
-- One-off invite flow remains the visible default.
-
-**Memory rule to add (after build):** "Team join tokens default to 30-day expiry, unlimited uses, role=parent. Coexist with one-off invites — never replace."
-
----
-
-## Phase 3 — Optional Child Details Collapse
-
-**Problem:** Coaches today must enter year of birth, jersey number, etc. for each child *before* the parent has joined. Biggest source of "too confusing" feedback.
-
-**Change:**
-- Keep all current child fields, but collapse them under a single **"Add details now (optional)"** disclosure that's closed by default.
-- Required fields remain: child first name + parent contact.
-- After parent joins, they can edit/complete the child profile from their own account (already supported).
-
-**Edits:**
-- `AddTeamMemberSheet.tsx` — wrap YOB / jersey / position / medical fields in a collapsible block; default closed.
-- Add a subtle "Parent can complete this later" hint under the disclosure.
-
-**Acceptance:**
-- Inviting a parent with one child takes ≤4 fields by default (parent name, parent contact, role, child name).
-- Coaches who want full data still get it via one tap on the disclosure.
-
----
-
-## Phase 4 — Modular Refactor (last, no behavior change)
-
-Once Phases 1–3 stabilise, split `AddTeamMemberSheet.tsx` into:
-
-- `useInviteFlow.ts` — single hook owning state machine (recipients → role → delivery → submit → success)
-- `RecipientStep.tsx`
-- `RoleStep.tsx`
-- `DeliveryStep.tsx`
-- `SuccessShare.tsx`
-- `BulkProgress.tsx`
-- `AddTeamMemberSheet.tsx` becomes a ~150-line composer
-
-**Acceptance:** No user-visible change. Existing manual QA scripts pass.
-
----
-
-## Out of scope (deferred)
-
-- Server-side SMS / WhatsApp Business API
-- Federated invite passes (Apple Wallet / Google Pay)
-- AI parsing of pasted rosters with arbitrary columns
-
----
-
-## Suggested build order
-
-1. **Phase 1** — Unified Input (frontend only, ~1 day)
-2. **Phase 2** — Join Link + QR (backend + frontend, ~2 days, biggest perceived win)
-3. **Phase 3** — Optional child details collapse (~½ day)
-4. **Phase 4** — Refactor (~1 day, no user-visible change)
+## Out of Scope
+- Team avatars/logos (no asset pipeline today — the color rail + dot covers recognition without requiring uploads). Can be added later by swapping the dot for an `<Avatar>` in `TeamChip`.
+- Event detail page.
+- Team detail "Next Event" card (`TeamNextEventCard`) — already uses a similar pattern; left as-is unless you want it aligned in a follow-up.
