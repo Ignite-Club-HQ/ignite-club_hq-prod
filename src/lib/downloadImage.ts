@@ -197,33 +197,6 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     toast.success("Photo downloaded", {
       id: toastId,
       description: filename,
-      action: {
-        label: "Open",
-        onClick: (event) => {
-          try {
-            event?.preventDefault?.();
-            event?.stopPropagation?.();
-          } catch {}
-          // Open the downloaded image in a new tab via a synchronously-clicked
-          // anchor. This preserves the user-gesture context (so popup blockers
-          // and iframe sandboxes allow it) and works where window.open and
-          // location.assign get silently blocked.
-          try {
-            const opener = document.createElement("a");
-            opener.href = blobUrl;
-            opener.target = "_blank";
-            opener.rel = "noopener";
-            document.body.appendChild(opener);
-            opener.click();
-            document.body.removeChild(opener);
-          } catch (openErr) {
-            console.warn("[downloadImage] open in new tab failed:", openErr);
-            try {
-              window.location.assign(blobUrl);
-            } catch {}
-          }
-        },
-      },
     });
   } catch (err) {
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
