@@ -25,6 +25,71 @@ import {
   MULTI_FINGER_SUPPRESS_MS,
 } from "./fullscreenImageViewerConfig";
 
+/**
+ * Install a fullscreen tap-shield + document-level capture swallow for ~700ms
+ * to absorb the synthetic tap-through that Radix Dropdown emits when it
+ * closes — without this, the tap leaks to the chat bubble below and opens
+ * its long-press action sheet (View Image / Reply / Pin / Delete).
+ *
+ * Allows the programmatic `<a download>` click that downloadImage() fires on
+ * web to pass through, so downloads still work.
+ */
+function installTapShield(durationMs = 700) {
+  const shield = document.createElement("div");
+  shield.setAttribute("data-tap-shield", "1");
+  shield.style.cssText =
+    "position:fixed;inset:0;z-index:2147483647;background:transparent;touch-action:none;-webkit-user-select:none;user-select:none;";
+  const swallow = (ev: Event) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    (ev as any).stopImmediatePropagation?.();
+  };
+  const events = [
+    "touchstart", "touchmove", "touchend", "touchcancel",
+    "pointerdown", "pointermove", "pointerup", "pointercancel",
+    "mousedown", "mousemove", "mouseup", "click", "contextmenu",
+  ];
+  events.forEach((evt) =>
+    shield.addEventListener(evt, swallow, { passive: false, capture: true }),
+  );
+  const docSwallow = (ev: Event) => {
+    const t = ev.target as HTMLElement | null;
+    if (t && shield.contains(t)) return;
+    if (
+      ev.type === "click" &&
+      t &&
+      t.tagName === "A" &&
+      (t as HTMLAnchorElement).hasAttribute("download")
+    ) {
+      return;
+    }
+    swallow(ev);
+  };
+  const docEvents: Array<[string, AddEventListenerOptions]> = [
+    ["click", { capture: true }],
+    ["contextmenu", { capture: true }],
+    ["touchstart", { capture: true, passive: false }],
+    ["touchmove", { capture: true, passive: false }],
+    ["touchend", { capture: true, passive: false }],
+    ["touchcancel", { capture: true, passive: false }],
+    ["pointerdown", { capture: true }],
+    ["pointerup", { capture: true }],
+    ["pointercancel", { capture: true }],
+    ["mousedown", { capture: true }],
+    ["mouseup", { capture: true }],
+  ];
+  docEvents.forEach(([evt, opts]) =>
+    document.addEventListener(evt, docSwallow, opts),
+  );
+  document.body.appendChild(shield);
+  window.setTimeout(() => {
+    shield.remove();
+    docEvents.forEach(([evt, opts]) =>
+      document.removeEventListener(evt, docSwallow, opts as any),
+    );
+  }, durationMs);
+}
+
 interface FullscreenImageViewerProps {
   src: string;
   alt?: string;
