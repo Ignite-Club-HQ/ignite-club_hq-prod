@@ -193,6 +193,61 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
   }
 }
 
+function showOpenDownloadedPhotoToast(
+  toastId: string | number,
+  filePath: string | null,
+  description: string,
+  contentType: string,
+) {
+  toast.success("Photo downloaded", {
+    id: toastId,
+    description,
+    action: filePath
+      ? {
+          label: "Open",
+          onClick: async () => {
+            try {
+              const { FileOpener } = await import("@capacitor-community/file-opener");
+              await FileOpener.open({
+                filePath: normalizeNativeFilePath(filePath),
+                contentType,
+                openWithDefault: true,
+              });
+            } catch (openErr: any) {
+              const msg = String(openErr?.message || openErr);
+              console.warn("[downloadImage] file open failed:", openErr);
+              toast.error("Could not open photo", { description: msg });
+            }
+          },
+        }
+      : undefined,
+  });
+}
+
+function normalizeNativeFilePath(filePath: string): string {
+  if (/^[a-z]+:\/\//i.test(filePath) || filePath.startsWith("content://")) return filePath;
+  return `file://${filePath}`;
+}
+
+function pickContentTypeFromExtension(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    case "svg":
+      return "image/svg+xml";
+    default:
+      return "image/jpeg";
+  }
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
