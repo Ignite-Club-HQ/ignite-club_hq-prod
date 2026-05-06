@@ -757,21 +757,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                       onPointerDown={(e) => e.preventDefault()}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={a.onClick}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-accent/40 hover:bg-accent active:bg-accent active:scale-[0.98] transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[56px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-left"
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-transparent hover:bg-muted/50 active:bg-muted/70 active:scale-[0.98] transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 text-left"
                       aria-label={a.label}
                     >
                       <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                          a.tone === "primary"
-                            ? "bg-primary/15 text-primary"
-                            : "bg-background/80 text-foreground/80"
-                        }`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
                       >
                         {a.icon}
                       </div>
                       <div className="flex flex-col leading-tight min-w-0">
-                        <span className="text-[13px] font-medium text-foreground truncate">{a.label}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{a.hint}</span>
+                        <span className="text-[13px] font-medium text-foreground/90 truncate">{a.label}</span>
+                        <span className="text-[11px] text-muted-foreground/80 truncate">{a.hint}</span>
                       </div>
                     </button>
                   ))}
