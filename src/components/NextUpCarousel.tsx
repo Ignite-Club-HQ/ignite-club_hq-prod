@@ -16,8 +16,8 @@ import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime 
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
-import { TeamChip } from "@/components/events/TeamChip";
-import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
+import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { abbreviateLocation } from "@/lib/abbreviateLocation";
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
