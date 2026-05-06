@@ -1852,7 +1852,7 @@ export default function GroupChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
+        <div className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-visible px-2 py-1">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
