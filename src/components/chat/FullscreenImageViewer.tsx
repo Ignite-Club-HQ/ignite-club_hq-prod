@@ -256,7 +256,11 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   }, []);
 
   useEffect(() => {
-    setLoaded(false);
+    // NOTE: do NOT reset `loaded` to false here. `effectiveSrc` flips from
+    // the raw URL to the signed URL once `useSignedPhotoUrl` resolves, and
+    // resetting `loaded` made the image fade to opacity-0 then back in,
+    // producing a visible "vanish then reappear" flash. The <img> swaps its
+    // src in place; if the new URL fails we leave the old frame visible.
     resetZoom();
   }, [effectiveSrc, resetZoom]);
 
