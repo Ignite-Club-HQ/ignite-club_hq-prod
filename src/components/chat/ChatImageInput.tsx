@@ -683,7 +683,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 key: "photo",
                 label: "Photo / Video",
                 hint: "Camera roll",
-                icon: <ImagePlus className="h-[20px] w-[20px]" strokeWidth={2} />,
+                icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                 tone: "primary",
                 disabled: disabled || uploading,
                 onClick: (e) => {
@@ -696,7 +696,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "file",
                   label: "File or Folder",
                   hint: "Device or vault",
-                  icon: <Paperclip className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
                   onClick: () => {
@@ -710,7 +710,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "event",
                   label: "Share Event",
                   hint: "Training or game",
-                  icon: <CalendarPlus className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
@@ -724,7 +724,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "poll",
                   label: "Create Poll",
                   hint: "Ask the group",
-                  icon: <BarChart3 className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
@@ -738,7 +738,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   key: "board",
                   label: "Live Board",
                   hint: "Track match live",
-                  icon: <Trophy className="h-[20px] w-[20px]" strokeWidth={2} />,
+                  icon: <Trophy className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
                   onClick: () => {
