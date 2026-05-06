@@ -75,7 +75,39 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
       if (platform === "ios") {
         const { Media } = await import("@capacitor-community/media");
-        await Media.savePhoto({ path: resolvedUrl });
+        // iOS Media.savePhoto requires a LOCAL file path. Remote URLs silently fail.
+        // Download to cache first, then hand the local file URI to the plugin.
+        const iosExt = guessExtensionFromUrl(resolvedUrl);
+        const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
+        let localPath: string | null = null;
+        try {
+          const dl: any = await (Filesystem as any).downloadFile({
+            url: resolvedUrl,
+            path: iosFilename,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+          localPath = dl?.uri || null;
+          if (!localPath) {
+            const uriResult = await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache });
+            localPath = uriResult.uri;
+          }
+        } catch (dlErr) {
+          console.warn("[downloadImage] iOS Filesystem.downloadFile failed, falling back to fetch:", dlErr);
+          const response = await fetch(resolvedUrl);
+          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+          const blob = await response.blob();
+          const base64 = await blobToBase64(blob);
+          const written = await Filesystem.writeFile({
+            path: iosFilename,
+            data: base64,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+          localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+        }
+        if (!localPath) throw new Error("Could not stage photo for iOS save");
+        await Media.savePhoto({ path: localPath });
         toast.success("Photo downloaded", {
           id: toastId,
           description: "Saved to your photos",
@@ -84,7 +116,6 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
             onClick: async () => {
               try {
                 const { AppLauncher } = await import("@capacitor/app-launcher");
-                // iOS Photos app URL scheme
                 const opened = await AppLauncher.openUrl({ url: "photos-redirect://" });
                 if (!opened?.completed) {
                   await AppLauncher.openUrl({ url: "photos://" });
