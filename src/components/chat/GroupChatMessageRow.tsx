@@ -665,7 +665,7 @@ function GroupReactionBadges({
 
   return (
     <>
-      <div className="flex flex-wrap gap-1 mt-1">
+      <div className="flex flex-wrap gap-1 -mt-1.5">
         {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
           const userReaction = items.find((r: any) => r.user_id === userId);
           const emoji = normalizeGroupReactionType(type);
@@ -676,12 +676,12 @@ function GroupReactionBadges({
                 e.stopPropagation();
                 setViewingType(type);
               }}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-                userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+              className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
+                userReaction ? "bg-primary/15 text-primary" : "bg-muted/80 text-foreground/75 hover:bg-muted"
               }`}
             >
-              <span>{emoji}</span>
-              <span>{items.length}</span>
+              <span className="text-[12px] leading-none">{emoji}</span>
+              <span className="tabular-nums">{items.length}</span>
             </button>
           );
         })}
