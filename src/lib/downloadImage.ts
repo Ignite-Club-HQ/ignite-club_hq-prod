@@ -153,13 +153,22 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    // Keep blob URL alive so the toast "Open" action still works after the download.
+    // Revoke it after a longer delay (toast lifetime + buffer).
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     toast.success("Photo downloaded", {
       id: toastId,
       description: filename,
       action: {
         label: "Open",
-        onClick: () => safeOpenUrl(blobUrl),
+        onClick: () => {
+          // Open synchronously inside the click handler so popup blockers allow it.
+          const win = window.open(blobUrl, "_blank", "noopener");
+          if (!win) {
+            // Popup blocked — navigate the current tab as a fallback.
+            window.location.href = blobUrl;
+          }
+        },
       },
     });
   } catch (err) {
