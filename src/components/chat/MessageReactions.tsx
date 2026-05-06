@@ -260,7 +260,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="flex flex-wrap gap-1 -mt-1.5">
           {Object.entries(reactionCounts).map(([type, { count, reactions: typeReactions }]) => {
             const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
             const userReaction = typeReactions.find((r) => r.user_id === currentUserId);
@@ -272,14 +272,14 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                   e.stopPropagation();
                   setIsOpen(true);
                 }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
                   userReaction
-                    ? "bg-primary/20 text-primary"
-                    : "bg-muted hover:bg-muted/80"
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted/80 text-foreground/75 hover:bg-muted"
                 }`}
               >
-                <span>{emoji}</span>
-                <span>{count}</span>
+                <span className="text-[12px] leading-none">{emoji}</span>
+                <span className="tabular-nums">{count}</span>
               </button>
             );
           })}

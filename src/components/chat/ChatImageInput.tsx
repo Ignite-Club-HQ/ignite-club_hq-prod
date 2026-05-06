@@ -650,7 +650,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               }`}
             >
               <Plus
-                className={`h-[18px] w-[18px] -mt-px transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
+                className={`h-[18px] w-[18px] transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
                 strokeWidth={2}
                 aria-hidden="true"
               />
