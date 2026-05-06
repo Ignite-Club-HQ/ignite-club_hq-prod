@@ -111,21 +111,21 @@ export function getEventDisplay(event: EventDisplayInput): EventDisplay {
       const primary = `vs ${opponent}`;
       // Avoid echoing "Team A vs Opponent" titles as secondary
       const secondary =
-        cleaned && !MATCHUP_SEPARATOR_RE.test(cleaned) && !isRedundant(cleaned, primary, typeLabel)
+        cleaned && !MATCHUP_SEPARATOR_RE.test(cleaned) && !isRedundant(cleaned, primary, typeLabel, event.teams?.name)
           ? cleaned
           : null;
       return { primary, secondary, titleLed: false };
     }
     // No opponent — fall back to type label, expose cleaned title as secondary if meaningful
     const primary = typeLabel; // "Game" or "Match Day"
-    const secondary = cleaned && !isRedundant(cleaned, primary, typeLabel) ? cleaned : null;
+    const secondary = cleaned && !isRedundant(cleaned, primary, typeLabel, event.teams?.name) ? cleaned : null;
     return { primary, secondary, titleLed: false };
   }
 
   // B. Training
   if (type === "training") {
     const primary = "Training";
-    const secondary = cleaned && !isRedundant(cleaned, primary, typeLabel) ? cleaned : null;
+    const secondary = cleaned && !isRedundant(cleaned, primary, typeLabel, event.teams?.name) ? cleaned : null;
     return { primary, secondary, titleLed: false };
   }
 
