@@ -226,7 +226,15 @@ function showOpenDownloadedPhotoToast(
     action: filePath
       ? {
           label: "Open",
-          onClick: async () => {
+          onClick: async (event) => {
+            // Prevent the synthesized click from falling through to whatever
+            // sits visually beneath the toast on Android (e.g. the lightbox
+            // three-dot menu trigger), which would otherwise pop the menu open.
+            try {
+              event?.preventDefault?.();
+              event?.stopPropagation?.();
+            } catch {}
+            suppressGhostTaps(600);
             try {
               const { FileOpener } = await import("@capacitor-community/file-opener");
               await FileOpener.open({
@@ -235,6 +243,13 @@ function showOpenDownloadedPhotoToast(
                 openWithDefault: true,
               });
             } catch (openErr: any) {
+              // Fallback: open the system Gallery / Photos app so the user can
+              // still find the freshly-downloaded image.
+              try {
+                const { AppLauncher } = await import("@capacitor/app-launcher");
+                const opened = await AppLauncher.openUrl({ url: "content://media/internal/images/media" });
+                if (opened?.completed) return;
+              } catch {}
               const msg = String(openErr?.message || openErr);
               console.warn("[downloadImage] file open failed:", openErr);
               toast.error("Could not open photo", { description: msg });
@@ -243,6 +258,30 @@ function showOpenDownloadedPhotoToast(
         }
       : undefined,
   });
+}
+
+/**
+ * Briefly swallow click / touch events on the document so a tap on a Sonner
+ * toast action button on Android doesn't ghost-tap an element behind the toast
+ * after the toast unmounts.
+ */
+function suppressGhostTaps(durationMs: number) {
+  if (typeof document === "undefined") return;
+  const swallow = (e: Event) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  const opts = { capture: true } as const;
+  document.addEventListener("click", swallow, opts);
+  document.addEventListener("touchend", swallow, opts);
+  document.addEventListener("pointerup", swallow, opts);
+  document.addEventListener("mouseup", swallow, opts);
+  window.setTimeout(() => {
+    document.removeEventListener("click", swallow, opts);
+    document.removeEventListener("touchend", swallow, opts);
+    document.removeEventListener("pointerup", swallow, opts);
+    document.removeEventListener("mouseup", swallow, opts);
+  }, durationMs);
 }
 
 function normalizeNativeFilePath(filePath: string): string {
