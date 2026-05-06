@@ -46,12 +46,12 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const { Media } = await import("@capacitor-community/media");
           const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
           const albumIdentifier = await ensureAndroidMediaAlbum(Media, "Ignite");
-          await Media.savePhoto({
+          const saved = await Media.savePhoto({
             path: resolvedUrl,
             fileName: baseName,
             albumIdentifier,
-          });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+          }) as { filePath?: string };
+          showOpenDownloadedPhotoToast(toastId, saved.filePath || null, "Saved to your photos", pickContentTypeFromExtension(urlExt));
           return;
         } catch (androidErr) {
           console.warn("[downloadImage] Android MediaStore save failed:", androidErr);
@@ -62,13 +62,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           const ext = pickExtension(contentType);
           filename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
           const base64 = await blobToBase64(blob);
-          await Filesystem.writeFile({
+          const written = await Filesystem.writeFile({
             path: filename,
             data: base64,
             directory: Directory.Documents,
             recursive: true,
           });
-          toast.success("Photo downloaded", { id: toastId, description: "Saved to app documents" });
+          showOpenDownloadedPhotoToast(toastId, written.uri || null, "Saved to app documents", contentType);
           return;
         }
       }
@@ -190,6 +190,61 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
     console.warn("[downloadImage] blob download failed, falling back to open:", err);
     safeOpenUrl(resolvedUrl);
     toast.success("Photo opened in new tab", { id: toastId });
+  }
+}
+
+function showOpenDownloadedPhotoToast(
+  toastId: string | number,
+  filePath: string | null,
+  description: string,
+  contentType: string,
+) {
+  toast.success("Photo downloaded", {
+    id: toastId,
+    description,
+    action: filePath
+      ? {
+          label: "Open",
+          onClick: async () => {
+            try {
+              const { FileOpener } = await import("@capacitor-community/file-opener");
+              await FileOpener.open({
+                filePath: normalizeNativeFilePath(filePath),
+                contentType,
+                openWithDefault: true,
+              });
+            } catch (openErr: any) {
+              const msg = String(openErr?.message || openErr);
+              console.warn("[downloadImage] file open failed:", openErr);
+              toast.error("Could not open photo", { description: msg });
+            }
+          },
+        }
+      : undefined,
+  });
+}
+
+function normalizeNativeFilePath(filePath: string): string {
+  if (/^[a-z]+:\/\//i.test(filePath) || filePath.startsWith("content://")) return filePath;
+  return `file://${filePath}`;
+}
+
+function pickContentTypeFromExtension(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    case "svg":
+      return "image/svg+xml";
+    default:
+      return "image/jpeg";
   }
 }
 
