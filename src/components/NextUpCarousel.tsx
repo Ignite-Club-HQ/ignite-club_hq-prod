@@ -501,23 +501,23 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       />
       {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
       <ChevronRight
-        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
         aria-hidden="true"
       />
-      <CardContent className="p-3.5 pl-4 pr-7 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + cancelled marker */}
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
+        {/* Status row: Today badge + cancelled marker — compact, doesn't crowd chevron */}
         {(isToday || event.is_cancelled) && (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 -mr-3">
             {isToday && !event.is_cancelled && (
               <Badge
                 variant="outline"
-                className="text-[10px] h-5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+                className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
               >
                 Today
               </Badge>
             )}
             {event.is_cancelled && (
-              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+              <Badge variant="destructive" className="text-[9.5px] h-[18px] px-1.5">Cancelled</Badge>
             )}
           </div>
         )}
