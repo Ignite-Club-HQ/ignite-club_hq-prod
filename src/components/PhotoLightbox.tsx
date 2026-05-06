@@ -101,7 +101,7 @@ export function PhotoLightbox({
   canDelete,
 }: PhotoLightboxProps) {
   const currentPhoto = photos[currentIndex];
-  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   
   const {
@@ -347,7 +347,8 @@ export function PhotoLightbox({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
-                      setReportDialogOpen(true);
+                      setReportPhotoId(currentPhoto.id);
+                      onClose();
                     }}
                   >
                     <Flag className="h-4 w-4 mr-2" />
@@ -415,9 +416,9 @@ export function PhotoLightbox({
 
     {/* Report Dialog */}
     <ReportPhotoDialog
-      isOpen={reportDialogOpen}
-      onClose={() => setReportDialogOpen(false)}
-      photoId={currentPhoto.id}
+      isOpen={!!reportPhotoId}
+      onClose={() => setReportPhotoId(null)}
+      photoId={reportPhotoId || ""}
     />
 
     {/* Delete confirmation */}
