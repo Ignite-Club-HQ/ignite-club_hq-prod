@@ -62,6 +62,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
@@ -234,7 +235,7 @@ export default function TeamChatPage() {
   const handleJumpToMessage = (mid: string) =>
     jumpToMessageInChat(mid, setHighlightedMessageId);
 
-  const { data: team, isLoading: loadingTeam } = useQuery({
+  const { data: teamData, isLoading: loadingTeam } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -248,6 +249,46 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  // Warm metadata cache so future opens render the header without waiting on this query.
+  useEffect(() => {
+    if (!teamData) return;
+    cacheTeam({
+      id: teamData.id,
+      name: teamData.name,
+      logo_url: teamData.logo_url ?? null,
+      club_id: teamData.club_id,
+      level_age: (teamData as any).level_age ?? null,
+    });
+    if (teamData.clubs) {
+      cacheClub({
+        id: teamData.clubs.id,
+        name: teamData.clubs.name,
+        logo_url: teamData.clubs.logo_url ?? null,
+        sport: (teamData.clubs as any).sport ?? null,
+        is_pro: (teamData.clubs as any).is_pro ?? false,
+      });
+    }
+  }, [teamData]);
+
+  // Synthesize a team object from cache when the network query is still loading,
+  // so the header paints immediately instead of blocking on a metadata fetch.
+  const team = useMemo(() => {
+    if (teamData) return teamData as any;
+    if (!teamId) return null;
+    const cachedTeam = getCachedTeam(teamId);
+    if (!cachedTeam) return null;
+    const cachedClub = cachedTeam.club_id ? getCachedClub(cachedTeam.club_id) : null;
+    return {
+      id: cachedTeam.id,
+      name: cachedTeam.name,
+      logo_url: cachedTeam.logo_url,
+      club_id: cachedTeam.club_id,
+      clubs: cachedClub
+        ? { id: cachedClub.id, name: cachedClub.name, logo_url: cachedClub.logo_url }
+        : null,
+    } as any;
+  }, [teamData, teamId]);
 
   // Sync active club to this team's owning club so push-launched threads
   // don't leave the user inside the wrong club context.
@@ -1370,7 +1411,8 @@ export default function TeamChatPage() {
       : team.clubs.name
     : onlineLabel || undefined;
 
-  if (loadingTeam) {
+  // Only block on the metadata fetch if we have nothing cached to render the header with.
+  if (loadingTeam && !team) {
     return <PageLoading message="Loading team chat..." />;
   }
 
