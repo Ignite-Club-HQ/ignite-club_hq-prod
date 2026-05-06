@@ -1610,7 +1610,7 @@ export default function TeamChatPage() {
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
             clubId={team?.club_id}
             teamId={teamId}
             showEventPicker={true}
@@ -1632,7 +1632,7 @@ export default function TeamChatPage() {
               else stopTyping();
             }}
             onKeyPress={handleKeyPress}
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
             teamId={teamId}
             clubId={team.club_id}
             onGifSelect={setImageUrl}
@@ -1643,7 +1643,7 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
+            disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />

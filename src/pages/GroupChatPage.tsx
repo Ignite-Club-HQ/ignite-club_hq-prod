@@ -1885,7 +1885,7 @@ export default function GroupChatPage() {
             groupId={groupId}
             teamId={group?.team_id || undefined}
             clubId={group?.club_id || undefined}
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
             onGifSelect={setImageUrl}
           />
           <ChatSendButton
@@ -1894,7 +1894,7 @@ export default function GroupChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
+            disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />

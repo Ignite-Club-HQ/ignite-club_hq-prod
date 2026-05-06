@@ -859,12 +859,12 @@ export default function ClubAdminChatPage() {
             }}
             onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Type a message..."
-            disabled={sendMessageMutation.isPending}
+            disabled={false}
           />
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={(!message.trim() && !pendingPollId) || sendMessageMutation.isPending}
+            disabled={!message.trim() && !pendingPollId}
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!pendingPollId}
           />
