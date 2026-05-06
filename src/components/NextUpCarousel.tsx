@@ -616,10 +616,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
 
-        {/* RSVP Buttons */}
+        {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
+            previous solid-primary "Going" so the team identity reads first, but tap targets
+            stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
         {!event.is_cancelled && (
-          <div className="space-y-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
               {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
                 const isActive = currentStatus === status;
@@ -630,12 +632,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     size="sm"
                     aria-pressed={isActive}
                     aria-label={`RSVP ${label}`}
-                    className={`flex-1 gap-1.5 text-[12px] font-medium h-8 rounded-full transition-all ${
-                      isActive
-                        ? activeClass
-                        : status === "going" && !currentStatus
-                          ? inactiveHint
-                          : inactiveHint
+                    className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
+                      isActive ? activeClass : inactiveHint
                     }`}
                     disabled={rsvpMutation.isPending || isActive}
                     onClick={() => !isActive && rsvpMutation.mutate(status)}
