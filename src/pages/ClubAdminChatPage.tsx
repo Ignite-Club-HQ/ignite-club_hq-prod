@@ -35,6 +35,7 @@ import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
+import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -70,6 +71,31 @@ interface ClubAdminMessage {
     reaction_type: string;
   }[];
 }
+
+const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] =>
+  getCachedMessages("club_admin", conversationId).map((m) => ({
+    id: m.id,
+    text: m.text,
+    image_url: m.image_url,
+    created_at: m.created_at,
+    author_id: m.author_id,
+    conversation_id: conversationId,
+    reply_to_id: m.reply_to_id,
+    author: m.profiles
+      ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url }
+      : undefined,
+    reply_to: m.reply_to
+      ? {
+          text: m.reply_to.text,
+          author: m.reply_to.author ?? (m.reply_to.profiles ? { display_name: m.reply_to.profiles.display_name } : undefined),
+        }
+      : null,
+    reactions: (m.reactions || []).map((r) => ({
+      id: r.id || `cached-${m.id}-${r.user_id}-${r.reaction_type}`,
+      user_id: r.user_id,
+      reaction_type: r.reaction_type,
+    })),
+  }));
 
 export default function ClubAdminChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -259,7 +285,9 @@ export default function ClubAdminChatPage() {
     );
   }, [messagesData]);
 
-  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() =>
+    conversationId ? getCachedClubAdminMessages(conversationId) : undefined,
+  );
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
   const showLoading =
@@ -270,6 +298,15 @@ export default function ClubAdminChatPage() {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
   }, [localMessages]);
   const { getProfile } = useProfiles(authorIds);
+
+  // Reset local cache view when conversation changes
+  useEffect(() => {
+    if (!conversationId) {
+      setLocalMessages(undefined);
+      return;
+    }
+    setLocalMessages(getCachedClubAdminMessages(conversationId));
+  }, [conversationId]);
 
   // Sync localMessages with fetched messages
   useLayoutEffect(() => {
@@ -282,6 +319,37 @@ export default function ClubAdminChatPage() {
       }
     }
   }, [messages, messagesLoading]);
+
+  // Persist fetched messages to local cache for instant load next time
+  useEffect(() => {
+    if (!conversationId || !messages || messages.length === 0) return;
+    cacheMessages(
+      "club_admin",
+      conversationId,
+      messages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.author
+          ? { display_name: m.author.display_name ?? null, avatar_url: m.author.avatar_url ?? null }
+          : null,
+        reactions: (m.reactions || []).map((r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          reaction_type: r.reaction_type,
+        })),
+        reply_to: m.reply_to
+          ? {
+              text: m.reply_to.text,
+              author: m.reply_to.author ? { display_name: m.reply_to.author.display_name ?? null } : null,
+            }
+          : null,
+      })),
+    );
+  }, [conversationId, messages]);
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
