@@ -322,7 +322,25 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
-            <DropdownMenuItem onSelect={() => { void downloadImage(effectiveSrc, "ignite-photo"); }}>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                // Shield underlying chat from the synthetic tap-through that
+                // Radix Dropdown emits on Android when it closes — without
+                // this, the touch falls through to the chat bubble below and
+                // triggers its long-press action sheet (View Image / Reply
+                // / Pin / Delete) right after Download is tapped.
+                const shield = document.createElement("div");
+                shield.style.cssText =
+                  "position:fixed;inset:0;z-index:2147483647;background:transparent;touch-action:none;";
+                shield.addEventListener("touchstart", (ev) => ev.preventDefault(), { passive: false });
+                shield.addEventListener("touchend", (ev) => ev.preventDefault(), { passive: false });
+                shield.addEventListener("click", (ev) => ev.preventDefault());
+                document.body.appendChild(shield);
+                window.setTimeout(() => shield.remove(), 600);
+                void downloadImage(effectiveSrc, "ignite-photo");
+              }}
+            >
               <Download className="h-4 w-4 mr-2" />
               Download
             </DropdownMenuItem>
