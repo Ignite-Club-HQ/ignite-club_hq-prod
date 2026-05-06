@@ -105,6 +105,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       const finalUri = writtenUri;
+      if (!finalUri) {
+        toast.error("Download failed", { id: toastId, description: "Could not save file" });
+        return;
+      }
       toast.success("Photo downloaded", {
         id: toastId,
         description: "Tap Open to save or share",
@@ -115,8 +119,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
               const { Share } = await import("@capacitor/share");
               await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
             } catch (shareErr: any) {
-              if (!String(shareErr?.message || shareErr).toLowerCase().includes("cancel")) {
+              const msg = String(shareErr?.message || shareErr);
+              if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
+                toast.error("Could not open file", { description: msg });
               }
             }
           },
