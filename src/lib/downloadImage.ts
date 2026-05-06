@@ -73,7 +73,14 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         }
       }
 
-      // ---- iOS (and Android fallback): write to cache then open share sheet
+      if (platform === "ios") {
+        const { Media } = await import("@capacitor-community/media");
+        await Media.savePhoto({ path: resolvedUrl });
+        toast.success("Photo downloaded", { id: toastId, description: "Saved to your photos" });
+        return;
+      }
+
+      // ---- Other native fallback: write to cache then open share sheet
       let writtenUri: string | null = null;
       try {
         const dl: any = await (Filesystem as any).downloadFile({
@@ -82,7 +89,11 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = dl?.path || dl?.uri || null;
+        writtenUri = dl?.uri || null;
+        if (!writtenUri) {
+          const uriResult = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+          writtenUri = uriResult.uri;
+        }
       } catch (dlErr) {
         console.warn("[downloadImage] Filesystem.downloadFile failed, trying fetch:", dlErr);
       }
@@ -101,7 +112,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           directory: Directory.Cache,
           recursive: true,
         });
-        writtenUri = written.uri;
+        writtenUri = written.uri || (await Filesystem.getUri({ path: filename, directory: Directory.Cache })).uri;
       }
 
       const finalUri = writtenUri;
@@ -117,7 +128,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           onClick: async () => {
             try {
               const { Share } = await import("@capacitor/share");
-              await Share.share({ title: "Save photo", url: finalUri, dialogTitle: "Save photo" });
+              await Share.share({
+                title: "Save photo",
+                text: "Save photo",
+                url: finalUri,
+                files: [finalUri],
+                dialogTitle: "Save photo",
+              });
             } catch (shareErr: any) {
               const msg = String(shareErr?.message || shareErr);
               if (!msg.toLowerCase().includes("cancel")) {
@@ -162,12 +179,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       action: {
         label: "Open",
         onClick: () => {
-          // Open synchronously inside the click handler so popup blockers allow it.
-          const win = window.open(blobUrl, "_blank", "noopener");
-          if (!win) {
-            // Popup blocked — navigate the current tab as a fallback.
-            window.location.href = blobUrl;
-          }
+          // Use same-tab navigation instead of a popup/new tab. Mobile browsers
+          // and preview iframes can silently block `window.open`, even from a
+          // toast button, while direct navigation is always user-gesture safe.
+          window.location.assign(blobUrl);
         },
       },
     });
