@@ -72,6 +72,31 @@ interface ClubAdminMessage {
   }[];
 }
 
+const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] =>
+  getCachedMessages("club_admin", conversationId).map((m) => ({
+    id: m.id,
+    text: m.text,
+    image_url: m.image_url,
+    created_at: m.created_at,
+    author_id: m.author_id,
+    conversation_id: conversationId,
+    reply_to_id: m.reply_to_id,
+    author: m.profiles
+      ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url }
+      : undefined,
+    reply_to: m.reply_to
+      ? {
+          text: m.reply_to.text,
+          author: m.reply_to.author ?? (m.reply_to.profiles ? { display_name: m.reply_to.profiles.display_name } : undefined),
+        }
+      : null,
+    reactions: (m.reactions || []).map((r) => ({
+      id: r.id || `cached-${m.id}-${r.user_id}-${r.reaction_type}`,
+      user_id: r.user_id,
+      reaction_type: r.reaction_type,
+    })),
+  }));
+
 export default function ClubAdminChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
