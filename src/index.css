@@ -105,6 +105,10 @@ html, body {
     --popover: 160 15% 12%;
     --popover-foreground: 160 5% 95%;
 
+    /* Outgoing chat bubble — slightly brighter teal for dark mode */
+    --chat-bubble-own: 175 60% 38%;
+    --chat-bubble-own-foreground: 0 0% 100%;
+
     --primary: 160 84% 45%;
     --primary-foreground: 160 15% 6%;
 
