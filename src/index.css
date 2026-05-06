@@ -139,6 +139,11 @@ html, body {
     --success: 160 84% 45%;
     --warning: 45 93% 50%;
     --info: 200 80% 55%;
+
+    /* Event type accents — brightened for dark surfaces */
+    --event-game: 32 95% 56%;
+    --event-training: 200 85% 58%;
+    --event-social: 270 80% 70%;
   }
 }
 
