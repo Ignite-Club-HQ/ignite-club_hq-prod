@@ -1643,7 +1643,7 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
+            disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={sendMessageMutation.isPending}
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
