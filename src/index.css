@@ -27,14 +27,19 @@ html, body {
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     
-    --background: 160 10% 96%;
-    --foreground: 160 10% 10%;
+    /* Warmer, slightly off-white with a hint of green undertone for richer light-mode depth */
+    --background: 150 18% 97%;
+    --foreground: 160 14% 12%;
 
-    --card: 160 10% 98%;
-    --card-foreground: 160 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 14% 12%;
 
-    --popover: 160 10% 95%;
-    --popover-foreground: 160 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 14% 12%;
+
+    /* Outgoing chat bubble — calmer, deeper teal-ink (less corporate than raw primary) */
+    --chat-bubble-own: 175 55% 30%;
+    --chat-bubble-own-foreground: 0 0% 100%;
 
     /* Darkened from 39% → 32% lightness for 4.5:1 on white */
     --primary: 160 84% 32%;
