@@ -686,7 +686,7 @@ export function MentionInput({
         </div>
       )}
 
-      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/40 dark:bg-muted/30 pl-0.5 pr-1 min-h-[36px] ring-1 ring-border/40 focus-within:ring-1.5 focus-within:ring-ring/50 focus-within:bg-muted/55 dark:focus-within:bg-muted/40 transition-[background-color,box-shadow] duration-150">
+      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-2xl bg-muted/55 dark:bg-muted/40 pl-0.5 pr-1 min-h-[36px] ring-0 focus-within:bg-muted/70 dark:focus-within:bg-muted/55 focus-within:ring-1 focus-within:ring-ring/40 transition-[background-color,box-shadow] duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-9 transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
@@ -731,7 +731,7 @@ export function MentionInput({
             aria-label={placeholder || "Message"}
             aria-multiline="true"
             role="textbox"
-            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-1.5 pt-[8px] pb-[7px] text-[15px] leading-[1.35] outline-none placeholder:text-foreground/40 placeholder:text-[14px] disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-1.5 pt-[8px] pb-[7px] text-[15px] leading-[1.35] outline-none placeholder:text-foreground/35 placeholder:font-normal placeholder:text-[14px] dark:placeholder:text-foreground/30 disabled:cursor-not-allowed disabled:opacity-50 ${hideTextareaPlaceholder ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto' } as React.CSSProperties}
           />
         </div>
