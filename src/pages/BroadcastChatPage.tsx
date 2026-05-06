@@ -1123,7 +1123,7 @@ export default function BroadcastChatPage() {
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
-              disabled={sendMutation.isPending}
+              disabled={false}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
               showBoardPicker={true}
@@ -1139,7 +1139,7 @@ export default function BroadcastChatPage() {
                 else stopTyping();
               }}
               onKeyPress={handleKeyPress}
-              disabled={sendMutation.isPending}
+              disabled={false}
               onGifSelect={setImageUrl}
             />
             <ChatSendButton
@@ -1148,7 +1148,7 @@ export default function BroadcastChatPage() {
                 handleSend();
               }}
               onSchedule={() => setScheduleDialogOpen(true)}
-              disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
+              disabled={!message.trim() && !imageUrl && !pendingPollId}
               loading={sendMutation.isPending}
               canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
             />

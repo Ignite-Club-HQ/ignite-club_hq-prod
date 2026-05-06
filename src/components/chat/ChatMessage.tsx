@@ -85,7 +85,7 @@ export interface ChatMessageProps {
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
 }
 
-export const ChatMessage = memo(function ChatMessage({
+function ChatMessageInner({
   id,
   text,
   imageUrl,
@@ -1033,4 +1033,80 @@ export const ChatMessage = memo(function ChatMessage({
       </AlertDialog>
     </div>
   );
-});
+}
+
+// Shallow compare reactions array by id+user+type (stable identity not guaranteed by parent).
+function reactionsEqual(a: Reaction[] = [], b: Reaction[] = []) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.id !== y.id || x.user_id !== y.user_id || x.reaction_type !== y.reaction_type) return false;
+  }
+  return true;
+}
+
+function readersEqual(a: ReaderInfo[] = [], b: ReaderInfo[] = []) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.user_id !== b[i]?.user_id) return false;
+  }
+  return true;
+}
+
+function replyEqual(a?: ReplyToMessage | null, b?: ReplyToMessage | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.text === b.text && a.authorName === b.authorName;
+}
+
+function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
+  // Compare only props that affect render output. Ignore callback identity
+  // (onReply/onEdit/onAuthorClick/onPin/onUnpin/onPublishToGallery) — parents
+  // recreate them on every render but their behavior is stable per-message.
+  if (
+    prev.id !== next.id ||
+    prev.text !== next.text ||
+    prev.imageUrl !== next.imageUrl ||
+    prev.authorId !== next.authorId ||
+    prev.authorName !== next.authorName ||
+    prev.authorAvatar !== next.authorAvatar ||
+    prev.timestamp !== next.timestamp ||
+    prev.isOwn !== next.isOwn ||
+    prev.isAdmin !== next.isAdmin ||
+    prev.currentUserId !== next.currentUserId ||
+    prev.messageType !== next.messageType ||
+    prev.searchQuery !== next.searchQuery ||
+    prev.readCount !== next.readCount ||
+    prev.readerName !== next.readerName ||
+    prev.isLastMessage !== next.isLastMessage ||
+    prev.isPending !== next.isPending ||
+    prev.isSystemMessage !== next.isSystemMessage ||
+    prev.isClubAnnouncement !== next.isClubAnnouncement ||
+    prev.contextId !== next.contextId ||
+    prev.isPinned !== next.isPinned ||
+    prev.canPin !== next.canPin ||
+    prev.pinLimitReached !== next.pinLimitReached ||
+    prev.canPublishToGallery !== next.canPublishToGallery ||
+    prev.isPublishedToGallery !== next.isPublishedToGallery ||
+    prev.isPublishingToGallery !== next.isPublishingToGallery
+  ) {
+    return false;
+  }
+  // Toggling onAuthorClick presence (undefined vs defined) changes affordance.
+  if (!!prev.onAuthorClick !== !!next.onAuthorClick) return false;
+  // queryKey is an array — compare by content (parents pass queryKeyMemo but be safe).
+  if (prev.queryKey !== next.queryKey) {
+    if (!prev.queryKey || !next.queryKey || prev.queryKey.length !== next.queryKey.length) return false;
+    for (let i = 0; i < prev.queryKey.length; i++) {
+      if (prev.queryKey[i] !== next.queryKey[i]) return false;
+    }
+  }
+  if (!replyEqual(prev.replyToMessage, next.replyToMessage)) return false;
+  if (!reactionsEqual(prev.reactions, next.reactions)) return false;
+  if (!readersEqual(prev.readFrontierReaders, next.readFrontierReaders)) return false;
+  return true;
+}
+
+export const ChatMessage = memo(ChatMessageInner, arePropsEqual);
