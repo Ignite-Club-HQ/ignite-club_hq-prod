@@ -666,7 +666,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             // up while the attachment tray is open.
             onOpenAutoFocus={(e) => e.preventDefault()}
             onCloseAutoFocus={(e) => e.preventDefault()}
-            className="w-[calc(100vw-16px)] max-w-[420px] p-2 rounded-2xl border-border/60 shadow-lg bg-popover/95 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-2xl border border-border/40 shadow-md bg-popover/92 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {
               type Action = {
