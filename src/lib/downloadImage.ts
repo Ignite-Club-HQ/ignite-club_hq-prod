@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 
 /**
@@ -11,8 +11,21 @@ import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
  * On Android native: saves directly to the user's photo library via MediaStore.
  * This must not use the Share plugin; the download action should not open the
  * Android share sheet.
+ *
+ * UX: shows a loading toast while the download is in progress, then a
+ * success toast (with an "Open" action where applicable) or an error toast.
  */
 export async function downloadImage(url: string, friendlyBaseName = "ignite-photo"): Promise<void> {
+  const toastId = toast.loading("Downloading photo…");
+  try {
+    await downloadImageInner(url, friendlyBaseName, toastId);
+  } catch (err) {
+    console.warn("[downloadImage] failed:", err);
+    toast.error("Download failed", { id: toastId, description: "Please try again" });
+  }
+}
+
+async function downloadImageInner(url: string, friendlyBaseName: string, toastId: string | number): Promise<void> {
   const stamp = new Date().toISOString().split("T")[0];
   const resolvedUrl = await resolveSignedUrl(url);
 
