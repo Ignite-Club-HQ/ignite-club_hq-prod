@@ -75,11 +75,14 @@ async function dispatchPushBatch(
 
 // Build the push notification URL for a message type
 function buildPushUrl(messageType: string, contextId: string | null, messageId: string): string {
+  // Append ?message=<id> so the chat page scrolls to / highlights the new
+  // message on open (handled by targetMessageId effect in each chat page).
+  const q = messageId ? `?message=${encodeURIComponent(messageId)}` : '';
   switch (messageType) {
-    case 'team': return contextId ? `/messages/${contextId}` : '/messages';
-    case 'club': return contextId ? `/messages/club/${contextId}` : '/messages';
-    case 'group': return contextId ? `/groups/${contextId}` : '/messages';
-    case 'broadcast': return '/messages/broadcast';
+    case 'team': return contextId ? `/messages/${contextId}${q}` : '/messages';
+    case 'club': return contextId ? `/messages/club/${contextId}${q}` : '/messages';
+    case 'group': return contextId ? `/groups/${contextId}${q}` : '/messages';
+    case 'broadcast': return `/messages/broadcast${q}`;
     default: return '/messages';
   }
 }
