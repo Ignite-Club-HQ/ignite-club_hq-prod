@@ -1690,16 +1690,24 @@ export default function HomePage() {
       <NativeAppDownloadBanner />
 
 
-      {/* My Teams & Leagues - Premium Carousel */}
-      <MyTeamsPremiumCarousel />
+      {/* My Teams & Leagues - Premium Carousel (lazy chunk + viewport-deferred) */}
+      <LazyMount minHeight={180} rootMargin="400px">
+        <Suspense fallback={<div className="h-[180px] rounded-xl bg-muted/40 animate-pulse" />}>
+          <MyTeamsPremiumCarousel />
+        </Suspense>
+      </LazyMount>
 
       <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
-      <UpcomingClassesWidget />
+      <LazyMount minHeight={60}>
+        <UpcomingClassesWidget />
+      </LazyMount>
 
       {/* Contact Club - quick DM to club admin (Pro only) */}
-      <ContactClubButton clubFilter={activeClubFilter} compact />
+      <LazyMount minHeight={48}>
+        <ContactClubButton clubFilter={activeClubFilter} compact />
+      </LazyMount>
 
 
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
