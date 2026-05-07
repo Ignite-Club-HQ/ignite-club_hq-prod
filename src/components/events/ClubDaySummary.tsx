@@ -193,6 +193,7 @@ export function ClubDaySummary({
         <p className="text-xs text-muted-foreground">
           {games.length} game{games.length === 1 ? "" : "s"} ·{" "}
           {trainings.length} training
+          {socials.length > 0 && <> · {socials.length} social{socials.length === 1 ? "" : "s"}</>}
           {scope === "my" && events && events.length > visible.length && (
             <> · {events.length - visible.length} more across club</>
           )}
