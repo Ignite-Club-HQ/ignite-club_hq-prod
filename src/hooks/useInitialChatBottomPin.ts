@@ -284,18 +284,16 @@ export function useInitialChatBottomPin({
       // mounting their <img> tags only after their URL resolves. Without
       // these, the user sees the chat correctly pinned to bottom on open
       // and then watches it shift upward "at the last second".
-      const delayedSnapTimers = [80, 240, 500, 900, 1500, 2400].map((delay) =>
+      const delayedSnapTimers = [80, 240, 500, 900, 1500, 2400, 3500, 5000].map((delay) =>
         setTimeout(() => {
           if (cancelled || userScrolledAwayRef.current) return;
           const m = getChatScrollMetrics(scrollContainerRef.current);
           if (!m) return;
-          const withinTrustWindow =
-            performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
-          if (!withinTrustWindow && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
           // Skip when already pinned to bottom — re-snapping triggers layout
-          // reads that on iOS WKWebView can interrupt rubber-band/inertia and
-          // produce the "bounce on open" the user reported. Only correct
-          // genuine drift (late image loads, composer height settling).
+          // reads that on iOS WKWebView can interrupt rubber-band/inertia.
+          // Otherwise ALWAYS correct drift; never gate on a px threshold,
+          // since first-load profile/avatar hydration on long threads can
+          // grow content by far more than 400px in one tick.
           if (m.distanceFromBottom <= 1) return;
           scrollChatToBottom(scrollContainerRef.current);
         }, delay),
