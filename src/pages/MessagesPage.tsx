@@ -198,7 +198,7 @@ export default function MessagesPage() {
     queryFn: () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
     refetchInterval: 30000,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -333,7 +333,7 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -378,7 +378,7 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     placeholderData: (prev) => prev,
   });
@@ -456,7 +456,7 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -719,7 +719,7 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -872,7 +872,7 @@ export default function MessagesPage() {
       return result;
     },
     enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;

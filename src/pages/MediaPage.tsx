@@ -471,7 +471,7 @@ export default function MediaPage() {
       return (data?.photo_ids as string[] | null) ?? [];
     },
     enabled: !!cardId,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const selectedClubFilter = selectedClubId !== "all" ? selectedClubId : null;
@@ -543,10 +543,18 @@ export default function MediaPage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     gcTime: 300000,
   });
 
+  // Eagerly prefetch the next page once the first page is in so the user
+  // doesn't see a loading shimmer when they reach the end of the first batch.
+  useEffect(() => {
+    if (photosSuccess && hasNextPage && !isFetchingNextPage) {
+      const t = setTimeout(() => fetchNextPage(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [photosSuccess, hasNextPage, isFetchingNextPage, fetchNextPage]);
   const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
     queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
     queryFn: async () => {

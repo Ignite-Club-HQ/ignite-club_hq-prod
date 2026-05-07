@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-// In-memory cache for signed URLs (session-scoped)
+// In-memory cache for signed URLs (hydrated from localStorage on load)
 const urlCache = new Map<string, { url: string; expiresAt: number }>();
+const LS_KEY = "signed-url-cache-v1";
 
 // Cache duration: 50 minutes (signed URLs valid for 60 minutes)
 const CACHE_DURATION_MS = 50 * 60 * 1000;
@@ -11,6 +12,45 @@ const REQUEST_TIMEOUT_MS = 5000;
 const PRIVATE_BUCKETS = ["photos", "chat-attachments", "avatars"] as const;
 
 type PrivateBucket = (typeof PRIVATE_BUCKETS)[number];
+
+try {
+  const raw = typeof localStorage !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+  if (raw) {
+    const parsed = JSON.parse(raw) as Record<string, { url: string; expiresAt: number }>;
+    const now = Date.now();
+    let kept = 0;
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v && typeof v.url === "string" && v.expiresAt > now) {
+        urlCache.set(k, v);
+        if (++kept > 500) break;
+      }
+    }
+  }
+} catch {
+  /* ignore */
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePersist() {
+  if (typeof localStorage === "undefined" || persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    try {
+      const obj: Record<string, { url: string; expiresAt: number }> = {};
+      const now = Date.now();
+      let n = 0;
+      for (const [k, v] of urlCache) {
+        if (v.expiresAt > now) {
+          obj[k] = v;
+          if (++n >= 500) break;
+        }
+      }
+      localStorage.setItem(LS_KEY, JSON.stringify(obj));
+    } catch {
+      /* quota exceeded etc. — ignore */
+    }
+  }, 1000);
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -126,6 +166,7 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
             url: resolvedUrl,
             expiresAt: Date.now() + CACHE_DURATION_MS,
           });
+          schedulePersist();
         }
 
         if (!isCancelled) {
@@ -193,6 +234,7 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
         });
       }
     }
+    schedulePersist();
   } catch (error) {
     console.error("Error batch fetching signed URLs:", error);
     for (const url of uncachedUrls) {
@@ -206,4 +248,9 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
 // Clear cache (useful for logout)
 export function clearSignedUrlCache() {
   urlCache.clear();
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(LS_KEY);
+  } catch {
+    /* ignore */
+  }
 }
