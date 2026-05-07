@@ -63,6 +63,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
+import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
@@ -150,9 +151,11 @@ export default function TeamChatPage() {
   // so, the prior React Query snapshot (`prev`) predates the new push and is
   // stale — fall through to the freshly-preloaded localStorage cache instead
   // so the new message renders at first paint.
-  const openedFromNotificationRef = useRef<boolean>(
-    !!teamId && consumeFromNotificationFlag("team", teamId),
+  const openedFromNotificationRef = useRef<number | null>(
+    teamId ? consumeFromNotificationFlag("team", teamId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
@@ -581,6 +584,25 @@ export default function TeamChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (loadingMessages && !messagesData && !(localMessages?.length));
+
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!teamId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "team",
+      targetId: teamId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [teamId, user?.id, showLoading, localMessages, messagesData]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {

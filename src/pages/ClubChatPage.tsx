@@ -57,6 +57,7 @@ import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCac
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
+import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -126,9 +127,11 @@ export default function ClubChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
-  const openedFromNotificationRef = useRef<boolean>(
-    !!clubId && consumeFromNotificationFlag("club", clubId),
+  const openedFromNotificationRef = useRef<number | null>(
+    clubId ? consumeFromNotificationFlag("club", clubId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(clubId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
@@ -457,6 +460,25 @@ export default function ClubChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (isLoading && !messagesData && !(localMessages?.length));
+
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!clubId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "club",
+      targetId: clubId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [clubId, user?.id, showLoading, localMessages, messagesData]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {

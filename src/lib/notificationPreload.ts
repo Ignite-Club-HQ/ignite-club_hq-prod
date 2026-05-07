@@ -105,21 +105,22 @@ export function setFromNotificationFlag(kind: ChatKind, targetId: string): void 
 }
 
 /**
- * Returns true if this chat was opened from a notification in the last 60s.
- * The flag is consumed (cleared) on read so it only applies to the very next
- * mount of the corresponding chat page.
+ * Returns the push-tap timestamp (ms epoch) if this chat was opened from a
+ * notification in the last 60s, otherwise null. The flag is consumed on read
+ * so it only applies to the very next mount of the corresponding chat page.
  */
-export function consumeFromNotificationFlag(kind: ChatKind, targetId: string): boolean {
+export function consumeFromNotificationFlag(kind: ChatKind, targetId: string): number | null {
   try {
-    if (typeof sessionStorage === "undefined") return false;
+    if (typeof sessionStorage === "undefined") return null;
     const key = flagKey(kind, targetId);
     const raw = sessionStorage.getItem(key);
-    if (!raw) return false;
+    if (!raw) return null;
     sessionStorage.removeItem(key);
     const ts = Number(raw);
-    if (!Number.isFinite(ts)) return false;
-    return Date.now() - ts <= FLAG_TTL_MS;
+    if (!Number.isFinite(ts)) return null;
+    if (Date.now() - ts > FLAG_TTL_MS) return null;
+    return ts;
   } catch {
-    return false;
+    return null;
   }
 }
