@@ -363,61 +363,12 @@ export function MyTeamsPremiumCarousel() {
         }
       }
 
-      // Fetch next-event dates for stable activity-based sorting
-      const now = new Date().toISOString();
-      const resultTeamIds = result.filter(r => r.type === "team").map(r => r.id);
-      const resultLeagueIds = result.filter(r => r.type === "league").map(r => r.id);
-      const nextEventDate: Record<string, string> = {};
-
-      const eventFetches: Promise<void>[] = [];
-      if (resultTeamIds.length > 0) {
-        eventFetches.push(
-          supabase
-            .from("events")
-            .select("team_id, event_date")
-            .in("team_id", resultTeamIds)
-            .gte("event_date", now)
-            .eq("is_cancelled", false)
-            .order("event_date", { ascending: true })
-            .limit(resultTeamIds.length * 2)
-            .then(({ data }) => {
-              data?.forEach(e => { if (e.team_id && !nextEventDate[e.team_id]) nextEventDate[e.team_id] = e.event_date; });
-            }) as Promise<void>
-        );
-      }
-      if (resultLeagueIds.length > 0) {
-        eventFetches.push(
-          supabase
-            .from("events")
-            .select("mini_league_id, event_date")
-            .in("mini_league_id", resultLeagueIds)
-            .gte("event_date", now)
-            .eq("is_cancelled", false)
-            .order("event_date", { ascending: true })
-            .limit(resultLeagueIds.length * 2)
-            .then(({ data }) => {
-              data?.forEach(e => { if (e.mini_league_id && !nextEventDate[e.mini_league_id]) nextEventDate[e.mini_league_id] = e.event_date; });
-            }) as Promise<void>
-        );
-      }
-      await Promise.all(eventFetches);
-
-      // Sort: active roles first, then by upcoming activity, then teams > leagues, then alphabetical
+      // Initial sort (without event dates — final activity sort happens in render once nextEvents resolves)
       return result.sort((a, b) => {
-        // Priority 1: canManage (coach/team_admin/club_admin) first
         if (a.canManage && !b.canManage) return -1;
         if (!a.canManage && b.canManage) return 1;
-        // Priority 2: has upcoming event before no event
-        const aDate = nextEventDate[a.id];
-        const bDate = nextEventDate[b.id];
-        if (aDate && !bDate) return -1;
-        if (!aDate && bDate) return 1;
-        // Priority 3: soonest event first
-        if (aDate && bDate && aDate !== bDate) return aDate < bDate ? -1 : 1;
-        // Priority 4: teams before leagues
         if (a.type === "team" && b.type === "league") return -1;
         if (a.type === "league" && b.type === "team") return 1;
-        // Priority 5: alphabetical
         return a.name.localeCompare(b.name);
       });
     },
@@ -548,45 +499,40 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch unread message counts per team
+  // Fetch unread message counts per team — single batched query (no N+1)
   const { data: unreadCounts = {} } = useQuery({
     queryKey: ["team-unread-counts", teamIds, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0 || !user?.id) return {};
       const map: Record<string, number> = {};
 
-      // Get all team_message_ids that user has read
-      const { data: readMessages } = await supabase
-        .from("message_reads")
-        .select("team_message_id")
-        .eq("user_id", user.id)
-        .not("team_message_id", "is", null);
+      // Batched: all unread-candidate messages across all teams in one query
+      const [{ data: messages }, { data: readMessages }] = await Promise.all([
+        supabase
+          .from("team_messages")
+          .select("id, team_id")
+          .in("team_id", teamIds)
+          .is("deleted_at", null)
+          .neq("author_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(teamIds.length * 50),
+        supabase
+          .from("message_reads")
+          .select("team_message_id")
+          .eq("user_id", user.id)
+          .not("team_message_id", "is", null),
+      ]);
 
       const readIds = new Set((readMessages || []).map(r => r.team_message_id).filter(Boolean));
-
-      for (const teamId of teamIds) {
-        try {
-          // Get all messages in this team not by the current user
-          const { data: messages } = await supabase
-            .from("team_messages")
-            .select("id")
-            .eq("team_id", teamId)
-            .is("deleted_at", null)
-            .neq("author_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(50);
-
-          const unread = (messages || []).filter(m => !readIds.has(m.id)).length;
-          if (unread > 0) map[teamId] = unread;
-        } catch {
-          // Ignore errors for individual teams
-        }
+      for (const m of messages || []) {
+        if (!m.team_id || readIds.has(m.id)) continue;
+        map[m.team_id] = (map[m.team_id] || 0) + 1;
       }
 
       return map;
     },
     enabled: teamIds.length > 0 && !!user?.id,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -626,12 +572,26 @@ export function MyTeamsPremiumCarousel() {
     </Card>
   ) : null;
 
+  // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.canManage && !b.canManage) return -1;
+    if (!a.canManage && b.canManage) return 1;
+    const aDate = nextEvents[a.id]?.eventDate;
+    const bDate = nextEvents[b.id]?.eventDate;
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    if (aDate && bDate && aDate !== bDate) return aDate < bDate ? -1 : 1;
+    if (a.type === "team" && b.type === "league") return -1;
+    if (a.type === "league" && b.type === "team") return 1;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold px-1">My Teams</h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
