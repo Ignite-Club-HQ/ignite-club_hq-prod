@@ -442,7 +442,7 @@ export default function EventsPage() {
       const finalEvents =
         viewMode === "calendar"
           ? (filteredData as Event[])
-          : ((await import("@/lib/filterRecurringEvents")).filterRecurringEvents(filteredData) as Event[]);
+          : (filterRecurringEvents(filteredData) as Event[]);
 
       // Cache for offline use
       cacheEventsList(eventsScopeKey, finalEvents);
