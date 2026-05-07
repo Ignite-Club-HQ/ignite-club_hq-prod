@@ -134,12 +134,14 @@ export function LazyImage({ src, alt, className = "", priority = false, thumbWid
         <div className="absolute inset-0 bg-muted animate-pulse" />
       ) : null}
 
-      {!showAsVideo && hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
+      {!showAsVideo && hasLqip && isInView && !isLoadingSignedUrl && (
         <img
           src={lqipUrl}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-lg"
+          className={`absolute inset-0 w-full h-full object-cover scale-110 blur-lg transition-opacity duration-300 ${
+            isLoaded ? "opacity-0" : "opacity-100"
+          }`}
           onLoad={() => setLqipLoaded(true)}
         />
       )}
