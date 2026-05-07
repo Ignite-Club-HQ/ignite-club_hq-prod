@@ -125,7 +125,7 @@ export function ClubDaySummary({
   const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
   const myVisibleEvents = useMemo(() => {
     return (myDayEvents || [])
-      .filter((e) => (!e.team_id || myTeamSet.has(e.team_id)) && (e.type === "game" || e.type === "training"))
+      .filter((e) => !e.team_id || myTeamSet.has(e.team_id))
       .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
   }, [myDayEvents, myTeamSet]);
 
@@ -145,6 +145,7 @@ export function ClubDaySummary({
 
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
+  const socials = visible.filter((e) => (e.type as string) === "social");
 
   // Group by venue (without pitch/field suffix) for club view
   const byVenue = useMemo(() => {
