@@ -321,6 +321,49 @@ export function useInitialChatBottomPin({
       onPinnedRef.current?.();
     };
 
+    // Wait for all currently-mounted images inside the viewport (within
+    // a generous lookback above the fold) to finish loading before reveal.
+    // This is what prevents the "open at bottom, then jolt up" on first
+    // install: avatars and attachment thumbnails hydrate AFTER reveal,
+    // growing scrollHeight while scrollTop stays put — re-snapping pulls
+    // the viewport down and visible content shifts upward.
+    const IMAGE_WAIT_MAX_MS = 600;
+    const waitForImages = (done: () => void) => {
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) {
+        done();
+        return;
+      }
+      const images = Array.from(viewport.querySelectorAll<HTMLImageElement>("img"));
+      const pending = images.filter((img) => !(img.complete && img.naturalHeight > 0));
+      if (pending.length === 0) {
+        done();
+        return;
+      }
+      let remaining = pending.length;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        pending.forEach((img) => {
+          img.removeEventListener("load", onOne);
+          img.removeEventListener("error", onOne);
+        });
+        done();
+      };
+      const onOne = () => {
+        remaining -= 1;
+        if (remaining <= 0) finish();
+      };
+      pending.forEach((img) => {
+        img.addEventListener("load", onOne, { once: true });
+        img.addEventListener("error", onOne, { once: true });
+      });
+      // Cap the wait — don't hold the chat hidden indefinitely if a
+      // signed URL never resolves.
+      setTimeout(finish, IMAGE_WAIT_MAX_MS);
+    };
+
     const settleAtBottom = (attemptsLeft = MAX_SETTLE_ATTEMPTS) => {
       if (cancelled) return;
 
@@ -344,7 +387,17 @@ export function useInitialChatBottomPin({
             return;
           }
 
-          reveal();
+          // Final gate: wait for in-flight images to load, snap once more,
+          // THEN reveal. This eliminates the post-reveal upward shift.
+          waitForImages(() => {
+            if (cancelled) return;
+            scrollChatToBottom(scrollContainerRef.current);
+            requestAnimationFrame(() => {
+              if (cancelled) return;
+              scrollChatToBottom(scrollContainerRef.current);
+              reveal();
+            });
+          });
         });
       });
     };
