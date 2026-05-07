@@ -522,19 +522,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     );
   }
 
-  // Hide action icons when user is typing
-  if (hasText) {
-    return (
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        onChange={handleFileSelect}
-        className="sr-only"
-        disabled={disabled || uploading}
-      />
-    );
-  }
+  // NOTE: Previously the "+" button was hidden when `hasText` was true. That
+  // removed the user's only way to attach a photo / file / poll / event after
+  // they had started typing — a regression vs. WhatsApp / Messenger and an
+  // explicit UX requirement. Attachment access must remain available in every
+  // composer state (empty, focused, typing, keyboard open/closed). The send
+  // button lives in a separate component (ChatSendButton), so keeping "+"
+  // visible does not crowd it out. We therefore intentionally fall through to
+  // the full popover render below regardless of `hasText`.
 
   // Show photo button inline; event + poll behind a "+" popover.
   // Photo upload is ALWAYS mirrored inside the "+" popover because many users

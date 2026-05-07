@@ -279,7 +279,13 @@ export function useInitialChatBottomPin({
         setTimeout(() => {
           if (cancelled || userScrolledAwayRef.current) return;
           const m = getChatScrollMetrics(scrollContainerRef.current);
-          if (m && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
+          if (!m) return;
+          if (m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
+          // Skip when already pinned to bottom — re-snapping triggers layout
+          // reads that on iOS WKWebView can interrupt rubber-band/inertia and
+          // produce the "bounce on open" the user reported. Only correct
+          // genuine drift (late image loads, composer height settling).
+          if (m.distanceFromBottom <= 1) return;
           scrollChatToBottom(scrollContainerRef.current);
         }, delay),
       );
