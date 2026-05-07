@@ -783,7 +783,7 @@ export default function ClubAdminChatPage() {
                       id={`message-${msg.id}`}
                       className={`transition-colors duration-500 ${
                         highlightedMessageId === msg.id
-                          ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg"
+                          ? "bg-primary/10 rounded-lg"
                           : ""
                       }`}
                     >
