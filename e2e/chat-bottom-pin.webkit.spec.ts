@@ -114,10 +114,15 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
   });
 
   for (const route of CHAT_ROUTES) {
-    test(`${route.name} (${route.path}) lands at bottom after images load`, async ({
+    test(`${route.name} (${route.path ?? "skipped"}) lands at bottom after images load`, async ({
       page,
     }) => {
-      await page.goto(route.path, { waitUntil: "networkidle" });
+      test.skip(
+        !route.path,
+        `Set the matching E2E_* env var to enable the ${route.name} regression check`,
+      );
+      const path = route.path as string;
+      await page.goto(path, { waitUntil: "networkidle" });
 
       // If the app redirected us to an auth page, skip — we cannot exercise
       // chat scrolling without a logged-in session.
