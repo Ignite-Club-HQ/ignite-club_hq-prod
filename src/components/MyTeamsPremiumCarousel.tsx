@@ -397,7 +397,7 @@ export function MyTeamsPremiumCarousel() {
   const teamIds = items.filter(i => i.type === "team").map(i => i.id);
   const leagueItemIds = items.filter(i => i.type === "league").map(i => i.id);
 
-  const { data: nextEvents = {} } = useQuery({
+  const { data: nextEvents = snapshot?.nextEvents ?? {} } = useQuery({
     queryKey: ["team-next-events-premium", teamIds, leagueItemIds],
     queryFn: async () => {
       const now = new Date().toISOString();
@@ -473,7 +473,7 @@ export function MyTeamsPremiumCarousel() {
   });
 
   // Fetch recent photos per team
-  const { data: teamPhotos = {} } = useQuery({
+  const { data: teamPhotos = snapshot?.teamPhotos ?? {} } = useQuery({
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {};
@@ -516,7 +516,7 @@ export function MyTeamsPremiumCarousel() {
   });
 
   // Fetch unread message counts per team — single batched query (no N+1)
-  const { data: unreadCounts = {} } = useQuery({
+  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
     queryKey: ["team-unread-counts", teamIds, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0 || !user?.id) return {};
@@ -552,7 +552,18 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  if (isLoading) {
+  // Persist snapshot for instant cold-start on next visit
+  useEffect(() => {
+    if (!user?.id || items.length === 0) return;
+    setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
+      items,
+      nextEvents,
+      teamPhotos,
+      unreadCounts,
+    });
+  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts]);
+
+  if (isLoading && !snapshot) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
