@@ -69,11 +69,14 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
-import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
+const MyTeamsPremiumCarousel = lazy(() =>
+  import("@/components/MyTeamsPremiumCarousel").then((m) => ({ default: m.MyTeamsPremiumCarousel }))
+);
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
+import { LazyMount } from "@/components/LazyMount";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -1687,16 +1690,24 @@ export default function HomePage() {
       <NativeAppDownloadBanner />
 
 
-      {/* My Teams & Leagues - Premium Carousel */}
-      <MyTeamsPremiumCarousel />
+      {/* My Teams & Leagues - Premium Carousel (lazy chunk + viewport-deferred) */}
+      <LazyMount minHeight={180} rootMargin="400px">
+        <Suspense fallback={<div className="h-[180px] rounded-xl bg-muted/40 animate-pulse" />}>
+          <MyTeamsPremiumCarousel />
+        </Suspense>
+      </LazyMount>
 
       <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
-      <UpcomingClassesWidget />
+      <LazyMount minHeight={60}>
+        <UpcomingClassesWidget />
+      </LazyMount>
 
       {/* Contact Club - quick DM to club admin (Pro only) */}
-      <ContactClubButton clubFilter={activeClubFilter} compact />
+      <LazyMount minHeight={48}>
+        <ContactClubButton clubFilter={activeClubFilter} compact />
+      </LazyMount>
 
 
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
@@ -2301,17 +2312,21 @@ export default function HomePage() {
 
 
       {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
-      {activeClubFilter ? (
-        !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
-          <ClubSponsorSection clubId={activeClubFilter} />
-        )
-      ) : (
-        <MultiClubSponsorCarousel />
-      )}
-      
+      <LazyMount minHeight={120} rootMargin="500px">
+        {activeClubFilter ? (
+          !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
+            <ClubSponsorSection clubId={activeClubFilter} />
+          )
+        ) : (
+          <MultiClubSponsorCarousel />
+        )}
+      </LazyMount>
+
       {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
       {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
-        <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+        <LazyMount minHeight={100} rootMargin="500px">
+          <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+        </LazyMount>
       )}
 
       {/* Pitch Board Loading Overlay */}
