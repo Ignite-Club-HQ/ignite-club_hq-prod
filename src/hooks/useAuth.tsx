@@ -802,6 +802,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchUnreadCount(user.id);
+        queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+        queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+        queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+        queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -809,6 +813,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Also re-sync on focus (more reliable on some platforms)
     const handleFocus = () => {
       fetchUnreadCount(user.id);
+      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
     };
     window.addEventListener('focus', handleFocus);
 
@@ -817,7 +825,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user]);
+  }, [user, queryClient]);
 
   const signUp = async (email: string, password: string) => {
     // Check for pending redirect (e.g., from invite link)
