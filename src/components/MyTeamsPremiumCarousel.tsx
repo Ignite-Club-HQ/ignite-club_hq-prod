@@ -98,51 +98,19 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   }, [navigate, item.type, item.id]);
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
-  const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
 
-  // Build activity indicators
-  const activityItems: React.ReactNode[] = [];
-  if (nextEvent) {
-    activityItems.push(
-      <div key="event" className="flex items-center gap-2 text-sm">
-        <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
-        <span className="font-medium text-foreground truncate">
-          {nextEvent.title}
-        </span>
-        <span className="text-muted-foreground text-xs shrink-0">
-          {nextEvent.dateLabel}
-        </span>
-      </div>
-    );
-  }
-  if (unreadMessages && unreadMessages > 0) {
-    activityItems.push(
-      <div key="messages" className="flex items-center gap-2 text-sm">
-        <MessageCircle className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
-        <span className="text-foreground font-medium">
-          {unreadMessages} unread message{unreadMessages > 1 ? "s" : ""}
-        </span>
-      </div>
-    );
-  }
-  if (photos.length > 0) {
-    activityItems.push(
-      <div key="photos" className="flex items-center gap-2 text-sm">
-        <Image className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
-        <span className="text-muted-foreground">
-          {photos.length} new photo{photos.length > 1 ? "s" : ""}
-        </span>
-      </div>
-    );
-  }
+  const eventTypeStyles: Record<string, { dot: string; label: string }> = {
+    game: { dot: "bg-destructive", label: "Game" },
+    mini_league: { dot: "bg-destructive", label: "Match" },
+    training: { dot: "bg-primary", label: "Training" },
+    social: { dot: "bg-warning", label: "Social" },
+  };
+  const evStyle = nextEvent ? (eventTypeStyles[nextEvent.type] || { dot: "bg-primary", label: "Event" }) : null;
+  const dateParts = nextEvent ? formatDateParts(nextEvent.eventDate) : null;
 
   return (
     <Card
-      className={`shrink-0 w-[85vw] max-w-[340px] min-h-[158px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
-        hasActivity 
-          ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
-          : "hover:border-primary/40 shadow-sm hover:shadow-md"
-      }`}
+      className="shrink-0 w-[85vw] max-w-[320px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
@@ -157,158 +125,144 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
         }
       }}
     >
-      <CardContent className="p-4 space-y-3.5">
-        {/* Header: avatar + name + badges + menu */}
-        <div className="flex items-center gap-3">
+      <CardContent className="p-4 flex flex-col gap-3">
+        {/* Header: logo + name/club + actions */}
+        <div className="flex items-start gap-3">
           {(item.logo_url || item.club_logo_url) ? (
             <LogoImage
               src={(item.logo_url || item.club_logo_url)!}
-              className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
+              className="h-10 w-10 rounded-full object-cover shrink-0"
               fallback={
-                <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
-                  item.type === "league" ? "bg-accent/60 ring-2 ring-accent" : "bg-primary/10 ring-2 ring-primary/20"
-                }`}>
-                  {item.type === "league" ? <Trophy className="h-5 w-5 text-accent-foreground" /> : <Users className="h-5 w-5 text-primary" />}
+                <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
+                  {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
                 </div>
               }
             />
           ) : (
-            <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
-              item.type === "league" 
-                ? "bg-accent/60 ring-2 ring-accent" 
-                : "bg-primary/10 ring-2 ring-primary/20"
-            }`}>
-              {item.type === "league" ? (
-                <Trophy className="h-5 w-5 text-accent-foreground" />
-              ) : (
-                <Users className="h-5 w-5 text-primary" />
-              )}
+            <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
+              {item.type === "league" ? <Trophy className="h-5 w-5 text-muted-foreground" /> : <Users className="h-5 w-5 text-muted-foreground" />}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-[15px] leading-tight truncate">{item.name}</h3>
-              {/* Unread badge next to name */}
-              {unreadMessages && unreadMessages > 0 && (
-                <Badge className="bg-primary text-primary-foreground text-[9px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-semibold text-base leading-tight truncate text-foreground">{item.name}</h3>
+              {unreadMessages && unreadMessages > 0 ? (
+                <Badge className="bg-primary text-primary-foreground text-[10px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
                   {unreadMessages > 99 ? "99+" : unreadMessages}
                 </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
+              ) : null}
               {item.isOnTrial && (
-                <Badge variant="outline" className="text-amber-600 border-amber-500 text-[9px] px-1 py-0 h-3.5 shrink-0">Trial</Badge>
+                <Badge variant="outline" className="text-amber-600 border-amber-500 text-[9px] px-1 py-0 h-[16px] shrink-0">Trial</Badge>
               )}
             </div>
+            <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
           </div>
           {showDots && (
-          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
-                  aria-label="Team actions"
-                >
-                  <MoreVertical className="h-4 w-4 text-foreground/70" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  View schedule
-                </DropdownMenuItem>
-                {item.canManage && (
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {item.type === "league" ? "Add match" : "Add event"}
+            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
+                    aria-label="Team actions"
+                  >
+                    <MoreVertical className="h-4 w-4 text-foreground/70" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    View schedule
                   </DropdownMenuItem>
-                )}
-                {photos.length > 0 && (
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
-                    <Image className="h-4 w-4 mr-2" />
-                    View photos
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          )}
-        </div>
-
-        {/* Activity section — always show something meaningful */}
-        <div className="space-y-2 min-h-[48px]">
-          {activityItems.length > 0 ? (
-            activityItems
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-                <span className="italic text-xs">No upcoming events</span>
-              </div>
-              {item.canManage ? (
-                <button
-                  className="flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline"
-                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new"); }}
-                >
-                  <Plus className="h-3 w-3" />
-                  Schedule {item.type === "league" ? "match" : "training"}
-                </button>
-              ) : (
-                <button
-                  className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
-                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`); }}
-                >
-                  View {item.type === "team" ? "team" : "league"}
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              )}
+                  {item.canManage && (
+                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      {item.type === "league" ? "Add match" : "Add event"}
+                    </DropdownMenuItem>
+                  )}
+                  {photos.length > 0 && (
+                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
+                      <Image className="h-4 w-4 mr-2" />
+                      View photos
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
 
-        {/* Photo thumbnails — tap goes to specific photo */}
-        {photos.length > 0 && (
-          <div className="flex gap-1.5">
-            {photos.slice(0, 2).map((photo, i) => (
-              <div
-                key={i}
-                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted cursor-pointer"
+        {/* Event block */}
+        {nextEvent && evStyle && dateParts ? (
+          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${evStyle.dot}`} aria-hidden="true" />
+              <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground shrink-0">{evStyle.label}</span>
+              <span className="text-sm font-medium text-foreground truncate">{nextEvent.title.replace(/^(Game|Training|Social|Match)\s*v?\s*/i, "")}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="truncate">{dateParts.dayLabel} · {dateParts.timeLabel}</span>
+              {dateParts.pill && (
+                <span className="ml-auto shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {dateParts.pill}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground italic">No upcoming events</span>
+            {item.canManage ? (
+              <button
+                className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0"
+                onClick={(e) => { e.stopPropagation(); navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new"); }}
+              >
+                <Plus className="h-3 w-3" />
+                Schedule
+              </button>
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+          </div>
+        )}
+
+        {/* Footer: photos + unread (subtle) */}
+        {(photos.length > 0 || (unreadMessages && unreadMessages > 0)) && (
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+            {photos.length > 0 ? (
+              <button
+                type="button"
+                className="flex items-center gap-2 min-w-0 flex-1"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate(`/media?photo=${photo.id}`);
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/media?photo=${photo.id}`);
-                  }
+                  navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
                 }}
               >
-                <img
-                  src={photo.url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
-                    const img = e.currentTarget;
-                    img.style.display = "none";
-                    const parent = img.parentElement;
-                    if (parent && !parent.querySelector("[data-photo-fallback]")) {
-                      parent.classList.add("flex", "items-center", "justify-center", "bg-muted");
-                      const span = document.createElement("span");
-                      span.setAttribute("data-photo-fallback", "true");
-                      span.className = "text-muted-foreground";
-                      span.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
-                      parent.appendChild(span);
-                    }
-                  }}
-                />
-              </div>
-            ))}
+                <div className="flex -space-x-1.5 shrink-0">
+                  {photos.slice(0, 3).map((photo, i) => (
+                    <div
+                      key={i}
+                      className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
+                    >
+                      <img
+                        src={photo.url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {photos.length} new photo{photos.length > 1 ? "s" : ""}
+                </span>
+              </button>
+            ) : <span />}
+            {unreadMessages && unreadMessages > 0 ? (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
+                <MessageCircle className="h-3 w-3" />
+                {unreadMessages}
+              </span>
+            ) : null}
           </div>
         )}
       </CardContent>
