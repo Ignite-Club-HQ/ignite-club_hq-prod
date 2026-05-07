@@ -21,10 +21,34 @@
 import { test, expect } from "../playwright-fixture";
 import type { Page } from "@playwright/test";
 
-const CHAT_ROUTES: Array<{ name: string; path: string }> = [
+/**
+ * Chat routes to exercise. Dynamic-ID routes pull their ID from env vars
+ * so we don't bake fixture UUIDs into the repo. Missing env vars cause
+ * that route's test to skip cleanly (NOT fail — a missing fixture must
+ * never mask a real scroll regression).
+ *
+ *   E2E_TEAM_ID            → /messages/:teamId
+ *   E2E_CLUB_ID            → /messages/club/:clubId
+ *   E2E_DM_CONVERSATION_ID → /messages/dm/:conversationId
+ *   E2E_CLUB_ADMIN_ID      → /messages/club-admin/:conversationId
+ *   E2E_GROUP_ID           → /groups/:groupId
+ */
+const env = (process.env ?? {}) as Record<string, string | undefined>;
+
+const CHAT_ROUTES: Array<{ name: string; path: string | null }> = [
   { name: "broadcast", path: "/messages/broadcast" },
-  { name: "team", path: "/messages" },
-  { name: "club-admin-list", path: "/messages" },
+  { name: "messages-inbox", path: "/messages" },
+  { name: "team-chat", path: env.E2E_TEAM_ID ? `/messages/${env.E2E_TEAM_ID}` : null },
+  { name: "club-chat", path: env.E2E_CLUB_ID ? `/messages/club/${env.E2E_CLUB_ID}` : null },
+  {
+    name: "direct-message",
+    path: env.E2E_DM_CONVERSATION_ID ? `/messages/dm/${env.E2E_DM_CONVERSATION_ID}` : null,
+  },
+  {
+    name: "club-admin-chat",
+    path: env.E2E_CLUB_ADMIN_ID ? `/messages/club-admin/${env.E2E_CLUB_ADMIN_ID}` : null,
+  },
+  { name: "group-chat", path: env.E2E_GROUP_ID ? `/groups/${env.E2E_GROUP_ID}` : null },
 ];
 
 async function findChatViewport(page: Page) {
@@ -90,10 +114,15 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
   });
 
   for (const route of CHAT_ROUTES) {
-    test(`${route.name} (${route.path}) lands at bottom after images load`, async ({
+    test(`${route.name} (${route.path ?? "skipped"}) lands at bottom after images load`, async ({
       page,
     }) => {
-      await page.goto(route.path, { waitUntil: "networkidle" });
+      test.skip(
+        !route.path,
+        `Set the matching E2E_* env var to enable the ${route.name} regression check`,
+      );
+      const path = route.path as string;
+      await page.goto(path, { waitUntil: "networkidle" });
 
       // If the app redirected us to an auth page, skip — we cannot exercise
       // chat scrolling without a logged-in session.
@@ -123,7 +152,7 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
       const distanceFromBottom = after.maxScrollTop - after.scrollTop;
       expect(
         distanceFromBottom,
-        `Chat at ${route.path} drifted ${distanceFromBottom}px above bottom after images loaded ` +
+        `Chat at ${path} drifted ${distanceFromBottom}px above bottom after images loaded ` +
           `(scrollTop=${after.scrollTop}, max=${after.maxScrollTop}). This is the iOS first-install jolt regression.`,
       ).toBeLessThanOrEqual(2);
 
