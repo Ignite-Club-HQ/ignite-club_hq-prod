@@ -294,10 +294,12 @@ export default function MessagesPage() {
 
       const clubs = data as Club[];
       
-      // Fetch latest messages for all clubs in parallel
+      // Fetch latest messages for all clubs in parallel, then batch a single
+      // profiles lookup for all authors. M1 perf: removes the per-club N+1
+      // profile query that previously serialized after each last-message fetch.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         clubs.map(async (club) => {
           const { data: msgData } = await supabase
             .from("club_messages")
@@ -307,28 +309,33 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[club.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-            };
-          }
+          return { clubId: club.id, msg: msgData };
         })
       );
+
+      const authorIds = Array.from(new Set(
+        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { clubId, msg } of msgRows) {
+        if (!msg) continue;
+        latestMessages[clubId] = {
+          text: msg.text,
+          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+        };
+      }
       
       return { clubs, latestMessages };
     },
