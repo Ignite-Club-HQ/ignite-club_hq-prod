@@ -542,7 +542,7 @@ export function MyTeamsPremiumCarousel() {
 
       return map;
     },
-    enabled: teamIds.length > 0,
+    enabled: teamIds.length > 0 && deferredReady,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
