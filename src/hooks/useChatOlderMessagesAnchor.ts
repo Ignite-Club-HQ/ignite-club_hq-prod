@@ -89,7 +89,21 @@ export function useChatOlderMessagesAnchor({
             const stillIntersecting =
               trigger.getBoundingClientRect().top <
               scrollRoot.getBoundingClientRect().bottom + 2000;
-            if (stillIntersecting && hasOlderMessages && !isLoadingOlder) {
+            // Re-apply ALL guards inside the deferred path. Without these,
+            // a programmatic scrollTop set by the initial bottom-pin (which
+            // fires a real "scroll" event and stamps lastScrollAtRef) lands
+            // us in this branch on first open and then unconditionally calls
+            // onTrigger — causing the first-load older-messages fetch and
+            // the visible upward jolt the user reports after a fresh install.
+            const distance =
+              scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+            if (
+              stillIntersecting &&
+              hasOlderMessages &&
+              !isLoadingOlder &&
+              !document.hidden &&
+              distance >= 200
+            ) {
               onTrigger();
             }
           }, IDLE_GATE_MS);
