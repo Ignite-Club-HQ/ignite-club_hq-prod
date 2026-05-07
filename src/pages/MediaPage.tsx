@@ -199,18 +199,25 @@ export default function MediaPage() {
   }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
-  // Scroll to highlighted photo when loaded — retry until element appears
+  // Scroll to highlighted photo once it actually appears in the rendered list.
+  // Re-arms whenever the photo arrives later (e.g. after a refetch resolves),
+  // and only gives up after the photo is known-present in the DOM.
+  const scrolledToRef = useRef<string | null>(null);
   useEffect(() => {
     if (!highlightedPhotoId) return;
-    
+    if (scrolledToRef.current === highlightedPhotoId) return;
+
+    let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 15;
-    
+    const maxAttempts = 30; // ~9s total
+
     const tryScroll = () => {
+      if (cancelled) return;
       const element = photoRefs.current.get(highlightedPhotoId);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
-        setExpandedComments(prev => new Set(prev).add(highlightedPhotoId));
+        setExpandedComments((prev) => new Set(prev).add(highlightedPhotoId));
+        scrolledToRef.current = highlightedPhotoId;
         return;
       }
       attempts++;
@@ -218,9 +225,11 @@ export default function MediaPage() {
         setTimeout(tryScroll, 300);
       }
     };
-    
-    // Start trying after a short delay to let initial render complete
+
     setTimeout(tryScroll, 200);
+    return () => {
+      cancelled = true;
+    };
   }, [highlightedPhotoId]);
 
   // Auto-open the comment sheet when arriving from a comment notification
