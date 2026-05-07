@@ -87,7 +87,7 @@ export function useChatOlderMessagesAnchor({
         root: scrollRoot,
         // Pre-fetch BEFORE the user reaches the very top so the next page is
         // already prepended by the time their finger gets there.
-        rootMargin: "2000px 0px 0px 0px",
+        rootMargin: "300px 0px 0px 0px",
         threshold: 0,
       },
     );
