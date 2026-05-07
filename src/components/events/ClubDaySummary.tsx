@@ -32,7 +32,7 @@ interface ClubDaySummaryProps {
 interface ClubDayEvent {
   id: string;
   title: string;
-  type: "game" | "training";
+  type: "game" | "training" | "social" | string;
   event_date: string;
   start_time: string | null;
   end_time: string | null;
