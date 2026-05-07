@@ -259,6 +259,27 @@ export function BottomNav() {
     if (!shouldStabilizeIOSLayout) return;
     lockNavInteractions(700);
     setNativeSafeInsetPx(resolveBottomInsetPx());
+    // After leaving a chat thread on iOS, the document/window can be left
+    // scrolled (composer focus + Keyboard.setScroll interactions), which
+    // pushes the fixed bottom nav partly below the home-indicator area on
+    // the destination page. Force the outer window back to the top across
+    // a short settle window so labels never sit clipped under the indicator.
+    if (typeof window === "undefined") return;
+    const resetWindow = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      if (typeof document !== "undefined") {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }
+    };
+    resetWindow();
+    requestAnimationFrame(resetWindow);
+    const t1 = window.setTimeout(resetWindow, 120);
+    const t2 = window.setTimeout(resetWindow, 360);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [shouldStabilizeIOSLayout, location.pathname, lockNavInteractions, nativeInsetFloorPx, resolveBottomInsetPx]);
 
   useEffect(() => {
