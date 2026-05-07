@@ -268,6 +268,21 @@ export function useInitialChatBottomPin({
       imageMountObserver.observe(viewport, { childList: true, subtree: true });
 
       guardSnap();
+      // Belt-and-braces: schedule unconditional snaps across the full settle
+      // window to catch late layout shifts that can sneak past the
+      // ResizeObserver / image-load listeners — most commonly the composer
+      // measuring its real height after first paint, and signed-URL images
+      // mounting their <img> tags only after their URL resolves. Without
+      // these, the user sees the chat correctly pinned to bottom on open
+      // and then watches it shift upward "at the last second".
+      const delayedSnapTimers = [80, 240, 500, 900, 1500, 2400].map((delay) =>
+        setTimeout(() => {
+          if (cancelled || userScrolledAwayRef.current) return;
+          const m = getChatScrollMetrics(scrollContainerRef.current);
+          if (m && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
+          scrollChatToBottom(scrollContainerRef.current);
+        }, delay),
+      );
       postPinTimer = setTimeout(() => {
         postPinResizeObserver?.disconnect();
         postPinResizeObserver = null;
@@ -277,6 +292,7 @@ export function useInitialChatBottomPin({
           img.removeEventListener("error", handler);
         });
         imageListeners.length = 0;
+        delayedSnapTimers.forEach(clearTimeout);
       }, POST_PIN_GUARD_MS);
     };
 
