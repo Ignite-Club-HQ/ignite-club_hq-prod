@@ -7,20 +7,47 @@ interface LazyImageProps {
   alt: string;
   className?: string;
   priority?: boolean;
+  /** Render thumbnail width (px). Defaults to 480, set 0 to disable transform. */
+  thumbWidth?: number;
 }
 
-// Generate a low-quality image URL for Supabase storage
-function getLqipUrl(src: string): string {
-  if (src.includes('/storage/v1/object/') || src.includes('/storage/v1/render/')) {
-    if (src.includes('token=')) {
-      return src;
-    }
-    return src.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=20&height=20&quality=20';
+// Convert any Supabase storage URL into the image-transform render endpoint
+// at the requested width/quality. Skips videos and non-Supabase URLs.
+function applyImageTransform(src: string, width: number, quality = 70): string {
+  if (!src || width <= 0) return src;
+  if (isVideoUrl(src)) return src;
+  // Only transform Supabase storage object URLs (public/sign/authenticated).
+  const objectMatch = src.match(/\/storage\/v1\/object\/(public|sign|authenticated)\//);
+  const renderMatch = src.match(/\/storage\/v1\/render\/image\/(public|sign)\//);
+  if (!objectMatch && !renderMatch) return src;
+
+  let transformed = src;
+  if (objectMatch) {
+    transformed = src.replace(
+      `/storage/v1/object/${objectMatch[1]}/`,
+      `/storage/v1/render/image/${objectMatch[1] === "authenticated" ? "sign" : objectMatch[1]}/`,
+    );
   }
-  return src;
+
+  // Strip any existing width/quality/resize params, then append fresh ones.
+  const [base, query = ""] = transformed.split("?");
+  const params = new URLSearchParams(query);
+  params.delete("width");
+  params.delete("height");
+  params.delete("quality");
+  params.delete("resize");
+  params.set("width", String(width));
+  params.set("quality", String(quality));
+  params.set("resize", "contain");
+  return `${base}?${params.toString()}`;
 }
 
-export function LazyImage({ src, alt, className = "", priority = false }: LazyImageProps) {
+// Tiny LQIP for blur-up placeholder
+function getLqipUrl(src: string): string {
+  return applyImageTransform(src, 20, 20);
+}
+
+export function LazyImage({ src, alt, className = "", priority = false, thumbWidth = 480 }: LazyImageProps) {
   const safeSrc = src || "";
   const [isLoaded, setIsLoaded] = useState(false);
   const [lqipLoaded, setLqipLoaded] = useState(false);
@@ -30,20 +57,16 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
   const imgRef = useRef<HTMLImageElement>(null);
   const prevSrcRef = useRef(safeSrc);
 
-  // Only request a signed URL once the image is actually in view (or marked priority).
-  // This prevents dozens of parallel createSignedUrl calls when scrolling a long
-  // gallery feed — that bottleneck was causing many of them to time out and fall
-  // back to public URLs that 400 because the photos bucket is private.
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(
     safeSrc && (isInView || priority) ? safeSrc : null,
   );
 
   const baseSrc = signedUrl || safeSrc;
-  const effectiveSrc = retrySrc || baseSrc;
-  const lqipUrl = getLqipUrl(effectiveSrc);
-  const hasLqip = lqipUrl !== effectiveSrc && !effectiveSrc.includes('token=');
+  const transformedSrc = applyImageTransform(baseSrc, thumbWidth);
+  const effectiveSrc = retrySrc || transformedSrc;
+  const lqipUrl = getLqipUrl(baseSrc);
+  const hasLqip = lqipUrl !== baseSrc;
 
-  // Reset loading state when src changes
   useEffect(() => {
     if (prevSrcRef.current !== safeSrc) {
       setIsLoaded(false);
@@ -86,21 +109,19 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
 
   const showAsVideo = isVideoUrl(safeSrc);
 
-  // On load failure, force a fresh signed URL with up to 3 backoff retries.
-  // Recently-uploaded photos can briefly 404/403 while Supabase storage
-  // propagates; old feed photos can render with a stale fallback URL when
-  // the initial signed-URL request timed out under load.
-  const MAX_RETRIES = 3;
+  // On load failure, force a fresh signed URL with a single short retry.
+  // Recently-uploaded photos can briefly 404/403 while propagation finishes;
+  // beyond one retry the placeholder is the better UX.
+  const MAX_RETRIES = 1;
   const handleError = async () => {
     if (retryAttempts >= MAX_RETRIES || !safeSrc) return;
     const attempt = retryAttempts + 1;
     setRetryAttempts(attempt);
-    // Backoff: 250ms, 750ms, 1750ms
-    const delay = 250 * Math.pow(2, attempt - 1) + (attempt - 1) * 250;
-    await new Promise((r) => setTimeout(r, delay));
+    await new Promise((r) => setTimeout(r, 500));
     try {
       const fresh = await resolveSignedUrl(safeSrc);
-      const bust = `${fresh}${fresh.includes("?") ? "&" : "?"}r=${Date.now()}`;
+      const transformed = applyImageTransform(fresh, thumbWidth);
+      const bust = `${transformed}${transformed.includes("?") ? "&" : "?"}r=${Date.now()}`;
       setRetrySrc(bust);
     } catch {
       // give up silently — placeholder will remain
@@ -128,6 +149,8 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
           ref={imgRef}
           src={isInView && !isLoadingSignedUrl ? effectiveSrc : undefined}
           alt={alt}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
             isLoaded ? "opacity-100" : "opacity-0"
           } ${className}`}
@@ -139,7 +162,7 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
         <>
           <video
             ref={imgRef as unknown as React.RefObject<HTMLVideoElement>}
-            src={isInView ? effectiveSrc : undefined}
+            src={isInView ? baseSrc : undefined}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
               isLoaded ? "opacity-100" : "opacity-0"
             } ${className}`}
