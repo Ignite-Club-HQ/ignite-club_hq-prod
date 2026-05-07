@@ -315,7 +315,7 @@ export function MyTeamsPremiumCarousel() {
         teamIds.length > 0
           ? supabase
               .from("teams")
-              .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
+              .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
           : Promise.resolve({ data: [] as any[] }),
         supabase
@@ -337,17 +337,32 @@ export function MyTeamsPremiumCarousel() {
           id: t.id, name: t.name, logo_url: t.logo_url, club_id: t.club_id, level_age: null,
         })));
 
+        // Resolve any missing club metadata (cache hit avoids the join)
+        const neededClubIds = [...new Set(teams.map(t => t.club_id).filter(Boolean) as string[])];
+        const missingClubIds = neededClubIds.filter(id => !getCachedClub(id));
+        if (missingClubIds.length > 0) {
+          const { data: clubsData } = await supabase
+            .from("clubs")
+            .select("id, name, logo_url, sport, is_pro")
+            .in("id", missingClubIds);
+          if (clubsData) {
+            const { cacheClubs } = await import("@/lib/clubTeamCache");
+            cacheClubs(clubsData);
+          }
+        }
+
         for (const team of teams) {
           if (activeClubFilter && team.club_id !== activeClubFilter) continue;
           const teamRoles = roles.filter(r => r.team_id === team.id);
           const clubRoles = roles.filter(r => r.club_id === team.club_id);
           const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
             clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
+          const cachedClub = getCachedClub(team.club_id);
           result.push({
             id: team.id, name: team.name, logo_url: team.logo_url,
-            club_logo_url: team.clubs?.logo_url || null,
+            club_logo_url: cachedClub?.logo_url || null,
             type: "team",
-            club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
+            club_name: cachedClub?.name || "", sport: cachedClub?.sport || null,
             club_id: team.club_id, canManage,
             isOnTrial: !!(team.is_pro && team.pro_expires_at),
           });
