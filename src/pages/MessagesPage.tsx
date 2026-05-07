@@ -420,10 +420,10 @@ export default function MessagesPage() {
       if (error) throw error;
       const teams = data as Team[];
       
-      // Fetch latest messages for all teams in parallel
+      // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         teams.map(async (team) => {
           const { data: msgData } = await supabase
             .from("team_messages")
@@ -433,33 +433,42 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            const isAnnouncement = !!(msgData.is_club_announcement && msgData.club_announcement_name);
-            if (isAnnouncement) {
-              authorName = msgData.club_announcement_name!;
-            } else if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[team.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-              is_announcement: isAnnouncement,
-            };
-          }
+          return { teamId: team.id, msg: msgData };
         })
       );
-      
+
+      const authorIds = Array.from(new Set(
+        msgRows
+          .map(r => r.msg)
+          .filter((m): m is NonNullable<typeof m> => !!m && !(m.is_club_announcement && m.club_announcement_name) && !!m.author_id)
+          .map(m => m.author_id as string)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { teamId, msg } of msgRows) {
+        if (!msg) continue;
+        const isAnnouncement = !!(msg.is_club_announcement && msg.club_announcement_name);
+        const authorName = isAnnouncement
+          ? msg.club_announcement_name!
+          : (msg.author_id ? (authorNameById[msg.author_id] ?? "") : "");
+        latestMessages[teamId] = {
+          text: msg.text,
+          author: authorName,
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+          is_announcement: isAnnouncement,
+        };
+      }
+
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
