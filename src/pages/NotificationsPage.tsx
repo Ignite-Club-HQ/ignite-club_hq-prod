@@ -232,6 +232,13 @@ export default function NotificationsPage() {
     },
     onSuccess: () => {
       clearUnreadCount();
+      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      setTimeout(() => refreshUnreadCount(), 300);
     },
   });
 
