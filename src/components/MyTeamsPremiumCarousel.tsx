@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
+import { getCachedCarousel, setCachedCarousel } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 interface TeamOrLeague {
