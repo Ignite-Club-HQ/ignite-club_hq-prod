@@ -221,7 +221,7 @@ export function MyTeamsScroll() {
                   navigate(`/mini-leagues/${item.id}`);
                 }
               }}
-              className="shrink-0 w-[140px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
+              className="shrink-0 w-[180px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
             >
               {item.logo_url ? (
                 <LogoImage
@@ -242,10 +242,13 @@ export function MyTeamsScroll() {
 
               {/* Contextual info: next event or type label */}
               {nextEvent ? (
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground w-full justify-center">
-                  <Calendar className="h-2.5 w-2.5 shrink-0" />
-                  <span className="truncate">{nextEvent.title} {nextEvent.dateLabel}</span>
-                </span>
+                <div className="flex flex-col items-center gap-0.5 w-full">
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground w-full justify-center min-w-0">
+                    <Calendar className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{nextEvent.title}</span>
+                  </span>
+                  <span className="text-[10px] font-medium text-foreground/80">{nextEvent.dateLabel}</span>
+                </div>
               ) : item.type === "league" ? (
                 <span className="text-[10px] text-muted-foreground">League</span>
               ) : (
