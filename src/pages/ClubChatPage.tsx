@@ -419,8 +419,16 @@ export default function ClubChatPage() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
+      if (!clubId) return prev;
+      // From-push freshness: prefer the just-preloaded localStorage cache
+      // over a stale `prev` so the new message renders at first paint.
+      if (openedFromNotificationRef.current) {
+        const cachedMessages = getCachedClubMessages(clubId);
+        if (cachedMessages.length) {
+          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+        }
+      }
       if (prev) return prev;
-      if (!clubId) return undefined;
 
       const cachedMessages = getCachedClubMessages(clubId);
       if (!cachedMessages.length) return undefined;
