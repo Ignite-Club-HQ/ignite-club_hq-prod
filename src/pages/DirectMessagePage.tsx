@@ -491,6 +491,17 @@ export default function DirectMessagePage() {
     },
   });
 
+  // Priority refetch when opened from a push notification — the cached snapshot
+  // is known-stale, so as soon as auth is ready we kick a fresh fetch (the
+  // existing refetchOnMount: 'always' already does this, but invoking it
+  // explicitly ensures it runs even if a stale render slipped through and
+  // makes the intent explicit alongside the placeholder skip above).
+  useEffect(() => {
+    if (!openedFromNotificationRef.current) return;
+    if (!conversationId || !authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+  }, [conversationId, authReady, queryClient]);
+
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = Array.isArray(messagesData) 
