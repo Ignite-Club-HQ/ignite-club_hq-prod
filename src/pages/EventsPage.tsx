@@ -361,13 +361,16 @@ export default function EventsPage() {
         if (cached) return cached as Event[];
       }
 
-      // Window: last 30 days for context, up to 120 days ahead. The list view
-      // only ever shows the next handful of upcoming events, so capping the
-      // upper bound dramatically shrinks the payload for active clubs.
+      // Window: last 30 days for context, configurable upper bound ahead.
+      // M2 perf: narrow to ~45 days by default to shrink Schedule payload.
+      // Flip USE_NARROW_SCHEDULE_WINDOW to false to revert to the previous
+      // 120-day window instantly with no other code changes required.
+      const USE_NARROW_SCHEDULE_WINDOW = true;
+      const upperDays = USE_NARROW_SCHEDULE_WINDOW ? 45 : 120;
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const upperBound = new Date();
-      upperBound.setDate(upperBound.getDate() + 120);
+      upperBound.setDate(upperBound.getDate() + upperDays);
 
       let query = supabase
         .from("events")
