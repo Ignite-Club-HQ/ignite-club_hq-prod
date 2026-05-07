@@ -151,12 +151,11 @@ export function useInitialChatBottomPin({
         const viewport = resolveChatScrollViewport(scrollContainerRef.current);
         if (viewport && typeof ResizeObserver !== "undefined") {
           const guardObserver = new ResizeObserver(() => {
+            // Layout shift handler — never flip userScrolledAwayRef here.
+            // Only the real scroll-event listener may decide the user
+            // intentionally scrolled. A growth in scrollHeight from late
+            // profile/avatar/image hydration is not user intent.
             if (!userScrolledAwayRef.current) {
-              const m = getChatScrollMetrics(scrollContainerRef.current);
-              if (m && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
-                userScrolledAwayRef.current = true;
-                return;
-              }
               scrollChatToBottom(scrollContainerRef.current);
             }
           });
