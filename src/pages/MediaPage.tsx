@@ -471,7 +471,7 @@ export default function MediaPage() {
       return (data?.photo_ids as string[] | null) ?? [];
     },
     enabled: !!cardId,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const selectedClubFilter = selectedClubId !== "all" ? selectedClubId : null;
@@ -543,7 +543,7 @@ export default function MediaPage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     gcTime: 300000,
   });
 
