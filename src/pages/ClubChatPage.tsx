@@ -126,9 +126,11 @@ export default function ClubChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
-  const openedFromNotificationRef = useRef<boolean>(
-    !!clubId && consumeFromNotificationFlag("club", clubId),
+  const openedFromNotificationRef = useRef<number | null>(
+    clubId ? consumeFromNotificationFlag("club", clubId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(clubId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
