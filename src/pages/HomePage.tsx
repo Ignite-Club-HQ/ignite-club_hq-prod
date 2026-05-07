@@ -2312,17 +2312,21 @@ export default function HomePage() {
 
 
       {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
-      {activeClubFilter ? (
-        !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
-          <ClubSponsorSection clubId={activeClubFilter} />
-        )
-      ) : (
-        <MultiClubSponsorCarousel />
-      )}
-      
+      <LazyMount minHeight={120} rootMargin="500px">
+        {activeClubFilter ? (
+          !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
+            <ClubSponsorSection clubId={activeClubFilter} />
+          )
+        ) : (
+          <MultiClubSponsorCarousel />
+        )}
+      </LazyMount>
+
       {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
       {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
-        <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+        <LazyMount minHeight={100} rootMargin="500px">
+          <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+        </LazyMount>
       )}
 
       {/* Pitch Board Loading Overlay */}
