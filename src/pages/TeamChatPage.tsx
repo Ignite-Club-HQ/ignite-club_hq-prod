@@ -584,6 +584,25 @@ export default function TeamChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (loadingMessages && !messagesData && !(localMessages?.length));
+
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!teamId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "team",
+      targetId: teamId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [teamId, user?.id, showLoading, localMessages, messagesData]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
