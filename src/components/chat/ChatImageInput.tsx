@@ -629,116 +629,151 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               title="More actions"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="inline-flex items-center justify-center h-10 w-10 shrink-0 rounded-full text-foreground/75 hover:text-foreground hover:bg-accent active:bg-accent/80 active:scale-95 transition-all duration-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+              // Prevent the textarea from blurring on press so the keyboard
+              // does NOT dismiss when opening the attachment tray. The tray
+              // should feel like an extension of the composer, not a modal
+              // workflow that closes the keyboard.
+              onPointerDown={(e) => {
+                if (document.activeElement && document.activeElement !== e.currentTarget) {
+                  e.preventDefault();
+                }
+              }}
+              onMouseDown={(e) => {
+                if (document.activeElement && document.activeElement !== e.currentTarget) {
+                  e.preventDefault();
+                }
+              }}
+              className={`inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-full transition-all duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                menuOpen
+                  ? "bg-muted/70 text-foreground/80"
+                  : "text-foreground/55 hover:text-foreground hover:bg-muted/60 active:bg-muted/70"
+              }`}
             >
-              <Plus className="h-5 w-5 -mt-px" strokeWidth={2} aria-hidden="true" />
+              <Plus
+                className={`h-[18px] w-[18px] transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
             </button>
           </PopoverTrigger>
           <PopoverContent
-            align="end"
+            align="start"
             side="top"
-            sideOffset={8}
-            collisionPadding={12}
-            avoidCollisions={true}
-            className="w-64 p-1.5 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            sideOffset={10}
+            collisionPadding={8}
+            avoidCollisions={false}
+            // Keep focus inside the composer textarea so the keyboard stays
+            // up while the attachment tray is open.
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+            className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
-            <div className="flex flex-col">
-              {/* Quick action: Add Photo / Video — first, with subtle weight only */}
-              <button
-                type="button"
-                onClick={(e) => {
+            {(() => {
+              type Action = {
+                key: string;
+                label: string;
+                hint: string;
+                icon: React.ReactNode;
+                tone: "primary" | "muted";
+                onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+                disabled?: boolean;
+              };
+              const actions: Action[] = [];
+              actions.push({
+                key: "photo",
+                label: "Photo / Video",
+                hint: "Camera roll",
+                icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
+                tone: "primary",
+                disabled: disabled || uploading,
+                onClick: (e) => {
                   setMenuOpen(false);
-                  handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
-                }}
-                disabled={disabled || uploading}
-                className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
-                aria-label="Add photo or video"
-              >
-                <ImagePlus className="h-[18px] w-[18px] shrink-0 text-foreground" strokeWidth={2} aria-hidden="true" />
-                <div className="flex flex-col items-start leading-tight min-w-0">
-                  <span className="text-sm font-medium text-foreground">Add Photo / Video</span>
-                  <span className="text-[11px] text-muted-foreground">From camera roll or gallery</span>
-                </div>
-              </button>
-
-              {showVaultPicker && clubId && (
-                <button
-                  type="button"
-                  onClick={() => {
+                  handleImageButtonClick(e);
+                },
+              });
+              if (showVaultPicker && clubId) {
+                actions.push({
+                  key: "file",
+                  label: "File or Folder",
+                  hint: "Device or vault",
+                  icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
+                  tone: "muted",
+                  disabled: disabled || uploading,
+                  onClick: () => {
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
-                  }}
-                  disabled={disabled || uploading}
-                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
-                  aria-label="Attach file"
-                >
-                  <Paperclip className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground">Attach File or Folder</span>
-                    <span className="text-[11px] text-muted-foreground">From your device or vault</span>
-                  </div>
-                </button>
-              )}
-
-              {(showEventPicker || showPollCreator || canShowBoardPicker) && (
-                <div className="mx-3 mt-1 mb-2 h-px bg-border/60" role="separator" />
-              )}
-
-              {showEventPicker && onEventSelect && (
-                <button
-                  type="button"
-                  onClick={() => {
+                  },
+                });
+              }
+              if (showEventPicker && onEventSelect) {
+                actions.push({
+                  key: "event",
+                  label: "Share Event",
+                  hint: "Training or game",
+                  icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
+                  tone: "muted",
+                  disabled,
+                  onClick: () => {
                     setMenuOpen(false);
                     onEventSelect("");
-                  }}
-                  disabled={disabled}
-                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
-                  aria-label="Share event"
-                >
-                  <CalendarPlus className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground">Share Event</span>
-                    <span className="text-[11px] text-muted-foreground">Training, game or social</span>
-                  </div>
-                </button>
-              )}
-              {showPollCreator && onPollCreate && (
-                <button
-                  type="button"
-                  onClick={() => {
+                  },
+                });
+              }
+              if (showPollCreator && onPollCreate) {
+                actions.push({
+                  key: "poll",
+                  label: "Create Poll",
+                  hint: "Ask the group",
+                  icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
+                  tone: "muted",
+                  disabled,
+                  onClick: () => {
                     setMenuOpen(false);
                     onPollCreate();
-                  }}
-                  disabled={disabled}
-                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
-                  aria-label="Create poll"
-                >
-                  <BarChart3 className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground">Create Poll</span>
-                    <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
-                  </div>
-                </button>
-              )}
-              {canShowBoardPicker && onBoardPick && (
-                <button
-                  type="button"
-                  onClick={() => {
+                  },
+                });
+              }
+              if (canShowBoardPicker && onBoardPick) {
+                actions.push({
+                  key: "board",
+                  label: "Live Board",
+                  hint: "Track match live",
+                  icon: <Trophy className="h-[17px] w-[17px]" strokeWidth={2} />,
+                  tone: "muted",
+                  disabled,
+                  onClick: () => {
                     setMenuOpen(false);
                     onBoardPick();
-                  }}
-                  disabled={disabled}
-                  className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-md hover:bg-accent active:bg-accent transition-colors duration-75 disabled:opacity-50 min-h-[48px] focus-visible:outline-none focus-visible:bg-accent"
-                  aria-label="Share live board"
-                >
-                  <Trophy className="h-[18px] w-[18px] shrink-0 text-foreground/80" strokeWidth={2} aria-hidden="true" />
-                  <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground">Share Live Board</span>
-                    <span className="text-[11px] text-muted-foreground">{boardSubtitle}</span>
-                  </div>
-                </button>
-              )}
-            </div>
+                  },
+                });
+              }
+              return (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {actions.map((a) => (
+                    <button
+                      key={a.key}
+                      type="button"
+                      disabled={a.disabled}
+                      onPointerDown={(e) => e.preventDefault()}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={a.onClick}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-transparent hover:bg-muted/50 active:bg-muted/70 active:scale-[0.98] transition-all duration-100 disabled:opacity-50 disabled:active:scale-100 min-h-[52px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 text-left"
+                      aria-label={a.label}
+                    >
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
+                      >
+                        {a.icon}
+                      </div>
+                      <div className="flex flex-col leading-tight min-w-0">
+                        <span className="text-[13px] font-medium text-foreground/90 truncate">{a.label}</span>
+                        <span className="text-[11px] text-muted-foreground/80 truncate">{a.hint}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </PopoverContent>
         </Popover>
       )}

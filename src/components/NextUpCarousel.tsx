@@ -16,10 +16,10 @@ import { formatEventContextualDate, getEventUrgencyBadge, formatCompactDateTime 
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
 import { getEventDisplay } from "@/lib/eventDisplay";
-import { TeamChip } from "@/components/events/TeamChip";
-import { getEventTypeIcon } from "@/lib/eventTypeIcon";
+import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
+import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { abbreviateLocation } from "@/lib/abbreviateLocation";
+
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -316,10 +316,26 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const queryClient = useQueryClient();
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const compactWhen = formatCompactDateTime(event.event_date);
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  // Full location — venue + pitch/court is critical info; never abbreviate or truncate.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0] || "";
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
+
+  // Team / type visual identity — same system as schedule cards.
+  const teamRailHex = getTeamRailColor(event.teams?.name) || `hsl(var(--primary))`;
+  const typeAccent = getEventTypeAccent(event.type, {
+    miniLeagueId: (event as any).mini_league_id,
+    opponent: event.opponent,
+  });
+  const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+  const isToday = (() => {
+    try {
+      const today = new Date();
+      const evt = new Date(event.event_date);
+      return today.toDateString() === evt.toDateString();
+    } catch { return false; }
+  })();
 
   const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -439,36 +455,74 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
   });
 
+  // RSVP buttons: outline by default, fill with semantic tint when selected.
+  // Lower contrast than the previous solid-primary going button so the team identity
+  // and event details remain the strongest things on the card.
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90", inactiveHint: "bg-primary text-primary-foreground hover:bg-primary/90 border-transparent" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning/15 text-warning border-warning/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive/15 text-destructive border-destructive/40", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    {
+      status: "going",
+      label: "Going",
+      icon: <Check className="h-3.5 w-3.5" />,
+      activeClass: "bg-primary/15 text-primary border-primary/50 shadow-sm hover:bg-primary/20",
+      inactiveHint: "border-border/70 text-foreground/80 hover:bg-primary/5 hover:border-primary/30 hover:text-primary",
+    },
+    {
+      status: "maybe",
+      label: "Maybe",
+      icon: <HelpCircle className="h-3.5 w-3.5" />,
+      activeClass: "bg-warning/15 text-warning border-warning/45",
+      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+    },
+    {
+      status: "not_going",
+      label: "Can't go",
+      icon: <X className="h-3.5 w-3.5" />,
+      activeClass: "bg-destructive/15 text-destructive border-destructive/45",
+      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+    },
   ];
+
+  const isMatchDay = !!(event as any).mini_league_id;
 
   return (
     <Card
-      className={`relative shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
-      <ChevronRight
-        className="absolute right-3 top-4 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+      {/* Team color rail — primary recognition cue, identical system to the schedule cards */}
+      <span
+        className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
+        style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
         aria-hidden="true"
       />
-      <CardContent className="p-3 pr-7 space-y-1.5 flex-1 flex flex-col">
-        {/* Cancelled marker only — date is now inline with the time row */}
-        {event.is_cancelled && (
-          <div className="flex items-center justify-end">
-            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+      {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
+      <ChevronRight
+        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+        aria-hidden="true"
+      />
+      <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
+        {/* Status row: Today badge + cancelled marker — compact, doesn't crowd chevron */}
+        {(isToday || event.is_cancelled) && (
+          <div className="flex items-center justify-end gap-1.5 -mr-3">
+            {isToday && !event.is_cancelled && (
+              <Badge
+                variant="outline"
+                className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
+              >
+                Today
+              </Badge>
+            )}
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="text-[9.5px] h-[18px] px-1.5">Cancelled</Badge>
+            )}
           </div>
         )}
 
-        {/* Hierarchy differs for social/club events: title is primary, type is secondary.
-            Structured events (training/game) keep team-as-anchor. */}
+        {/* HIERARCHY: Team identity first (title-weight), then event context, then logistics */}
         {(() => {
           const TypeIcon = getEventTypeIcon(event.type, { miniLeagueId: (event as any).mini_league_id });
           const isSocial = event.type === "social";
@@ -477,16 +531,16 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           if (isSocial) {
             return (
               <div className="space-y-1 min-w-0">
-                <h3 className={`text-[17px] font-semibold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
+                <h3 className={`text-[17px] font-bold leading-snug text-foreground line-clamp-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   {displayTitle}
                 </h3>
-                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                  <TypeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden="true" />
-                  <span className="truncate">{typeLabel}</span>
+                <div className="flex items-center gap-1.5 text-[12px]">
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`font-medium ${typeAccentClasses.text}`}>{typeLabel}</span>
                   {hasTeam && (
                     <>
                       <span className="text-border">·</span>
-                      <span className="truncate">{event.teams!.name}</span>
+                      <span className="text-muted-foreground truncate">{event.teams!.name}</span>
                     </>
                   )}
                 </div>
@@ -499,60 +553,53 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             event.type === "mini_league" ||
             !!(event as any).mini_league_id ||
             !!event.opponent;
-          const isTraining = event.type === "training" && !isGame;
 
           return (
-            <div className="space-y-1">
-              {/* Top row: team chip (primary anchor) + match-only badge */}
-              <div className="flex items-center justify-between gap-2">
-                <TeamChip teamName={event.teams?.name} fallbackLabel={event.team_id ? "" : "Club event"} size="md" />
-                {isGame && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] h-5 font-semibold tracking-wide uppercase shrink-0 bg-destructive/10 text-destructive border-destructive/30"
-                  >
-                    Match
-                  </Badge>
+            <div className="space-y-1.5">
+              {isMatchDay && (
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${typeAccentClasses.text}`}>
+                  Match Day
+                </span>
+              )}
+              {/* PRIMARY: team identity as title */}
+              <TeamChip
+                teamName={event.teams?.name}
+                fallbackLabel={event.team_id ? "" : "Club event"}
+                size="lg"
+                asTitle
+              />
+              {/* SECONDARY: event context */}
+              <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
+                <div className="flex items-center gap-1.5 text-[14px] font-medium leading-snug">
+                  <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
+                  <span className={`min-w-0 truncate ${typeAccent === "default" ? "text-foreground/85" : typeAccentClasses.text}`}>
+                    {isGame
+                      ? (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary)
+                      : eventDisplay.primary}
+                  </span>
+                </div>
+                {!isGame && eventDisplay.secondary && (
+                  <p className="mt-0.5 text-[12px] text-muted-foreground/80 leading-snug truncate pl-5">
+                    {eventDisplay.secondary}
+                  </p>
                 )}
               </div>
-
-              {/* Event title — left-aligned for both, secondary to team chip */}
-              {isGame ? (
-                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[15px] font-medium text-foreground/85 leading-snug">
-                    <TypeIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
-                    <span className="min-w-0 truncate">
-                      {event.opponent ? `vs ${event.opponent}` : eventDisplay.primary}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className={`min-w-0 ${event.is_cancelled ? "line-through" : ""}`}>
-                  <div className="flex items-center gap-1.5 text-[14px] font-medium text-foreground/75 leading-snug">
-                    <TypeIcon className="h-4 w-4 shrink-0 opacity-55" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{eventDisplay.primary}</span>
-                  </div>
-                  {eventDisplay.secondary && (
-                    <p className="mt-0.5 text-[12px] text-muted-foreground/65 leading-snug truncate pl-5">
-                      {eventDisplay.secondary}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           );
         })()}
 
-        {/* Compact date + time + location — location is the dominant meta line */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 text-[13px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
-            <span className="font-normal text-foreground/80">{compactWhen}</span>
+        {/* TERTIARY (still highly visible): time + location.
+            Location gets its OWN line so long pitch/court names stay fully visible —
+            this is the question parents/coaches open the app to answer. */}
+        <div className="space-y-0.5 pt-0.5">
+          <div className="flex items-center gap-1.5 text-[13.5px] text-foreground font-semibold">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <span className="min-w-0">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-2 text-[13.5px]">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-start gap-1.5 text-[13px] text-foreground/90">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+              <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {
@@ -560,8 +607,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
             return (
-              <div className="flex items-center gap-2 text-[12px] text-warning">
-                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <div className="flex items-center gap-1.5 text-[12px] text-warning">
+                <Clock className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
                 <span className="font-medium">Arrive by {arrivalTime}</span>
                 <span className="text-muted-foreground">({mins} min before)</span>
               </div>
@@ -570,10 +617,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
 
-        {/* RSVP Buttons */}
+        {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
+            previous solid-primary "Going" so the team identity reads first, but tap targets
+            stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
         {!event.is_cancelled && (
-          <div className="space-y-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
               {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
                 const isActive = currentStatus === status;
@@ -584,12 +633,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     size="sm"
                     aria-pressed={isActive}
                     aria-label={`RSVP ${label}`}
-                    className={`flex-1 gap-1.5 text-[12px] font-medium h-8 rounded-full transition-all ${
-                      isActive
-                        ? activeClass
-                        : status === "going" && !currentStatus
-                          ? inactiveHint
-                          : inactiveHint
+                    className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
+                      isActive ? activeClass : inactiveHint
                     }`}
                     disabled={rsvpMutation.isPending || isActive}
                     onClick={() => !isActive && rsvpMutation.mutate(status)}
@@ -700,7 +745,8 @@ function CompactCard({ event }: { event: EventItem }) {
   const { label: dateLabel, time: dateTime } = formatContextualDate(event.event_date);
   const compactWhen = formatCompactDateTime(event.event_date);
 
-  const locationDisplay = abbreviateLocation(event.location_name || event.suburb || event.address?.split(',')[0]);
+  // Full location — keep pitch/court details visible.
+  const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0] || "";
   const typeLabel = getEventTypeLabel(event.type, { miniLeagueId: (event as any).mini_league_id });
   const displayTitle = formatEventTitle(event);
   const eventDisplay = getEventDisplay(event);
@@ -812,9 +858,9 @@ function CompactCard({ event }: { event: EventItem }) {
             <span className="font-normal text-foreground/80">{compactWhen}</span>
           </div>
           {locationDisplay && (
-            <div className="flex items-center gap-1.5 text-[12.5px]">
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span className="font-semibold text-foreground truncate">{locationDisplay}</span>
+            <div className="flex items-start gap-1.5 text-[12.5px]">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60 mt-0.5" aria-hidden="true" />
+              <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
           {event.type === "game" && (() => {

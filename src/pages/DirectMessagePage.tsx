@@ -1243,7 +1243,7 @@ export default function DirectMessagePage() {
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
-             className={`fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
+             className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
@@ -1256,7 +1256,7 @@ export default function DirectMessagePage() {
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
-             className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
+             className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
              <TypingIndicator typingUsers={typingUsers} />
@@ -1268,7 +1268,7 @@ export default function DirectMessagePage() {
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-                <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
+                <div className="flex w-full max-w-full min-w-0 items-center gap-0.5 overflow-visible px-2 py-1">
                 {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}

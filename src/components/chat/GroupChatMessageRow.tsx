@@ -436,7 +436,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               <div
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-lg px-3 py-2 select-none transition-all duration-100 overflow-hidden ${
-                  isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
+                  isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
@@ -665,7 +665,7 @@ function GroupReactionBadges({
 
   return (
     <>
-      <div className="flex flex-wrap gap-1 mt-1">
+      <div className="relative z-10 flex flex-wrap gap-1 mt-1">
         {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
           const userReaction = items.find((r: any) => r.user_id === userId);
           const emoji = normalizeGroupReactionType(type);
@@ -676,12 +676,12 @@ function GroupReactionBadges({
                 e.stopPropagation();
                 setViewingType(type);
               }}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-                userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+              className={`inline-flex items-center gap-0.5 pl-1.5 pr-1.5 py-[1px] rounded-full text-[11px] leading-none ring-1 ring-background transition-colors ${
+                userReaction ? "bg-primary/15 text-primary" : "bg-muted/80 text-foreground/75 hover:bg-muted"
               }`}
             >
-              <span>{emoji}</span>
-              <span>{items.length}</span>
+              <span className="text-[12px] leading-none">{emoji}</span>
+              <span className="tabular-nums">{items.length}</span>
             </button>
           );
         })}

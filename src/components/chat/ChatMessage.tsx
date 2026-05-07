@@ -814,7 +814,7 @@ function ChatMessageInner({
               ref={bubbleRef}
               className={`relative max-w-full rounded-2xl px-4 py-2 select-none transition-all duration-100 overflow-hidden ${
                 isOwn && !isClubAnnouncement
-                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                  ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
               } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
@@ -964,7 +964,7 @@ function ChatMessageInner({
           onReactionClick={handleReactionClick}
         />
         
-        <p className={`text-[10px] text-muted-foreground mt-1 flex items-center gap-1 ${isOwn ? "justify-end" : ""}`}>
+        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 ${isOwn ? "justify-end" : ""}`}>
           {isPending && (
             <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
               <Clock className="h-3 w-3" />
@@ -985,7 +985,7 @@ function ChatMessageInner({
             ? <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
                 <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
               </div>
-            : <p className={`text-[10px] text-muted-foreground mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+            : <p className={`text-[10px] text-muted-foreground/70 mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
         {isOwn && (
           <ReadReceiptSheet
