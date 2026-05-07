@@ -1387,7 +1387,7 @@ export default function ClubChatPage() {
                       id={`message-${msg.id}`}
                       className={`transition-colors duration-500 ${
                         highlightedMessageId === msg.id
-                          ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-2"
+                          ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg"
                           : ""
                       }`}
                     >
