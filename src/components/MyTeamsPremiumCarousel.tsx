@@ -271,17 +271,31 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   );
 }
 
+interface CarouselSnapshot {
+  items: TeamOrLeague[];
+  nextEvents: Record<string, NextEventInfo>;
+  teamPhotos: Record<string, { id: string; url: string }[]>;
+  unreadCounts: Record<string, number>;
+}
+
 export function MyTeamsPremiumCarousel() {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
 
+  // Hydrate from localStorage so cold opens paint real cards instantly
+  const snapshot = useMemo<CarouselSnapshot | null>(
+    () => getCachedCarousel<CarouselSnapshot>(user?.id, activeClubFilter),
+    [user?.id, activeClubFilter]
+  );
+
   // Fetch teams & leagues
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = snapshot?.items ?? [], isLoading } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
     retry: 3,
     queryFn: async () => {
       if (!user) return [];
+
 
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
