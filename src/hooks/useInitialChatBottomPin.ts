@@ -95,11 +95,19 @@ export function useInitialChatBottomPin({
       const grew = itemCount > lastItemCountRef.current;
       const wasEmptyPin = pinnedWhileEmptyRef.current && itemCount > 0;
 
-      if (wasEmptyPin && !userScrolledAwayRef.current) {
+      if (wasEmptyPin) {
         // Messages arrived AFTER we declared an empty-pin (e.g. first open
         // post-login while auth was still resolving). Re-run the full pin
         // sequence so we get settle attempts + post-pin guard with image
         // load listeners — same robustness as the initial open path.
+        // CRITICAL: clear userScrolledAwayRef. During the empty-pin phase the
+        // scroll listener was active (isPinned=true) but pinnedAtRef was 0,
+        // so any scroll event from content streaming into the empty viewport
+        // fell outside the trust window and falsely marked the user as
+        // scrolled-away. Without resetting it here, every post-pin guard
+        // (ResizeObserver, image-load, delayed snaps) below short-circuits
+        // and late profile/image hydration leaves the user above bottom.
+        userScrolledAwayRef.current = false;
         pinnedWhileEmptyRef.current = false;
         lastItemCountRef.current = itemCount;
         // Reset so the main effect re-runs on the next render via dependency
@@ -167,6 +175,13 @@ export function useInitialChatBottomPin({
       setIsPinned(true);
       pinnedKeyRef.current = resetKey;
       lastItemCountRef.current = 0;
+      // Mark a "pin time" so the scroll listener (which activates on
+      // isPinned) trusts events fired while messages stream into the
+      // empty viewport. Without this, scrollHeight growth from 0 → tall
+      // would fire scroll events outside any trust window and falsely
+      // set userScrolledAwayRef = true, disabling all post-pin guards
+      // when the real messages arrive.
+      pinnedAtRef.current = performance.now();
       return;
     }
 
