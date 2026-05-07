@@ -234,6 +234,7 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
         });
       }
     }
+    schedulePersist();
   } catch (error) {
     console.error("Error batch fetching signed URLs:", error);
     for (const url of uncachedUrls) {
@@ -247,4 +248,9 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
 // Clear cache (useful for logout)
 export function clearSignedUrlCache() {
   urlCache.clear();
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(LS_KEY);
+  } catch {
+    /* ignore */
+  }
 }
