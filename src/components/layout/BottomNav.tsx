@@ -357,7 +357,13 @@ export function BottomNav() {
                     <Icon className="h-5 w-5" aria-hidden="true" />
                     {label === "Messages" && unreadMessagesCount > 0 && (
                       <span
-                        className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1 animate-pulse-glow shadow-sm"
+                        className={cn(
+                          "absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full font-semibold text-[9px] leading-none ring-2 ring-card text-white tabular-nums",
+                          "bg-[hsl(0_72%_55%)]",
+                          unreadMessagesCount > 9
+                            ? "min-w-[16px] h-[15px] px-1"
+                            : "w-[15px] h-[15px]"
+                        )}
                         aria-label={`${unreadMessagesCount} unread messages`}
                       >
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
