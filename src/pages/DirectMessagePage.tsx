@@ -179,11 +179,13 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   // Read once on mount: was this thread opened from a push notification within
-  // the last 60s? If so, the cached snapshot is stale — skip placeholder render
-  // and force a priority refetch as soon as we have auth.
-  const openedFromNotificationRef = useRef<boolean>(
-    !!conversationId && consumeFromNotificationFlag("dm", conversationId),
+  // the last 60s? Stores the tap timestamp (ms epoch) so we can measure
+  // tap → first-message-render latency below.
+  const openedFromNotificationRef = useRef<number | null>(
+    conversationId ? consumeFromNotificationFlag("dm", conversationId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = conversationId
