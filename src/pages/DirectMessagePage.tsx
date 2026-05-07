@@ -478,12 +478,12 @@ export default function DirectMessagePage() {
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.
-      // BUT: if we just opened this thread from a push notification, the
-      // cached snapshot is known-stale (it predates the new message). Skip the
-      // placeholder so the user sees the loading state briefly instead of a
-      // stale render that swaps under them ~2–5s later.
+      // When opened from a push notification, the preload handler has already
+      // merged the new message into this cache (see notificationPreload.ts),
+      // so the user sees the new message at first paint. The background
+      // refetch (refetchOnMount: 'always') still runs to fill in reactions
+      // and any other recent activity.
       if (!conversationId) return undefined;
-      if (openedFromNotificationRef.current) return undefined;
       const messages = getCachedDirectMessages(conversationId);
       if (!messages.length) return undefined;
 
