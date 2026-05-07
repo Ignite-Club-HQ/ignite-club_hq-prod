@@ -628,9 +628,9 @@ export function MyTeamsPremiumCarousel() {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">My Teams</h2>
-      <ScrollArea className="w-full">
-        <div className="flex gap-3 pb-3 snap-x snap-mandatory">
+      <h2 className="text-lg font-semibold px-1">My Teams</h2>
+      <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
           {items.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
@@ -642,8 +642,7 @@ export function MyTeamsPremiumCarousel() {
           ))}
           {createClubCard}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
     </section>
   );
 }
