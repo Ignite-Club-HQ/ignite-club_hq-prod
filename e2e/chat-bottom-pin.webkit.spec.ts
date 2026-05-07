@@ -21,10 +21,34 @@
 import { test, expect } from "../playwright-fixture";
 import type { Page } from "@playwright/test";
 
-const CHAT_ROUTES: Array<{ name: string; path: string }> = [
+/**
+ * Chat routes to exercise. Dynamic-ID routes pull their ID from env vars
+ * so we don't bake fixture UUIDs into the repo. Missing env vars cause
+ * that route's test to skip cleanly (NOT fail — a missing fixture must
+ * never mask a real scroll regression).
+ *
+ *   E2E_TEAM_ID            → /messages/:teamId
+ *   E2E_CLUB_ID            → /messages/club/:clubId
+ *   E2E_DM_CONVERSATION_ID → /messages/dm/:conversationId
+ *   E2E_CLUB_ADMIN_ID      → /messages/club-admin/:conversationId
+ *   E2E_GROUP_ID           → /groups/:groupId
+ */
+const env = (process.env ?? {}) as Record<string, string | undefined>;
+
+const CHAT_ROUTES: Array<{ name: string; path: string | null }> = [
   { name: "broadcast", path: "/messages/broadcast" },
-  { name: "team", path: "/messages" },
-  { name: "club-admin-list", path: "/messages" },
+  { name: "messages-inbox", path: "/messages" },
+  { name: "team-chat", path: env.E2E_TEAM_ID ? `/messages/${env.E2E_TEAM_ID}` : null },
+  { name: "club-chat", path: env.E2E_CLUB_ID ? `/messages/club/${env.E2E_CLUB_ID}` : null },
+  {
+    name: "direct-message",
+    path: env.E2E_DM_CONVERSATION_ID ? `/messages/dm/${env.E2E_DM_CONVERSATION_ID}` : null,
+  },
+  {
+    name: "club-admin-chat",
+    path: env.E2E_CLUB_ADMIN_ID ? `/messages/club-admin/${env.E2E_CLUB_ADMIN_ID}` : null,
+  },
+  { name: "group-chat", path: env.E2E_GROUP_ID ? `/groups/${env.E2E_GROUP_ID}` : null },
 ];
 
 async function findChatViewport(page: Page) {
