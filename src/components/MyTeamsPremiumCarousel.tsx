@@ -383,11 +383,13 @@ export function MyTeamsPremiumCarousel() {
           for (const league of leagues) {
             if (activeClubFilter && league.club_id !== activeClubFilter) continue;
             const canManage = leagueAdminClubIds.includes(league.club_id);
+            const cachedClub = getCachedClub(league.club_id);
             result.push({
               id: league.id, name: league.name, logo_url: null,
-              club_logo_url: league.clubs?.logo_url || null,
+              club_logo_url: cachedClub?.logo_url || league.clubs?.logo_url || null,
               type: "league",
-              club_name: league.clubs?.name || "", sport: league.clubs?.sport || null,
+              club_name: cachedClub?.name || league.clubs?.name || "",
+              sport: cachedClub?.sport || league.clubs?.sport || null,
               club_id: league.club_id, canManage,
             });
           }
