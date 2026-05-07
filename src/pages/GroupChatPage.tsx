@@ -864,9 +864,15 @@ export default function GroupChatPage() {
     
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingOlder && hasOlderMessages) {
-          loadOlderMessages();
-        }
+        if (!entries[0].isIntersecting || isLoadingOlder || !hasOlderMessages) return;
+        // Require the user to have scrolled away from the bottom before fetching
+        // older messages. Without this, short threads (where the trigger is
+        // already in view on open) auto-fetch a page and the scroll-restore
+        // logic visibly jolts the chat upward right after pin completes.
+        const distanceFromBottom =
+          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+        if (distanceFromBottom < 200) return;
+        loadOlderMessages();
       },
       // rootMargin pre-fetches older messages BEFORE the user reaches the very top
       // so the next page is already in the DOM by the time they keep scrolling up.
