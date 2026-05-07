@@ -42,6 +42,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -470,11 +471,16 @@ export default function DirectMessagePage() {
     refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
     refetchOnWindowFocus: false,
     placeholderData: () => {
-      // Return cached messages as placeholder for instant load
+      // Return cached messages as placeholder for instant load.
+      // BUT: if we just opened this thread from a push notification, the
+      // cached snapshot is known-stale (it predates the new message). Skip the
+      // placeholder so the user sees the loading state briefly instead of a
+      // stale render that swaps under them ~2–5s later.
       if (!conversationId) return undefined;
+      if (openedFromNotificationRef.current) return undefined;
       const messages = getCachedDirectMessages(conversationId);
       if (!messages.length) return undefined;
-      
+
       return { messages, hasOlderMessages: false };
     },
   });
