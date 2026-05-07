@@ -75,68 +75,50 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
       if (platform === "ios") {
         // iOS: @capacitor-community/media's savePhoto uses SDWebImage which
-        // is unreliable for file:// URIs and Supabase signed URLs. Instead,
-        // fetch the bytes ourselves and use the dedicated savePhotoFromData
-        // path on @capgo/capacitor-social-share, OR fall back to writing the
-        // file and using SaveDialog/Share. Most reliable: use @capacitor/camera-
-        // independent path — write a temp file and let SDWebImage read it via
-        // a data: URL (SDWebImage supports data URI scheme natively).
-        const { Media } = await import("@capacitor-community/media");
+        // fails for both Supabase signed URLs (TLS/IPv6 quirks) and large
+        // data: URLs (URL(string:) returns nil above ~2MB). The reliable
+        // path is: fetch the bytes ourselves, write to the cache directory,
+        // then present the iOS Share sheet pointed at the local file. iOS
+        // shows a native "Save Image" action that writes straight into the
+        // Photos library without any third-party downloader in the loop.
         const response = await fetch(resolvedUrl);
         if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
         const blob = await response.blob();
-        const contentType = blob.type || "image/jpeg";
+        const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
+        const ext = pickExtension(contentType) || guessExtensionFromUrl(resolvedUrl);
+        const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
         const base64 = await blobToBase64(blob);
-        const dataUrl = `data:${contentType};base64,${base64}`;
-
-        let saved = false;
-        try {
-          await Media.savePhoto({ path: dataUrl });
-          saved = true;
-        } catch (dataUrlErr) {
-          console.warn("[downloadImage] iOS savePhoto(data:) failed, trying file://", dataUrlErr);
-          try {
-            const iosExt = guessExtensionFromUrl(resolvedUrl);
-            const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
-            const written = await Filesystem.writeFile({
-              path: iosFilename,
-              data: base64,
-              directory: Directory.Cache,
-              recursive: true,
-            });
-            const localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
-            await Media.savePhoto({ path: localPath });
-            saved = true;
-          } catch (fileErr) {
-            console.warn("[downloadImage] iOS savePhoto(file://) failed:", fileErr);
-          }
-        }
-
-        if (!saved) {
-          toast.error("Download failed", { id: toastId, description: "Please try again" });
-          return;
-        }
-        toast.success("Photo downloaded", {
-          id: toastId,
-          description: "Saved to your photos",
-          action: {
-            label: "Open",
-            onClick: async () => {
-              try {
-                const { AppLauncher } = await import("@capacitor/app-launcher");
-                const opened = await AppLauncher.openUrl({ url: "photos-redirect://" });
-                if (!opened?.completed) {
-                  await AppLauncher.openUrl({ url: "photos://" });
-                }
-              } catch (openErr: any) {
-                console.warn("[downloadImage] open Photos failed:", openErr);
-                toast.error("Could not open Photos", {
-                  description: "Open the Photos app from your home screen",
-                });
-              }
-            },
-          },
+        const written = await Filesystem.writeFile({
+          path: iosFilename,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
         });
+        const localPath =
+          written.uri ||
+          (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+
+        try {
+          const { Share } = await import("@capacitor/share");
+          await Share.share({
+            title: "Save photo",
+            url: localPath,
+            files: [localPath],
+            dialogTitle: "Save photo",
+          });
+          toast.success("Photo ready", {
+            id: toastId,
+            description: "Tap Save Image in the share sheet",
+          });
+        } catch (shareErr: any) {
+          const msg = String(shareErr?.message || shareErr).toLowerCase();
+          if (msg.includes("cancel") || msg.includes("abort")) {
+            toast.dismiss(toastId);
+            return;
+          }
+          console.warn("[downloadImage] iOS share fallback failed:", shareErr);
+          toast.error("Download failed", { id: toastId, description: "Please try again" });
+        }
         return;
       }
 
