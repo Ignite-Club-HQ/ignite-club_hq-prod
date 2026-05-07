@@ -176,8 +176,38 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
         );
       }
 
-      // Brief tail to absorb any final ResizeObserver-driven snap that
-      // fires immediately after reveal.
+      // Belt-and-braces fallback: even after reveal, late-mounting
+      // attachment cards (GalleryLinkCard, link previews, etc.) render a
+      // <Skeleton /> placeholder while their thumbnail decodes. Those
+      // skeletons share the global `animate-pulse` utility (Tailwind) and
+      // stop animating once their content swaps in. Wait for ALL pulsing
+      // placeholders inside the chat viewport to disappear before we
+      // measure — otherwise we might capture scrollTop while a card is
+      // still about to grow by ~120px on thumbnail load.
+      await page
+        .waitForFunction(
+          () => {
+            const vp =
+              document.querySelector<HTMLElement>("[data-chat-viewport]") ??
+              document.querySelector<HTMLElement>(
+                "[data-radix-scroll-area-viewport]",
+              );
+            if (!vp) return true;
+            const skeletons = vp.querySelectorAll<HTMLElement>(
+              ".animate-pulse, [data-skeleton], [data-state='loading']",
+            );
+            return skeletons.length === 0;
+          },
+          null,
+          { timeout: 4_000, polling: 100 },
+        )
+        .catch(() => {
+          /* skeletons may legitimately remain (e.g. a stalled signed URL).
+             We tried; fall through and let the image-load wait handle it. */
+        });
+
+      // Final tail to absorb any ResizeObserver-driven snap that fires
+      // immediately after the last skeleton swap.
       await page.waitForTimeout(150);
 
       const before = await waitForImagesAndMeasure(page);
