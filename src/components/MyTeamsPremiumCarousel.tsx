@@ -480,10 +480,18 @@ export function MyTeamsPremiumCarousel() {
       const now = new Date().toISOString();
       const map: Record<string, NextEventInfo> = {};
 
+      const buildLabel = (type: string | null, opponent: string | null, title: string) => {
+        if (type === "training") return "Training";
+        if (type === "social") return "Social";
+        if ((type === "game" || type === "mini_league") && opponent) return `Game v ${opponent}`;
+        if (type === "game" || type === "mini_league") return "Game";
+        return title;
+      };
+
       if (teamIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("team_id, title, type, event_date")
+          .select("team_id, title, type, opponent, event_date")
           .in("team_id", teamIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -494,7 +502,7 @@ export function MyTeamsPremiumCarousel() {
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
-                title: event.title,
+                title: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
               };
@@ -506,7 +514,7 @@ export function MyTeamsPremiumCarousel() {
       if (leagueItemIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("mini_league_id, title, type, event_date")
+          .select("mini_league_id, title, type, opponent, event_date")
           .in("mini_league_id", leagueItemIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -517,7 +525,7 @@ export function MyTeamsPremiumCarousel() {
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
-                title: event.title,
+                title: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
               };

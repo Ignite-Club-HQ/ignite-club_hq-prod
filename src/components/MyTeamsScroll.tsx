@@ -18,7 +18,7 @@ interface TeamOrLeague {
 }
 
 interface NextEventInfo {
-  title: string;
+  label: string;
   dateLabel: string;
 }
 
@@ -139,10 +139,18 @@ export function MyTeamsScroll() {
       const now = new Date().toISOString();
       const map: Record<string, NextEventInfo> = {};
 
+      const buildLabel = (type: string | null, opponent: string | null, title: string) => {
+        if (type === "training") return "Training";
+        if (type === "social") return "Social";
+        if ((type === "game" || type === "mini_league") && opponent) return `Game v ${opponent}`;
+        if (type === "game" || type === "mini_league") return "Game";
+        return title;
+      };
+
       if (teamIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("team_id, title, type, event_date")
+          .select("team_id, title, type, opponent, event_date")
           .in("team_id", teamIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -153,7 +161,7 @@ export function MyTeamsScroll() {
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
-                title: event.title,
+                label: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
               };
             }
@@ -164,7 +172,7 @@ export function MyTeamsScroll() {
       if (leagueIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("mini_league_id, title, type, event_date")
+          .select("mini_league_id, title, type, opponent, event_date")
           .in("mini_league_id", leagueIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -175,7 +183,7 @@ export function MyTeamsScroll() {
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
-                title: event.title,
+                label: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
               };
             }
@@ -221,7 +229,7 @@ export function MyTeamsScroll() {
                   navigate(`/mini-leagues/${item.id}`);
                 }
               }}
-              className="shrink-0 w-[140px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
+              className="shrink-0 w-[180px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
             >
               {item.logo_url ? (
                 <LogoImage
@@ -242,10 +250,13 @@ export function MyTeamsScroll() {
 
               {/* Contextual info: next event or type label */}
               {nextEvent ? (
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground w-full justify-center">
-                  <Calendar className="h-2.5 w-2.5 shrink-0" />
-                  <span className="truncate">{nextEvent.title} {nextEvent.dateLabel}</span>
-                </span>
+                <div className="flex flex-col items-center gap-0.5 w-full">
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground w-full justify-center min-w-0">
+                    <Calendar className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{nextEvent.label}</span>
+                  </span>
+                  <span className="text-[10px] font-medium text-foreground/80">{nextEvent.dateLabel}</span>
+                </div>
               ) : item.type === "league" ? (
                 <span className="text-[10px] text-muted-foreground">League</span>
               ) : (
