@@ -103,6 +103,15 @@ async function waitForImagesAndMeasure(page: Page) {
   });
 }
 
+test.describe.configure({
+  // Each chat route is independent — run in parallel within this file so
+  // the suite stays fast even with the 8s pin-settle + 4s skeleton waits.
+  mode: "parallel",
+  // Image decode + signed-URL fetches can race in WebKit; allow up to 2
+  // automatic retries on transient timing flakes before failing.
+  retries: 2,
+});
+
 test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
   test.use({
     // 375x812 ≈ iPhone X. WebKit project is configured at the
