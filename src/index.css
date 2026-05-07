@@ -173,6 +173,14 @@ html, body {
 }
 
 @layer utilities {
+  /* M3 perf: skip layout/paint for off-screen media cards. Reserves
+     ~640px of vertical space so scroll position stays stable. Remove
+     this class from MediaPage cards to revert. */
+  .cv-auto-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 640px;
+  }
+
   .glow-emerald {
     box-shadow: 0 0 20px hsl(160 84% 45% / 0.3);
   }
