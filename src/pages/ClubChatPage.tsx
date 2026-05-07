@@ -56,6 +56,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -125,6 +126,9 @@ export default function ClubChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
+  const openedFromNotificationRef = useRef<boolean>(
+    !!clubId && consumeFromNotificationFlag("club", clubId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(clubId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
@@ -415,8 +419,16 @@ export default function ClubChatPage() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
+      if (!clubId) return prev;
+      // From-push freshness: prefer the just-preloaded localStorage cache
+      // over a stale `prev` so the new message renders at first paint.
+      if (openedFromNotificationRef.current) {
+        const cachedMessages = getCachedClubMessages(clubId);
+        if (cachedMessages.length) {
+          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+        }
+      }
       if (prev) return prev;
-      if (!clubId) return undefined;
 
       const cachedMessages = getCachedClubMessages(clubId);
       if (!cachedMessages.length) return undefined;

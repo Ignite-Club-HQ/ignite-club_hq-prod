@@ -74,6 +74,7 @@ import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
@@ -188,6 +189,9 @@ export default function GroupChatPage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const openedFromNotificationRef = useRef<boolean>(
+    !!groupId && consumeFromNotificationFlag("group", groupId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
@@ -474,8 +478,16 @@ export default function GroupChatPage() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
+      if (!groupId) return prev;
+      // From-push freshness: prefer the just-preloaded localStorage cache
+      // over a stale `prev` so the new message renders at first paint.
+      if (openedFromNotificationRef.current) {
+        const cachedData = getCachedGroupMessages(groupId);
+        if (cachedData.messages.length) {
+          return { ...cachedData, hasOlderMessages: false, fromCache: true };
+        }
+      }
       if (prev) return prev;
-      if (!groupId) return undefined;
 
       const cachedData = getCachedGroupMessages(groupId);
       if (!cachedData.messages.length) return undefined;

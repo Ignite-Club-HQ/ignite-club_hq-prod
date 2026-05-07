@@ -62,6 +62,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
@@ -145,6 +146,13 @@ export default function TeamChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
+  // Was this thread opened from a push notification within the last 60s? If
+  // so, the prior React Query snapshot (`prev`) predates the new push and is
+  // stale — fall through to the freshly-preloaded localStorage cache instead
+  // so the new message renders at first paint.
+  const openedFromNotificationRef = useRef<boolean>(
+    !!teamId && consumeFromNotificationFlag("team", teamId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
@@ -534,8 +542,17 @@ export default function TeamChatPage() {
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
+      if (!teamId) return prev;
+      // When opened from a push notification, the cached message just written
+      // by the preload handler is fresher than `prev`. Prefer it so the new
+      // message renders at first paint.
+      if (openedFromNotificationRef.current) {
+        const cachedMessages = getCachedTeamMessages(teamId);
+        if (cachedMessages.length) {
+          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+        }
+      }
       if (prev) return prev;
-      if (!teamId) return undefined;
 
       const cachedMessages = getCachedTeamMessages(teamId);
       if (!cachedMessages.length) return undefined;
