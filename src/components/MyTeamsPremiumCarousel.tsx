@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
