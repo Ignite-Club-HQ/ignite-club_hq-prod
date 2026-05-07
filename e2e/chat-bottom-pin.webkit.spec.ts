@@ -152,7 +152,7 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
       const distanceFromBottom = after.maxScrollTop - after.scrollTop;
       expect(
         distanceFromBottom,
-        `Chat at ${route.path} drifted ${distanceFromBottom}px above bottom after images loaded ` +
+        `Chat at ${path} drifted ${distanceFromBottom}px above bottom after images loaded ` +
           `(scrollTop=${after.scrollTop}, max=${after.maxScrollTop}). This is the iOS first-install jolt regression.`,
       ).toBeLessThanOrEqual(2);
 
