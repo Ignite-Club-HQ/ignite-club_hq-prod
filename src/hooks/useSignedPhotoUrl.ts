@@ -166,6 +166,7 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
             url: resolvedUrl,
             expiresAt: Date.now() + CACHE_DURATION_MS,
           });
+          schedulePersist();
         }
 
         if (!isCancelled) {
