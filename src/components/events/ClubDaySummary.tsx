@@ -68,7 +68,7 @@ function fromEventCardEvent(e: EventCardEvent): ClubDayEvent {
   return {
     id: e.id,
     title: e.title,
-    type: e.type as "game" | "training",
+    type: e.type as ClubDayEvent["type"],
     event_date: e.event_date,
     start_time: (e as any).start_time || null,
     end_time: (e as any).end_time || null,
