@@ -75,25 +75,16 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
       if (platform === "ios") {
         const { Media } = await import("@capacitor-community/media");
-        // iOS Media.savePhoto requires a LOCAL file path. Remote URLs silently fail.
-        // Download to cache first, then hand the local file URI to the plugin.
-        const iosExt = guessExtensionFromUrl(resolvedUrl);
-        const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
-        let localPath: string | null = null;
+        // iOS @capacitor-community/media v9 uses SDWebImageDownloader internally
+        // and expects a remote http(s) URL. Passing the resolved signed URL
+        // directly is the supported path. If it fails (e.g. signed URL auth
+        // quirks), fall back to staging a local file and re-attempting.
         try {
-          const dl: any = await (Filesystem as any).downloadFile({
-            url: resolvedUrl,
-            path: iosFilename,
-            directory: Directory.Cache,
-            recursive: true,
-          });
-          localPath = dl?.uri || null;
-          if (!localPath) {
-            const uriResult = await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache });
-            localPath = uriResult.uri;
-          }
-        } catch (dlErr) {
-          console.warn("[downloadImage] iOS Filesystem.downloadFile failed, falling back to fetch:", dlErr);
+          await Media.savePhoto({ path: resolvedUrl });
+        } catch (savePhotoErr) {
+          console.warn("[downloadImage] iOS Media.savePhoto with remote URL failed, staging locally:", savePhotoErr);
+          const iosExt = guessExtensionFromUrl(resolvedUrl);
+          const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
           const response = await fetch(resolvedUrl);
           if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
           const blob = await response.blob();
@@ -104,10 +95,25 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
             directory: Directory.Cache,
             recursive: true,
           });
-          localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+          const localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+          if (!localPath) throw savePhotoErr;
+          try {
+            await Media.savePhoto({ path: localPath });
+          } catch (localSaveErr) {
+            // Final fallback: open the iOS share sheet so the user can hit
+            // "Save Image" themselves. Better than a hard failure.
+            console.warn("[downloadImage] iOS local Media.savePhoto failed, falling back to share sheet:", localSaveErr);
+            const { Share } = await import("@capacitor/share");
+            await Share.share({
+              title: "Save photo",
+              url: localPath,
+              files: [localPath],
+              dialogTitle: "Save photo",
+            });
+            toast.success("Tap Save Image to add to Photos", { id: toastId });
+            return;
+          }
         }
-        if (!localPath) throw new Error("Could not stage photo for iOS save");
-        await Media.savePhoto({ path: localPath });
         toast.success("Photo downloaded", {
           id: toastId,
           description: "Saved to your photos",
