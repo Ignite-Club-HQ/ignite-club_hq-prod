@@ -572,12 +572,26 @@ export function MyTeamsPremiumCarousel() {
     </Card>
   ) : null;
 
+  // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.canManage && !b.canManage) return -1;
+    if (!a.canManage && b.canManage) return 1;
+    const aDate = nextEvents[a.id]?.eventDate;
+    const bDate = nextEvents[b.id]?.eventDate;
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    if (aDate && bDate && aDate !== bDate) return aDate < bDate ? -1 : 1;
+    if (a.type === "team" && b.type === "league") return -1;
+    if (a.type === "league" && b.type === "team") return 1;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold px-1">My Teams</h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
