@@ -189,6 +189,9 @@ export default function GroupChatPage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const openedFromNotificationRef = useRef<boolean>(
+    !!groupId && consumeFromNotificationFlag("group", groupId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
