@@ -115,6 +115,16 @@ export function initNotificationLaunchHandler() {
             return;
           }
           
+          // Best-effort preload: hydrate the message cache from the payload so
+          // the chat page can render the new message at first paint instead of
+          // waiting for the network refetch / realtime subscription. Safe no-op
+          // if payload fields are missing.
+          try {
+            import('./notificationPreload').then(({ preloadMessageFromNotification }) => {
+              preloadMessageFromNotification(data);
+            });
+          } catch {}
+
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);
             

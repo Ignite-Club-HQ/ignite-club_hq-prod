@@ -42,6 +42,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -177,6 +178,12 @@ export default function DirectMessagePage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  // Read once on mount: was this thread opened from a push notification within
+  // the last 60s? If so, the cached snapshot is stale — skip placeholder render
+  // and force a priority refetch as soon as we have auth.
+  const openedFromNotificationRef = useRef<boolean>(
+    !!conversationId && consumeFromNotificationFlag("dm", conversationId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = conversationId
@@ -470,14 +477,30 @@ export default function DirectMessagePage() {
     refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
     refetchOnWindowFocus: false,
     placeholderData: () => {
-      // Return cached messages as placeholder for instant load
+      // Return cached messages as placeholder for instant load.
+      // BUT: if we just opened this thread from a push notification, the
+      // cached snapshot is known-stale (it predates the new message). Skip the
+      // placeholder so the user sees the loading state briefly instead of a
+      // stale render that swaps under them ~2–5s later.
       if (!conversationId) return undefined;
+      if (openedFromNotificationRef.current) return undefined;
       const messages = getCachedDirectMessages(conversationId);
       if (!messages.length) return undefined;
-      
+
       return { messages, hasOlderMessages: false };
     },
   });
+
+  // Priority refetch when opened from a push notification — the cached snapshot
+  // is known-stale, so as soon as auth is ready we kick a fresh fetch (the
+  // existing refetchOnMount: 'always' already does this, but invoking it
+  // explicitly ensures it runs even if a stale render slipped through and
+  // makes the intent explicit alongside the placeholder skip above).
+  useEffect(() => {
+    if (!openedFromNotificationRef.current) return;
+    if (!conversationId || !authReady) return;
+    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+  }, [conversationId, authReady, queryClient]);
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
