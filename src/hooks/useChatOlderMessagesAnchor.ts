@@ -44,10 +44,20 @@ export function useChatOlderMessagesAnchor({
   const lastScrollAtRef = useRef(0);
 
   // Track "recently scrolled" so we don't trigger fetches mid-flick.
+  // CRITICAL: only stamp the timestamp when the user is meaningfully away
+  // from the bottom. The initial bottom-pin sequence performs many
+  // programmatic `scrollTop = scrollHeight - clientHeight` writes that each
+  // fire a real "scroll" event; if we stamped on every event, the very
+  // first paint after a fresh install would set lastScrollAtRef and let
+  // the older-messages observer fire on the next tick — the jolt the user
+  // sees on first thread open after install.
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const onScroll = () => {
+      const distance =
+        container.scrollHeight - container.clientHeight - container.scrollTop;
+      if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
     };
     container.addEventListener("scroll", onScroll, { passive: true });
@@ -89,7 +99,21 @@ export function useChatOlderMessagesAnchor({
             const stillIntersecting =
               trigger.getBoundingClientRect().top <
               scrollRoot.getBoundingClientRect().bottom + 2000;
-            if (stillIntersecting && hasOlderMessages && !isLoadingOlder) {
+            // Re-apply ALL guards inside the deferred path. Without these,
+            // a programmatic scrollTop set by the initial bottom-pin (which
+            // fires a real "scroll" event and stamps lastScrollAtRef) lands
+            // us in this branch on first open and then unconditionally calls
+            // onTrigger — causing the first-load older-messages fetch and
+            // the visible upward jolt the user reports after a fresh install.
+            const distance =
+              scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+            if (
+              stillIntersecting &&
+              hasOlderMessages &&
+              !isLoadingOlder &&
+              !document.hidden &&
+              distance >= 200
+            ) {
               onTrigger();
             }
           }, IDLE_GATE_MS);
