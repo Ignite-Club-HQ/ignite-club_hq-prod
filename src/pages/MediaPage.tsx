@@ -547,24 +547,58 @@ export default function MediaPage() {
     gcTime: 300000,
   });
 
-  const { data: highlightedPhoto } = useQuery({
+  const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
     queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
     queryFn: async () => {
       if (!highlightedPhotoId) return null;
-      const { data, error } = await supabase
-        .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
-        .eq("id", highlightedPhotoId)
-        .eq("show_in_feed", true)
-        .is("deleted_at", null)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
+      // Retry with backoff for very recent uploads where DB replication may
+      // briefly lag behind the push notification.
+      const delays = [0, 500, 1000, 2000];
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
+        const { data, error } = await supabase
+          .from("photos")
+          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+          .eq("id", highlightedPhotoId)
+          .eq("show_in_feed", true)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) return data;
+      }
+      return null;
     },
     enabled: !!user && !!highlightedPhotoId,
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+
+  // When arriving via a notification deep link, force a fresh feed fetch so
+  // the latest photo isn't hidden behind the 60s staleTime.
+  useEffect(() => {
+    if (!highlightedPhotoId || !user) return;
+    queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+    refetchHighlightedPhoto();
+  }, [highlightedPhotoId, user, queryClient, refetchHighlightedPhoto]);
+
+  // Realtime: invalidate the gallery feed when any new photo is inserted so
+  // viewers already on the page see new uploads instantly without refresh.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`media-feed-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "photos" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   // Background refresh if cache was stale
   useEffect(() => {
