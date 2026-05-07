@@ -547,6 +547,14 @@ export default function MediaPage() {
     gcTime: 300000,
   });
 
+  // Eagerly prefetch the next page once the first page is in so the user
+  // doesn't see a loading shimmer when they reach the end of the first batch.
+  useEffect(() => {
+    if (photosSuccess && hasNextPage && !isFetchingNextPage) {
+      const t = setTimeout(() => fetchNextPage(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [photosSuccess, hasNextPage, isFetchingNextPage, fetchNextPage]);
   const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
     queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
     queryFn: async () => {
