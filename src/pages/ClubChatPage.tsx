@@ -1528,9 +1528,6 @@ export default function ClubChatPage() {
               onCreated={(pollId) => setPendingPollId(pollId)}
             />
           )}
-          <p className="text-xs text-muted-foreground mt-1">
-            Long-press a message to react • Tap menu to reply
-          </p>
         </div>
         </>
       )}
