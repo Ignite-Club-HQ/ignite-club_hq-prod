@@ -295,13 +295,16 @@ export function BottomNav() {
   // For native iOS, use the live CSS env() value as the source of truth so the nav
   // tracks the real home-indicator inset without JS measurement lag and without
   // any extra hard-coded floor that would push the bar away from the bottom edge.
+  // On native iOS, guarantee at least 8px below the labels so the home-indicator
+  // region never visually crowds the nav text on devices that report a small or
+  // zero safe-area-inset-bottom (e.g., landscape, iPad, older form factors).
   const navBottomInset = isNativeIOS
-    ? "env(safe-area-inset-bottom, 0px)"
+    ? "max(env(safe-area-inset-bottom, 0px), 8px)"
     : shouldStabilizeIOSLayout
       ? nativeInsetFloor
       : isAndroidNative
         ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-        : "env(safe-area-inset-bottom, 0px)";
+        : "max(env(safe-area-inset-bottom, 0px), 8px)";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
