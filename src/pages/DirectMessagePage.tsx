@@ -525,6 +525,25 @@ export default function DirectMessagePage() {
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
 
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!conversationId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "dm",
+      targetId: conversationId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [conversationId, user?.id, showLoading, localMessages, messagesData]);
+
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
