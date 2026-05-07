@@ -289,6 +289,21 @@ export function MyTeamsPremiumCarousel() {
     [user?.id, activeClubFilter]
   );
 
+  // Defer non-critical queries (photos) until after first paint to free up the main thread
+  const [deferredReady, setDeferredReady] = useState(false);
+  useEffect(() => {
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    if (ric) {
+      const handle = ric(() => setDeferredReady(true), { timeout: 1500 });
+      return () => {
+        const cic = (window as any).cancelIdleCallback;
+        if (cic) cic(handle);
+      };
+    }
+    const t = setTimeout(() => setDeferredReady(true), 800);
+    return () => clearTimeout(t);
+  }, []);
+
   // Fetch teams & leagues
   const { data: items = snapshot?.items ?? [], isLoading } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
