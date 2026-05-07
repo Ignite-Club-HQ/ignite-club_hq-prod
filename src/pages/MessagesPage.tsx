@@ -696,10 +696,10 @@ export default function MessagesPage() {
       
       const groups = data || [];
       
-      // Fetch latest messages for all groups in parallel
+      // M1 perf: batch profile lookups for all group last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         groups.map(async (group) => {
           const { data: msgData } = await supabase
             .from("group_messages")
@@ -709,29 +709,34 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[group.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-            };
-          }
+          return { groupId: group.id, msg: msgData };
         })
       );
-      
+
+      const authorIds = Array.from(new Set(
+        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { groupId, msg } of msgRows) {
+        if (!msg) continue;
+        latestMessages[groupId] = {
+          text: msg.text,
+          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+        };
+      }
+
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
