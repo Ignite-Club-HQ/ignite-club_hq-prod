@@ -1382,7 +1382,7 @@ export default function MediaPage() {
                     photoRefs.current.set(photo.id, el);
                   }
                 }}
-                className={`overflow-hidden transition-all duration-300 ${
+                className={`overflow-hidden transition-all duration-300 cv-auto-card ${
                   isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
                 } ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
               >
