@@ -32,6 +32,7 @@ interface NextEventInfo {
   title: string;
   dateLabel: string;
   type: string;
+  eventDate: string;
 }
 
 interface DateParts {
