@@ -75,16 +75,18 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
       if (platform === "ios") {
         const { Media } = await import("@capacitor-community/media");
-        // iOS @capacitor-community/media v9 uses SDWebImageDownloader internally
-        // and expects a remote http(s) URL. Passing the resolved signed URL
-        // directly is the supported path. If it fails (e.g. signed URL auth
-        // quirks), fall back to staging a local file and re-attempting.
+        // iOS @capacitor-community/media v9 uses SDWebImageDownloader to
+        // fetch the URL it's given. On simulators (and sometimes devices),
+        // that downloader fails for Supabase signed URLs — IPv6/TLS quirks,
+        // long query strings, and SDWebImage's caching layer all contribute.
+        // Reliable path: fetch via JS fetch (uses the same WebView network
+        // stack the app already uses successfully for displaying the image),
+        // write the bytes to the cache directory, then hand the file:// URL
+        // to the plugin. SDWebImage handles file:// scheme natively.
+        const iosExt = guessExtensionFromUrl(resolvedUrl);
+        const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
+        let localPath: string | null = null;
         try {
-          await Media.savePhoto({ path: resolvedUrl });
-        } catch (savePhotoErr) {
-          console.warn("[downloadImage] iOS Media.savePhoto with remote URL failed, staging locally:", savePhotoErr);
-          const iosExt = guessExtensionFromUrl(resolvedUrl);
-          const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${iosExt}`;
           const response = await fetch(resolvedUrl);
           if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
           const blob = await response.blob();
@@ -95,23 +97,33 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
             directory: Directory.Cache,
             recursive: true,
           });
-          const localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
-          if (!localPath) throw savePhotoErr;
+          localPath = written.uri || (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+        } catch (stageErr) {
+          console.warn("[downloadImage] iOS local stage failed, attempting direct remote save:", stageErr);
+        }
+
+        try {
+          // Prefer the locally-staged file (no SDWebImage network dependency).
+          // If staging failed, fall back to letting the plugin download remotely.
+          await Media.savePhoto({ path: localPath || resolvedUrl });
+        } catch (savePhotoErr) {
+          console.warn("[downloadImage] iOS Media.savePhoto failed, falling back to share sheet:", savePhotoErr);
+          // Final fallback: open the iOS share sheet so the user can hit
+          // "Save Image" themselves. Better than a hard failure.
+          const sharePath = localPath || resolvedUrl;
           try {
-            await Media.savePhoto({ path: localPath });
-          } catch (localSaveErr) {
-            // Final fallback: open the iOS share sheet so the user can hit
-            // "Save Image" themselves. Better than a hard failure.
-            console.warn("[downloadImage] iOS local Media.savePhoto failed, falling back to share sheet:", localSaveErr);
             const { Share } = await import("@capacitor/share");
             await Share.share({
               title: "Save photo",
-              url: localPath,
-              files: [localPath],
+              url: sharePath,
+              ...(localPath ? { files: [localPath] } : {}),
               dialogTitle: "Save photo",
             });
             toast.success("Tap Save Image to add to Photos", { id: toastId });
             return;
+          } catch (shareErr) {
+            console.warn("[downloadImage] iOS share sheet fallback failed:", shareErr);
+            throw savePhotoErr;
           }
         }
         toast.success("Photo downloaded", {
