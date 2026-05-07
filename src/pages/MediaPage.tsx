@@ -199,18 +199,25 @@ export default function MediaPage() {
   }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
-  // Scroll to highlighted photo when loaded — retry until element appears
+  // Scroll to highlighted photo once it actually appears in the rendered list.
+  // Re-arms whenever the photo arrives later (e.g. after a refetch resolves),
+  // and only gives up after the photo is known-present in the DOM.
+  const scrolledToRef = useRef<string | null>(null);
   useEffect(() => {
     if (!highlightedPhotoId) return;
-    
+    if (scrolledToRef.current === highlightedPhotoId) return;
+
+    let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 15;
-    
+    const maxAttempts = 30; // ~9s total
+
     const tryScroll = () => {
+      if (cancelled) return;
       const element = photoRefs.current.get(highlightedPhotoId);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
-        setExpandedComments(prev => new Set(prev).add(highlightedPhotoId));
+        setExpandedComments((prev) => new Set(prev).add(highlightedPhotoId));
+        scrolledToRef.current = highlightedPhotoId;
         return;
       }
       attempts++;
@@ -218,9 +225,11 @@ export default function MediaPage() {
         setTimeout(tryScroll, 300);
       }
     };
-    
-    // Start trying after a short delay to let initial render complete
+
     setTimeout(tryScroll, 200);
+    return () => {
+      cancelled = true;
+    };
   }, [highlightedPhotoId]);
 
   // Auto-open the comment sheet when arriving from a comment notification
@@ -462,7 +471,7 @@ export default function MediaPage() {
       return (data?.photo_ids as string[] | null) ?? [];
     },
     enabled: !!cardId,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const selectedClubFilter = selectedClubId !== "all" ? selectedClubId : null;
@@ -534,28 +543,70 @@ export default function MediaPage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     gcTime: 300000,
   });
 
-  const { data: highlightedPhoto } = useQuery({
+  // Eagerly prefetch the next page once the first page is in so the user
+  // doesn't see a loading shimmer when they reach the end of the first batch.
+  useEffect(() => {
+    if (photosSuccess && hasNextPage && !isFetchingNextPage) {
+      const t = setTimeout(() => fetchNextPage(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [photosSuccess, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
     queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
     queryFn: async () => {
       if (!highlightedPhotoId) return null;
-      const { data, error } = await supabase
-        .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
-        .eq("id", highlightedPhotoId)
-        .eq("show_in_feed", true)
-        .is("deleted_at", null)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
+      // Retry with backoff for very recent uploads where DB replication may
+      // briefly lag behind the push notification.
+      const delays = [0, 500, 1000, 2000];
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
+        const { data, error } = await supabase
+          .from("photos")
+          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+          .eq("id", highlightedPhotoId)
+          .eq("show_in_feed", true)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) return data;
+      }
+      return null;
     },
     enabled: !!user && !!highlightedPhotoId,
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+
+  // When arriving via a notification deep link, force a fresh feed fetch so
+  // the latest photo isn't hidden behind the 60s staleTime.
+  useEffect(() => {
+    if (!highlightedPhotoId || !user) return;
+    queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+    refetchHighlightedPhoto();
+  }, [highlightedPhotoId, user, queryClient, refetchHighlightedPhoto]);
+
+  // Realtime: invalidate the gallery feed when any new photo is inserted so
+  // viewers already on the page see new uploads instantly without refresh.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`media-feed-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "photos" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   // Background refresh if cache was stale
   useEffect(() => {
@@ -1331,7 +1382,7 @@ export default function MediaPage() {
                     photoRefs.current.set(photo.id, el);
                   }
                 }}
-                className={`overflow-hidden transition-all duration-300 ${
+                className={`overflow-hidden transition-all duration-300 cv-auto-card ${
                   isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
                 } ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
               >

@@ -198,7 +198,7 @@ export default function MessagesPage() {
     queryFn: () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
     refetchInterval: 30000,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -294,10 +294,12 @@ export default function MessagesPage() {
 
       const clubs = data as Club[];
       
-      // Fetch latest messages for all clubs in parallel
+      // Fetch latest messages for all clubs in parallel, then batch a single
+      // profiles lookup for all authors. M1 perf: removes the per-club N+1
+      // profile query that previously serialized after each last-message fetch.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         clubs.map(async (club) => {
           const { data: msgData } = await supabase
             .from("club_messages")
@@ -307,33 +309,38 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[club.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-            };
-          }
+          return { clubId: club.id, msg: msgData };
         })
       );
+
+      const authorIds = Array.from(new Set(
+        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { clubId, msg } of msgRows) {
+        if (!msg) continue;
+        latestMessages[clubId] = {
+          text: msg.text,
+          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+        };
+      }
       
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -378,7 +385,7 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     placeholderData: (prev) => prev,
   });
@@ -413,10 +420,10 @@ export default function MessagesPage() {
       if (error) throw error;
       const teams = data as Team[];
       
-      // Fetch latest messages for all teams in parallel
+      // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         teams.map(async (team) => {
           const { data: msgData } = await supabase
             .from("team_messages")
@@ -426,37 +433,46 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            const isAnnouncement = !!(msgData.is_club_announcement && msgData.club_announcement_name);
-            if (isAnnouncement) {
-              authorName = msgData.club_announcement_name!;
-            } else if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[team.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-              is_announcement: isAnnouncement,
-            };
-          }
+          return { teamId: team.id, msg: msgData };
         })
       );
-      
+
+      const authorIds = Array.from(new Set(
+        msgRows
+          .map(r => r.msg)
+          .filter((m): m is NonNullable<typeof m> => !!m && !(m.is_club_announcement && m.club_announcement_name) && !!m.author_id)
+          .map(m => m.author_id as string)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { teamId, msg } of msgRows) {
+        if (!msg) continue;
+        const isAnnouncement = !!(msg.is_club_announcement && msg.club_announcement_name);
+        const authorName = isAnnouncement
+          ? msg.club_announcement_name!
+          : (msg.author_id ? (authorNameById[msg.author_id] ?? "") : "");
+        latestMessages[teamId] = {
+          text: msg.text,
+          author: authorName,
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+          is_announcement: isAnnouncement,
+        };
+      }
+
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -680,10 +696,10 @@ export default function MessagesPage() {
       
       const groups = data || [];
       
-      // Fetch latest messages for all groups in parallel
+      // M1 perf: batch profile lookups for all group last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      
-      await Promise.all(
+
+      const msgRows = await Promise.all(
         groups.map(async (group) => {
           const { data: msgData } = await supabase
             .from("group_messages")
@@ -693,33 +709,38 @@ export default function MessagesPage() {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          
-          if (msgData) {
-            let authorName = "";
-            if (msgData.author_id) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("display_name")
-                .eq("id", msgData.author_id)
-                .maybeSingle();
-              if (profile?.display_name) {
-                authorName = profile.display_name;
-              }
-            }
-            latestMessages[group.id] = {
-              text: msgData.text,
-              author: authorName,
-              created_at: msgData.created_at,
-              image_url: msgData.image_url,
-            };
-          }
+          return { groupId: group.id, msg: msgData };
         })
       );
-      
+
+      const authorIds = Array.from(new Set(
+        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
+      ));
+      const authorNameById: Record<string, string> = {};
+      if (authorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        for (const p of profiles ?? []) {
+          if (p.display_name) authorNameById[p.id] = p.display_name;
+        }
+      }
+
+      for (const { groupId, msg } of msgRows) {
+        if (!msg) continue;
+        latestMessages[groupId] = {
+          text: msg.text,
+          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
+          created_at: msg.created_at,
+          image_url: msg.image_url,
+        };
+      }
+
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
@@ -872,7 +893,7 @@ export default function MessagesPage() {
       return result;
     },
     enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;

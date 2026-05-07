@@ -43,6 +43,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
+import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
@@ -179,11 +180,13 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   // Read once on mount: was this thread opened from a push notification within
-  // the last 60s? If so, the cached snapshot is stale — skip placeholder render
-  // and force a priority refetch as soon as we have auth.
-  const openedFromNotificationRef = useRef<boolean>(
-    !!conversationId && consumeFromNotificationFlag("dm", conversationId),
+  // the last 60s? Stores the tap timestamp (ms epoch) so we can measure
+  // tap → first-message-render latency below.
+  const openedFromNotificationRef = useRef<number | null>(
+    conversationId ? consumeFromNotificationFlag("dm", conversationId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = conversationId
@@ -478,12 +481,12 @@ export default function DirectMessagePage() {
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load.
-      // BUT: if we just opened this thread from a push notification, the
-      // cached snapshot is known-stale (it predates the new message). Skip the
-      // placeholder so the user sees the loading state briefly instead of a
-      // stale render that swaps under them ~2–5s later.
+      // When opened from a push notification, the preload handler has already
+      // merged the new message into this cache (see notificationPreload.ts),
+      // so the user sees the new message at first paint. The background
+      // refetch (refetchOnMount: 'always') still runs to fill in reactions
+      // and any other recent activity.
       if (!conversationId) return undefined;
-      if (openedFromNotificationRef.current) return undefined;
       const messages = getCachedDirectMessages(conversationId);
       if (!messages.length) return undefined;
 
@@ -521,6 +524,25 @@ export default function DirectMessagePage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
+
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!conversationId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "dm",
+      targetId: conversationId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [conversationId, user?.id, showLoading, localMessages, messagesData]);
 
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);

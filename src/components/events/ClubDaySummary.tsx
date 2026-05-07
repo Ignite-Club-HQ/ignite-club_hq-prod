@@ -32,7 +32,7 @@ interface ClubDaySummaryProps {
 interface ClubDayEvent {
   id: string;
   title: string;
-  type: "game" | "training";
+  type: "game" | "training" | "social" | string;
   event_date: string;
   start_time: string | null;
   end_time: string | null;
@@ -68,7 +68,7 @@ function fromEventCardEvent(e: EventCardEvent): ClubDayEvent {
   return {
     id: e.id,
     title: e.title,
-    type: e.type as "game" | "training",
+    type: e.type as ClubDayEvent["type"],
     event_date: e.event_date,
     start_time: (e as any).start_time || null,
     end_time: (e as any).end_time || null,
@@ -125,21 +125,27 @@ export function ClubDaySummary({
   const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
   const myVisibleEvents = useMemo(() => {
     return (myDayEvents || [])
-      .filter((e) => e.team_id && myTeamSet.has(e.team_id) && (e.type === "game" || e.type === "training"))
+      .filter((e) => !e.team_id || myTeamSet.has(e.team_id))
       .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
   }, [myDayEvents, myTeamSet]);
 
   const visible = useMemo(() => {
-    if (scope === "my" && myVisibleEvents.length > 0) {
-      return myVisibleEvents.map(fromEventCardEvent);
-    }
-    if (!events) return [] as ClubDayEvent[];
-    if (scope === "club") return events;
-    return events.filter((e) => e.team_id && myTeamSet.has(e.team_id));
+    if (scope === "club") return events || [];
+    // "My teams" = events for any team the user belongs to + club-wide events (no team_id)
+    const fromMyDay = myVisibleEvents.map(fromEventCardEvent);
+    const fromRpc = (events || []).filter((e) => !e.team_id || myTeamSet.has(e.team_id));
+    // De-dupe by id, preferring myDayEvents (richer EventCard data)
+    const seen = new Set(fromMyDay.map((e) => e.id));
+    return [...fromMyDay, ...fromRpc.filter((e) => !seen.has(e.id))].sort((a, b) => {
+      const at = a.start_time || a.event_date;
+      const bt = b.start_time || b.event_date;
+      return at.localeCompare(bt);
+    });
   }, [events, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
+  const socials = visible.filter((e) => (e.type as string) === "social");
 
   // Group by venue (without pitch/field suffix) for club view
   const byVenue = useMemo(() => {
@@ -187,6 +193,7 @@ export function ClubDaySummary({
         <p className="text-xs text-muted-foreground">
           {games.length} game{games.length === 1 ? "" : "s"} ·{" "}
           {trainings.length} training
+          {socials.length > 0 && <> · {socials.length} social{socials.length === 1 ? "" : "s"}</>}
           {scope === "my" && events && events.length > visible.length && (
             <> · {events.length - visible.length} more across club</>
           )}

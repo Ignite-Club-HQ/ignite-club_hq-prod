@@ -716,6 +716,45 @@ export type Database = {
           },
         ]
       }
+      chat_open_perf: {
+        Row: {
+          chat_kind: string
+          created_at: string
+          from_cache: boolean | null
+          id: string
+          message_count: number | null
+          platform: string | null
+          source: string
+          tap_to_render_ms: number
+          target_id: string
+          user_id: string
+        }
+        Insert: {
+          chat_kind: string
+          created_at?: string
+          from_cache?: boolean | null
+          id?: string
+          message_count?: number | null
+          platform?: string | null
+          source: string
+          tap_to_render_ms: number
+          target_id: string
+          user_id: string
+        }
+        Update: {
+          chat_kind?: string
+          created_at?: string
+          from_cache?: boolean | null
+          id?: string
+          message_count?: number | null
+          platform?: string | null
+          source?: string
+          tap_to_render_ms?: number
+          target_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       child_club_points: {
         Row: {
           child_id: string
@@ -8945,6 +8984,8 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       suggest_eoi_teams: {
         Args: { _season_id: string }
         Returns: {

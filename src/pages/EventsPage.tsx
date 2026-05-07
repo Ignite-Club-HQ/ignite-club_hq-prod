@@ -25,6 +25,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
+import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
@@ -360,9 +361,16 @@ export default function EventsPage() {
         if (cached) return cached as Event[];
       }
 
-      // Only fetch events from the last 30 days onward to avoid pulling entire history
+      // Window: last 30 days for context, configurable upper bound ahead.
+      // M2 perf: narrow to ~45 days by default to shrink Schedule payload.
+      // Flip USE_NARROW_SCHEDULE_WINDOW to false to revert to the previous
+      // 120-day window instantly with no other code changes required.
+      const USE_NARROW_SCHEDULE_WINDOW = true;
+      const upperDays = USE_NARROW_SCHEDULE_WINDOW ? 45 : 120;
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const upperBound = new Date();
+      upperBound.setDate(upperBound.getDate() + upperDays);
 
       let query = supabase
         .from("events")
@@ -392,6 +400,7 @@ export default function EventsPage() {
           clubs (name, sport)
         `)
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
+        .lte("event_date", upperBound.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
       if (filter !== "all") query = query.eq("type", filter);
@@ -436,7 +445,7 @@ export default function EventsPage() {
       const finalEvents =
         viewMode === "calendar"
           ? (filteredData as Event[])
-          : ((await import("@/lib/filterRecurringEvents")).filterRecurringEvents(filteredData) as Event[]);
+          : (filterRecurringEvents(filteredData) as Event[]);
 
       // Cache for offline use
       cacheEventsList(eventsScopeKey, finalEvents);
