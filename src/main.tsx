@@ -76,6 +76,21 @@ if (isNative) {
 // Camera permissions are now requested on-demand when the user
 // first tries to upload a photo, not at app startup.
 
+// iOS WKWebView scrolls the document up on input focus to lift the input
+// above the keyboard. Our chat composers are position:fixed and anchored
+// manually to the keyboard top, so that OS behavior just rips the composer
+// offscreen on the first tap (before per-page React effects can call
+// Keyboard.setScroll). Disable it once globally at boot.
+if (isNative) {
+  import('@capacitor/keyboard').then(({ Keyboard }) => {
+    Keyboard.setScroll({ isDisabled: true }).catch((err) => {
+      console.warn('[Main] Keyboard.setScroll(disabled) failed:', err);
+    });
+  }).catch((err) => {
+    console.warn('[Main] @capacitor/keyboard import failed:', err);
+  });
+}
+
 // Initialize native handlers (wrapped to prevent crashes)
 try {
   initDeepLinkHandler();
