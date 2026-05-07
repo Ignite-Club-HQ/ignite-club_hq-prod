@@ -74,6 +74,7 @@ import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
