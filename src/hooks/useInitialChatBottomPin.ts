@@ -280,7 +280,9 @@ export function useInitialChatBottomPin({
           if (cancelled || userScrolledAwayRef.current) return;
           const m = getChatScrollMetrics(scrollContainerRef.current);
           if (!m) return;
-          if (m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
+          const withinTrustWindow =
+            performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
+          if (!withinTrustWindow && m.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) return;
           // Skip when already pinned to bottom — re-snapping triggers layout
           // reads that on iOS WKWebView can interrupt rubber-band/inertia and
           // produce the "bounce on open" the user reported. Only correct
