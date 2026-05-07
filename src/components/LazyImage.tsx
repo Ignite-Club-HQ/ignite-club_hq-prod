@@ -86,15 +86,20 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
 
   const showAsVideo = isVideoUrl(safeSrc);
 
-  // On load failure, force a fresh signed URL once. Old photos in the feed
-  // sometimes render with a stale fallback URL when the initial signed-URL
-  // request timed out under load.
+  // On load failure, force a fresh signed URL with up to 3 backoff retries.
+  // Recently-uploaded photos can briefly 404/403 while Supabase storage
+  // propagates; old feed photos can render with a stale fallback URL when
+  // the initial signed-URL request timed out under load.
+  const MAX_RETRIES = 3;
   const handleError = async () => {
-    if (retryAttempts >= 1 || !safeSrc) return;
-    setRetryAttempts((n) => n + 1);
+    if (retryAttempts >= MAX_RETRIES || !safeSrc) return;
+    const attempt = retryAttempts + 1;
+    setRetryAttempts(attempt);
+    // Backoff: 250ms, 750ms, 1750ms
+    const delay = 250 * Math.pow(2, attempt - 1) + (attempt - 1) * 250;
+    await new Promise((r) => setTimeout(r, delay));
     try {
       const fresh = await resolveSignedUrl(safeSrc);
-      // Cache-bust to force a new request even if URL is identical.
       const bust = `${fresh}${fresh.includes("?") ? "&" : "?"}r=${Date.now()}`;
       setRetrySrc(bust);
     } catch {
