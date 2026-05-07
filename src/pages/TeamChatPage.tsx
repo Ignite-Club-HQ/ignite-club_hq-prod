@@ -150,9 +150,11 @@ export default function TeamChatPage() {
   // so, the prior React Query snapshot (`prev`) predates the new push and is
   // stale — fall through to the freshly-preloaded localStorage cache instead
   // so the new message renders at first paint.
-  const openedFromNotificationRef = useRef<boolean>(
-    !!teamId && consumeFromNotificationFlag("team", teamId),
+  const openedFromNotificationRef = useRef<number | null>(
+    teamId ? consumeFromNotificationFlag("team", teamId) : null,
   );
+  const mountTsRef = useRef<number>(Date.now());
+  const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(teamId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
