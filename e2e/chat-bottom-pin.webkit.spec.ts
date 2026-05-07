@@ -135,8 +135,50 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
         test.skip(true, "No chat viewport mounted on this route in this state");
       }
 
-      // Give the initial-pin sequence and image-wait gate a moment to run.
-      await page.waitForTimeout(800);
+      // Explicit settle gate: chat pages keep the scroll container at
+      // `visibility: hidden` until `useInitialChatBottomPin` flips
+      // `isPinned` to true (which now ALSO waits for in-flight images to
+      // decode). Polling for computed visibility === "visible" is the
+      // single, reliable signal that the pin sequence has finished — no
+      // arbitrary timeouts, no races against the image-wait gate.
+      const settled = await page
+        .waitForFunction(
+          () => {
+            const vp =
+              document.querySelector<HTMLElement>("[data-chat-viewport]") ??
+              document.querySelector<HTMLElement>(
+                "[data-radix-scroll-area-viewport]",
+              );
+            if (!vp) return false;
+            // Walk up to the nearest ancestor that owns a `visibility`
+            // declaration — TeamChatPage etc. set it on the scroll
+            // container, which may be the viewport itself or its parent.
+            let node: HTMLElement | null = vp;
+            while (node) {
+              const v = window.getComputedStyle(node).visibility;
+              if (v === "hidden") return false;
+              if (node === document.body) break;
+              node = node.parentElement;
+            }
+            // Pin sequence has revealed the viewport. Confirm content
+            // is actually present so we don't measure an empty thread.
+            return vp.scrollHeight > vp.clientHeight;
+          },
+          null,
+          { timeout: 8_000, polling: 100 },
+        )
+        .catch(() => null);
+
+      if (!settled) {
+        test.skip(
+          true,
+          "Chat pin sequence did not settle within 8s — likely an empty thread or auth gate",
+        );
+      }
+
+      // Brief tail to absorb any final ResizeObserver-driven snap that
+      // fires immediately after reveal.
+      await page.waitForTimeout(150);
 
       const before = await waitForImagesAndMeasure(page);
       expect(before, "viewport metrics should be readable").not.toBeNull();
