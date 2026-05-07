@@ -771,6 +771,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (payload) => {
           if (payload.new && (payload.new as any).is_read === true) {
             fetchUnreadCount(user.id);
+            // Sync club-scoped badges (AppHeader bell + BottomNav Messages badge)
+            queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+            queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+            queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+            queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
           }
         }
       )
@@ -784,6 +789,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         () => {
           fetchUnreadCount(user.id);
+          queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+          queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+          queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+          queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
         }
       )
       .subscribe();
