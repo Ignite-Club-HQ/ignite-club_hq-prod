@@ -15,6 +15,13 @@ const config: CapacitorConfig = {
       // Pages that need keyboard-aware layout handle it via keyboardDidShow events
       resize: 'none',
       resizeOnFullScreen: false,
+      // iOS only: stop WKWebView from auto-scrolling the focused input into
+      // view. Without this, tapping the chat composer makes WKWebView shift
+      // the whole document upward, dragging the fixed composer offscreen
+      // before our keyboard listeners reposition it. Our chat pages already
+      // anchor the composer above the keyboard themselves via
+      // useNativeKeyboardHeight, so we want this OS behavior fully off.
+      disableScroll: true,
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
