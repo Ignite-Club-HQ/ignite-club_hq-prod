@@ -125,17 +125,22 @@ export function ClubDaySummary({
   const myTeamSet = useMemo(() => new Set(myTeamIds), [myTeamIds]);
   const myVisibleEvents = useMemo(() => {
     return (myDayEvents || [])
-      .filter((e) => e.team_id && myTeamSet.has(e.team_id) && (e.type === "game" || e.type === "training"))
+      .filter((e) => (!e.team_id || myTeamSet.has(e.team_id)) && (e.type === "game" || e.type === "training"))
       .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
   }, [myDayEvents, myTeamSet]);
 
   const visible = useMemo(() => {
-    if (scope === "my" && myVisibleEvents.length > 0) {
-      return myVisibleEvents.map(fromEventCardEvent);
-    }
-    if (!events) return [] as ClubDayEvent[];
-    if (scope === "club") return events;
-    return events.filter((e) => e.team_id && myTeamSet.has(e.team_id));
+    if (scope === "club") return events || [];
+    // "My teams" = events for any team the user belongs to + club-wide events (no team_id)
+    const fromMyDay = myVisibleEvents.map(fromEventCardEvent);
+    const fromRpc = (events || []).filter((e) => !e.team_id || myTeamSet.has(e.team_id));
+    // De-dupe by id, preferring myDayEvents (richer EventCard data)
+    const seen = new Set(fromMyDay.map((e) => e.id));
+    return [...fromMyDay, ...fromRpc.filter((e) => !seen.has(e.id))].sort((a, b) => {
+      const at = a.start_time || a.event_date;
+      const bt = b.start_time || b.event_date;
+      return at.localeCompare(bt);
+    });
   }, [events, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
