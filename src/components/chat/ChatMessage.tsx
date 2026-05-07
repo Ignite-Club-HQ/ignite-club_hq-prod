@@ -762,19 +762,38 @@ function ChatMessageInner({
         </button>
       )}
       <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
-        {(isClubAnnouncement || (!isOwn && hasName)) && (
+        {/* Always reserve the name-row height for non-own, non-announcement
+            messages so late profile hydration on first-ever open of a thread
+            does not cause cumulative vertical layout shift (which the chat
+            scroll-pin hook can never fully race — visible as a "jolt up"). */}
+        {isClubAnnouncement ? (
           <button
             type="button"
             onClick={(e) => {
               if (preventIfGuarded(e)) return;
               onAuthorClick?.();
             }}
-            disabled={!onAuthorClick || isClubAnnouncement}
-            className={`text-xs mb-1 text-left ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground disabled:cursor-default"}`}
+            disabled
+            className="text-xs mb-1 text-left font-semibold text-primary disabled:cursor-default"
           >
             {displayName || "Club"}
           </button>
-        )}
+        ) : !isOwn ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              if (preventIfGuarded(e)) return;
+              onAuthorClick?.();
+            }}
+            disabled={!onAuthorClick}
+            // min-height locks ~16px (text-xs line-height) so the row exists
+            // even before authorName resolves — no shift on hydration.
+            style={{ minHeight: '16px' }}
+            className="text-xs mb-1 text-left text-muted-foreground disabled:cursor-default"
+          >
+            {displayName || "\u00A0"}
+          </button>
+        ) : null}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative min-w-0 max-w-full group/msg">
           {/* Swipe indicator - text only, shown when past threshold */}
