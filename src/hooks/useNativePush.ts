@@ -128,6 +128,12 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                 (notification: any) => {
                   console.log('[useNativePush] Early action listener fired:', JSON.stringify(notification));
                   const data = notification.notification?.data;
+                  // Best-effort: preload message from payload so chat page renders it instantly
+                  try {
+                    import('@/lib/notificationPreload').then(({ preloadMessageFromNotification }) => {
+                      preloadMessageFromNotification(data);
+                    });
+                  } catch {}
                   const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
                   const storeUrl = data?.store_url;
