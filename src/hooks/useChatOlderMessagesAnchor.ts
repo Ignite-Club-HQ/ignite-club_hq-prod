@@ -44,10 +44,20 @@ export function useChatOlderMessagesAnchor({
   const lastScrollAtRef = useRef(0);
 
   // Track "recently scrolled" so we don't trigger fetches mid-flick.
+  // CRITICAL: only stamp the timestamp when the user is meaningfully away
+  // from the bottom. The initial bottom-pin sequence performs many
+  // programmatic `scrollTop = scrollHeight - clientHeight` writes that each
+  // fire a real "scroll" event; if we stamped on every event, the very
+  // first paint after a fresh install would set lastScrollAtRef and let
+  // the older-messages observer fire on the next tick — the jolt the user
+  // sees on first thread open after install.
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const onScroll = () => {
+      const distance =
+        container.scrollHeight - container.clientHeight - container.scrollTop;
+      if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
     };
     container.addEventListener("scroll", onScroll, { passive: true });
