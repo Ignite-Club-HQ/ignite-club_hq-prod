@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { cacheTeams } from "@/lib/clubTeamCache";
+import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
 import { getCachedCarousel, setCachedCarousel } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
@@ -289,6 +289,21 @@ export function MyTeamsPremiumCarousel() {
     [user?.id, activeClubFilter]
   );
 
+  // Defer non-critical queries (photos) until after first paint to free up the main thread
+  const [deferredReady, setDeferredReady] = useState(false);
+  useEffect(() => {
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    if (ric) {
+      const handle = ric(() => setDeferredReady(true), { timeout: 1500 });
+      return () => {
+        const cic = (window as any).cancelIdleCallback;
+        if (cic) cic(handle);
+      };
+    }
+    const t = setTimeout(() => setDeferredReady(true), 800);
+    return () => clearTimeout(t);
+  }, []);
+
   // Fetch teams & leagues
   const { data: items = snapshot?.items ?? [], isLoading } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
@@ -315,7 +330,7 @@ export function MyTeamsPremiumCarousel() {
         teamIds.length > 0
           ? supabase
               .from("teams")
-              .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
+              .select("id, name, logo_url, club_id, is_pro, pro_expires_at")
               .in("id", teamIds)
           : Promise.resolve({ data: [] as any[] }),
         supabase
@@ -337,17 +352,32 @@ export function MyTeamsPremiumCarousel() {
           id: t.id, name: t.name, logo_url: t.logo_url, club_id: t.club_id, level_age: null,
         })));
 
+        // Resolve any missing club metadata (cache hit avoids the join)
+        const neededClubIds = [...new Set(teams.map(t => t.club_id).filter(Boolean) as string[])];
+        const missingClubIds = neededClubIds.filter(id => !getCachedClub(id));
+        if (missingClubIds.length > 0) {
+          const { data: clubsData } = await supabase
+            .from("clubs")
+            .select("id, name, logo_url, sport, is_pro")
+            .in("id", missingClubIds);
+          if (clubsData) {
+            const { cacheClubs } = await import("@/lib/clubTeamCache");
+            cacheClubs(clubsData);
+          }
+        }
+
         for (const team of teams) {
           if (activeClubFilter && team.club_id !== activeClubFilter) continue;
           const teamRoles = roles.filter(r => r.team_id === team.id);
           const clubRoles = roles.filter(r => r.club_id === team.club_id);
           const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
             clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
+          const cachedClub = getCachedClub(team.club_id);
           result.push({
             id: team.id, name: team.name, logo_url: team.logo_url,
-            club_logo_url: team.clubs?.logo_url || null,
+            club_logo_url: cachedClub?.logo_url || null,
             type: "team",
-            club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
+            club_name: cachedClub?.name || "", sport: cachedClub?.sport || null,
             club_id: team.club_id, canManage,
             isOnTrial: !!(team.is_pro && team.pro_expires_at),
           });
@@ -368,11 +398,13 @@ export function MyTeamsPremiumCarousel() {
           for (const league of leagues) {
             if (activeClubFilter && league.club_id !== activeClubFilter) continue;
             const canManage = leagueAdminClubIds.includes(league.club_id);
+            const cachedClub = getCachedClub(league.club_id);
             result.push({
               id: league.id, name: league.name, logo_url: null,
-              club_logo_url: league.clubs?.logo_url || null,
+              club_logo_url: cachedClub?.logo_url || league.clubs?.logo_url || null,
               type: "league",
-              club_name: league.clubs?.name || "", sport: league.clubs?.sport || null,
+              club_name: cachedClub?.name || league.clubs?.name || "",
+              sport: cachedClub?.sport || league.clubs?.sport || null,
               club_id: league.club_id, canManage,
             });
           }
@@ -510,7 +542,7 @@ export function MyTeamsPremiumCarousel() {
 
       return map;
     },
-    enabled: teamIds.length > 0,
+    enabled: teamIds.length > 0 && deferredReady,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
