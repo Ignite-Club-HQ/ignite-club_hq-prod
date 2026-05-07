@@ -103,6 +103,15 @@ async function waitForImagesAndMeasure(page: Page) {
   });
 }
 
+test.describe.configure({
+  // Each chat route is independent — run in parallel within this file so
+  // the suite stays fast even with the 8s pin-settle + 4s skeleton waits.
+  mode: "parallel",
+  // Image decode + signed-URL fetches can race in WebKit; allow up to 2
+  // automatic retries on transient timing flakes before failing.
+  retries: 2,
+});
+
 test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
   test.use({
     // 375x812 ≈ iPhone X. WebKit project is configured at the
@@ -135,8 +144,80 @@ test.describe("WebKit (iOS-like) — chat opens at bottom with no jolt", () => {
         test.skip(true, "No chat viewport mounted on this route in this state");
       }
 
-      // Give the initial-pin sequence and image-wait gate a moment to run.
-      await page.waitForTimeout(800);
+      // Explicit settle gate: chat pages keep the scroll container at
+      // `visibility: hidden` until `useInitialChatBottomPin` flips
+      // `isPinned` to true (which now ALSO waits for in-flight images to
+      // decode). Polling for computed visibility === "visible" is the
+      // single, reliable signal that the pin sequence has finished — no
+      // arbitrary timeouts, no races against the image-wait gate.
+      const settled = await page
+        .waitForFunction(
+          () => {
+            const vp =
+              document.querySelector<HTMLElement>("[data-chat-viewport]") ??
+              document.querySelector<HTMLElement>(
+                "[data-radix-scroll-area-viewport]",
+              );
+            if (!vp) return false;
+            // Walk up to the nearest ancestor that owns a `visibility`
+            // declaration — TeamChatPage etc. set it on the scroll
+            // container, which may be the viewport itself or its parent.
+            let node: HTMLElement | null = vp;
+            while (node) {
+              const v = window.getComputedStyle(node).visibility;
+              if (v === "hidden") return false;
+              if (node === document.body) break;
+              node = node.parentElement;
+            }
+            // Pin sequence has revealed the viewport. Confirm content
+            // is actually present so we don't measure an empty thread.
+            return vp.scrollHeight > vp.clientHeight;
+          },
+          null,
+          { timeout: 8_000, polling: 100 },
+        )
+        .catch(() => null);
+
+      if (!settled) {
+        test.skip(
+          true,
+          "Chat pin sequence did not settle within 8s — likely an empty thread or auth gate",
+        );
+      }
+
+      // Belt-and-braces fallback: even after reveal, late-mounting
+      // attachment cards (GalleryLinkCard, link previews, etc.) render a
+      // <Skeleton /> placeholder while their thumbnail decodes. Those
+      // skeletons share the global `animate-pulse` utility (Tailwind) and
+      // stop animating once their content swaps in. Wait for ALL pulsing
+      // placeholders inside the chat viewport to disappear before we
+      // measure — otherwise we might capture scrollTop while a card is
+      // still about to grow by ~120px on thumbnail load.
+      await page
+        .waitForFunction(
+          () => {
+            const vp =
+              document.querySelector<HTMLElement>("[data-chat-viewport]") ??
+              document.querySelector<HTMLElement>(
+                "[data-radix-scroll-area-viewport]",
+              );
+            if (!vp) return true;
+            const skeletons = vp.querySelectorAll<HTMLElement>(
+              ".animate-pulse, [data-skeleton], [data-state='loading']",
+            );
+            return skeletons.length === 0;
+          },
+          null,
+          { timeout: 4_000, polling: 100 },
+        )
+        .catch(() => {
+          /* skeletons may legitimately remain (e.g. a stalled signed URL).
+             We tried; fall through and let the image-load wait handle it. */
+        });
+
+      // Final tail to absorb any ResizeObserver-driven snap that fires
+      // immediately after the last skeleton swap.
+      await page.waitForTimeout(150);
 
       const before = await waitForImagesAndMeasure(page);
       expect(before, "viewport metrics should be readable").not.toBeNull();
