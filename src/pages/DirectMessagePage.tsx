@@ -43,6 +43,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
+import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
