@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
 import { getSignedPhotoUrls } from "@/hooks/useSignedPhotoUrl";
+import { getCachedCarousel, setCachedCarousel } from "@/lib/myTeamsCarouselCache";
 import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 interface TeamOrLeague {
@@ -270,17 +271,31 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   );
 }
 
+interface CarouselSnapshot {
+  items: TeamOrLeague[];
+  nextEvents: Record<string, NextEventInfo>;
+  teamPhotos: Record<string, { id: string; url: string }[]>;
+  unreadCounts: Record<string, number>;
+}
+
 export function MyTeamsPremiumCarousel() {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
 
+  // Hydrate from localStorage so cold opens paint real cards instantly
+  const snapshot = useMemo<CarouselSnapshot | null>(
+    () => getCachedCarousel<CarouselSnapshot>(user?.id, activeClubFilter),
+    [user?.id, activeClubFilter]
+  );
+
   // Fetch teams & leagues
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = snapshot?.items ?? [], isLoading } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
     retry: 3,
     queryFn: async () => {
       if (!user) return [];
+
 
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
@@ -382,7 +397,7 @@ export function MyTeamsPremiumCarousel() {
   const teamIds = items.filter(i => i.type === "team").map(i => i.id);
   const leagueItemIds = items.filter(i => i.type === "league").map(i => i.id);
 
-  const { data: nextEvents = {} } = useQuery({
+  const { data: nextEvents = snapshot?.nextEvents ?? {} } = useQuery({
     queryKey: ["team-next-events-premium", teamIds, leagueItemIds],
     queryFn: async () => {
       const now = new Date().toISOString();
@@ -458,7 +473,7 @@ export function MyTeamsPremiumCarousel() {
   });
 
   // Fetch recent photos per team
-  const { data: teamPhotos = {} } = useQuery({
+  const { data: teamPhotos = snapshot?.teamPhotos ?? {} } = useQuery({
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {};
@@ -501,7 +516,7 @@ export function MyTeamsPremiumCarousel() {
   });
 
   // Fetch unread message counts per team — single batched query (no N+1)
-  const { data: unreadCounts = {} } = useQuery({
+  const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
     queryKey: ["team-unread-counts", teamIds, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0 || !user?.id) return {};
@@ -537,7 +552,18 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  if (isLoading) {
+  // Persist snapshot for instant cold-start on next visit
+  useEffect(() => {
+    if (!user?.id || items.length === 0) return;
+    setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
+      items,
+      nextEvents,
+      teamPhotos,
+      unreadCounts,
+    });
+  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts]);
+
+  if (isLoading && !snapshot) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
