@@ -175,6 +175,13 @@ export function useInitialChatBottomPin({
       setIsPinned(true);
       pinnedKeyRef.current = resetKey;
       lastItemCountRef.current = 0;
+      // Mark a "pin time" so the scroll listener (which activates on
+      // isPinned) trusts events fired while messages stream into the
+      // empty viewport. Without this, scrollHeight growth from 0 → tall
+      // would fire scroll events outside any trust window and falsely
+      // set userScrolledAwayRef = true, disabling all post-pin guards
+      // when the real messages arrive.
+      pinnedAtRef.current = performance.now();
       return;
     }
 
