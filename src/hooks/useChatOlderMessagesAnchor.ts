@@ -67,6 +67,16 @@ export function useChatOlderMessagesAnchor({
         if (isLoadingOlder || !hasOlderMessages) return;
         if (document.hidden) return;
 
+        // Don't trigger on initial mount when the trigger is visible simply
+        // because the thread is short and fits on screen. Require the user to
+        // have actually scrolled UP away from the bottom first. Otherwise
+        // a small thread (e.g. U7 White) auto-fetches a page on open and
+        // anchored-prepend pushes scrollTop to "old bottom + delta", visibly
+        // jolting the chat upward right after the bottom-pin completes.
+        const distanceFromBottom =
+          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+        if (distanceFromBottom < 200) return;
+
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
           // User is mid-flick — re-check shortly so we don't miss the window.

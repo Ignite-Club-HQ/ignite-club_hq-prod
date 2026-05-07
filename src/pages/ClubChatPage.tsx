@@ -741,9 +741,15 @@ export default function ClubChatPage() {
     
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingOlder && hasOlderMessages) {
-          loadOlderMessages();
-        }
+        if (!entries[0].isIntersecting || isLoadingOlder || !hasOlderMessages) return;
+        // Require the user to have scrolled away from the bottom before fetching
+        // older messages. Otherwise short threads (whose trigger is already in
+        // view on open) auto-fetch a page and the scroll-restore visibly jolts
+        // the chat upward right after pin completes.
+        const distanceFromBottom =
+          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+        if (distanceFromBottom < 200) return;
+        loadOlderMessages();
       },
       // Pre-fetch older messages BEFORE the user reaches the very top so the next
       // page is already in the DOM, eliminating the scroll-then-wait stutter.
