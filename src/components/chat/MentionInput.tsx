@@ -698,7 +698,7 @@ export function MentionInput({
             <div
               ref={highlightRef}
               aria-hidden="true"
-              className="absolute inset-0 pointer-events-none overflow-hidden pl-1 pr-1.5 py-[7px] text-[15px] leading-[1.4] whitespace-pre-wrap break-words text-transparent"
+              className="absolute inset-0 pointer-events-none overflow-hidden pl-1 pr-1.5 py-[7px] text-[16px] leading-[1.4] whitespace-pre-wrap break-words text-transparent"
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             >
               {highlightedSegments.map((seg) =>
