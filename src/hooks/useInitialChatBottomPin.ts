@@ -217,18 +217,13 @@ export function useInitialChatBottomPin({
 
     const guardSnap = () => {
       if (cancelled || userScrolledAwayRef.current) return;
-      const metrics = getChatScrollMetrics(scrollContainerRef.current);
-      // During the post-pin trust window, the user cannot have scrolled
-      // (the scroll listener ignores events for POST_PIN_TRUST_WINDOW_MS).
-      // Any drift is layout settling — late profile data, avatars decoding,
-      // composer height stabilising — which on Team/Group chats can easily
-      // exceed 400px. ALWAYS re-snap during this window.
-      const withinTrustWindow =
-        performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
-      if (!withinTrustWindow && metrics && metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
-        userScrolledAwayRef.current = true;
-        return;
-      }
+      // Layout-shift snap. Never flip userScrolledAwayRef from here —
+      // that flag is reserved for the real scroll-event listener (which
+      // already enforces the trust window + USER_SCROLL_AWAY_THRESHOLD_PX).
+      // On first-ever open of a thread (no cached profiles/avatars),
+      // hydration can grow the content by 600–900px in a single tick;
+      // gating on a distance threshold here would permanently disable
+      // re-snapping and leave the user above bottom (the "jolt up" bug).
       scrollChatToBottom(scrollContainerRef.current);
     };
 
