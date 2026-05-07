@@ -34,27 +34,28 @@ interface NextEventInfo {
   type: string;
 }
 
-function formatShortDate(dateStr: string): string {
-  const date = parseISO(dateStr);
-  const now = new Date();
-  if (isToday(date)) return `Today ${format(date, "h:mma").toLowerCase()}`;
-  if (isTomorrow(date)) return `Tmrw ${format(date, "h:mma").toLowerCase()}`;
-  const daysAway = differenceInDays(date, now);
-  if (daysAway <= 6) return `${format(date, "EEE")} ${format(date, "h:mma").toLowerCase()} (in ${daysAway}d)`;
-  return `${format(date, "EEE d MMM")} ${format(date, "h:mma").toLowerCase()}`;
+interface DateParts {
+  timeLabel: string;
+  dayLabel: string;
+  pill: string | null;
 }
 
-const eventAccentColors: Record<string, string> = {
-  game: "border-l-destructive",
-  training: "border-l-primary",
-  social: "border-l-warning",
-};
+function formatShortDate(dateStr: string): string {
+  const p = formatDateParts(dateStr);
+  return `${p.dayLabel} ${p.timeLabel}${p.pill ? ` (${p.pill})` : ""}`;
+}
 
-const eventDotColors: Record<string, string> = {
-  game: "bg-destructive",
-  training: "bg-primary",
-  social: "bg-warning",
-};
+function formatDateParts(dateStr: string): DateParts {
+  const date = parseISO(dateStr);
+  const now = new Date();
+  const time = format(date, "h:mma").toLowerCase();
+  const days = differenceInDays(date, now);
+  if (isToday(date)) return { timeLabel: time, dayLabel: "Today", pill: "Today" };
+  if (isTomorrow(date)) return { timeLabel: time, dayLabel: "Tomorrow", pill: "in 1d" };
+  if (days >= 0 && days <= 6) return { timeLabel: time, dayLabel: format(date, "EEEE"), pill: `in ${days}d` };
+  return { timeLabel: time, dayLabel: format(date, "EEE d MMM"), pill: null };
+}
+
 
 function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
   item: TeamOrLeague; 
