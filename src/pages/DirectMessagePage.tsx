@@ -178,6 +178,12 @@ export default function DirectMessagePage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  // Read once on mount: was this thread opened from a push notification within
+  // the last 60s? If so, the cached snapshot is stale — skip placeholder render
+  // and force a priority refetch as soon as we have auth.
+  const openedFromNotificationRef = useRef<boolean>(
+    !!conversationId && consumeFromNotificationFlag("dm", conversationId),
+  );
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = conversationId
