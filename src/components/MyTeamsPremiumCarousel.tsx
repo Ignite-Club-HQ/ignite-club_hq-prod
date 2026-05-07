@@ -363,61 +363,12 @@ export function MyTeamsPremiumCarousel() {
         }
       }
 
-      // Fetch next-event dates for stable activity-based sorting
-      const now = new Date().toISOString();
-      const resultTeamIds = result.filter(r => r.type === "team").map(r => r.id);
-      const resultLeagueIds = result.filter(r => r.type === "league").map(r => r.id);
-      const nextEventDate: Record<string, string> = {};
-
-      const eventFetches: Promise<void>[] = [];
-      if (resultTeamIds.length > 0) {
-        eventFetches.push(
-          supabase
-            .from("events")
-            .select("team_id, event_date")
-            .in("team_id", resultTeamIds)
-            .gte("event_date", now)
-            .eq("is_cancelled", false)
-            .order("event_date", { ascending: true })
-            .limit(resultTeamIds.length * 2)
-            .then(({ data }) => {
-              data?.forEach(e => { if (e.team_id && !nextEventDate[e.team_id]) nextEventDate[e.team_id] = e.event_date; });
-            }) as Promise<void>
-        );
-      }
-      if (resultLeagueIds.length > 0) {
-        eventFetches.push(
-          supabase
-            .from("events")
-            .select("mini_league_id, event_date")
-            .in("mini_league_id", resultLeagueIds)
-            .gte("event_date", now)
-            .eq("is_cancelled", false)
-            .order("event_date", { ascending: true })
-            .limit(resultLeagueIds.length * 2)
-            .then(({ data }) => {
-              data?.forEach(e => { if (e.mini_league_id && !nextEventDate[e.mini_league_id]) nextEventDate[e.mini_league_id] = e.event_date; });
-            }) as Promise<void>
-        );
-      }
-      await Promise.all(eventFetches);
-
-      // Sort: active roles first, then by upcoming activity, then teams > leagues, then alphabetical
+      // Initial sort (without event dates — final activity sort happens in render once nextEvents resolves)
       return result.sort((a, b) => {
-        // Priority 1: canManage (coach/team_admin/club_admin) first
         if (a.canManage && !b.canManage) return -1;
         if (!a.canManage && b.canManage) return 1;
-        // Priority 2: has upcoming event before no event
-        const aDate = nextEventDate[a.id];
-        const bDate = nextEventDate[b.id];
-        if (aDate && !bDate) return -1;
-        if (!aDate && bDate) return 1;
-        // Priority 3: soonest event first
-        if (aDate && bDate && aDate !== bDate) return aDate < bDate ? -1 : 1;
-        // Priority 4: teams before leagues
         if (a.type === "team" && b.type === "league") return -1;
         if (a.type === "league" && b.type === "team") return 1;
-        // Priority 5: alphabetical
         return a.name.localeCompare(b.name);
       });
     },
