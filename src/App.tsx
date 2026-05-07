@@ -120,7 +120,7 @@ import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
 // cache-fallback branches (chat messages, schedule events, etc.) can return
 // cached data instead of React Query pausing the query indefinitely (which
 // would leave Schedule stuck on "loading" and chat threads blank).
-export const queryClient = new QueryClient({
+const queryClient = new QueryClient({
   defaultOptions: {
     queries: { networkMode: "offlineFirst" },
     mutations: { networkMode: "offlineFirst" },
