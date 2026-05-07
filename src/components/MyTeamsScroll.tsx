@@ -139,10 +139,15 @@ export function MyTeamsScroll() {
       const now = new Date().toISOString();
       const map: Record<string, NextEventInfo> = {};
 
+      const extractOpponent = (title: string): string | null => {
+        const m = title.match(/\s+vs?\.?\s+(.+)$/i);
+        return m ? m[1].trim() : null;
+      };
       const buildLabel = (type: string | null, opponent: string | null, title: string) => {
         if (type === "training") return "Training";
         if (type === "social") return "Social";
-        if ((type === "game" || type === "mini_league") && opponent) return `Game v ${opponent}`;
+        const opp = opponent || extractOpponent(title);
+        if ((type === "game" || type === "mini_league") && opp) return `Game v ${opp}`;
         if (type === "game" || type === "mini_league") return "Game";
         return title;
       };
