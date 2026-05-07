@@ -170,16 +170,18 @@ export function useInitialChatBottomPin({
     }
 
     if (itemCount <= 0) {
+      // CRITICAL: do NOT setIsPinned(true) here. Revealing an empty viewport
+      // means the user sees the chat container at scrollTop=0; when messages
+      // then stream in (itemCount goes 0 → N), scrollHeight grows from 0 to
+      // tall while scrollTop is still 0, so the user briefly sees the TOP of
+      // the thread (oldest messages) before the wasEmptyPin branch fires the
+      // re-pin sequence and snaps to bottom. That paint-between is the
+      // "opened at bottom, jolted up to older messages, settled" jolt the
+      // user reported on first-ever thread open. Keep visibility:hidden by
+      // leaving isPinned=false until the real pin sequence below completes.
       pinnedWhileEmptyRef.current = true;
-      setIsPinned(true);
       pinnedKeyRef.current = resetKey;
       lastItemCountRef.current = 0;
-      // Mark a "pin time" so the scroll listener (which activates on
-      // isPinned) trusts events fired while messages stream into the
-      // empty viewport. Without this, scrollHeight growth from 0 → tall
-      // would fire scroll events outside any trust window and falsely
-      // set userScrolledAwayRef = true, disabling all post-pin guards
-      // when the real messages arrive.
       pinnedAtRef.current = performance.now();
       return;
     }
