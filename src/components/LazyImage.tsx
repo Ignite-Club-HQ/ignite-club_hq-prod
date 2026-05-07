@@ -130,16 +130,18 @@ export function LazyImage({ src, alt, className = "", priority = false, thumbWid
 
   return (
     <>
-      {(!isLoaded && !lqipLoaded) || isLoadingSignedUrl ? (
+      {!isLoaded && (!hasLqip || !lqipLoaded) ? (
         <div className="absolute inset-0 bg-muted animate-pulse" />
       ) : null}
 
-      {!showAsVideo && hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
+      {!showAsVideo && hasLqip && isInView && !isLoadingSignedUrl && (
         <img
           src={lqipUrl}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-lg"
+          className={`absolute inset-0 w-full h-full object-cover scale-110 blur-lg ${
+            isLoaded ? "opacity-0 transition-opacity duration-200" : "opacity-100"
+          }`}
           onLoad={() => setLqipLoaded(true)}
         />
       )}
@@ -151,8 +153,8 @@ export function LazyImage({ src, alt, className = "", priority = false, thumbWid
           alt={alt}
           loading={priority ? "eager" : "lazy"}
           decoding="async"
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-            isLoaded ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 w-full h-full object-cover ${
+            isLoaded ? "opacity-100 transition-opacity duration-200" : "opacity-0"
           } ${className}`}
           onLoad={() => setIsLoaded(true)}
           onError={handleError}
