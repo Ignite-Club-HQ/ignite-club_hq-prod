@@ -67,12 +67,17 @@ export function useChatOlderMessagesAnchor({
         if (isLoadingOlder || !hasOlderMessages) return;
         if (document.hidden) return;
 
-        // Don't trigger on initial mount when the trigger is visible simply
-        // because the thread is short and fits on screen. Require the user to
-        // have actually scrolled UP away from the bottom first. Otherwise
-        // a small thread (e.g. U7 White) auto-fetches a page on open and
-        // anchored-prepend pushes scrollTop to "old bottom + delta", visibly
-        // jolting the chat upward right after the bottom-pin completes.
+        // Hard guard: never trigger before the user has actually scrolled.
+        // On first mount the bottom-pin runs after layout, and during that
+        // window the trigger sentinel can be "intersecting" simply because
+        // scrollTop is still 0. Firing here causes the visible upward jolt
+        // on iOS right after the chat opens. Require a real user scroll
+        // (lastScrollAtRef is set by the scroll listener above) before we
+        // ever consider fetching older pages.
+        if (lastScrollAtRef.current === 0) return;
+
+        // Also require the user to have moved meaningfully away from the
+        // bottom — short threads should never auto-paginate on open.
         const distanceFromBottom =
           scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
         if (distanceFromBottom < 200) return;
