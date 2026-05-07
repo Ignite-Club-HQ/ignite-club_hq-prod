@@ -542,8 +542,17 @@ export default function TeamChatPage() {
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
+      if (!teamId) return prev;
+      // When opened from a push notification, the cached message just written
+      // by the preload handler is fresher than `prev`. Prefer it so the new
+      // message renders at first paint.
+      if (openedFromNotificationRef.current) {
+        const cachedMessages = getCachedTeamMessages(teamId);
+        if (cachedMessages.length) {
+          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+        }
+      }
       if (prev) return prev;
-      if (!teamId) return undefined;
 
       const cachedMessages = getCachedTeamMessages(teamId);
       if (!cachedMessages.length) return undefined;
