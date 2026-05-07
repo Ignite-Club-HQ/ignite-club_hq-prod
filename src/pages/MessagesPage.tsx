@@ -1096,7 +1096,10 @@ export default function MessagesPage() {
   // thread is at the top on first paint (cached `lastActivity` may be stale).
   const proAccessKnown = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
   const freshSortDataReady = teamsFetched && memberClubsFetched && chatGroupsFetched && latestBroadcastFetched && proAccessKnown && (!hasAnyProAccess || dmFetched);
-  const showSkeletonLoading = isLoadingFreshData || (!freshSortDataReady && !hasCachedData);
+  // Always wait for fresh sort data before rendering the list, even when cached
+  // data exists. Otherwise the cached order paints first and threads visibly
+  // shuffle when fresh `lastActivity` timestamps arrive a moment later.
+  const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
 
   // Determine which data to display (prefer fresh, fallback to cached)
   const displayTeams = teams || cachedData?.teams || [];
