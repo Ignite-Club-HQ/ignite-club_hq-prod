@@ -534,6 +534,25 @@ export default function GroupChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
+
+  // Log notification-tap → first-message-render latency once per mount.
+  useEffect(() => {
+    if (perfLoggedRef.current) return;
+    if (!groupId || !user?.id) return;
+    if (showLoading) return;
+    if (!localMessages || localMessages.length === 0) return;
+    perfLoggedRef.current = true;
+    const tapTs = openedFromNotificationRef.current;
+    void logChatOpenLatency({
+      kind: "group",
+      targetId: groupId,
+      source: tapTs ? "notification" : "cold_open",
+      startTs: tapTs ?? mountTsRef.current,
+      messageCount: localMessages.length,
+      fromCache: !messagesData,
+      userId: user.id,
+    });
+  }, [groupId, user?.id, showLoading, localMessages, messagesData]);
   
   // Extract top-level reactions from query data (must be before useLayoutEffect that uses it)
   const reactions = useMemo(() => {
