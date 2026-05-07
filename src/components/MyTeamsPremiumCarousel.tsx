@@ -467,6 +467,7 @@ export function MyTeamsPremiumCarousel() {
                 title: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
+                eventDate: event.event_date,
               };
             }
           }
@@ -490,6 +491,7 @@ export function MyTeamsPremiumCarousel() {
                 title: buildLabel(event.type, event.opponent, event.title),
                 dateLabel: formatShortDate(event.event_date),
                 type: event.type,
+                eventDate: event.event_date,
               };
             }
           }
