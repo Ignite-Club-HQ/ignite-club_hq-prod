@@ -361,9 +361,13 @@ export default function EventsPage() {
         if (cached) return cached as Event[];
       }
 
-      // Only fetch events from the last 30 days onward to avoid pulling entire history
+      // Window: last 30 days for context, up to 120 days ahead. The list view
+      // only ever shows the next handful of upcoming events, so capping the
+      // upper bound dramatically shrinks the payload for active clubs.
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const upperBound = new Date();
+      upperBound.setDate(upperBound.getDate() + 120);
 
       let query = supabase
         .from("events")
@@ -393,6 +397,7 @@ export default function EventsPage() {
           clubs (name, sport)
         `)
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
+        .lte("event_date", upperBound.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
       if (filter !== "all") query = query.eq("type", filter);
