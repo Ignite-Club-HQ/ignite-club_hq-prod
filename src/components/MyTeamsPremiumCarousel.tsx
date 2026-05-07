@@ -291,56 +291,57 @@ export function MyTeamsPremiumCarousel() {
       if (!roles) return [];
 
       const teamIds = [...new Set(roles.filter(r => r.team_id).map(r => r.team_id))] as string[];
-      const result: TeamOrLeague[] = [];
-
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
-          .in("id", teamIds);
-
-        if (teams) {
-          cacheTeams(teams.map(t => ({
-            id: t.id, name: t.name, logo_url: t.logo_url, club_id: t.club_id, level_age: null,
-          })));
-
-          for (const team of teams) {
-            if (activeClubFilter && team.club_id !== activeClubFilter) continue;
-            const teamRoles = roles.filter(r => r.team_id === team.id);
-            const clubRoles = roles.filter(r => r.club_id === team.club_id);
-            const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
-              clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
-            result.push({
-              id: team.id, name: team.name, logo_url: team.logo_url,
-              club_logo_url: team.clubs?.logo_url || null,
-              type: "team",
-              club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
-              club_id: team.club_id, canManage,
-              isOnTrial: !!(team.is_pro && team.pro_expires_at),
-            });
-          }
-        }
-      }
-
-      // Mini leagues
-      const { data: playerLeagues } = await supabase
-        .from("mini_league_players")
-        .select("mini_league_id")
-        .eq("parent_user_id", user.id);
-
-      const leagueIds = new Set(playerLeagues?.map(p => p.mini_league_id) || []);
-
       const leagueAdminClubIds = roles
         .filter(r => r.club_id && r.role === "league_admin")
         .map(r => r.club_id) as string[];
 
-      if (leagueAdminClubIds.length > 0) {
-        const { data: adminLeagues } = await supabase
-          .from("mini_leagues")
-          .select("id")
-          .in("club_id", leagueAdminClubIds);
-        adminLeagues?.forEach(l => leagueIds.add(l.id));
+      // Parallel: teams, player-league memberships, and league-admin clubs all depend only on `roles`
+      const [teamsRes, playerLeaguesRes, adminLeaguesRes] = await Promise.all([
+        teamIds.length > 0
+          ? supabase
+              .from("teams")
+              .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
+              .in("id", teamIds)
+          : Promise.resolve({ data: [] as any[] }),
+        supabase
+          .from("mini_league_players")
+          .select("mini_league_id")
+          .eq("parent_user_id", user.id),
+        leagueAdminClubIds.length > 0
+          ? supabase
+              .from("mini_leagues")
+              .select("id, club_id")
+              .in("club_id", leagueAdminClubIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+
+      const result: TeamOrLeague[] = [];
+      const teams = teamsRes.data;
+      if (teams && teams.length > 0) {
+        cacheTeams(teams.map(t => ({
+          id: t.id, name: t.name, logo_url: t.logo_url, club_id: t.club_id, level_age: null,
+        })));
+
+        for (const team of teams) {
+          if (activeClubFilter && team.club_id !== activeClubFilter) continue;
+          const teamRoles = roles.filter(r => r.team_id === team.id);
+          const clubRoles = roles.filter(r => r.club_id === team.club_id);
+          const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
+            clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
+          result.push({
+            id: team.id, name: team.name, logo_url: team.logo_url,
+            club_logo_url: team.clubs?.logo_url || null,
+            type: "team",
+            club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
+            club_id: team.club_id, canManage,
+            isOnTrial: !!(team.is_pro && team.pro_expires_at),
+          });
+        }
       }
+
+      // Mini leagues — combine player + league-admin memberships, then fetch full rows
+      const leagueIds = new Set(playerLeaguesRes.data?.map((p: any) => p.mini_league_id) || []);
+      adminLeaguesRes.data?.forEach((l: any) => leagueIds.add(l.id));
 
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
