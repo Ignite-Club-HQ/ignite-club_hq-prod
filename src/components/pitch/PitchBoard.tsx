@@ -3690,12 +3690,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
     if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setDraggedPlayer(playerId);
   };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3732,6 +3737,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (position) updateDraggedPlayerPosition(draggedPlayer, position);
     setDraggedPlayer(null);
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
