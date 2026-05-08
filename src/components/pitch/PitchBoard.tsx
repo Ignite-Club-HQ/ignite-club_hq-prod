@@ -2757,14 +2757,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const pitchPlayer = players.find(p => p.id === pitchPlayerId);
     const swapPlayer = players.find(p => p.id === swapPlayerId);
 
-    if ((!pitchPlayer?.position && !dragStart?.position) || !swapPlayer?.position) return;
+    if (!pitchPlayer || (!pitchPlayer.position && !dragStart?.position) || !swapPlayer?.position) return;
 
-    const pos1 = dragStart?.position ? { ...dragStart.position } : { ...pitchPlayer!.position! };
+    const pos1 = dragStart?.position ? { ...dragStart.position } : { ...pitchPlayer.position! };
     const pos2 = { ...swapPlayer.position };
     const pitchPos1 = dragStart?.currentPitchPosition ?? pitchPlayer?.currentPitchPosition;
     const pitchPos2 = swapPlayer.currentPitchPosition;
 
-    pushToUndoHistory(`Swap: ${pitchPlayer!.name} ↔ ${swapPlayer.name}`, playersRef.current);
+    pushToUndoHistory(`Swap: ${pitchPlayer.name} ↔ ${swapPlayer.name}`, playersRef.current);
 
     setPlayers(prev => prev.map(p => {
       if (p.id === pitchPlayerId) {
@@ -2778,7 +2778,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     toast({
       title: "Positions swapped",
-      description: `${pitchPlayer!.name} ↔ ${swapPlayer.name}`
+      description: `${pitchPlayer.name} ↔ ${swapPlayer.name}`
     });
 
     if (!reopenSubDialog) return;
