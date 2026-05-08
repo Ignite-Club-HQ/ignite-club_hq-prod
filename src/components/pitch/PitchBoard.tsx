@@ -4476,30 +4476,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           {/* Sub-related controls group - centered */}
           <div className="flex items-center gap-3">
 
-            {/* Bench (sub) button — Swap removed; drag-to-swap remains */}
-            {!readOnly && (
-              <>
-                <Button
-                  variant={subMode ? "secondary" : "default"}
-                  size="sm"
-                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                  onClick={() => toggleSubMode()}
-                  title="Open bench to substitute a player"
-                >
-                  <Users className="h-4 w-4" />
-                  {subMode ? "Cancel" : `Bench (${playersOnBench.length})`}
-                </Button>
-                {(subMode || swapMode) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
-                    onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </>
+            {/* Bench button removed — use bench drawer / drag-to-sub instead */}
+            {!readOnly && (subMode || swapMode) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
+                onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
             )}
 
           </div>
@@ -6081,17 +6068,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
         {!readOnly && (
           <>
-            {/* Bench (sub) button — Swap removed; drag-to-swap remains */}
-            {!swapMode && (
+            {/* Bench button removed — use bench drawer / drag-to-sub instead */}
+            {subMode && (
               <Button
-                variant={subMode ? "secondary" : "default"}
+                variant="secondary"
                 size="sm"
                 className="h-9 shrink-0 gap-1 px-2 text-xs"
                 onClick={() => toggleSubMode()}
-                title="Open bench to substitute a player"
               >
-                <Users className="h-4 w-4" />
-                {subMode ? "Cancel" : `Bench (${playersOnBench.length})`}
+                <X className="h-4 w-4" />
+                Cancel
               </Button>
             )}
             {!subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
