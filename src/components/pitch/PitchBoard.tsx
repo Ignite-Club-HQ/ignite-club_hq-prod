@@ -890,9 +890,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const savedRosterHasNoPlayersOnPitch =
     savedPlayers.length > 0 && savedPlayers.every((player) => player.position === null);
   const applyStrictMatchRoster = useCallback((sourcePlayers: Player[]): Player[] => {
-    if (!isStrictMatchEventRoster || realPlayers.length === 0) return sourcePlayers;
+    // Dedupe by id first — defensive guard against any upstream path that
+    // may have produced duplicate roster rows (e.g. async merges, multi-role
+    // members). Without this the auto-sub planner and projected-minutes view
+    // render the same player multiple times.
+    const seenIds = new Set<string>();
+    const dedupedSource = sourcePlayers.filter(p => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    });
+    if (!isStrictMatchEventRoster || realPlayers.length === 0) return dedupedSource;
 
-    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id) || player.isFillIn);
+    const filteredPlayers = dedupedSource.filter((player) => strictMatchRosterPlayerIds.has(player.id) || player.isFillIn);
     const filteredIds = new Set(filteredPlayers.map((player) => player.id));
     const missingCurrentPlayers = realPlayers
       .filter((player) => !filteredIds.has(player.id))
