@@ -184,42 +184,56 @@ export function useChatOlderMessagesAnchor({
       // Disable any inherited smooth-scroll while we hard-set scrollTop.
       container.style.scrollBehavior = "auto";
 
-      // flushSync forces React to commit (and the browser to lay out) the
-      // new DOM synchronously, so we can read the new scrollHeight and
-      // restore scrollTop before any paint occurs.
-      try {
-        flushSync(() => {
-          applyPrepend();
-        });
-      } catch {
-        // flushSync throws if called from inside a render — fall back to
-        // a normal update + rAF restore.
-        applyPrepend();
+      // Use a one-shot ResizeObserver to catch the new scrollHeight as soon
+      // as React commits and the browser lays out — without forcing a
+      // synchronous main-thread stall via flushSync. The RO fires after
+      // layout but before paint in the same frame, so the user never sees
+      // the un-corrected scrollTop. This avoids 16-32ms blocking commits
+      // on long threads (300+ messages) during fast upward flicks.
+      let corrected = false;
+      const correct = () => {
+        if (corrected) return;
+        const c = scrollContainerRef.current;
+        if (!c) return;
+        const nextHeight = c.scrollHeight;
+        if (nextHeight === previousScrollHeight) return; // wait for the real grow
+        corrected = true;
+        const delta = nextHeight - previousScrollHeight;
+        c.scrollTop = previousScrollTop + delta;
+        ro.disconnect();
         requestAnimationFrame(() => {
-          const c = scrollContainerRef.current;
-          if (!c) return;
-          c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
-          c.style.scrollBehavior = previousBehavior;
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.style.scrollBehavior = previousBehavior;
+          }
         });
-        return;
-      }
+        watchPrependedMediaAndReanchor(c, previousScrollTop, previousScrollHeight);
+      };
 
-      void container.offsetHeight;
-      const nextScrollHeight = container.scrollHeight;
-      const delta = nextScrollHeight - previousScrollHeight;
-      container.scrollTop = previousScrollTop + delta;
-
-      // Restore scroll-behavior on the next frame so we don't fight any
-      // legitimate smooth-scroll that follows.
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.style.scrollBehavior = previousBehavior;
-        }
+      const ro = new ResizeObserver(() => correct());
+      ro.observe(container);
+      // Start observing children too so a child grow (the most common case
+      // for prepended message rows) triggers the callback immediately.
+      Array.from(container.children).forEach((child) => {
+        if (child instanceof HTMLElement) ro.observe(child);
       });
 
-      // Watch for newly-prepended images decoding and re-apply the anchor
-      // so their final height doesn't push content down later.
-      watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
+      applyPrepend();
+
+      // Safety net: if the RO hasn't fired within 2 frames (e.g. nothing
+      // actually changed size), fall back to a manual rAF correction.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!corrected) {
+            ro.disconnect();
+            const c = scrollContainerRef.current;
+            if (!c) return;
+            const delta = c.scrollHeight - previousScrollHeight;
+            if (delta > 0) c.scrollTop = previousScrollTop + delta;
+            c.style.scrollBehavior = previousBehavior;
+            watchPrependedMediaAndReanchor(c, previousScrollTop, previousScrollHeight);
+          }
+        });
+      });
     },
     [scrollContainerRef],
   );
