@@ -3717,6 +3717,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
 
   // Touch handlers for mobile drag-and-drop
