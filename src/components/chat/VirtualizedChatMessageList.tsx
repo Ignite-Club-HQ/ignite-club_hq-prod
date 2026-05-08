@@ -233,29 +233,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const components = useMemo(
     () => ({
-      Header: () => {
-        // Reserve a fixed slot whenever older history exists so the spinner
-        // appearing during pagination doesn't grow the header height and
-        // shove every message down a row. Height is constant whether the
-        // spinner is visible or not.
-        if (hasOlder) {
-          return (
-            <div
-              className="flex items-center justify-center"
-              style={{ height: 32, overflowAnchor: "none" }}
-              aria-hidden={!isLoadingOlder}
-            >
-              {isLoadingOlder ? (
-                <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 border-t-transparent animate-spin" />
-              ) : null}
-            </div>
-          );
-        }
-        return <div style={{ height: topPadding }} />;
-      },
+      // Keep the list header purely structural and independent of loading
+      // state. Rendering the spinner here makes Virtuoso re-measure header
+      // content exactly while it is trying to preserve a top anchor.
+      Header: () => <div style={{ height: topPadding, overflowAnchor: "none" }} />,
       Footer: () => <div style={{ height: bottomPadding }} />,
     }),
-    [hasOlder, isLoadingOlder, topPadding, bottomPadding],
+    [topPadding, bottomPadding],
   );
 
   return (
