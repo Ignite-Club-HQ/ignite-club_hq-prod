@@ -81,6 +81,10 @@ interface GameTimerProps {
   // External minutes per half control
   minutesPerHalf?: number;
   onMinutesPerHalfChange?: (minutes: number) => void;
+  /** ISO timestamp of the linked event's kickoff. When set:
+   *  - Manual start before kickoff is blocked.
+   *  - Timer auto-starts at kickoff. */
+  kickoffTime?: string | null;
 }
 
 // Legacy key used by widgets to find any active timer
