@@ -892,7 +892,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const applyStrictMatchRoster = useCallback((sourcePlayers: Player[]): Player[] => {
     if (!isStrictMatchEventRoster || realPlayers.length === 0) return sourcePlayers;
 
-    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id));
+    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id) || player.isFillIn);
     const filteredIds = new Set(filteredPlayers.map((player) => player.id));
     const missingCurrentPlayers = realPlayers
       .filter((player) => !filteredIds.has(player.id))
