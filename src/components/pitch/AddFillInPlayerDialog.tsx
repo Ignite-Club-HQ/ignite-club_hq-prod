@@ -26,9 +26,17 @@ const POSITIONS: PitchPosition[] = ["GK", "DEF", "MID", "FWD"];
 export default function AddFillInPlayerDialog({ 
   onAddPlayer, 
   existingNumbers,
-  compact = false 
+  compact = false,
+  hideTrigger = false,
+  externalOpen,
+  onExternalOpenChange,
 }: AddFillInPlayerDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onExternalOpenChange) onExternalOpenChange(v);
+    if (externalOpen === undefined) setInternalOpen(v);
+  };
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [selectedPositions, setSelectedPositions] = useState<PitchPosition[]>([]);
