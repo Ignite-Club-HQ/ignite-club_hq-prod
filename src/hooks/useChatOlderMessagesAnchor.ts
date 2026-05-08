@@ -1,5 +1,4 @@
 import { RefObject, useCallback, useEffect, useRef } from "react";
-import { flushSync } from "react-dom";
 
 /**
  * Smooth "load older messages" anchoring for chat scrollers.
