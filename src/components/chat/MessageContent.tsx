@@ -60,25 +60,40 @@ const truncateUrl = (url: string, maxLength = 50): string => {
   }
 };
 
+// Module-level cache of image URLs that have already decoded at least once
+// in this session. Prevents the skeleton flash when virtuoso remounts a chat
+// row whose image is already in the browser cache (the new <img> mounts with
+// React state imageLoaded=false even though the bytes are cached, causing a
+// 1-frame flicker on every scroll-back). Cache is keyed by the resolved
+// (signed) URL because that's what actually hits the network.
+const decodedImageUrls: Set<string> = (globalThis as any).__chatDecodedImages
+  ?? ((globalThis as any).__chatDecodedImages = new Set<string>());
+
 export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, showImageActions = false }: MessageContentProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-  
   // Get signed URL for private chat attachments
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(imageUrl);
   const effectiveImageUrl = signedUrl || imageUrl;
-  
-  // Reset image state when URL changes
+
+  // Initialise from the decoded-cache so a remounted row that has already
+  // loaded this image once does NOT flash the skeleton again.
+  const [imageLoaded, setImageLoaded] = useState(
+    () => !!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl),
+  );
+  const [imageError, setImageError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Reset image state when URL changes — but honour the decoded-cache so we
+  // don't blank a row that's already been seen.
   useEffect(() => {
-    setImageLoaded(false);
     setImageError(false);
-  }, [imageUrl]);
-  
+    setImageLoaded(!!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl));
+  }, [imageUrl, effectiveImageUrl]);
+
   // Check if image is already cached/loaded (for browser-cached images)
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
+      if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
     }
   }, [effectiveImageUrl]);
   
@@ -209,7 +224,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
-  }, []);
+    if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
+  }, [effectiveImageUrl]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
@@ -322,7 +338,16 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     <div className="space-y-2 min-w-0 max-w-full">
       {/* Image / video attachment */}
       {imageUrl && !imageError && (
-        <div className="rounded-lg overflow-hidden max-w-xs">
+        // Explicit width (NOT just max-width) is critical: the chat bubble
+        // sizes to its intrinsic content, and both the skeleton and the
+        // <img> below are `position:absolute` so they contribute zero
+        // intrinsic width. Without `width: 240px` the wrapper collapses to
+        // 0×0 and the image bubble appears as a tiny grey blob — most
+        // visible under virtuoso, where rows mount fresh on every scroll.
+        <div
+          className="rounded-lg overflow-hidden"
+          style={{ width: 240, maxWidth: '100%' }}
+        >
           {/* Fixed-aspect frame so the bubble reserves its final height
               BEFORE the image decodes. Skeleton + image share the same box
               and the image fades in via opacity — no layout shift when
