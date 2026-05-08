@@ -3724,7 +3724,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
     // Auto-expand bench when starting to drag a pitch player
     const dragged = players.find(p => p.id === playerId);
-    if (dragged?.position) setBenchCollapsed(false);
+    if (dragged?.position) {
+      setBenchCollapsed(false);
+      setBottomSheetTab("bench");
+      setSheetHeightPct(prev => (prev < 50 ? 50 : prev));
+      setToolbarCollapsed(false);
+    }
   };
 
   // Touch handler for bench players
