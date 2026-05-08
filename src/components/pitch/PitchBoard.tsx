@@ -3560,11 +3560,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
 
     let nearest: { id: string; distance: number } | null = null;
-    containerRef.current?.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
       const playerId = tokenEl.getAttribute("data-player-id");
       if (!playerId || playerId === excludedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
       const rect = tokenEl.getBoundingClientRect();
-      const hitSlop = 12;
+      const hitSlop = 24;
       if (clientX < rect.left - hitSlop || clientX > rect.right + hitSlop || clientY < rect.top - hitSlop || clientY > rect.bottom + hitSlop) return;
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
@@ -3574,8 +3577,61 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     if (nearest) return nearest.id;
 
+    const pitchRect = containerRef.current?.getBoundingClientRect();
+    if (pitchRect) {
+      const hitRadius = Math.max(38, Math.min(58, Math.min(pitchRect.width, pitchRect.height) * 0.1));
+      playersRef.current.forEach(player => {
+        if (!player.position || player.id === excludedPlayerId) return;
+        if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+        const centerX = pitchRect.left + (player.position.x / 100) * pitchRect.width;
+        const centerY = pitchRect.top + (player.position.y / 100) * pitchRect.height;
+        const distance = Math.hypot(clientX - centerX, clientY - centerY);
+        if (distance <= hitRadius && (!nearest || distance < nearest.distance)) {
+          nearest = { id: player.id, distance };
+        }
+      });
+    }
+
+    if (nearest) return nearest.id;
+
     return null;
-  }, []);
+  }, [miniLeagueTeams, selectedTeamForSettings]);
+
+  const getPitchPlayerOverlappingDragged = useCallback((draggedPlayerId: string, clientX: number, clientY: number) => {
+    const draggedEl = Array.from(document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]'))
+      .find(el => el.getAttribute("data-player-id") === draggedPlayerId);
+    const draggedRect = draggedEl?.getBoundingClientRect();
+    if (!draggedRect) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    const draggedCenterX = draggedRect.left + draggedRect.width / 2;
+    const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+    const rectMatchesDropPoint = Math.hypot(clientX - draggedCenterX, clientY - draggedCenterY) <= Math.max(draggedRect.width, draggedRect.height);
+    if (!rectMatchesDropPoint) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    let best: { id: string; score: number } | null = null;
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === draggedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+
+      const rect = tokenEl.getBoundingClientRect();
+      const slop = 14;
+      const overlapX = Math.max(0, Math.min(draggedRect.right, rect.right + slop) - Math.max(draggedRect.left, rect.left - slop));
+      const overlapY = Math.max(0, Math.min(draggedRect.bottom, rect.bottom + slop) - Math.max(draggedRect.top, rect.top - slop));
+      const overlapArea = overlapX * overlapY;
+      if (overlapArea <= 0) return;
+
+      const targetCenterX = rect.left + rect.width / 2;
+      const targetCenterY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - targetCenterX, clientY - targetCenterY);
+      const score = overlapArea - distance;
+      if (!best || score > best.score) best = { id: playerId, score };
+    });
+
+    return best?.id ?? getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+  }, [getPitchPlayerAtPoint, miniLeagueTeams, selectedTeamForSettings]);
 
   const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
@@ -3589,6 +3645,41 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         : p
     ));
   }, [getDraggedPlayerPositionType]);
+
+  const swapPitchPlayers = useCallback((sourcePlayerId: string, targetPlayerId: string) => {
+    if (sourcePlayerId === targetPlayerId) return false;
+
+    const snapshot = playersRef.current;
+    const source = snapshot.find(p => p.id === sourcePlayerId);
+    const target = snapshot.find(p => p.id === targetPlayerId);
+    const sourceStart = playerDragStartRef.current?.playerId === sourcePlayerId ? playerDragStartRef.current : null;
+    const sourcePosition = sourceStart?.position ?? source?.position;
+
+    if (!source || !target?.position || !sourcePosition) return false;
+    if (miniLeagueTeams && source.teamSide && target.teamSide && source.teamSide !== target.teamSide) return false;
+
+    const sourcePitchPosition = sourceStart?.currentPitchPosition ?? source.currentPitchPosition;
+    const targetPosition = { ...target.position };
+    const targetPitchPosition = target.currentPitchPosition;
+    const sourceName = source.name;
+    const targetName = target.name;
+
+    pushToUndoHistory(`Swap: ${sourceName} ↔ ${targetName}`, snapshot);
+    setPlayers(prev => prev.map(p => {
+      if (p.id === sourcePlayerId) {
+        return { ...p, position: targetPosition, currentPitchPosition: targetPitchPosition };
+      }
+      if (p.id === targetPlayerId) {
+        return { ...p, position: { ...sourcePosition }, currentPitchPosition: sourcePitchPosition };
+      }
+      return p;
+    }));
+    toast({
+      title: "Positions swapped",
+      description: `${sourceName} ↔ ${targetName}`,
+    });
+    return true;
+  }, [miniLeagueTeams, pushToUndoHistory, toast]);
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
@@ -3681,16 +3772,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
       const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
       const targetId = draggedCenterPoint
-        ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, touchDragPlayer)
-        : getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
+        ? getPitchPlayerOverlappingDragged(touchDragPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+        : getPitchPlayerOverlappingDragged(touchDragPlayer, touch.clientX, touch.clientY);
       if (targetId && targetId !== touchDragPlayer) {
-        const target = players.find(p => p.id === targetId);
-        const src = players.find(p => p.id === touchDragPlayer);
-        if (src?.position && target?.position) {
-          handlePreSwapFromDialog(touchDragPlayer, targetId, { reopenSubDialog: false });
+        if (swapPitchPlayers(touchDragPlayer, targetId)) {
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
           playerDragStartRef.current = null;
           return;
         }
@@ -3759,13 +3848,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
     const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
     const targetId = draggedCenterPoint
-      ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, draggedPlayer)
-      : getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
+      ? getPitchPlayerOverlappingDragged(draggedPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+      : getPitchPlayerOverlappingDragged(draggedPlayer, e.clientX, e.clientY);
 
     if (targetId && targetId !== draggedPlayer) {
-      const target = players.find(p => p.id === targetId);
-      if (dragged?.position && target?.position) {
-        handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
+      if (swapPitchPlayers(draggedPlayer, targetId)) {
         setDraggedPlayer(null);
         playerDragOffsetRef.current = null;
         playerDragStartRef.current = null;
