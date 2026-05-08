@@ -3772,8 +3772,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
       const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
       const targetId = draggedCenterPoint
-        ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, touchDragPlayer)
-        : getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
+        ? getPitchPlayerOverlappingDragged(touchDragPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+        : getPitchPlayerOverlappingDragged(touchDragPlayer, touch.clientX, touch.clientY);
       if (targetId && targetId !== touchDragPlayer) {
         if (swapPitchPlayers(touchDragPlayer, targetId)) {
           setTouchDragPlayer(null);
@@ -3848,8 +3848,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
     const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
     const targetId = draggedCenterPoint
-      ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, draggedPlayer)
-      : getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
+      ? getPitchPlayerOverlappingDragged(draggedPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+      : getPitchPlayerOverlappingDragged(draggedPlayer, e.clientX, e.clientY);
 
     if (targetId && targetId !== draggedPlayer) {
       if (swapPitchPlayers(draggedPlayer, targetId)) {
