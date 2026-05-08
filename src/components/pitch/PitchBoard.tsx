@@ -320,7 +320,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep `preferredSecondHalfGkId` in sync with the live roster. A nominated
   // 2H GK is allowed to start on pitch as an outfielder, so only clear the
   // preference when the player is gone, injured, or already the 1H GK.
-  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
+  // Prefer the event the board was launched from. Falling back to savedState
+  // first caused stale links (or no link at all) when entering from "Prepare
+  // Lineup" on a different event than the previously-saved game.
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => initialLinkedEventId || savedState?.linkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
