@@ -59,7 +59,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat } from "@/lib/jumpToMessage";
+import { jumpToMessageInChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -265,13 +265,16 @@ export default function GroupChatPage() {
 
   const targetMessageId = searchParams.get("message");
 
-  // Set highlighted message from URL param
+  // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Pinned messages

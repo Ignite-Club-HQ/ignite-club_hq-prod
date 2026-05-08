@@ -17,6 +17,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -250,11 +251,13 @@ export default function DirectMessagePage() {
   const targetMessageId = searchParams.get("message");
 
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Fetch conversation details
