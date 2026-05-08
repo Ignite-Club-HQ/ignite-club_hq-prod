@@ -602,7 +602,9 @@ function ChatMessageInner({
   }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
-    clearDismissGuard();
+    // Re-arm guard so any synthetic click iOS dispatches to underlying elements
+    // (e.g. avatar) after the picker closes is suppressed by preventIfGuarded.
+    armDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(false);
     setShowActionSheet(false);
