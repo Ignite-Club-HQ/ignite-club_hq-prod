@@ -73,7 +73,11 @@ export function useRecordPhotoView(userId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: (_data, photoId) => {
-      // Optimistically bump count in any cached query
+      // Optimistically bump count in any cached query. We intentionally do
+      // NOT invalidate here — invalidation triggers a refetch that briefly
+      // returns the pre-bump count and causes the view number to flicker as
+      // the image loads. The realtime channel + this optimistic update keep
+      // the cache in sync.
       queryClient.setQueriesData<Map<string, number>>(
         { queryKey: ["photo-view-counts"] },
         (old) => {
@@ -83,7 +87,6 @@ export function useRecordPhotoView(userId: string | undefined) {
           return next;
         }
       );
-      queryClient.invalidateQueries({ queryKey: ["photo-view-counts"] });
     },
   });
 
