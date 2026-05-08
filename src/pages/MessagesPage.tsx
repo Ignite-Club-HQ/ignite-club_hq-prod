@@ -1278,6 +1278,10 @@ export default function MessagesPage() {
 
   const showBroadcast = !query || "announcements".includes(query);
 
+  // Live drafts (unsent text in any chat composer)
+  const allDrafts = useAllChatDrafts();
+  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
+
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
   // conversation rows that get created when someone opens a DM thread without
@@ -1285,15 +1289,12 @@ export default function MessagesPage() {
   const filteredDMs = useMemo(() => {
     if (!dmConversations) return [];
     return dmConversations.filter((conv: any) => {
-      // Hidden DMs reappear when a new message arrives after hidden_at.
       const hiddenAt = hiddenDMMap?.get(conv.id);
       if (hiddenAt) {
         const lastMsgAt = conv.last_message?.created_at;
         const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
         if (stillHidden && !query) return false;
       }
-      // Always allow the conversation to surface when the user is searching
-      // for that specific person (so they can resume it).
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
@@ -1305,10 +1306,6 @@ export default function MessagesPage() {
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
-
-  // Live drafts (unsent text in any chat composer)
-  const allDrafts = useAllChatDrafts();
-  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
 
   // Build unified conversation list
   const unifiedConversations = useMemo(() => {
