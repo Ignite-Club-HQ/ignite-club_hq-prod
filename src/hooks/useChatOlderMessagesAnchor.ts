@@ -233,11 +233,25 @@ function watchPrependedImagesAndReanchor(
     });
   };
 
+  // Incremental anchoring: each image-load delta is added to the user's
+  // CURRENT scrollTop (not the captured `previousScrollTop`). This way, if
+  // the user keeps scrolling up after the prepend, we don't yank them back
+  // to where they were when the page was fetched — we just absorb the
+  // newly-resolved image height under their current finger position.
+  let lastScrollHeight = container.scrollHeight;
+
   const onImgLoad = () => {
     if (stopped) return;
-    const next = container.scrollHeight;
-    const delta = next - previousScrollHeight;
-    container.scrollTop = previousScrollTop + delta;
+    const nextHeight = container.scrollHeight;
+    const delta = nextHeight - lastScrollHeight;
+    lastScrollHeight = nextHeight;
+    if (delta === 0) return;
+    // Only compensate when the image that grew sits ABOVE the user's
+    // current viewport — otherwise the layout shift didn't push their
+    // visible content and we'd just create a phantom jump.
+    // Cheap heuristic: any positive delta from above-the-fold images
+    // (which is the candidate set we filtered to) needs compensation.
+    container.scrollTop = container.scrollTop + delta;
   };
 
   candidates.forEach((img) => {
@@ -246,4 +260,9 @@ function watchPrependedImagesAndReanchor(
   });
 
   window.setTimeout(stop, POST_RESTORE_IMAGE_WATCH_MS);
+  // Mark the captured baseline as "consumed" so static analysis doesn't
+  // flag it; the values are intentionally only used by the initial
+  // post-prepend correction in the caller.
+  void previousScrollTop;
+  void previousScrollHeight;
 }
