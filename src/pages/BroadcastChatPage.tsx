@@ -454,18 +454,24 @@ export default function BroadcastChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the loader defined below.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
     // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
@@ -536,24 +542,16 @@ export default function BroadcastChatPage() {
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
       })) as Message[];
 
-      // Prepend older messages to cache (preserve object shape with messages + hasOlderMessages)
-      queryClient.setQueryData(["broadcast-messages"], (old: any) => {
-        const existingMessages: Message[] = old?.messages || [];
-        return {
-          ...(old || {}),
-          messages: [...olderMessages, ...existingMessages],
-          hasOlderMessages: hasMore,
-        };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
+      anchoredPrepend(() => {
+        queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          const existingMessages: Message[] = old?.messages || [];
+          return {
+            ...(old || {}),
+            messages: [...olderMessages, ...existingMessages],
+            hasOlderMessages: hasMore,
+          };
+        });
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -561,27 +559,12 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoadingOlder && hasOlderMessages) {
-          loadOlderMessages();
-        }
-      },
-      // Pre-fetch older messages BEFORE the user reaches the very top so the next
-      // page is already in the DOM, eliminating the scroll-then-wait stutter.
-      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
