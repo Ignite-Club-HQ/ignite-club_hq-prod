@@ -17,7 +17,7 @@ interface Player {
 
 interface PlayerTokenProps {
   player: Player;
-  onDragStart: () => void;
+  onDragStart: (e?: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   onClick?: () => void;
@@ -103,7 +103,7 @@ const PlayerToken = memo(function PlayerToken({
             e.dataTransfer.effectAllowed = "move";
             e.dataTransfer.setData("text/plain", player.id);
           } catch {}
-          onDragStart();
+          onDragStart(e);
         }}
         onDragEnd={readOnly || player.isInjured ? undefined : onDragEnd}
         onTouchStart={readOnly ? undefined : onTouchStart}
@@ -218,7 +218,7 @@ const PlayerToken = memo(function PlayerToken({
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", player.id);
         } catch {}
-        onDragStart();
+        onDragStart(e);
       }}
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
