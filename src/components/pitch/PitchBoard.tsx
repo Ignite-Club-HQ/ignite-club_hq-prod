@@ -3716,18 +3716,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-    setPlayers(prev => 
-      prev.map(p => 
-        p.id === draggedPlayer 
-          ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-          : p
-      )
-    );
+    const position = getClientPitchPosition(e.clientX, e.clientY);
+    if (position) updateDraggedPlayerPosition(draggedPlayer, position);
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
   };
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3765,6 +3757,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (touchDragPlayer !== null) return;
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
+    capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
     setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
     // (Bench auto-open removed — it stole pointer events and broke drag)
