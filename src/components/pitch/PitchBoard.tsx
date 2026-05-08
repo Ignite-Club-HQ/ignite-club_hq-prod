@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -1384,6 +1384,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [fillInDialogOpen, setFillInDialogOpen] = useState(false);
   const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
@@ -4436,10 +4437,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="flex-1">Training Mode</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
-                          <Play className="h-4 w-4" />
-                          Setup Game
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
@@ -4460,6 +4457,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="text-destructive">Reset Game</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
+                          <UserPlus className="h-4 w-4" />
+                          Add Fill-In Player
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
@@ -4517,6 +4518,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onPitchBoardModeChange={setMode}
                   canUseTrainingMode={canUseTraining}
                 />
+                <Suspense fallback={null}>
+                  <AddFillInPlayerDialog
+                    onAddPlayer={handleAddFillInPlayer}
+                    existingNumbers={players.map(p => p.number).filter((n): n is number => typeof n === 'number')}
+                    hideTrigger
+                    externalOpen={fillInDialogOpen}
+                    onExternalOpenChange={setFillInDialogOpen}
+                  />
+                </Suspense>
               </>
             )}
             {readOnly && (
@@ -5988,12 +5998,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </>
                     )}
                     {!readOnly && (
-                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
-                        <Play className="h-4 w-4" />
-                        Setup Game
-                      </button>
-                    )}
-                    {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                         <RotateCcw className="h-4 w-4" />
                         Reset Formation
@@ -6018,6 +6022,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
+                          <UserPlus className="h-4 w-4" />
+                          Add Fill-In Player
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
