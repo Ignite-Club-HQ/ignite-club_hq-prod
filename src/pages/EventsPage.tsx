@@ -827,59 +827,32 @@ export default function EventsPage() {
                 modifiers={{
                   hasEvent: eventDates,
                 }}
-                classNames={{
-                  table: "w-full table-fixed border-separate border-spacing-y-1",
-                  head_row: "",
-                  head_cell:
-                    "h-8 text-center text-[0.8rem] font-normal text-muted-foreground",
-                  row: "",
-                  cell: "h-14 p-0 text-center align-middle",
-                  day:
-                    "relative mx-auto flex h-11 w-11 min-h-0 items-start justify-center rounded-lg p-0 text-[17px] font-normal leading-none transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100",
-                  // Soft selected state, light border, indicators stay prominent
-                  day_selected:
-                    "bg-primary/10 text-foreground font-semibold ring-1 ring-primary/25 ring-inset hover:bg-primary/15 focus:bg-primary/15",
-                  // Subtle independent today ring (no fill)
-                  day_today:
-                    "text-foreground font-semibold ring-1 ring-foreground/20 ring-inset",
-                }}
-                 components={{
+                components={{
                   DayContent: ({ date }) => {
                     const dayEvents = events?.filter((e) => isSameDay(parseISO(e.event_date), date)) || [];
-                    const hasGame = dayEvents.some((e) => e.type === "game");
-                    const hasTraining = dayEvents.some((e) => e.type === "training");
-                    const hasSocial = dayEvents.some((e) => e.type === "social");
-
-                    // Type-mapped dots, max 2 (priority: game, training, social)
-                    const dots: { color: string; label: string }[] = [];
-                    if (hasGame) dots.push({ color: "bg-destructive", label: "Game" });
-                    if (hasTraining) dots.push({ color: "bg-primary", label: "Training" });
-                    if (hasSocial) dots.push({ color: "bg-warning", label: "Social" });
-                    const visibleDots = dots.slice(0, 2);
-
-                    // Fixed internal grid: the date and dot rail are absolutely placed
-                    // inside every identical day button, so event/no-event, selected,
-                    // muted and double-digit dates all share the same optical baseline.
+                    const gameCount = dayEvents.filter(e => e.type === 'game').length;
+                    const trainingCount = dayEvents.filter(e => e.type === 'training').length;
+                    const socialCount = dayEvents.filter(e => e.type === 'social').length;
+                    const dots: { color: string }[] = [];
+                    for (let i = 0; i < Math.min(gameCount, 2); i++) dots.push({ color: 'bg-destructive' });
+                    for (let i = 0; i < Math.min(trainingCount, 2); i++) dots.push({ color: 'bg-primary' });
+                    for (let i = 0; i < Math.min(socialCount, 2); i++) dots.push({ color: 'bg-warning' });
+                    const totalCount = dayEvents.length;
+                    const showPlus = totalCount > 3;
+                    
                     return (
-                      <div className="relative h-full w-full leading-none">
-                        <span className="absolute inset-x-0 top-[10px] text-center tabular-nums">
-                          {date.getDate()}
-                        </span>
-                        <div
-                          className="absolute inset-x-0 top-[32px] flex h-2 items-center justify-center gap-1.5"
-                          aria-label={
-                            visibleDots.length
-                              ? visibleDots.map((d) => d.label).join(", ")
-                              : undefined
-                          }
-                        >
-                          {visibleDots.map((d, i) => (
-                            <span
-                              key={i}
-                              className={`h-[5px] w-[5px] rounded-full ${d.color}`}
-                            />
-                          ))}
-                        </div>
+                      <div className="relative flex items-center justify-center w-full h-full">
+                        <span>{date.getDate()}</span>
+                        {totalCount > 0 && (
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
+                            {dots.slice(0, 3).map((dot, i) => (
+                              <div key={i} className={`w-1 h-1 rounded-full ${dot.color}`} />
+                            ))}
+                            {showPlus && (
+                              <span className="text-[6px] text-muted-foreground font-bold leading-none">+</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   },
