@@ -49,6 +49,7 @@ export function ChatHeaderShell({
 
   return (
     <div
+      data-chat-chrome="true"
       className={cn(
         "relative flex items-center gap-2 px-2.5 py-2 shrink-0",
         "border-b border-border/70 bg-background/95",
