@@ -3550,6 +3550,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (playerId && playerId !== excludedPlayerId) return playerId;
     }
 
+    let nearest: { id: string; distance: number } | null = null;
+    containerRef.current?.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === excludedPlayerId) return;
+      const rect = tokenEl.getBoundingClientRect();
+      const hitSlop = 12;
+      if (clientX < rect.left - hitSlop || clientX > rect.right + hitSlop || clientY < rect.top - hitSlop || clientY > rect.bottom + hitSlop) return;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - centerX, clientY - centerY);
+      if (!nearest || distance < nearest.distance) nearest = { id: playerId, distance };
+    });
+
+    if (nearest) return nearest.id;
+
     return null;
   }, []);
 
