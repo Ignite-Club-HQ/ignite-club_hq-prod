@@ -1783,3 +1783,4 @@ export default function TeamChatPage() {
       )}
     </div>
   );
+}
