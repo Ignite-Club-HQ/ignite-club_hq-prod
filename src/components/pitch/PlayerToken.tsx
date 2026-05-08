@@ -211,6 +211,7 @@ const PlayerToken = memo(function PlayerToken({
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
       onClick={readOnly ? undefined : onClick}
+      onDoubleClick={readOnly ? undefined : onDoubleClick}
       className={cn(
         "flex flex-col items-center select-none touch-none transition-[transform,opacity] duration-300 ease-out",
         !readOnly && "cursor-grab active:cursor-grabbing",
