@@ -672,11 +672,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             onPointerDownOutside={(e) => {
               const target = e.target as HTMLElement | null;
               // If the user tapped on the composer textarea itself, let the
-              // event through so the caret moves there. Otherwise prevent the
-              // default so the textarea does NOT blur (keyboard stays up); the
-              // popover will still close because Radix toggles its open state.
+              // event through so the caret moves there.
               if (target?.closest?.('textarea, input[type="text"], [contenteditable="true"]')) return;
+              // Otherwise prevent default so the textarea does NOT blur
+              // (keyboard stays up). Critically, focus the composer SYNCHRONOUSLY
+              // inside this user-gesture pointer event — on Android, programmatic
+              // .focus() called later (e.g. from onCloseAutoFocus) will not
+              // reopen the soft keyboard because it's no longer a user gesture.
               e.preventDefault();
+              const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+                'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
+              );
+              composer?.focus({ preventScroll: true });
             }}
             className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
