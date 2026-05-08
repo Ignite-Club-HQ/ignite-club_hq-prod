@@ -49,7 +49,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat } from "@/lib/jumpToMessage";
+import { jumpToMessageInChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
