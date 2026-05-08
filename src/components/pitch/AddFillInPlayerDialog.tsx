@@ -16,6 +16,9 @@ interface AddFillInPlayerDialogProps {
   onAddPlayer: (player: { name: string; number?: number; positions: PitchPosition[] }) => void;
   existingNumbers: number[];
   compact?: boolean;
+  hideTrigger?: boolean;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const POSITIONS: PitchPosition[] = ["GK", "DEF", "MID", "FWD"];
