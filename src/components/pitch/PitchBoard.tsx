@@ -3780,23 +3780,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       touch.clientY >= pitchRect.top &&
       touch.clientY <= pitchRect.bottom
     ) {
-      const x = ((touch.clientX - pitchRect.left) / pitchRect.width) * 100;
-      const y = ((touch.clientY - pitchRect.top) / pitchRect.height) * 100;
-      
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
-  }, [readOnly, touchDragPlayer]);
+  }, [readOnly, touchDragPlayer, getClientPitchPosition, updateDraggedPlayerPosition]);
 
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
