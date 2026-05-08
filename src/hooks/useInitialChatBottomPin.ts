@@ -1,6 +1,7 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getChatScrollMetrics, resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
+import { isViewportUserActive } from "@/lib/chatScrollIntent";
 
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
