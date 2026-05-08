@@ -3678,7 +3678,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
-      const targetId = getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
+      const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
+      const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+      const targetId = draggedCenterPoint
+        ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, touchDragPlayer)
+        : getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
       if (targetId && targetId !== touchDragPlayer) {
         const target = players.find(p => p.id === targetId);
         const src = players.find(p => p.id === touchDragPlayer);
@@ -3752,7 +3756,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
 
     // Detect drop on another pitch player → swap positions.
-    const targetId = getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
+    const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
+    const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+    const targetId = draggedCenterPoint
+      ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, draggedPlayer)
+      : getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
 
     if (targetId && targetId !== draggedPlayer) {
       const target = players.find(p => p.id === targetId);
