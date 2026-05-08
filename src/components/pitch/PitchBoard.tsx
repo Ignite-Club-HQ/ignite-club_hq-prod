@@ -1394,6 +1394,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [swapPlayer2, setSwapPlayer2] = useState<string | null>(null);
   const [pitchSwapConfirmOpen, setPitchSwapConfirmOpen] = useState(false);
 
+  // Tap-to-select model (Slice A): tap a pitch player to highlight, tap a second to swap.
+  // Independent of subMode/swapMode so existing flows are unaffected.
+  const [tapSelectedPlayerId, setTapSelectedPlayerId] = useState<string | null>(null);
+  const tapSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearTapSelection = useCallback(() => {
+    if (tapSelectionTimerRef.current) {
+      clearTimeout(tapSelectionTimerRef.current);
+      tapSelectionTimerRef.current = null;
+    }
+    setTapSelectedPlayerId(null);
+  }, []);
+  const armTapSelection = useCallback((playerId: string) => {
+    if (tapSelectionTimerRef.current) clearTimeout(tapSelectionTimerRef.current);
+    setTapSelectedPlayerId(playerId);
+    tapSelectionTimerRef.current = setTimeout(() => {
+      setTapSelectedPlayerId(null);
+      tapSelectionTimerRef.current = null;
+    }, 5000);
+  }, []);
+  useEffect(() => () => {
+    if (tapSelectionTimerRef.current) clearTimeout(tapSelectionTimerRef.current);
+  }, []);
+
   // Swap-based substitution state (for sequencing: swap dialog first, then sub dialog)
   const [pendingSwapBasedSub, setPendingSwapBasedSub] = useState<{
     pitchPlayerId: string;
