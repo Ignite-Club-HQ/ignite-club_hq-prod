@@ -2885,16 +2885,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Option 1: a single tap on a pitch player opens the SubstitutionPreviewDialog,
-      // which shows direct subs AND swap-with-other-pitch-player options together.
-      // Two taps to a sub or swap, no Bench mode required.
-      if (isOnPitch) {
-        setSelectedOnPitch(playerId);
-        setSubPreviewOpen(true);
-        return;
-      }
-      // Bench tap while a pitch player is in the preview dialog: handled inside the dialog.
-      // Otherwise (no pitch player selected) — preserve existing bench tap behavior below.
+      // Single tap = no-op so the player can be freely dragged/repositioned.
+      // Use double-click (or the action menu) to open the substitution picker.
       return;
     }
 
