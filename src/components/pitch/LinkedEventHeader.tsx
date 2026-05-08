@@ -225,21 +225,21 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 text-xs bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-md">
+      <div className="flex items-center gap-2 text-xs bg-background/90 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-md min-w-0 w-full">
         {isGameInProgress ? (
-          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20">
+          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20 shrink-0">
             <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
             LIVE
           </Badge>
         ) : (
-          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20">
+          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20 shrink-0">
             <Calendar className="h-3 w-3" />
             Match
           </Badge>
         )}
-        <span className="font-medium truncate max-w-[150px]">{event.title}</span>
+        <span className="font-medium truncate min-w-0 flex-1">{event.title}</span>
         {event.suburb && (
-          <span className="text-muted-foreground flex items-center gap-1">
+          <span className="text-muted-foreground flex items-center gap-1 shrink-0 hidden md:inline-flex">
             <MapPin className="h-3 w-3" />
             {event.suburb}
           </span>
