@@ -15,6 +15,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
@@ -154,13 +155,16 @@ export default function BroadcastChatPage() {
 
   const targetMessageId = searchParams.get("message");
 
-  // Set highlighted message from URL param
+  // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Check if user is app admin
@@ -341,7 +345,7 @@ export default function BroadcastChatPage() {
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh

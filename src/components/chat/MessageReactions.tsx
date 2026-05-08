@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchProfilesWithCache } from "@/lib/profileCache";
 
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
@@ -314,18 +315,18 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["all-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", allUserIds);
-      if (error) throw error;
-      return data;
+      const map = await fetchProfilesWithCache(allUserIds);
+      return Array.from(map.values()).map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+      }));
     },
     enabled: isOpen && allUserIds.length > 0,
+    staleTime: 60_000,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
@@ -405,38 +406,51 @@ const AllReactionsContent = memo(function AllReactionsContent({
 
       {/* Reactor list */}
       <div className="max-h-[244px] overflow-y-auto py-1">
-        {visibleReactions.map((r) => {
-          const isMe = r.user_id === currentUserId;
-          const name = getUserName(r.user_id) || (users.length === 0 ? "…" : "Unknown");
-          const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={(e) => {
-                if (!isMe) return;
-                e.stopPropagation();
-                onReactionClick(r.reaction_type, r.id);
-                onClose();
-              }}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-                isMe ? "hover:bg-foreground/[0.04] cursor-pointer" : "cursor-default"
-              }`}
-            >
-              <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
-                {name}
-                {isMe && (
-                  <span className="ml-1 text-[11px] text-muted-foreground">
-                    {`· tap to remove`}
+        {usersLoading && users.length === 0 ? (
+          <div className="space-y-1.5 px-3 py-2">
+            {visibleReactions.slice(0, Math.min(visibleReactions.length, 4)).map((r) => (
+              <div key={r.id} className="flex items-center gap-2">
+                <div className="flex-1 h-3 rounded bg-foreground/[0.06] animate-pulse" />
+                <div className="h-3 w-3 rounded-full bg-foreground/[0.06] animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            {visibleReactions.map((r) => {
+              const isMe = r.user_id === currentUserId;
+              const name = getUserName(r.user_id) || "Unknown";
+              const emoji = REACTION_EMOJIS.find((e) => e.type === r.reaction_type)?.emoji || "❤️";
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={(e) => {
+                    if (!isMe) return;
+                    e.stopPropagation();
+                    onReactionClick(r.reaction_type, r.id);
+                    onClose();
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                    isMe ? "hover:bg-foreground/[0.04] cursor-pointer" : "cursor-default"
+                  }`}
+                >
+                  <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/85">
+                    {name}
+                    {isMe && (
+                      <span className="ml-1 text-[11px] text-muted-foreground">
+                        {`· tap to remove`}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              <span className="text-[14px] leading-none">{emoji}</span>
-            </button>
-          );
-        })}
-        {visibleReactions.length === 0 && (
-          <p className="px-3 py-2 text-[12px] text-muted-foreground">No reactions</p>
+                  <span className="text-[14px] leading-none">{emoji}</span>
+                </button>
+              );
+            })}
+            {visibleReactions.length === 0 && (
+              <p className="px-3 py-2 text-[12px] text-muted-foreground">No reactions</p>
+            )}
+          </>
         )}
       </div>
     </PopoverContent>

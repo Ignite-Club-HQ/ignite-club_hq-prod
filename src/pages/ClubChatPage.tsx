@@ -49,7 +49,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat } from "@/lib/jumpToMessage";
+import { jumpToMessageInChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -200,13 +200,16 @@ export default function ClubChatPage() {
 
   const targetMessageId = searchParams.get("message");
 
-  // Set highlighted message from URL param
+  // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Pinned messages
@@ -509,7 +512,7 @@ export default function ClubChatPage() {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh

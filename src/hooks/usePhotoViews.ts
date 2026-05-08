@@ -73,7 +73,11 @@ export function useRecordPhotoView(userId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: (_data, photoId) => {
-      // Optimistically bump count in any cached query
+      // Optimistically bump count in any cached query. We intentionally do
+      // NOT invalidate here — invalidation triggers a refetch that briefly
+      // returns the pre-bump count and causes the view number to flicker as
+      // the image loads. The realtime channel + this optimistic update keep
+      // the cache in sync.
       queryClient.setQueriesData<Map<string, number>>(
         { queryKey: ["photo-view-counts"] },
         (old) => {
@@ -83,7 +87,6 @@ export function useRecordPhotoView(userId: string | undefined) {
           return next;
         }
       );
-      queryClient.invalidateQueries({ queryKey: ["photo-view-counts"] });
     },
   });
 
@@ -172,7 +175,7 @@ export function useRecordPhotoView(userId: string | undefined) {
  * Realtime subscription that increments cached photo view counts as new
  * `photo_views` rows are inserted for any of the supplied photo IDs.
  */
-export function usePhotoViewRealtime(photoIds: string[]) {
+export function usePhotoViewRealtime(photoIds: string[], currentUserId?: string) {
   const queryClient = useQueryClient();
   const idsKey = useMemo(() => makeIdsKey(photoIds), [photoIds]);
 
@@ -190,8 +193,14 @@ export function usePhotoViewRealtime(photoIds: string[]) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "photo_views" },
         (payload) => {
-          const photoId = (payload.new as any)?.photo_id as string | undefined;
+          const row = payload.new as any;
+          const photoId = row?.photo_id as string | undefined;
+          const userId = row?.user_id as string | undefined;
           if (!photoId || !ids.has(photoId)) return;
+          // Skip own inserts — already optimistically counted in onSuccess.
+          // Without this guard the count flickers (+1 optimistic, +1 realtime,
+          // then settles back) as the image loads.
+          if (currentUserId && userId === currentUserId) return;
           queryClient.setQueriesData<Map<string, number>>(
             { queryKey: ["photo-view-counts"] },
             (old) => {
@@ -212,5 +221,5 @@ export function usePhotoViewRealtime(photoIds: string[]) {
     // render even when contents are stable. `idsKey` is the stable hash of the
     // sorted ids and is the only signal that should trigger a resubscribe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey, queryClient]);
+  }, [idsKey, queryClient, currentUserId]);
 }

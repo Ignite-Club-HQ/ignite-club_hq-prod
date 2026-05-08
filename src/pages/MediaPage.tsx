@@ -769,7 +769,7 @@ export default function MediaPage() {
   // Photo view tracking — count, recording, and realtime updates
   const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
   const { recordView, observeView } = useRecordPhotoView(user?.id);
-  usePhotoViewRealtime(allPhotoIds);
+  usePhotoViewRealtime(allPhotoIds, user?.id);
 
   // Stable query key for reactions - bucket photo count by 50 to avoid refetching
   // on every infinite-scroll page load. Realtime channel below keeps data fresh in between.

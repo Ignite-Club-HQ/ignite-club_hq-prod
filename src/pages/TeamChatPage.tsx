@@ -43,7 +43,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat } from "@/lib/jumpToMessage";
+import { jumpToMessageInChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -228,14 +228,18 @@ export default function TeamChatPage() {
 
   const targetMessageId = searchParams.get("message");
 
-  // Set highlighted message from URL param
+  // Scroll to and highlight the message referenced by ?message=… (push /
+  // in-app notification deep links). Polls until the message renders so it
+  // works even if messages load async or live below the initial page.
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      // Clear highlight after 3 seconds
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Pinned messages
@@ -650,7 +654,7 @@ export default function TeamChatPage() {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
