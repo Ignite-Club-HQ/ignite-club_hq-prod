@@ -5,7 +5,6 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
@@ -73,31 +72,40 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
 
   // Virtuoso's anchored-prepend trick: keep a sliding `firstItemIndex` that
-  // decreases by the count of items prepended on each load. This lets
-  // virtuoso preserve the exact viewport without us touching scrollTop.
+  // decreases by the count of items prepended. CRITICAL: this MUST be
+  // computed during render (not in useEffect), otherwise virtuoso renders
+  // one frame with new data + stale index, snapping the viewport when the
+  // effect catches up. We use refs to track the previous snapshot and
+  // adjust during render.
   const START_INDEX = 1_000_000;
-  const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX - messages.length);
+  const firstIndexRef = useRef(START_INDEX - messages.length);
   const lastSeenLengthRef = useRef(messages.length);
   const lastFirstIdRef = useRef<string | null>(messages[0]?.id ?? null);
 
-  useEffect(() => {
-    const prevLength = lastSeenLengthRef.current;
-    const prevFirstId = lastFirstIdRef.current;
-    const newFirstId = messages[0]?.id ?? null;
-
-    if (messages.length > prevLength && prevFirstId && newFirstId && prevFirstId !== newFirstId) {
-      // Older messages were prepended — shift the index baseline so the
-      // current viewport stays anchored to the same row.
-      const prependedCount = messages.length - prevLength;
-      setFirstItemIndex((idx) => idx - prependedCount);
-    } else if (messages.length < prevLength) {
-      // Reset (e.g. thread switch) — re-anchor to the new tail.
-      setFirstItemIndex(START_INDEX - messages.length);
-    }
-
-    lastSeenLengthRef.current = messages.length;
-    lastFirstIdRef.current = newFirstId;
-  }, [messages]);
+  const newFirstId = messages[0]?.id ?? null;
+  if (
+    messages.length > lastSeenLengthRef.current &&
+    lastFirstIdRef.current &&
+    newFirstId &&
+    lastFirstIdRef.current !== newFirstId
+  ) {
+    // Older messages prepended — slide the index baseline so the current
+    // viewport stays anchored to the same row.
+    firstIndexRef.current -= messages.length - lastSeenLengthRef.current;
+  } else if (messages.length < lastSeenLengthRef.current) {
+    // Reset (thread switch / clear).
+    firstIndexRef.current = START_INDEX - messages.length;
+  } else if (
+    messages.length === lastSeenLengthRef.current &&
+    lastFirstIdRef.current !== newFirstId &&
+    newFirstId !== null
+  ) {
+    // Whole list replaced (e.g. reload) at the same length — re-anchor.
+    firstIndexRef.current = START_INDEX - messages.length;
+  }
+  lastSeenLengthRef.current = messages.length;
+  lastFirstIdRef.current = newFirstId;
+  const firstItemIndex = firstIndexRef.current;
 
   const handleStartReached = useCallback(() => {
     if (!hasOlder || isLoadingOlder) return;
@@ -192,11 +200,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       followOutput={followOutput}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
+      // Estimate so off-screen rows reserve realistic space; otherwise
+      // virtuoso uses tiny placeholders that grow on mount and shift the
+      // scrollbar/scrollTop while the user is scrolling.
+      defaultItemHeight={88}
+      // Keep a generous upward viewport for smooth back-scrolling. Don't
+      // also set `overscan` — virtuoso applies both and the interaction
+      // produces visible re-anchor jumps on slow devices.
       increaseViewportBy={{ top: 1200, bottom: 600 }}
       atBottomThreshold={120}
       components={components}
-      // Avoid scroll-anchoring fighting virtuoso's own anchoring on iOS.
-      overscan={{ main: 600, reverse: 1200 }}
     />
   );
 }
