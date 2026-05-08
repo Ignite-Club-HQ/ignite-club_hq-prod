@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
@@ -218,10 +219,12 @@ export default function TeamChatPage() {
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
-  
+  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
+
   const scrollToBottom = useCallback(() => {
+    if (isUserActive()) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, []);
+  }, [isUserActive]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -645,6 +648,7 @@ export default function TeamChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
@@ -1633,7 +1637,7 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

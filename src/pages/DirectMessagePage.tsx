@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -217,6 +218,7 @@ export default function DirectMessagePage() {
   const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
   const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
@@ -241,8 +243,9 @@ export default function DirectMessagePage() {
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
+    if (isUserActive()) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, []);
+  }, [isUserActive]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -546,6 +549,7 @@ export default function DirectMessagePage() {
 
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
@@ -1287,7 +1291,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef}
+             ref={composerRef} data-chat-chrome="true"
              className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
@@ -1300,7 +1304,7 @@ export default function DirectMessagePage() {
         <>
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
-             ref={composerRef}
+             ref={composerRef} data-chat-chrome="true"
              className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >

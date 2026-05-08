@@ -4,6 +4,8 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
+import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -254,10 +256,12 @@ export default function GroupChatPage() {
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
-  
+  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
+
   const scrollToBottom = useCallback(() => {
+    if (isUserActive()) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, []);
+  }, [isUserActive]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -583,6 +587,7 @@ export default function GroupChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
@@ -747,18 +752,24 @@ export default function GroupChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the loader defined below.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
     // Create abort controller for timeout. 25s gives slow networks/cold queries
     // enough headroom; the previous 10s was tripping AbortError on real users.
@@ -797,34 +808,22 @@ export default function GroupChatPage() {
       const authorIds = [...new Set(reversedOlder.map((m) => m.author_id))];
 
       // PASS 1: Render messages IMMEDIATELY with no enrichment.
-      // This eliminates the perceived "scroll → wait → messages appear" stutter.
-      // Reactions, reply previews, and author profiles get filled in by PASS 2 below.
       const initialOlderMessages = reversedOlder.map((msg) => ({
         ...msg,
         author: null,
         reply_to: null,
       })) as GroupMessage[];
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-        if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
-        return {
-          ...old,
-          messages: [...initialOlderMessages, ...old.messages],
-          // CRITICAL: preserve / update hasOlderMessages so the sync effect
-          // (which reads it back into local state) doesn't reset it to false
-          // and remove the infinite-scroll trigger after the first page.
-          hasOlderMessages: hasMore,
-        };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
+      anchoredPrepend(() => {
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+          if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
+          return {
+            ...old,
+            messages: [...initialOlderMessages, ...old.messages],
+            hasOlderMessages: hasMore,
+          };
+        });
       });
 
       // PASS 2: Fire-and-forget enrichment. Allow loader to release immediately
@@ -889,34 +888,12 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting || isLoadingOlder || !hasOlderMessages) return;
-        // Require the user to have scrolled away from the bottom before fetching
-        // older messages. Without this, short threads (where the trigger is
-        // already in view on open) auto-fetch a page and the scroll-restore
-        // logic visibly jolts the chat upward right after pin completes.
-        const distanceFromBottom =
-          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-        if (distanceFromBottom < 200) return;
-        loadOlderMessages();
-      },
-      // rootMargin pre-fetches older messages BEFORE the user reaches the very top
-      // so the next page is already in the DOM by the time they keep scrolling up.
-      // This prevents the visible "scroll → wait a few seconds → messages appear" stutter.
-      { root: scrollRoot, rootMargin: "300px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
@@ -1571,7 +1548,7 @@ export default function GroupChatPage() {
   const handleSearchResult = (messageId: string) => {
     setHighlightedMessageId(messageId);
     const element = document.getElementById(`message-${messageId}`);
-    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.scrollIntoView({ behavior: /Android/i.test(navigator.userAgent) ? "auto" : "smooth", block: "center" });
     setTimeout(() => setHighlightedMessageId(null), 2000);
   };
 
@@ -1864,7 +1841,7 @@ export default function GroupChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

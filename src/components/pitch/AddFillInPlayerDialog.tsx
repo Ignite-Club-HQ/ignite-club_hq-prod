@@ -16,6 +16,9 @@ interface AddFillInPlayerDialogProps {
   onAddPlayer: (player: { name: string; number?: number; positions: PitchPosition[] }) => void;
   existingNumbers: number[];
   compact?: boolean;
+  hideTrigger?: boolean;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const POSITIONS: PitchPosition[] = ["GK", "DEF", "MID", "FWD"];
@@ -23,9 +26,17 @@ const POSITIONS: PitchPosition[] = ["GK", "DEF", "MID", "FWD"];
 export default function AddFillInPlayerDialog({ 
   onAddPlayer, 
   existingNumbers,
-  compact = false 
+  compact = false,
+  hideTrigger = false,
+  externalOpen,
+  onExternalOpenChange,
 }: AddFillInPlayerDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onExternalOpenChange) onExternalOpenChange(v);
+    if (externalOpen === undefined) setInternalOpen(v);
+  };
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [selectedPositions, setSelectedPositions] = useState<PitchPosition[]>([]);
@@ -64,18 +75,20 @@ export default function AddFillInPlayerDialog({
 
   return (
     <>
-      <Button 
-        variant="outline" 
-        size={compact ? "sm" : "default"}
-        className={cn(
-          "gap-1.5 w-full",
-          compact ? "h-7 text-xs px-2" : "h-10 text-sm"
-        )}
-        onClick={() => setOpen(true)}
-      >
-        <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
-        {compact ? "Fill-In" : "Add Fill-In Player"}
-      </Button>
+      {!hideTrigger && (
+        <Button 
+          variant="outline" 
+          size={compact ? "sm" : "default"}
+          className={cn(
+            "gap-1.5 w-full",
+            compact ? "h-7 text-xs px-2" : "h-10 text-sm"
+          )}
+          onClick={() => setOpen(true)}
+        >
+          <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
+          {compact ? "Fill-In" : "Add Fill-In Player"}
+        </Button>
+      )}
       <ResponsiveDialog open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="sm:max-w-md">
           <ResponsiveDialogHeader>

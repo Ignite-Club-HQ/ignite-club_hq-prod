@@ -32,11 +32,7 @@ export const RecoveryEmail = ({
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>
-      {token
-        ? `Your ${siteName} password reset code: ${token}`
-        : `Reset your password for ${siteName}`}
-    </Preview>
+    <Preview>{`Reset your password for ${siteName}`}</Preview>
     <Body style={styles.main}>
       <Container style={styles.container}>
         <Section style={styles.logoWrap}>
@@ -46,26 +42,39 @@ export const RecoveryEmail = ({
           <Heading style={styles.h1}>Reset your password</Heading>
           <Text style={styles.text}>
             We received a request to reset the password for your {siteName} account.
-            {token ? ' Enter this code in the app to continue:' : ''}
+            Tap the button below to choose a new password:
           </Text>
 
-          {token ? (
-            <Section style={styles.codeBox}>
-              <Text style={styles.code}>{token}</Text>
-            </Section>
-          ) : null}
-
-          <Text style={styles.text}>
-            Or tap the button below to reset your password directly:
-          </Text>
           <Section style={styles.buttonWrap}>
             <Button style={styles.button} href={confirmationUrl}>
               Reset password
             </Button>
           </Section>
+
+          <Text style={{ ...styles.text, fontSize: '13px', margin: '16px 0 4px' }}>
+            Or copy and paste this link into your browser:
+          </Text>
+          <Text style={{ ...styles.text, fontSize: '13px', wordBreak: 'break-all', margin: '0 0 16px' }}>
+            <Link href={confirmationUrl} style={{ color: '#2563eb', textDecoration: 'underline' }}>
+              {confirmationUrl}
+            </Link>
+          </Text>
+
+          {token ? (
+            <>
+              <Hr style={styles.hr} />
+              <Text style={{ ...styles.text, fontSize: '13px', margin: '0 0 8px' }}>
+                Prefer to enter a code in the app? Use this 6-digit code:
+              </Text>
+              <Section style={styles.codeBox}>
+                <Text style={styles.code}>{token}</Text>
+              </Section>
+            </>
+          ) : null}
+
           <Hr style={styles.hr} />
           <Text style={styles.footer}>
-            This code expires shortly. If you didn't request a password reset,
+            This link expires shortly. If you didn't request a password reset,
             you can safely ignore this email — your password won't change.
           </Text>
         </Section>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2, Clock } from "lucide-react";
@@ -168,6 +169,7 @@ interface UnifiedConversation {
   canManage?: boolean;
   canHide?: boolean;
   dmData?: any;
+  draftText?: string;
 }
 
 export default function MessagesPage() {
@@ -1276,6 +1278,10 @@ export default function MessagesPage() {
 
   const showBroadcast = !query || "announcements".includes(query);
 
+  // Live drafts (unsent text in any chat composer)
+  const allDrafts = useAllChatDrafts();
+  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
+
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
   // conversation rows that get created when someone opens a DM thread without
@@ -1283,22 +1289,20 @@ export default function MessagesPage() {
   const filteredDMs = useMemo(() => {
     if (!dmConversations) return [];
     return dmConversations.filter((conv: any) => {
-      // Hidden DMs reappear when a new message arrives after hidden_at.
       const hiddenAt = hiddenDMMap?.get(conv.id);
       if (hiddenAt) {
         const lastMsgAt = conv.last_message?.created_at;
         const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
         if (stillHidden && !query) return false;
       }
-      // Always allow the conversation to surface when the user is searching
-      // for that specific person (so they can resume it).
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
-      // Otherwise require at least one real message to show in Recents.
-      return !!conv.last_message;
+      // Surface if there's a real message OR an unsent draft for this thread.
+      const hasDraft = !!allDrafts[conv.id]?.text?.trim();
+      return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query]);
+  }, [dmConversations, hiddenDMMap, query, allDrafts]);
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
@@ -1444,13 +1448,26 @@ export default function MessagesPage() {
       });
     }
 
-    return items;
+    // Attach drafts and bump lastActivity if draft is more recent than last message
+    return items.map((item) => {
+      const draftId = item.type === 'broadcast' ? 'broadcast' : item.id;
+      const draft = draftFor(draftId);
+      if (!draft) return item;
+      const draftTime = draft.updatedAt;
+      const lastTime = item.lastActivity;
+      const isNewer = !lastTime || new Date(draftTime).getTime() > new Date(lastTime).getTime();
+      return {
+        ...item,
+        draftText: draft.text,
+        lastActivity: isNewer ? draftTime : lastTime,
+      };
+    });
   }, [
     showBroadcast, displayLatestBroadcast, unreadCounts,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, user?.id, showIgniteSupport, systemMessage,
+    filteredDMs, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
 
   // Resolve event titles referenced in any conversation preview so they
@@ -1559,7 +1576,15 @@ export default function MessagesPage() {
   const hasNoResults = query && unifiedConversations.length === 0;
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
 
-  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
+  // If a specific club is in scope (active club theme or local filter), use that
+  // club's Pro status — otherwise fall back to the global "any Pro" check. This
+  // prevents the upgrade banner from showing for admins of a Pro club just
+  // because they also belong to a Free club elsewhere.
+  const scopedClubIsPro = effectiveClubFilter ? clubProStatus?.[effectiveClubFilter] === true : null;
+  const proGateFails = effectiveClubFilter
+    ? scopedClubIsPro === false
+    : hasAnyProAccess === false;
+  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !isLoadingClubProStatus && !isFetchingClubProStatus && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
 
   // Type label map
   const typeLabels: Record<string, string> = {
@@ -1600,16 +1625,23 @@ export default function MessagesPage() {
                   </div>
                 </div>
                 <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  <MessagePreview 
-                    text={item.lastMessage?.text} 
-                    imageUrl={item.lastMessage?.image_url}
-                    author={item.lastMessage?.author}
-                    hasUnread={hasUnread}
-                    fallback="Official announcements and updates"
-                    eventTitles={eventTitleMap}
-                    vaultFolderNames={vaultFolderNameMap}
-                    vaultFileNames={vaultFileNameMap}
-                  />
+                  {item.draftText ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold text-destructive">Draft:</span>
+                      <span className="truncate">{item.draftText}</span>
+                    </span>
+                  ) : (
+                    <MessagePreview
+                      text={item.lastMessage?.text}
+                      imageUrl={item.lastMessage?.image_url}
+                      author={item.lastMessage?.author}
+                      hasUnread={hasUnread}
+                      fallback="Official announcements and updates"
+                      eventTitles={eventTitleMap}
+                      vaultFolderNames={vaultFolderNameMap}
+                      vaultFileNames={vaultFileNameMap}
+                    />
+                  )}
                 </p>
               </div>
             </CardContent>
@@ -1723,14 +1755,21 @@ export default function MessagesPage() {
                   </div>
                 </div>
                 <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  <span className="flex items-center gap-1.5">
-                    {isOwn && <span className="text-muted-foreground">You:</span>}
-                    {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                    <span className="truncate">
-                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) : 
-                       conv?.last_message?.image_url ? "Image" : "Start a conversation"}
+                  {item.draftText ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold text-destructive">Draft:</span>
+                      <span className="truncate">{item.draftText}</span>
                     </span>
-                  </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      {isOwn && <span className="text-muted-foreground">You:</span>}
+                      {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                      <span className="truncate">
+                        {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) :
+                         conv?.last_message?.image_url ? "Image" : "Start a conversation"}
+                      </span>
+                    </span>
+                  )}
                 </p>
               </div>
             </CardContent>
@@ -1790,16 +1829,23 @@ export default function MessagesPage() {
                 </div>
               </div>
               <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                <MessagePreview 
-                  text={item.lastMessage?.text} 
-                  imageUrl={item.lastMessage?.image_url}
-                  author={item.lastMessage?.author}
-                  hasUnread={hasUnread}
-                  fallback="No messages yet"
-                  eventTitles={eventTitleMap}
-                  vaultFolderNames={vaultFolderNameMap}
-                  vaultFileNames={vaultFileNameMap}
-                />
+                {item.draftText ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-semibold text-destructive">Draft:</span>
+                    <span className="truncate">{item.draftText}</span>
+                  </span>
+                ) : (
+                  <MessagePreview
+                    text={item.lastMessage?.text}
+                    imageUrl={item.lastMessage?.image_url}
+                    author={item.lastMessage?.author}
+                    hasUnread={hasUnread}
+                    fallback="No messages yet"
+                    eventTitles={eventTitleMap}
+                    vaultFolderNames={vaultFolderNameMap}
+                    vaultFileNames={vaultFileNameMap}
+                  />
+                )}
               </p>
             </div>
           </CardContent>
@@ -1852,17 +1898,24 @@ export default function MessagesPage() {
                 </div>
               </div>
               <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                <MessagePreview 
-                  text={item.lastMessage?.text} 
-                  imageUrl={item.lastMessage?.image_url}
-                  author={item.lastMessage?.author}
-                  hasUnread={hasUnread}
-                  fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
-                  isAnnouncement={(item.lastMessage as any)?.is_announcement}
-                  eventTitles={eventTitleMap}
-                  vaultFolderNames={vaultFolderNameMap}
-                  vaultFileNames={vaultFileNameMap}
-                />
+                {item.draftText ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-semibold text-destructive">Draft:</span>
+                    <span className="truncate">{item.draftText}</span>
+                  </span>
+                ) : (
+                  <MessagePreview
+                    text={item.lastMessage?.text}
+                    imageUrl={item.lastMessage?.image_url}
+                    author={item.lastMessage?.author}
+                    hasUnread={hasUnread}
+                    fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
+                    isAnnouncement={(item.lastMessage as any)?.is_announcement}
+                    eventTitles={eventTitleMap}
+                    vaultFolderNames={vaultFolderNameMap}
+                    vaultFileNames={vaultFileNameMap}
+                  />
+                )}
               </p>
             </div>
           </CardContent>

@@ -111,7 +111,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className="shrink-0 w-[85vw] max-w-[320px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+      className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
@@ -192,9 +192,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           )}
         </div>
 
-        {/* Event block */}
+        {/* Event block — fixed min-height so the placeholder and resolved
+            event variants don't change card size when nextEvents resolves. */}
         {nextEvent && evStyle && dateParts ? (
-          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1">
+          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1 min-h-[62px]">
             <div className="flex items-center gap-2 min-w-0">
               <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${evStyle.dot}`} aria-hidden="true" />
               <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground shrink-0">{evStyle.label}</span>
@@ -210,7 +211,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
           </div>
         ) : (
-          <div className="rounded-md bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-2">
+          <div className="rounded-md bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-2 min-h-[62px]">
             <span className="text-xs text-muted-foreground italic">No upcoming events</span>
             {item.canManage ? (
               <button
@@ -226,46 +227,45 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           </div>
         )}
 
-        {/* Footer: photos + unread (subtle) */}
-        {(photos.length > 0 || (unreadMessages && unreadMessages > 0)) && (
-          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
-            {photos.length > 0 ? (
-              <button
-                type="button"
-                className="flex items-center gap-2 min-w-0 flex-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-                }}
-              >
-                <div className="flex -space-x-1.5 shrink-0">
-                  {photos.slice(0, 3).map((photo, i) => (
-                    <div
-                      key={i}
-                      className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
-                    >
-                      <img
-                        src={photo.url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <span className="text-[11px] text-muted-foreground truncate">
-                  {photos.length} new photo{photos.length > 1 ? "s" : ""}
-                </span>
-              </button>
-            ) : <span />}
-            {unreadMessages && unreadMessages > 0 ? (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-                <MessageCircle className="h-3 w-3" />
-                {unreadMessages}
+        {/* Footer: photos + unread (subtle). Always rendered to reserve stable
+            height so deferred photo/unread queries don't push the page down. */}
+        <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
+          {photos.length > 0 ? (
+            <button
+              type="button"
+              className="flex items-center gap-2 min-w-0 flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
+              }}
+            >
+              <div className="flex -space-x-1.5 shrink-0">
+                {photos.slice(0, 3).map((photo, i) => (
+                  <div
+                    key={i}
+                    className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
+                  >
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                ))}
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
-            ) : null}
-          </div>
-        )}
+            </button>
+          ) : <span className="flex-1" />}
+          {unreadMessages && unreadMessages > 0 ? (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
+              <MessageCircle className="h-3 w-3" />
+              {unreadMessages}
+            </span>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );
@@ -598,10 +598,10 @@ export function MyTeamsPremiumCarousel() {
   if (isLoading && !snapshot) {
     return (
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">My Teams</h2>
+        <h2 className="text-lg font-semibold px-1">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[158px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>

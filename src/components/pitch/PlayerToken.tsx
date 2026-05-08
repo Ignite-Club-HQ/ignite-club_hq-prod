@@ -17,10 +17,11 @@ interface Player {
 
 interface PlayerTokenProps {
   player: Player;
-  onDragStart: () => void;
+  onDragStart: (e?: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   onInjuryToggle?: () => void;
   onRemoveFillIn?: () => void;
   isDragging: boolean;
@@ -49,6 +50,7 @@ const PlayerToken = memo(function PlayerToken({
   onDragEnd,
   onTouchStart,
   onClick,
+  onDoubleClick,
   onInjuryToggle,
   onRemoveFillIn,
   isDragging,
@@ -95,8 +97,14 @@ const PlayerToken = memo(function PlayerToken({
 
     return (
       <div
-        draggable={!onClick && !readOnly && !player.isInjured}
-        onDragStart={readOnly || player.isInjured ? undefined : onDragStart}
+        draggable={!readOnly && !player.isInjured}
+        onDragStart={readOnly || player.isInjured ? undefined : (e) => {
+          try {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", player.id);
+          } catch {}
+          onDragStart(e);
+        }}
         onDragEnd={readOnly || player.isInjured ? undefined : onDragEnd}
         onTouchStart={readOnly ? undefined : onTouchStart}
         onClick={readOnly ? undefined : onClick}
@@ -202,11 +210,20 @@ const PlayerToken = memo(function PlayerToken({
 
   return (
     <div
+      data-player-id={player.id}
+      data-player-variant="pitch"
       draggable={!readOnly}
-      onDragStart={readOnly ? undefined : onDragStart}
+      onDragStart={readOnly ? undefined : (e) => {
+        try {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", player.id);
+        } catch {}
+        onDragStart(e);
+      }}
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
       onClick={readOnly ? undefined : onClick}
+      onDoubleClick={readOnly ? undefined : onDoubleClick}
       className={cn(
         "flex flex-col items-center select-none touch-none transition-[transform,opacity] duration-300 ease-out",
         !readOnly && "cursor-grab active:cursor-grabbing",

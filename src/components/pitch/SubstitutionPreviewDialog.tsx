@@ -91,29 +91,8 @@ export default function SubstitutionPreviewDialog({
         type: "direct",
         description: `${benchPlayer.name} takes ${requiredPos} position`,
       });
-    } else {
-      // Check if position swap enables this bench player
-      const otherPitchPlayers = filteredPitchPlayers.filter(p => p.id !== pitchPlayer.id);
-      
-      otherPitchPlayers.forEach(swapPlayer => {
-        const swapPlayerCanCoverRequired = canPlayPosition(swapPlayer, requiredPos);
-        const benchCanPlaySwapPosition = swapPlayer.currentPitchPosition && 
-          canPlayPosition(benchPlayer, swapPlayer.currentPitchPosition);
-        
-        if (
-          swapPlayer.currentPitchPosition !== requiredPos &&
-          swapPlayerCanCoverRequired &&
-          benchCanPlaySwapPosition
-        ) {
-          substitutionOptions.push({
-            benchPlayer,
-            type: "swap",
-            swapPlayer,
-            description: `${swapPlayer.name} moves to ${requiredPos}, ${benchPlayer.name} takes ${swapPlayer.currentPitchPosition}`,
-          });
-        }
-      });
     }
+    // Note: swap-with-pitch-player options intentionally omitted — tap = sub, drag = swap.
   });
 
   const directOptions = substitutionOptions.filter(o => o.type === "direct");
@@ -236,7 +215,7 @@ export default function SubstitutionPreviewDialog({
                 No bench players can cover{" "}
                 <span className={cn("font-bold", posColors.text)}>{specificPos}</span>.
               </p>
-              <p className="text-xs mt-1">Add players to the bench or assign positions.</p>
+              <p className="text-xs mt-1">Tip: drag a player to swap positions on the pitch.</p>
             </div>
           )}
         </div>

@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -153,6 +153,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isLandscape, isMobileLandscape } = useIsLandscape();
+
+  // One-time discovery hint: now that the Swap button is gone, surface drag-to-swap once.
+  useEffect(() => {
+    if (readOnly) return;
+    try {
+      const KEY = "pitchboard.dragSwapHintShown.v1";
+      if (localStorage.getItem(KEY)) return;
+      const t = setTimeout(() => {
+        toast({
+          title: "Quick tip",
+          description: "Tap a player on the pitch to sub or swap them. Drag also works.",
+        });
+        try { localStorage.setItem(KEY, "1"); } catch {}
+      }, 1200);
+      return () => clearTimeout(t);
+    } catch {}
+  }, [readOnly, toast]);
 
   // Hide status bar in landscape on native to fill the whole screen
   useEffect(() => {
@@ -303,7 +320,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep `preferredSecondHalfGkId` in sync with the live roster. A nominated
   // 2H GK is allowed to start on pitch as an outfielder, so only clear the
   // preference when the player is gone, injured, or already the 1H GK.
-  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
+  // Prefer the event the board was launched from. Falling back to savedState
+  // first caused stale links (or no link at all) when entering from "Prepare
+  // Lineup" on a different event than the previously-saved game.
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => initialLinkedEventId || savedState?.linkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
@@ -392,8 +412,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
   const [maxSpreadMinutes, setMaxSpreadMinutes] = useState(() => initialMaxSpreadMinutes); // Max acceptable playing-time spread (minutes)
   const [showLineupPicker, setShowLineupPicker] = useState(() => {
-    // Show lineup picker on mount if setting enabled AND linked to a game event AND no saved state (fresh game)
-    return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
+    // Show lineup picker on mount if setting enabled AND linked to a game event AND
+    // either there's no saved state OR the saved state was for a different event
+    // (treat as fresh game context for the new event).
+    const savedForSameEvent = !!savedState && savedState.linkedEventId === initialLinkedEventId;
+    return initialShowLineupPicker && !!initialLinkedEventId && !savedForSameEvent && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
   // Settings ref for usePitchSettings (avoids stale closures)
@@ -566,8 +589,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    // Reset player minutes for a fresh game setup
-    const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
+    // Reset player minutes for a fresh game setup.
+    // Dedupe by id defensively — duplicate ids here would render the same
+    // player twice in the auto-sub planner and projected-minutes view.
+    const seen = new Set<string>();
+    const freshPlayers = updatedPlayers
+      .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; })
+      .map(p => ({ ...p, minutesPlayed: 0 }));
     setPlayers(freshPlayers);
     setPreferredSecondHalfGkId(secondHalfGkId);
     if (firstHalfGkId || secondHalfGkId) {
@@ -782,7 +810,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select("id, opponent, title")
+        .select("id, opponent, title, start_time")
         .eq("id", linkedEventId!)
         .single();
       if (error) throw error;
@@ -838,9 +866,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Get real players from team members with preferred positions from database
   // For mini-league mode, also assign team sides based on miniLeagueTeams config
-  const realPlayers = useMemo(() => members
-    .filter(m => m.role === "player")
-    .map((m, index) => {
+  const realPlayers = useMemo(() => {
+    // Dedupe members by user_id first — a person can appear multiple times in
+    // `members` if they hold more than one role on the team (e.g. player +
+    // team_admin), or if upstream joins fan out duplicate rows. Without this
+    // dedupe the lineup setup screen renders the same player multiple times.
+    const seen = new Set<string>();
+    const uniquePlayers = members.filter((m) => {
+      if (m.role !== "player") return false;
+      if (!m.user_id || seen.has(m.user_id)) return false;
+      seen.add(m.user_id);
+      return true;
+    });
+    return uniquePlayers.map((m, index) => {
       const savedPos = teamPlayerPositions?.find(p => p.user_id === m.user_id || p.child_id === m.user_id);
       // Determine team side for mini-league mode
       let teamSide: "a" | "b" | undefined;
@@ -861,7 +899,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         minutesPlayed: 0,
         teamSide,
       };
-    }), [members, teamPlayerPositions, miniLeagueTeams]);
+    });
+  }, [members, teamPlayerPositions, miniLeagueTeams]);
 
   const savedPlayers = savedState?.players || [];
   const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
@@ -879,9 +918,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const savedRosterHasNoPlayersOnPitch =
     savedPlayers.length > 0 && savedPlayers.every((player) => player.position === null);
   const applyStrictMatchRoster = useCallback((sourcePlayers: Player[]): Player[] => {
-    if (!isStrictMatchEventRoster || realPlayers.length === 0) return sourcePlayers;
+    // Dedupe by id first — defensive guard against any upstream path that
+    // may have produced duplicate roster rows (e.g. async merges, multi-role
+    // members). Without this the auto-sub planner and projected-minutes view
+    // render the same player multiple times.
+    const seenIds = new Set<string>();
+    const dedupedSource = sourcePlayers.filter(p => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    });
+    if (!isStrictMatchEventRoster || realPlayers.length === 0) return dedupedSource;
 
-    const filteredPlayers = sourcePlayers.filter((player) => strictMatchRosterPlayerIds.has(player.id));
+    const filteredPlayers = dedupedSource.filter((player) => strictMatchRosterPlayerIds.has(player.id) || player.isFillIn);
     const filteredIds = new Set(filteredPlayers.map((player) => player.id));
     const missingCurrentPlayers = realPlayers
       .filter((player) => !filteredIds.has(player.id))
@@ -1237,6 +1286,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
   const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
+  const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+  const playerDragStartRef = useRef<{ playerId: string; position: { x: number; y: number }; currentPitchPosition?: PitchPosition } | null>(null);
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -1351,6 +1402,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [swapPlayer2, setSwapPlayer2] = useState<string | null>(null);
   const [pitchSwapConfirmOpen, setPitchSwapConfirmOpen] = useState(false);
 
+
+
   // Swap-based substitution state (for sequencing: swap dialog first, then sub dialog)
   const [pendingSwapBasedSub, setPendingSwapBasedSub] = useState<{
     pitchPlayerId: string;
@@ -1373,6 +1426,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [fillInDialogOpen, setFillInDialogOpen] = useState(false);
   const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
@@ -2697,28 +2751,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
   // Handle pre-swap from substitution preview dialog
   // This swaps the selected pitch player with another pitch player who can cover their position
-  const handlePreSwapFromDialog = useCallback((pitchPlayerId: string, swapPlayerId: string) => {
-    console.log('handlePreSwapFromDialog called!', { pitchPlayerId, swapPlayerId });
-    
+  const handlePreSwapFromDialog = useCallback((pitchPlayerId: string, swapPlayerId: string, opts?: { reopenSubDialog?: boolean }) => {
+    const reopenSubDialog = opts?.reopenSubDialog ?? true;
+    const dragStart = playerDragStartRef.current?.playerId === pitchPlayerId ? playerDragStartRef.current : null;
     const pitchPlayer = players.find(p => p.id === pitchPlayerId);
     const swapPlayer = players.find(p => p.id === swapPlayerId);
-    
-    console.log('Found players:', { pitchPlayer: pitchPlayer?.name, swapPlayer: swapPlayer?.name });
-    
-    if (!pitchPlayer?.position || !swapPlayer?.position) {
-      console.log('Missing position data, returning early');
-      return;
-    }
-    
-    const pos1 = { ...pitchPlayer.position };
+
+    if (!pitchPlayer || (!pitchPlayer.position && !dragStart?.position) || !swapPlayer?.position) return;
+
+    const pos1 = dragStart?.position ? { ...dragStart.position } : { ...pitchPlayer.position! };
     const pos2 = { ...swapPlayer.position };
-    const pitchPos1 = pitchPlayer.currentPitchPosition;
+    const pitchPos1 = dragStart?.currentPitchPosition ?? pitchPlayer?.currentPitchPosition;
     const pitchPos2 = swapPlayer.currentPitchPosition;
-    
-    // Push to undo history before making changes
+
     pushToUndoHistory(`Swap: ${pitchPlayer.name} ↔ ${swapPlayer.name}`, playersRef.current);
-    
-    // Swap their positions
+
     setPlayers(prev => prev.map(p => {
       if (p.id === pitchPlayerId) {
         return { ...p, position: pos2, currentPitchPosition: pitchPos2 };
@@ -2728,20 +2775,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       return p;
     }));
-    
-    toast({ 
-      title: "Positions swapped", 
-      description: `${pitchPlayer.name} ↔ ${swapPlayer.name}` 
+
+    toast({
+      title: "Positions swapped",
+      description: `${pitchPlayer.name} ↔ ${swapPlayer.name}`
     });
-    
-    // Close dialog briefly, then reopen to show updated substitution options
+
+    if (!reopenSubDialog) return;
+
+    // In-dialog flow: reopen the substitution picker with updated options.
     setSubPreviewOpen(false);
     setSelectedOnBench(null);
-    
-    // Keep the original player selected (now in swapped position)
     setSelectedOnPitch(pitchPlayerId);
-    
-    // Reopen dialog after brief delay to show new direct substitution options
     setTimeout(() => {
       setSubPreviewOpen(true);
     }, 150);
@@ -2843,22 +2888,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Outside sub/swap mode: double-tap a pitch player opens the action menu
-      if (isOnPitch) {
-        const now = Date.now();
-        const last = lastTapRef.current;
-        if (last && last.playerId === playerId && now - last.time < 400) {
-          // Double tap detected
-          lastTapRef.current = null;
-          setPitchPlayerActionTarget(playerId);
-          setPitchPlayerActionOpen(true);
-        } else {
-          lastTapRef.current = { playerId, time: now };
-        }
-      }
+      // Single tap = no-op so the player can be freely dragged/repositioned.
+      // Use double-click (or the action menu) to open the substitution picker.
       return;
     }
-    
+
     if (isOnPitch) {
       console.log('[PlayerClick] Pitch player clicked:', playerId);
       const newSelected = selectedOnPitch === playerId ? null : playerId;
@@ -3474,6 +3508,179 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return getPinchDist(touches);
   };
 
+  const clampPitchPosition = useCallback((x: number, y: number) => ({
+    x: Math.max(5, Math.min(95, x)),
+    y: Math.max(5, Math.min(95, y)),
+  }), []);
+
+  const capturePlayerDragOffset = useCallback((playerId: string, clientX: number, clientY: number) => {
+    if (!containerRef.current) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const player = playersRef.current.find(p => p.id === playerId);
+    if (!player?.position) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const rect = containerRef.current.getBoundingClientRect();
+    playerDragOffsetRef.current = {
+      x: ((clientX - rect.left) / rect.width) * 100 - player.position.x,
+      y: ((clientY - rect.top) / rect.height) * 100 - player.position.y,
+    };
+  }, []);
+
+  const getClientPitchPosition = useCallback((clientX: number, clientY: number) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const offset = playerDragOffsetRef.current;
+    const x = ((clientX - rect.left) / rect.width) * 100 - (offset?.x ?? 0);
+    const y = ((clientY - rect.top) / rect.height) * 100 - (offset?.y ?? 0);
+    return clampPitchPosition(x, y);
+  }, [clampPitchPosition]);
+
+  const getClientPointFromPitchPosition = useCallback((position: { x: number; y: number }) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: rect.left + (position.x / 100) * rect.width,
+      y: rect.top + (position.y / 100) * rect.height,
+    };
+  }, []);
+
+  const getPitchPlayerAtPoint = useCallback((clientX: number, clientY: number, excludedPlayerId?: string) => {
+    const elements = typeof document.elementsFromPoint === "function"
+      ? document.elementsFromPoint(clientX, clientY)
+      : [document.elementFromPoint(clientX, clientY)].filter(Boolean) as Element[];
+
+    for (const element of elements) {
+      const tokenEl = (element as HTMLElement).closest?.('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+      const playerId = tokenEl?.getAttribute("data-player-id") || null;
+      if (playerId && playerId !== excludedPlayerId) return playerId;
+    }
+
+    let nearest: { id: string; distance: number } | null = null;
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === excludedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+      const rect = tokenEl.getBoundingClientRect();
+      const hitSlop = 24;
+      if (clientX < rect.left - hitSlop || clientX > rect.right + hitSlop || clientY < rect.top - hitSlop || clientY > rect.bottom + hitSlop) return;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - centerX, clientY - centerY);
+      if (!nearest || distance < nearest.distance) nearest = { id: playerId, distance };
+    });
+
+    if (nearest) return nearest.id;
+
+    const pitchRect = containerRef.current?.getBoundingClientRect();
+    if (pitchRect) {
+      const hitRadius = Math.max(38, Math.min(58, Math.min(pitchRect.width, pitchRect.height) * 0.1));
+      playersRef.current.forEach(player => {
+        if (!player.position || player.id === excludedPlayerId) return;
+        if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+        const centerX = pitchRect.left + (player.position.x / 100) * pitchRect.width;
+        const centerY = pitchRect.top + (player.position.y / 100) * pitchRect.height;
+        const distance = Math.hypot(clientX - centerX, clientY - centerY);
+        if (distance <= hitRadius && (!nearest || distance < nearest.distance)) {
+          nearest = { id: player.id, distance };
+        }
+      });
+    }
+
+    if (nearest) return nearest.id;
+
+    return null;
+  }, [miniLeagueTeams, selectedTeamForSettings]);
+
+  const getPitchPlayerOverlappingDragged = useCallback((draggedPlayerId: string, clientX: number, clientY: number) => {
+    const draggedEl = Array.from(document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]'))
+      .find(el => el.getAttribute("data-player-id") === draggedPlayerId);
+    const draggedRect = draggedEl?.getBoundingClientRect();
+    if (!draggedRect) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    const draggedCenterX = draggedRect.left + draggedRect.width / 2;
+    const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+    const rectMatchesDropPoint = Math.hypot(clientX - draggedCenterX, clientY - draggedCenterY) <= Math.max(draggedRect.width, draggedRect.height);
+    if (!rectMatchesDropPoint) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    let best: { id: string; score: number } | null = null;
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === draggedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+
+      const rect = tokenEl.getBoundingClientRect();
+      const slop = 14;
+      const overlapX = Math.max(0, Math.min(draggedRect.right, rect.right + slop) - Math.max(draggedRect.left, rect.left - slop));
+      const overlapY = Math.max(0, Math.min(draggedRect.bottom, rect.bottom + slop) - Math.max(draggedRect.top, rect.top - slop));
+      const overlapArea = overlapX * overlapY;
+      if (overlapArea <= 0) return;
+
+      const targetCenterX = rect.left + rect.width / 2;
+      const targetCenterY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - targetCenterX, clientY - targetCenterY);
+      const score = overlapArea - distance;
+      if (!best || score > best.score) best = { id: playerId, score };
+    });
+
+    return best?.id ?? getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+  }, [getPitchPlayerAtPoint, miniLeagueTeams, selectedTeamForSettings]);
+
+  const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
+    const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
+    return getPositionFromCoords(y, teamSize);
+  }, [miniLeagueTeams, teamSize]);
+
+  const updateDraggedPlayerPosition = useCallback((playerId: string, position: { x: number; y: number }) => {
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId
+        ? { ...p, position, currentPitchPosition: getDraggedPlayerPositionType(p, position) }
+        : p
+    ));
+  }, [getDraggedPlayerPositionType]);
+
+  const swapPitchPlayers = useCallback((sourcePlayerId: string, targetPlayerId: string) => {
+    if (sourcePlayerId === targetPlayerId) return false;
+
+    const snapshot = playersRef.current;
+    const source = snapshot.find(p => p.id === sourcePlayerId);
+    const target = snapshot.find(p => p.id === targetPlayerId);
+    const sourceStart = playerDragStartRef.current?.playerId === sourcePlayerId ? playerDragStartRef.current : null;
+    const sourcePosition = sourceStart?.position ?? source?.position;
+
+    if (!source || !target?.position || !sourcePosition) return false;
+    if (miniLeagueTeams && source.teamSide && target.teamSide && source.teamSide !== target.teamSide) return false;
+
+    const sourcePitchPosition = sourceStart?.currentPitchPosition ?? source.currentPitchPosition;
+    const targetPosition = { ...target.position };
+    const targetPitchPosition = target.currentPitchPosition;
+    const sourceName = source.name;
+    const targetName = target.name;
+
+    pushToUndoHistory(`Swap: ${sourceName} ↔ ${targetName}`, snapshot);
+    setPlayers(prev => prev.map(p => {
+      if (p.id === sourcePlayerId) {
+        return { ...p, position: targetPosition, currentPitchPosition: targetPitchPosition };
+      }
+      if (p.id === targetPlayerId) {
+        return { ...p, position: { ...sourcePosition }, currentPitchPosition: sourcePitchPosition };
+      }
+      return p;
+    }));
+    toast({
+      title: "Positions swapped",
+      description: `${sourceName} ↔ ${targetName}`,
+    });
+    return true;
+  }, [miniLeagueTeams, pushToUndoHistory, toast]);
+
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
@@ -3510,17 +3717,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
       e.preventDefault();
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
   };
 
@@ -3543,42 +3741,62 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
     const benchElement = document.getElementById('pitch-bench');
-    
-    let droppedOnBench = false;
-    if (benchElement) {
-      const benchRect = benchElement.getBoundingClientRect();
-      if (
-        touch.clientX >= benchRect.left &&
-        touch.clientX <= benchRect.right &&
-        touch.clientY >= benchRect.top &&
-        touch.clientY <= benchRect.bottom
-      ) {
-        droppedOnBench = true;
-        setPlayers(prev =>
-          prev.map(p =>
-            p.id === touchDragPlayer ? { ...p, position: null } : p
-          )
-        );
+
+    const droppedOnBench = false;
+    // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
+    const draggedSrc = players.find(p => p.id === touchDragPlayer);
+    const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
+    if (draggedIsBench) {
+      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
+      if (pitchEl) {
+        const rect = pitchEl.getBoundingClientRect();
+        const isOnPitch = touch.clientX >= rect.left && touch.clientX <= rect.right &&
+          touch.clientY >= rect.top && touch.clientY <= rect.bottom;
+        if (isOnPitch) {
+          setBenchToSubPlayer(touchDragPlayer);
+          setBenchToSubOpen(true);
+          setPortraitSheetOpen(false);
+          setToolbarCollapsed(true);
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
+          playerDragStartRef.current = null;
+          return;
+        }
       }
     }
-    
+
+    // Detect drop on another pitch token → swap positions
+    if (!droppedOnBench) {
+      const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
+      const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+      const targetId = draggedCenterPoint
+        ? getPitchPlayerOverlappingDragged(touchDragPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+        : getPitchPlayerOverlappingDragged(touchDragPlayer, touch.clientX, touch.clientY);
+      if (targetId && targetId !== touchDragPlayer) {
+        if (swapPitchPlayers(touchDragPlayer, targetId)) {
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
+          playerDragStartRef.current = null;
+          return;
+        }
+      }
+    }
+
     // Final position update from touchend to prevent coordinate gap with last touchmove
     if (!droppedOnBench && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setPlayers(prev =>
-        prev.map(p =>
-          p.id === touchDragPlayer
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   // Wheel zoom
@@ -3590,13 +3808,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   };
 
-  const handleDragStart = (playerId: string) => {
+  const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
+    if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setDraggedPlayer(playerId);
   };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3604,35 +3829,72 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!draggedPlayer || !containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const dragged = players.find(p => p.id === draggedPlayer);
+    const draggedIsBench = dragged ? !playersOnPitch.some(p => p.id === draggedPlayer) : false;
 
-    setPlayers(prev => 
-      prev.map(p => 
-        p.id === draggedPlayer 
-          ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-          : p
-      )
-    );
+    // Bench → pitch: open BenchToSubDialog so the user picks who comes off.
+    if (draggedIsBench) {
+      setBenchToSubPlayer(draggedPlayer);
+      setBenchToSubOpen(true);
+      setPortraitSheetOpen(false);
+      setToolbarCollapsed(true);
+      setDraggedPlayer(null);
+      playerDragOffsetRef.current = null;
+      playerDragStartRef.current = null;
+      return;
+    }
+
+    // Detect drop on another pitch player → swap positions.
+    const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
+    const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+    const targetId = draggedCenterPoint
+      ? getPitchPlayerOverlappingDragged(draggedPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
+      : getPitchPlayerOverlappingDragged(draggedPlayer, e.clientX, e.clientY);
+
+    if (targetId && targetId !== draggedPlayer) {
+      if (swapPitchPlayers(draggedPlayer, targetId)) {
+        setDraggedPlayer(null);
+        playerDragOffsetRef.current = null;
+        playerDragStartRef.current = null;
+        return;
+      }
+    }
+
+    const position = getClientPitchPosition(e.clientX, e.clientY);
+    if (position) updateDraggedPlayerPosition(draggedPlayer, position);
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     if (readOnly) return;
     if (!draggedPlayer) return;
-
-    setPlayers(prev =>
-      prev.map(p =>
-        p.id === draggedPlayer ? { ...p, position: null } : p
-      )
-    );
+    const dragged = players.find(p => p.id === draggedPlayer);
+    const draggedIsOnPitch = dragged ? playersOnPitch.some(p => p.id === draggedPlayer) : false;
+    if (draggedIsOnPitch) {
+      // Pitch → bench drag opens the sub picker for that pitch player.
+      setSelectedOnPitch(draggedPlayer);
+      setSubPreviewOpen(true);
+    } else {
+      // Bench player dropped back into bench area (which often overlaps the
+      // pitch when the bottom sheet is open). Treat as bench → pitch and open
+      // the BenchToSubDialog so the user can pick who comes off.
+      setBenchToSubPlayer(draggedPlayer);
+      setBenchToSubOpen(true);
+      setPortraitSheetOpen(false);
+      setToolbarCollapsed(true);
+    }
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
 
   // Touch handlers for mobile drag-and-drop
@@ -3642,8 +3904,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (touchDragPlayer !== null) return;
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
+    capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
+    // (Bench auto-open removed — it stole pointer events and broke drag)
   };
 
   // Touch handler for bench players
@@ -3663,23 +3931,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       touch.clientY >= pitchRect.top &&
       touch.clientY <= pitchRect.bottom
     ) {
-      const x = ((touch.clientX - pitchRect.left) / pitchRect.width) * 100;
-      const y = ((touch.clientY - pitchRect.top) / pitchRect.height) * 100;
-      
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
-  }, [readOnly, touchDragPlayer]);
+  }, [readOnly, touchDragPlayer, getClientPitchPosition, updateDraggedPlayerPosition]);
 
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
@@ -3801,6 +4063,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }, 50);
     return () => clearTimeout(t);
   }, [playersOnPitch, autoSubActive, autoSubPlan.length, regeneratePlanRef]);
+
+  // ── Cancel auto-subs if the plan references a player who no longer exists ──
+  // Catches any removal path (fill-in delete, roster change, etc.) so the
+  // panel can't keep showing a "next sub" for a deleted player.
+  useEffect(() => {
+    if (!autoSubActive || autoSubPlan.length === 0) return;
+    const playerIds = new Set(players.map(p => p.id));
+    const remaining = autoSubPlan.filter(s => !s.executed);
+    const orphaned = remaining.some(
+      s => !playerIds.has(s.playerIn.id) || !playerIds.has(s.playerOut.id)
+    );
+    if (orphaned) {
+      handleCancelAutoSubPlan();
+      toast({
+        title: "Auto-subs cancelled",
+        description: "A player in the plan was removed",
+      });
+    }
+  }, [players, autoSubActive, autoSubPlan, handleCancelAutoSubPlan, toast]);
 
   // Filtered on-pitch players for mini-league team selector (hides the other team)
   const filteredPlayersOnPitch = useMemo(() => {
@@ -4105,11 +4386,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     setPlayers(prev => prev.filter(p => p.id !== playerId));
-    toast({
-      title: "Fill-in player removed",
-      description: `${player.name} has been removed`,
-    });
-  }, [readOnly, players, toast]);
+
+    // If autosubs reference this fill-in player, fully cancel the plan
+    // (clears plan, active flag, paused flag, and any pending sub dialog state).
+    const referencedInPlan = autoSubPlan.some(
+      sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId
+    );
+    if (autoSubActive && referencedInPlan) {
+      handleCancelAutoSubPlan();
+      toast({
+        title: "Auto-subs cancelled",
+        description: `${player.name} was in the plan — auto-subs have been cancelled`,
+      });
+    } else {
+      toast({
+        title: "Fill-in player removed",
+        description: `${player.name} has been removed`,
+      });
+    }
+  }, [readOnly, players, toast, autoSubPlan, autoSubActive, handleCancelAutoSubPlan]);
 
   // Get existing jersey numbers for auto-suggest
   const existingJerseyNumbers = useMemo(() => {
@@ -4325,48 +4620,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               Subs Manager
             </Badge>
           )}
+          {linkedEventId && (
+            <div className="min-w-0 flex-1 max-w-md overflow-hidden">
+              <LinkedEventHeader
+                eventId={linkedEventId}
+                teamId={teamId}
+                teamName={teamName}
+                compact
+                isGameInProgress={gameInProgress}
+              />
+            </div>
+          )}
           
           <div className="flex-1" />
 
           {/* Sub-related controls group - centered */}
           <div className="flex items-center gap-3">
 
-            {/* Swap & Sub buttons */}
-            {!readOnly && (
-              <>
-                {playersOnPitch.length >= 2 && !subMode && (
-                  <Button
-                    variant={swapMode ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
-                  >
-                    <ArrowLeftRight className="h-4 w-4" />
-                    {swapMode ? "Cancel" : "Swap"}
-                  </Button>
-                )}
-                {!swapMode && (
-                  <Button
-                    variant={subMode ? "secondary" : "default"}
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={() => toggleSubMode()}
-                  >
-                    <Users className="h-4 w-4" />
-                    {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
-                  </Button>
-                )}
-                {(subMode || swapMode) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
-                    onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </>
+            {/* Bench button removed — use bench drawer / drag-to-sub instead */}
+            {!readOnly && (subMode || swapMode) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
+                onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
             )}
 
           </div>
@@ -4388,9 +4669,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             )}
             {!readOnly && !subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm text-muted-foreground"
                 onClick={handleSetupGame}
               >
                 <Play className="h-4 w-4" />
@@ -4425,10 +4706,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="flex-1">Training Mode</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
-                          <Play className="h-4 w-4" />
-                          Setup Game
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
@@ -4449,6 +4726,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="text-destructive">Reset Game</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
+                          <UserPlus className="h-4 w-4" />
+                          Add Fill-In Player
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
@@ -4506,6 +4787,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onPitchBoardModeChange={setMode}
                   canUseTrainingMode={canUseTraining}
                 />
+                <Suspense fallback={null}>
+                  <AddFillInPlayerDialog
+                    onAddPlayer={handleAddFillInPlayer}
+                    existingNumbers={players.map(p => p.number).filter((n): n is number => typeof n === 'number')}
+                    hideTrigger
+                    externalOpen={fillInDialogOpen}
+                    onExternalOpenChange={setFillInDialogOpen}
+                  />
+                </Suspense>
               </>
             )}
             {readOnly && (
@@ -4607,6 +4897,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideExtras
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  kickoffTime={linkedEventDetails?.start_time ?? null}
                 />
                 {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
@@ -4770,14 +5061,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
             style={{ zIndex: 0 }}
             onWheel={handleWheel}
+            onDrop={handlePitchDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
           >
             <div 
               className={cn(
-              "transition-transform duration-100",
+              "transition-transform duration-100 w-full h-full",
               drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
             )}
               onDrop={handlePitchDrop}
               onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
               onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
               onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
               onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
@@ -4921,7 +5216,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <PlayerToken
                   key={player.id}
                   player={player}
-                  onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
+                  onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                   onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                     if (readOnly) return;
@@ -4930,7 +5225,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handlePlayerClick(player.id, true);
                       return;
                     }
-                    // Double-tap detection for pitch action menu
+                    e.preventDefault();
+                    // Double-tap to open substitution picker (replaces drag-to-bench)
                     const now = Date.now();
                     const last = lastTapRef.current;
                     if (last && last.playerId === player.id && now - last.time < 400) {
@@ -4939,16 +5235,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       setTouchDragPlayer(null);
                       setTouchOffset(null);
                       touchIdRef.current = null;
-                      setPitchPlayerActionTarget(player.id);
-                      setPitchPlayerActionOpen(true);
+                      setSelectedOnPitch(player.id);
+                      setSubPreviewOpen(true);
                     } else {
                       lastTapRef.current = { playerId: player.id, time: now };
                       handleTouchStart(player.id, e);
                     }
                   }}
                   onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
+                  onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                  isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
+                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                   isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
                   isInvalidTarget={swapMode && swapPlayer1 !== null && swapPlayer1 !== player.id && !getValidSwapPlayerIds.has(player.id)}
                   isMovable={movablePitchPlayerIds.has(player.id)}
@@ -5249,19 +5546,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
           <div className="absolute inset-0 z-[68] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-            {/* Backdrop - pass through when drawing */}
+            {/* Backdrop - pass through when drawing. Forward drag events to pitch
+                so dragging bench players over the backdrop still allows drop. */}
             <div 
               className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
               onClick={drawingTool === "none" ? () => {
                 if (ignoreNextLandscapeBackdropClickRef.current) return;
                 setToolbarCollapsed(true);
               } : undefined}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDrop={handlePitchDrop}
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
               style={{ maxHeight: `${sheetHeightPct}%`, height: 'auto' }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDrop={handlePitchDrop}
             >
               {/* Draggable header area - handle + tabs */}
               <div
@@ -5422,7 +5726,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <div key={player.id} className="shrink-0">
                             <PlayerToken
                               player={player}
-                              onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
+                              onDragStart={() => !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
                              onTouchStart={(e) => {
                                if (readOnly) return;
@@ -5448,23 +5752,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                !readOnly && subMode && !player.isInjured 
                                  ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
                                  : !readOnly && !subMode && !swapMode
-                                   ? () => {
-                                       if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                       const now = Date.now();
-                                       const last = lastTapRef.current;
-                                       if (last && last.playerId === player.id && now - last.time < 400) {
-                                         lastTapRef.current = null;
-                                         setBenchInjuryTarget(player.id);
-                                         setBenchInjuryConfirmOpen(true);
-                                       } else {
-                                         lastTapRef.current = { playerId: player.id, time: now };
-                                         // Single tap during active game: open BenchToSubDialog for quick "slot in"
-                                         if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
-                                           setBenchToSubPlayer(player.id);
-                                           setBenchToSubOpen(true);
-                                         }
-                                       }
-                                     }
+                                    ? () => {
+                                        if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                        const now = Date.now();
+                                        const last = lastTapRef.current;
+                                        if (last && last.playerId === player.id && now - last.time < 400) {
+                                          lastTapRef.current = null;
+                                          setBenchInjuryTarget(player.id);
+                                          setBenchInjuryConfirmOpen(true);
+                                        } else {
+                                          lastTapRef.current = { playerId: player.id, time: now };
+                                          // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                          if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                            setBenchToSubPlayer(player.id);
+                                            setBenchToSubOpen(true);
+                                          }
+                                        }
+                                      }
                                    : undefined
                              }
                               onInjuryToggle={undefined}
@@ -5568,6 +5872,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onSelectOption={handleSubPreviewSelect}
           miniLeagueTeams={miniLeagueTeams}
         />
+
+        {/* Bench-to-Pitch Substitution Dialog - landscape */}
+        <Suspense fallback={null}>
+          <BenchToSubDialog
+            open={benchToSubOpen}
+            onOpenChange={(open) => {
+              setBenchToSubOpen(open);
+              if (!open) setBenchToSubPlayer(null);
+            }}
+            benchPlayer={players.find(p => p.id === benchToSubPlayer) || null}
+            allPitchPlayers={playersOnPitch}
+            onSelectOption={handleBenchToSubSelect}
+            miniLeagueTeams={miniLeagueTeams}
+          />
+        </Suspense>
 
         {/* Formation Change Dialog */}
         <FormationChangeDialog
@@ -5911,35 +6230,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
         {!readOnly && (
           <>
-            {/* Swap button */}
-            {playersOnPitch.length >= 2 && !subMode && (
+            {/* Bench button removed — use bench drawer / drag-to-sub instead */}
+            {subMode && (
               <Button
-                variant={swapMode ? "outline" : "ghost"}
-                size="sm"
-                className="h-9 shrink-0 gap-1 px-2 text-xs"
-                onClick={toggleSwapMode}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                {swapMode ? "Cancel" : "Swap"}
-              </Button>
-            )}
-            {/* Sub button */}
-            {!swapMode && (
-              <Button
-                variant={subMode ? "secondary" : "default"}
+                variant="secondary"
                 size="sm"
                 className="h-9 shrink-0 gap-1 px-2 text-xs"
                 onClick={() => toggleSubMode()}
               >
-                <Users className="h-4 w-4" />
-                {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                <X className="h-4 w-4" />
+                Cancel
               </Button>
             )}
             {!subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-9 shrink-0 gap-1 px-2 text-xs"
+                className="h-9 shrink-0 gap-1 px-2 text-xs text-muted-foreground"
                 onClick={handleSetupGame}
               >
                 <Play className="h-4 w-4" />
@@ -5977,12 +6284,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </>
                     )}
                     {!readOnly && (
-                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
-                        <Play className="h-4 w-4" />
-                        Setup Game
-                      </button>
-                    )}
-                    {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                         <RotateCcw className="h-4 w-4" />
                         Reset Formation
@@ -6007,6 +6308,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
+                          <UserPlus className="h-4 w-4" />
+                          Add Fill-In Player
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
@@ -6228,6 +6533,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideExtras
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  kickoffTime={linkedEventDetails?.start_time ?? null}
                 />
                 {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
@@ -6447,8 +6753,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Portrait Bottom Sheet */}
             {portraitSheetOpen && (
               <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-                <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
-                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div
+                  className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
+                  onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDrop={handlePitchDrop}
+                />
+                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDragOver={handleDragOver} onDragEnter={handleDragOver} onDrop={handlePitchDrop}>
 
               {/* Handle bar - draggable */}
               <div 
@@ -6604,7 +6916,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <PlayerToken
                             key={player.id}
                             player={player}
-                            onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
+                            onDragStart={() => !readOnly && handleDragStart(player.id)}
                             onDragEnd={handleDragEnd}
                            onTouchStart={(e) => {
                              if (readOnly) return;
@@ -6630,23 +6942,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                              !readOnly && subMode && !player.isInjured 
                                ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
                                : !readOnly && !subMode && !swapMode
-                                 ? () => {
-                                     if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                     const now = Date.now();
-                                     const last = lastTapRef.current;
-                                     if (last && last.playerId === player.id && now - last.time < 400) {
-                                       lastTapRef.current = null;
-                                       setBenchInjuryTarget(player.id);
-                                       setBenchInjuryConfirmOpen(true);
-                                     } else {
-                                       lastTapRef.current = { playerId: player.id, time: now };
-                                       // Single tap during active game: open BenchToSubDialog for quick "slot in"
-                                       if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
-                                         setBenchToSubPlayer(player.id);
-                                         setBenchToSubOpen(true);
+                                   ? () => {
+                                       if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                       const now = Date.now();
+                                       const last = lastTapRef.current;
+                                       if (last && last.playerId === player.id && now - last.time < 400) {
+                                         lastTapRef.current = null;
+                                         setBenchInjuryTarget(player.id);
+                                         setBenchInjuryConfirmOpen(true);
+                                       } else {
+                                         lastTapRef.current = { playerId: player.id, time: now };
+                                         // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                         if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                           setBenchToSubPlayer(player.id);
+                                           setBenchToSubOpen(true);
+                                         }
                                        }
                                      }
-                                   }
                                  : undefined
                            }
                             onInjuryToggle={undefined}
@@ -6769,14 +7081,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           id="portrait-pitch-area"
           className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
           onWheel={handleWheel}
+          onDrop={handlePitchDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
         >
           <div 
             className={cn(
-            "transition-transform duration-100",
+            "transition-transform duration-100 w-full h-full",
             drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
           )}
             onDrop={handlePitchDrop}
             onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
             onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
             onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
             onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
@@ -6883,7 +7199,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <PlayerToken
                 key={player.id}
                 player={player}
-                onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
+                onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                 onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                   if (readOnly) return;
@@ -6892,6 +7208,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     handlePlayerClick(player.id, true);
                     return;
                   }
+                  e.preventDefault();
                   const now = Date.now();
                   const last = lastTapRef.current;
                   if (last && last.playerId === player.id && now - last.time < 400) {
@@ -6900,14 +7217,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
                     touchIdRef.current = null;
-                    setPitchPlayerActionTarget(player.id);
-                    setPitchPlayerActionOpen(true);
+                    setSelectedOnPitch(player.id);
+                    setSubPreviewOpen(true);
                   } else {
                     lastTapRef.current = { playerId: player.id, time: now };
                     handleTouchStart(player.id, e);
                   }
                 }}
                 onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
+                onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                 isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                 isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                 isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}

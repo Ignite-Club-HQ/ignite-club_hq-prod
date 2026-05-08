@@ -658,9 +658,26 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             collisionPadding={8}
             avoidCollisions={false}
             // Keep focus inside the composer textarea so the keyboard stays
-            // up while the attachment tray is open.
+            // up while the attachment tray is open — including when the user
+            // taps outside to dismiss the tray.
             onOpenAutoFocus={(e) => e.preventDefault()}
-            onCloseAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              // Refocus the composer textarea so the keyboard does not collapse.
+              const composer = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+                'textarea[data-chat-composer], textarea[placeholder^="Type a message"], input[placeholder^="Type a message"]'
+              );
+              composer?.focus({ preventScroll: true });
+            }}
+            onPointerDownOutside={(e) => {
+              const target = e.target as HTMLElement | null;
+              // If the user tapped on the composer textarea itself, let the
+              // event through so the caret moves there. Otherwise prevent the
+              // default so the textarea does NOT blur (keyboard stays up); the
+              // popover will still close because Radix toggles its open state.
+              if (target?.closest?.('textarea, input[type="text"], [contenteditable="true"]')) return;
+              e.preventDefault();
+            }}
             className="w-[calc(100vw-16px)] max-w-[420px] p-1.5 rounded-xl border border-border/50 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] bg-popover/95 backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=open]:slide-in-from-bottom-1 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             {(() => {

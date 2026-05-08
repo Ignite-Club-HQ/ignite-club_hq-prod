@@ -26,9 +26,12 @@ export function getChatScrollMetrics(container: HTMLElement | null | undefined) 
  * Uses an immediate snap + double-rAF + a 150ms delayed pass to catch
  * async layout changes (e.g. ResizeObserver updating composer height).
  */
+import { installChatScrollIntentTracking, isViewportUserActive } from "./chatScrollIntent";
+
 export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   const viewport = resolveChatScrollViewport(container);
   if (!viewport) return;
+  installChatScrollIntentTracking(viewport);
 
   const snap = () => {
     viewport.scrollTop = viewport.scrollHeight - viewport.clientHeight;
@@ -40,9 +43,18 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
     requestAnimationFrame(snap);
   });
 
-  // Catch async ResizeObserver → state update → re-render → layout cycle
-  setTimeout(snap, 150);
+  // Catch async ResizeObserver → state update → re-render → layout cycle.
+  // Bail if user has scrolled away OR is actively interacting — never yank
+  // a finger drag back to bottom.
+  setTimeout(() => {
+    if (isViewportUserActive(viewport)) return;
+    const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+    if (distance > 80) return;
+    snap();
+  }, 150);
 }
+
+const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
 export function scrollChatElementIntoView(container: HTMLElement | null | undefined, element: HTMLElement | null | undefined) {
   const viewport = resolveChatScrollViewport(container);
@@ -51,7 +63,10 @@ export function scrollChatElementIntoView(container: HTMLElement | null | undefi
   const viewportRect = viewport.getBoundingClientRect();
   const elementRect = element.getBoundingClientRect();
   const targetTop = viewport.scrollTop + elementRect.top - viewportRect.top - Math.max(24, (viewport.clientHeight - elementRect.height) / 2);
-  viewport.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+  // Android Chrome WebView: smooth scroll programmatic calls hijack any
+  // in-progress touch/inertia scroll. Use auto on Android (per project memory)
+  // and smooth elsewhere.
+  viewport.scrollTo({ top: Math.max(0, targetTop), behavior: isAndroid ? "auto" : "smooth" });
 }
 
 /**
