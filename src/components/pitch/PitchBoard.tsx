@@ -4459,6 +4459,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               Subs Manager
             </Badge>
           )}
+          {linkedEventId && (
+            <div className="min-w-0 max-w-[36vw] shrink overflow-hidden">
+              <LinkedEventHeader
+                eventId={linkedEventId}
+                teamId={teamId}
+                teamName={teamName}
+                compact
+                isGameInProgress={gameInProgress}
+              />
+            </div>
+          )}
           
           <div className="flex-1" />
 
