@@ -1786,3 +1786,98 @@ export default function TeamChatPage() {
     </div>
   );
 }
+// ---------------------------------------------------------------------------
+// Messages viewport
+//
+// Conditionally renders either the legacy fully-mapped scroller (default) or
+// the virtualised list (feature-flagged via `useChatVirtualizationFlag`).
+// Both paths receive the same `renderMessage` row function so per-row JSX
+// stays identical and bug-for-bug compatible.
+// ---------------------------------------------------------------------------
+interface TeamChatMessagesViewportProps {
+  filteredMessages: any[];
+  scrollAreaRef: React.RefObject<HTMLDivElement>;
+  loadTriggerRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement>;
+  hasOlderMessages: boolean;
+  isLoadingOlder: boolean;
+  loadOlderMessages: () => void;
+  searchQuery: string;
+  isPinned: boolean;
+  isNativeIOS: boolean;
+  isKeyboardOpen: boolean;
+  searchOpen: boolean;
+  composerHeight: number;
+  highlightedMessageId: string | null;
+  renderMessage: (msg: any, index: number, arr: any[]) => React.ReactNode;
+}
+
+function TeamChatMessagesViewport({
+  filteredMessages,
+  scrollAreaRef,
+  loadTriggerRef,
+  messagesEndRef,
+  hasOlderMessages,
+  isLoadingOlder,
+  loadOlderMessages,
+  searchQuery,
+  isPinned,
+  isNativeIOS,
+  isKeyboardOpen,
+  searchOpen,
+  composerHeight,
+  renderMessage,
+}: TeamChatMessagesViewportProps) {
+  const useVirtualized = useChatVirtualizationFlag();
+
+  const bottomPad = searchOpen
+    ? 32
+    : isKeyboardOpen
+    ? Math.max(128, composerHeight + 40)
+    : Math.max(160, composerHeight + 48);
+
+  if (useVirtualized && !searchQuery) {
+    return (
+      <div
+        className="flex-1 min-h-0 overflow-hidden"
+        style={{ opacity: isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
+        data-chat-virtualized="true"
+      >
+        <VirtualizedChatMessageList
+          messages={filteredMessages}
+          hasOlder={hasOlderMessages}
+          isLoadingOlder={isLoadingOlder}
+          onLoadOlder={loadOlderMessages}
+          renderItem={renderMessage}
+          topPadding={16}
+          bottomPadding={bottomPad}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
+      data-chat-scroll-lock="true"
+      ref={scrollAreaRef}
+      style={{
+        WebkitOverflowScrolling: isNativeIOS ? "auto" : "touch",
+        opacity: isPinned ? 1 : 0,
+        transition: "opacity 120ms ease-out",
+        pointerEvents: isPinned ? "auto" : "none",
+        touchAction: "pan-y",
+      }}
+    >
+      <div className="space-y-4 p-4" style={{ paddingBottom: `${bottomPad}px` }}>
+        {hasOlderMessages && !searchQuery && (
+          <div ref={loadTriggerRef} className="h-1" style={{ overflowAnchor: "none" }} />
+        )}
+        {filteredMessages.map((msg, index, arr) => (
+          <div key={msg.id}>{renderMessage(msg, index, arr)}</div>
+        ))}
+        <div ref={messagesEndRef} id="team-chat-end" />
+      </div>
+    </div>
+  );
+}
