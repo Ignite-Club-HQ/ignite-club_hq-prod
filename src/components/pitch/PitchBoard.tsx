@@ -3739,13 +3739,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, touchDragPlayer)
         : getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
       if (targetId && targetId !== touchDragPlayer) {
-        const target = players.find(p => p.id === targetId);
-        const src = players.find(p => p.id === touchDragPlayer);
-        if (src?.position && target?.position) {
-          handlePreSwapFromDialog(touchDragPlayer, targetId, { reopenSubDialog: false });
+        if (swapPitchPlayers(touchDragPlayer, targetId)) {
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
           playerDragStartRef.current = null;
           return;
         }
@@ -3818,9 +3816,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       : getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
 
     if (targetId && targetId !== draggedPlayer) {
-      const target = players.find(p => p.id === targetId);
-      if (dragged?.position && target?.position) {
-        handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
+      if (swapPitchPlayers(draggedPlayer, targetId)) {
         setDraggedPlayer(null);
         playerDragOffsetRef.current = null;
         playerDragStartRef.current = null;
