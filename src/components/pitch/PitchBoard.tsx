@@ -6973,8 +6973,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
                     touchIdRef.current = null;
-                    setPitchPlayerActionTarget(player.id);
-                    setPitchPlayerActionOpen(true);
+                    setSelectedOnPitch(player.id);
+                    setSubPreviewOpen(true);
                   } else {
                     lastTapRef.current = { playerId: player.id, time: now };
                     handleTouchStart(player.id, e);
