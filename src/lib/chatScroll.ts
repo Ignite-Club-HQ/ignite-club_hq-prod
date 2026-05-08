@@ -28,7 +28,10 @@ export function getChatScrollMetrics(container: HTMLElement | null | undefined) 
  */
 import { installChatScrollIntentTracking, isViewportUserActive } from "./chatScrollIntent";
 
-export function scrollChatToBottom(container: HTMLElement | null | undefined) {
+export function scrollChatToBottom(
+  container: HTMLElement | null | undefined,
+  options: { persistent?: boolean } = {},
+) {
   const viewport = resolveChatScrollViewport(container);
   if (!viewport) return;
   installChatScrollIntentTracking(viewport);
@@ -52,6 +55,21 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
     if (distance > 80) return;
     snap();
   }, 150);
+
+  // Persistent mode: when entering reply/edit, the soft keyboard + reply
+  // preview animate in over ~300-600ms (esp. on Android). Re-snap across
+  // that window so the latest message stays visible above the composer.
+  if (options.persistent) {
+    [300, 500, 750].forEach((delay) => {
+      setTimeout(() => {
+        if (isViewportUserActive(viewport)) return;
+        const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+        // Allow a wider tolerance here since keyboard can shift layout abruptly
+        if (distance > 400) return;
+        snap();
+      }, delay);
+    });
+  }
 }
 
 const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
