@@ -50,6 +50,7 @@ const PlayerToken = memo(function PlayerToken({
   onDragEnd,
   onTouchStart,
   onClick,
+  onDoubleClick,
   onInjuryToggle,
   onRemoveFillIn,
   isDragging,
