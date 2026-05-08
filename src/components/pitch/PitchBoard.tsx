@@ -566,8 +566,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    // Reset player minutes for a fresh game setup
-    const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
+    // Reset player minutes for a fresh game setup.
+    // Dedupe by id defensively — duplicate ids here would render the same
+    // player twice in the auto-sub planner and projected-minutes view.
+    const seen = new Set<string>();
+    const freshPlayers = updatedPlayers
+      .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; })
+      .map(p => ({ ...p, minutesPlayed: 0 }));
     setPlayers(freshPlayers);
     setPreferredSecondHalfGkId(secondHalfGkId);
     if (firstHalfGkId || secondHalfGkId) {
