@@ -162,8 +162,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (localStorage.getItem(KEY)) return;
       const t = setTimeout(() => {
         toast({
-          title: "Tip: drag to swap",
-          description: "Drag a player onto another to swap positions. Double-tap a pitch player to substitute.",
+          title: "Quick tip",
+          description: "Tap a player, then tap another to swap, or a bench player to substitute. Drag still works.",
         });
         try { localStorage.setItem(KEY, "1"); } catch {}
       }, 1200);
