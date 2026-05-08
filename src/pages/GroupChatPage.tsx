@@ -576,6 +576,7 @@ export default function GroupChatPage() {
   // Reset scroll state when groupId changes
   useEffect(() => {
     setLocalMessages(getInitialLocalMessages());
+    setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
   }, [groupId, queryClient]);
 
@@ -743,6 +744,7 @@ export default function GroupChatPage() {
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
+      if ((messagesData as any).fromCache) return;
       setHasOlderMessages((messagesData as any).hasOlderMessages ?? false);
     }
   }, [messagesData]);
@@ -780,7 +782,9 @@ export default function GroupChatPage() {
     const timeoutId = setTimeout(() => controller.abort(), 25000);
     
     try {
-      const oldestMessage = currentMessages[0];
+      const oldestMessage = currentMessages.reduce((oldest, message) =>
+        new Date(message.created_at).getTime() < new Date(oldest.created_at).getTime() ? message : oldest,
+      currentMessages[0]);
       
       const { data: olderData, error } = await supabase
         .from("group_messages")
@@ -821,9 +825,13 @@ export default function GroupChatPage() {
       anchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
           if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
+          const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
           return {
             ...old,
-            messages: [...initialOlderMessages, ...old.messages],
+            messages: [
+              ...initialOlderMessages.filter((m) => !existingIds.has(m.id)),
+              ...old.messages,
+            ],
             hasOlderMessages: hasMore,
           };
         });
