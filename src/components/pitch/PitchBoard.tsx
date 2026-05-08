@@ -3698,12 +3698,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       return p;
     }));
-    toast({
-      title: "Positions swapped",
-      description: `${sourceName} ↔ ${targetName}`,
-    });
+    flashSwapFeedback(sourcePlayerId, targetPlayerId);
     return true;
-  }, [miniLeagueTeams, pushToUndoHistory, toast]);
+  }, [miniLeagueTeams, pushToUndoHistory, flashSwapFeedback]);
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
