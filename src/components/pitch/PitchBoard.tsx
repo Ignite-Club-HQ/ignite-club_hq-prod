@@ -3645,6 +3645,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
+          playerDragStartRef.current = null;
           return;
         }
       }
@@ -3767,6 +3769,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setToolbarCollapsed(true);
     }
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
