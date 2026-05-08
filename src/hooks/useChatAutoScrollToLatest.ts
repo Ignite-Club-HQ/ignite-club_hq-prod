@@ -109,6 +109,7 @@ export function useChatAutoScrollToLatest({
       window.removeEventListener("focusin", handleFocusIn);
       window.visualViewport?.removeEventListener("resize", handleViewportResize);
       if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      if (resizeDebounce) clearTimeout(resizeDebounce);
       disposeKeyboardScrollLock?.();
     };
   }, [enabled, scrollContainerRef]);
