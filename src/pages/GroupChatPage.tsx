@@ -1544,7 +1544,7 @@ export default function GroupChatPage() {
   const handleSearchResult = (messageId: string) => {
     setHighlightedMessageId(messageId);
     const element = document.getElementById(`message-${messageId}`);
-    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.scrollIntoView({ behavior: /Android/i.test(navigator.userAgent) ? "auto" : "smooth", block: "center" });
     setTimeout(() => setHighlightedMessageId(null), 2000);
   };
 
