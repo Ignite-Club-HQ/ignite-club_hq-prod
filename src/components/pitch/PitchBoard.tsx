@@ -3703,14 +3703,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     if (readOnly) return;
     if (!draggedPlayer) return;
-    // Pitch → bench drag opens the sub picker for that pitch player.
     const dragged = players.find(p => p.id === draggedPlayer);
     const draggedIsOnPitch = dragged ? playersOnPitch.some(p => p.id === draggedPlayer) : false;
     if (draggedIsOnPitch) {
+      // Pitch → bench drag opens the sub picker for that pitch player.
       setSelectedOnPitch(draggedPlayer);
       setSubPreviewOpen(true);
+    } else {
+      // Bench player dropped back into bench area (which often overlaps the
+      // pitch when the bottom sheet is open). Treat as bench → pitch and open
+      // the BenchToSubDialog so the user can pick who comes off.
+      setBenchToSubPlayer(draggedPlayer);
+      setBenchToSubOpen(true);
+      setPortraitSheetOpen(false);
+      setToolbarCollapsed(true);
     }
     setDraggedPlayer(null);
   };
