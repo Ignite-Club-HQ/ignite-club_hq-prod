@@ -116,7 +116,7 @@ export default function PlayerPositionEditor({
           </div>
         ) : (
           <div className="space-y-2">
-            {players.map(player => (
+            {(() => { const seen = new Set<string>(); return players.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; }); })().map(player => (
               <button
                 key={player.id}
                 onClick={() => handlePlayerClick(player)}
