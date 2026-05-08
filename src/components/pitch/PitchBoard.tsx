@@ -6303,6 +6303,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideExtras
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  kickoffTime={linkedEventDetails?.start_time ?? null}
                 />
                 {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
