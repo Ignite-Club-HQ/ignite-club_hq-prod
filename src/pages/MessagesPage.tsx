@@ -1106,6 +1106,60 @@ export default function MessagesPage() {
     }
   }, [user, teams, memberClubs, chatGroups, queryClient]);
 
+  // Realtime: keep inbox previews + ordering fresh as new messages arrive.
+  // Without this, latest-message text and the most-recent-at-top sort only
+  // refresh on the 30s refetchInterval, so new threads don't bubble to the top.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const teamIds = new Set((teams ?? []).map((t: any) => t.id));
+    const clubIds = new Set((memberClubs ?? []).map((c: any) => c.id));
+    const groupIds = new Set((chatGroups ?? []).map((g: any) => g.id));
+
+    let teamRaf = 0, clubRaf = 0, groupRaf = 0, dmRaf = 0, unreadRaf = 0;
+    const schedule = (rafRef: { v: number }, fn: () => void) => {
+      if (rafRef.v) return;
+      rafRef.v = requestAnimationFrame(() => { rafRef.v = 0; fn(); });
+    };
+    const teamRef = { v: teamRaf }, clubRef = { v: clubRaf }, groupRef = { v: groupRaf }, dmRef = { v: dmRaf }, unreadRef = { v: unreadRaf };
+
+    const bumpUnread = () => schedule(unreadRef, () => {
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+    });
+
+    const channel = supabase
+      .channel(`messages-inbox-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+        if (teamIds.size && !teamIds.has(payload.new?.team_id)) return;
+        schedule(teamRef, () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
+        bumpUnread();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+        if (clubIds.size && !clubIds.has(payload.new?.club_id)) return;
+        schedule(clubRef, () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
+        bumpUnread();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+        if (groupIds.size && !groupIds.has(payload.new?.group_id)) return;
+        schedule(groupRef, () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
+        bumpUnread();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => {
+        schedule(dmRef, () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
+        bumpUnread();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
+        bumpUnread();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      [teamRef, clubRef, groupRef, dmRef, unreadRef].forEach((r) => { if (r.v) cancelAnimationFrame(r.v); });
+    };
+  }, [user?.id, teams, memberClubs, chatGroups, queryClient]);
+
   // Check if we have cached data to show immediately
   const hasCachedData = cachedData && (
     cachedData.teams?.length > 0 || 
