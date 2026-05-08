@@ -75,18 +75,20 @@ export default function AddFillInPlayerDialog({
 
   return (
     <>
-      <Button 
-        variant="outline" 
-        size={compact ? "sm" : "default"}
-        className={cn(
-          "gap-1.5 w-full",
-          compact ? "h-7 text-xs px-2" : "h-10 text-sm"
-        )}
-        onClick={() => setOpen(true)}
-      >
-        <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
-        {compact ? "Fill-In" : "Add Fill-In Player"}
-      </Button>
+      {!hideTrigger && (
+        <Button 
+          variant="outline" 
+          size={compact ? "sm" : "default"}
+          className={cn(
+            "gap-1.5 w-full",
+            compact ? "h-7 text-xs px-2" : "h-10 text-sm"
+          )}
+          onClick={() => setOpen(true)}
+        >
+          <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
+          {compact ? "Fill-In" : "Add Fill-In Player"}
+        </Button>
+      )}
       <ResponsiveDialog open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="sm:max-w-md">
           <ResponsiveDialogHeader>
