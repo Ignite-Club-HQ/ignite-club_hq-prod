@@ -6068,17 +6068,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
         {!readOnly && (
           <>
-            {/* Bench (sub) button — Swap removed; drag-to-swap remains */}
-            {!swapMode && (
+            {/* Bench button removed — use bench drawer / drag-to-sub instead */}
+            {subMode && (
               <Button
-                variant={subMode ? "secondary" : "default"}
+                variant="secondary"
                 size="sm"
                 className="h-9 shrink-0 gap-1 px-2 text-xs"
                 onClick={() => toggleSubMode()}
-                title="Open bench to substitute a player"
               >
-                <Users className="h-4 w-4" />
-                {subMode ? "Cancel" : `Bench (${playersOnBench.length})`}
+                <X className="h-4 w-4" />
+                Cancel
               </Button>
             )}
             {!subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
