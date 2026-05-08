@@ -1576,7 +1576,15 @@ export default function MessagesPage() {
   const hasNoResults = query && unifiedConversations.length === 0;
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
 
-  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
+  // If a specific club is in scope (active club theme or local filter), use that
+  // club's Pro status — otherwise fall back to the global "any Pro" check. This
+  // prevents the upgrade banner from showing for admins of a Pro club just
+  // because they also belong to a Free club elsewhere.
+  const scopedClubIsPro = effectiveClubFilter ? clubProStatus?.[effectiveClubFilter] === true : null;
+  const proGateFails = effectiveClubFilter
+    ? scopedClubIsPro === false
+    : hasAnyProAccess === false;
+  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !isLoadingClubProStatus && !isFetchingClubProStatus && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
 
   // Type label map
   const typeLabels: Record<string, string> = {
