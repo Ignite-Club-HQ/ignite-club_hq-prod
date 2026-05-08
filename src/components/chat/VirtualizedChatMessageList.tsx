@@ -138,19 +138,22 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [],
   );
 
+  // O(1) id → index map so itemContent doesn't run an O(n) scan per row on
+  // every render (which on a 500-message thread is 250k comparisons per
+  // re-render and shows up as scroll jank / row flicker).
+  const indexById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < messages.length; i++) m.set(messages[i].id, i);
+    return m;
+  }, [messages]);
+
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
-      const localIndex = messages.indexOf(message);
-      // Fallback to a defensive lookup in case of identity churn between
-      // virtuoso's snapshot and our latest array — should be rare.
-      const idx =
-        localIndex >= 0
-          ? localIndex
-          : messages.findIndex((m) => m.id === message.id);
-      if (idx < 0) return null;
+      const idx = indexById.get(message.id);
+      if (idx === undefined) return null;
       return renderItem(message, idx, messages);
     },
-    [messages, renderItem],
+    [messages, renderItem, indexById],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
