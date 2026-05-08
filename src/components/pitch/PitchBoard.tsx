@@ -3613,38 +3613,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const swapPitchPlayers = useCallback((sourcePlayerId: string, targetPlayerId: string) => {
     if (sourcePlayerId === targetPlayerId) return false;
 
-    let didSwap = false;
-    setPlayers(prev => {
-      const source = prev.find(p => p.id === sourcePlayerId);
-      const target = prev.find(p => p.id === targetPlayerId);
-      const sourceStart = playerDragStartRef.current?.playerId === sourcePlayerId ? playerDragStartRef.current : null;
-      const sourcePosition = sourceStart?.position ?? source?.position;
-
-      if (!source || !target?.position || !sourcePosition) return prev;
-      if (miniLeagueTeams && source.teamSide && target.teamSide && source.teamSide !== target.teamSide) return prev;
-
-      didSwap = true;
-      const sourcePitchPosition = sourceStart?.currentPitchPosition ?? source.currentPitchPosition;
-      const targetPosition = { ...target.position };
-      const targetPitchPosition = target.currentPitchPosition;
-
-      return prev.map(p => {
-        if (p.id === sourcePlayerId) {
-          return { ...p, position: targetPosition, currentPitchPosition: targetPitchPosition };
-        }
-        if (p.id === targetPlayerId) {
-          return { ...p, position: { ...sourcePosition }, currentPitchPosition: sourcePitchPosition };
-        }
-        return p;
-      });
-    });
-
-    if (!didSwap) return false;
-
     const snapshot = playersRef.current;
-    const sourceName = snapshot.find(p => p.id === sourcePlayerId)?.name ?? "Player";
-    const targetName = snapshot.find(p => p.id === targetPlayerId)?.name ?? "player";
+    const source = snapshot.find(p => p.id === sourcePlayerId);
+    const target = snapshot.find(p => p.id === targetPlayerId);
+    const sourceStart = playerDragStartRef.current?.playerId === sourcePlayerId ? playerDragStartRef.current : null;
+    const sourcePosition = sourceStart?.position ?? source?.position;
+
+    if (!source || !target?.position || !sourcePosition) return false;
+    if (miniLeagueTeams && source.teamSide && target.teamSide && source.teamSide !== target.teamSide) return false;
+
+    const sourcePitchPosition = sourceStart?.currentPitchPosition ?? source.currentPitchPosition;
+    const targetPosition = { ...target.position };
+    const targetPitchPosition = target.currentPitchPosition;
+    const sourceName = source.name;
+    const targetName = target.name;
+
     pushToUndoHistory(`Swap: ${sourceName} ↔ ${targetName}`, snapshot);
+    setPlayers(prev => prev.map(p => {
+      if (p.id === sourcePlayerId) {
+        return { ...p, position: targetPosition, currentPitchPosition: targetPitchPosition };
+      }
+      if (p.id === targetPlayerId) {
+        return { ...p, position: { ...sourcePosition }, currentPitchPosition: sourcePitchPosition };
+      }
+      return p;
+    }));
     toast({
       title: "Positions swapped",
       description: `${sourceName} ↔ ${targetName}`,
