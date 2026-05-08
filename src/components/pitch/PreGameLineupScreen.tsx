@@ -82,11 +82,37 @@ export default function PreGameLineupScreen({
   const formation = FORMATIONS[teamSize][selectedFormation];
   const hasGk = !["3", "4", "5", "6"].includes(teamSize);
 
-  const initialSlots = useMemo(() => buildSlots(formation, teamSize), [formation, teamSize]);
+  const initialSlots = useMemo(() => {
+    const base = buildSlots(formation, teamSize);
+    // Prefill from existing player positions so re-opening Setup doesn't wipe the lineup.
+    const onPitch = players.filter(p => p.position && !p.isInjured);
+    const used = new Set<string>();
+    for (const slot of base) {
+      let bestId: string | null = null;
+      let bestDist = Infinity;
+      for (const p of onPitch) {
+        if (used.has(p.id)) continue;
+        const dx = (p.position!.x - slot.position.x);
+        const dy = (p.position!.y - slot.position.y);
+        const d = dx * dx + dy * dy;
+        if (d < bestDist) { bestDist = d; bestId = p.id; }
+      }
+      // Only assign if reasonably close (within ~25% of pitch); otherwise leave empty
+      if (bestId && bestDist < 25 * 25) {
+        slot.assignedPlayerId = bestId;
+        used.add(bestId);
+      }
+    }
+    return base;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formation, teamSize]);
 
   const [slots, setSlots] = useState<FormationSlot[]>(initialSlots);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
-  const [firstHalfGkId, setFirstHalfGkId] = useState<string | null>(null);
+  const [firstHalfGkId, setFirstHalfGkId] = useState<string | null>(() => {
+    const gkSlot = initialSlots.find(s => s.pitchPosition === "GK");
+    return gkSlot?.assignedPlayerId ?? null;
+  });
   const [secondHalfGkId, setSecondHalfGkId] = useState<string | null>(null);
 
   // ── Drag state ──
