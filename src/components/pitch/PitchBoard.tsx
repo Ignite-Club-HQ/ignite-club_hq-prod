@@ -154,6 +154,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const containerRef = useRef<HTMLDivElement>(null);
   const { isLandscape, isMobileLandscape } = useIsLandscape();
 
+  // One-time discovery hint: now that the Swap button is gone, surface drag-to-swap once.
+  useEffect(() => {
+    if (readOnly) return;
+    try {
+      const KEY = "pitchboard.dragSwapHintShown.v1";
+      if (localStorage.getItem(KEY)) return;
+      const t = setTimeout(() => {
+        toast({
+          title: "Tip: drag to swap",
+          description: "Drag a player onto another to swap positions. Double-tap a pitch player to substitute.",
+        });
+        try { localStorage.setItem(KEY, "1"); } catch {}
+      }, 1200);
+      return () => clearTimeout(t);
+    } catch {}
+  }, [readOnly, toast]);
+
   // Hide status bar in landscape on native to fill the whole screen
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
