@@ -2860,22 +2860,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Outside sub/swap mode: double-tap a pitch player opens the action menu
-      if (isOnPitch) {
-        const now = Date.now();
-        const last = lastTapRef.current;
-        if (last && last.playerId === playerId && now - last.time < 400) {
-          // Double tap detected
-          lastTapRef.current = null;
-          setPitchPlayerActionTarget(playerId);
-          setPitchPlayerActionOpen(true);
-        } else {
-          lastTapRef.current = { playerId, time: now };
-        }
-      }
+      // Double-tap on pitch players is now handled by the dedicated `onDoubleClick`
+      // handler on PlayerToken (which opens the substitution picker). We intentionally
+      // do NOT detect a double-tap here — previously this opened the injury action
+      // menu and would fire after the user cancelled the substitution dialog.
       return;
     }
-    
+
     if (isOnPitch) {
       console.log('[PlayerClick] Pitch player clicked:', playerId);
       const newSelected = selectedOnPitch === playerId ? null : playerId;
