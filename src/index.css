@@ -280,3 +280,13 @@ html, body {
   color: #1f2937 !important;
   border-radius: 3px;
 }
+
+/* GPU-promote chat scroll viewports to keep mid-tier Android on the compositor
+   thread during fast flicks. Avoids dropped frames from CPU paint passes.
+   Only applied to elements explicitly tagged as chat scroll viewports. */
+[data-chat-scroll-lock="true"] {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
