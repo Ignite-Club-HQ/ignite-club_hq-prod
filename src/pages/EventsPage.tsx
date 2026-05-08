@@ -827,29 +827,48 @@ export default function EventsPage() {
                 modifiers={{
                   hasEvent: eventDates,
                 }}
+                classNames={{
+                  // Softer selected state so event indicators remain readable
+                  day_selected:
+                    "bg-primary/15 text-foreground font-semibold ring-1 ring-primary/50 ring-inset hover:bg-primary/20 focus:bg-primary/20",
+                  // Subtle independent today ring (no fill)
+                  day_today:
+                    "text-foreground font-semibold ring-1 ring-foreground/25 ring-inset",
+                }}
                 components={{
                   DayContent: ({ date }) => {
                     const dayEvents = events?.filter((e) => isSameDay(parseISO(e.event_date), date)) || [];
-                    const gameCount = dayEvents.filter(e => e.type === 'game').length;
-                    const trainingCount = dayEvents.filter(e => e.type === 'training').length;
-                    const socialCount = dayEvents.filter(e => e.type === 'social').length;
-                    const dots: { color: string }[] = [];
-                    for (let i = 0; i < Math.min(gameCount, 2); i++) dots.push({ color: 'bg-destructive' });
-                    for (let i = 0; i < Math.min(trainingCount, 2); i++) dots.push({ color: 'bg-primary' });
-                    for (let i = 0; i < Math.min(socialCount, 2); i++) dots.push({ color: 'bg-warning' });
+                    const hasGame = dayEvents.some((e) => e.type === "game");
+                    const hasTraining = dayEvents.some((e) => e.type === "training");
+                    const hasSocial = dayEvents.some((e) => e.type === "social");
+
+                    // One micro-bar per event type present (max 3, type-mapped colors)
+                    const bars: { color: string; label: string }[] = [];
+                    if (hasGame) bars.push({ color: "bg-destructive", label: "Game" });
+                    if (hasTraining) bars.push({ color: "bg-primary", label: "Training" });
+                    if (hasSocial) bars.push({ color: "bg-warning", label: "Social" });
+
                     const totalCount = dayEvents.length;
-                    const showPlus = totalCount > 3;
-                    
+                    const overflow = Math.max(0, totalCount - bars.length);
+
                     return (
-                      <div className="relative flex items-center justify-center w-full h-full">
-                        <span>{date.getDate()}</span>
-                        {totalCount > 0 && (
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-                            {dots.slice(0, 3).map((dot, i) => (
-                              <div key={i} className={`w-1 h-1 rounded-full ${dot.color}`} />
+                      <div className="relative flex flex-col items-center justify-center w-full h-full pb-1.5">
+                        <span className="leading-none">{date.getDate()}</span>
+                        {bars.length > 0 && (
+                          <div
+                            className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-[3px]"
+                            aria-label={bars.map((b) => b.label).join(", ")}
+                          >
+                            {bars.map((b, i) => (
+                              <span
+                                key={i}
+                                className={`h-[3px] w-3 rounded-full ${b.color}`}
+                              />
                             ))}
-                            {showPlus && (
-                              <span className="text-[6px] text-muted-foreground font-bold leading-none">+</span>
+                            {overflow > 0 && (
+                              <span className="text-[8px] leading-none text-muted-foreground/80 font-semibold ml-[1px]">
+                                +{overflow}
+                              </span>
                             )}
                           </div>
                         )}
