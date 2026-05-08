@@ -3597,6 +3597,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return null;
   }, [miniLeagueTeams, selectedTeamForSettings]);
 
+  const getPitchPlayerOverlappingDragged = useCallback((draggedPlayerId: string, clientX: number, clientY: number) => {
+    const draggedEl = Array.from(document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]'))
+      .find(el => el.getAttribute("data-player-id") === draggedPlayerId);
+    const draggedRect = draggedEl?.getBoundingClientRect();
+    if (!draggedRect) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    const draggedCenterX = draggedRect.left + draggedRect.width / 2;
+    const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+    const rectMatchesDropPoint = Math.hypot(clientX - draggedCenterX, clientY - draggedCenterY) <= Math.max(draggedRect.width, draggedRect.height);
+    if (!rectMatchesDropPoint) return getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+
+    let best: { id: string; score: number } | null = null;
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === draggedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+
+      const rect = tokenEl.getBoundingClientRect();
+      const slop = 14;
+      const overlapX = Math.max(0, Math.min(draggedRect.right, rect.right + slop) - Math.max(draggedRect.left, rect.left - slop));
+      const overlapY = Math.max(0, Math.min(draggedRect.bottom, rect.bottom + slop) - Math.max(draggedRect.top, rect.top - slop));
+      const overlapArea = overlapX * overlapY;
+      if (overlapArea <= 0) return;
+
+      const targetCenterX = rect.left + rect.width / 2;
+      const targetCenterY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - targetCenterX, clientY - targetCenterY);
+      const score = overlapArea - distance;
+      if (!best || score > best.score) best = { id: playerId, score };
+    });
+
+    return best?.id ?? getPitchPlayerAtPoint(clientX, clientY, draggedPlayerId);
+  }, [getPitchPlayerAtPoint, miniLeagueTeams, selectedTeamForSettings]);
+
   const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
     return getPositionFromCoords(y, teamSize);
