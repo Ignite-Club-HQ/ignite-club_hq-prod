@@ -30,7 +30,8 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 300;
+const IDLE_GATE_MS = 90;
+const PREFETCH_ROOT_MARGIN_PX = 1200;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
 
 export function useChatOlderMessagesAnchor({
@@ -94,11 +95,12 @@ export function useChatOlderMessagesAnchor({
 
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
-          // User is mid-flick — re-check shortly so we don't miss the window.
+          // User is mid-flick — re-check very shortly so older pages begin
+          // loading while momentum is still carrying the user into history.
           window.setTimeout(() => {
             const stillIntersecting =
               trigger.getBoundingClientRect().top <
-              scrollRoot.getBoundingClientRect().bottom + 2000;
+              scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
             // Re-apply ALL guards inside the deferred path. Without these,
             // a programmatic scrollTop set by the initial bottom-pin (which
             // fires a real "scroll" event and stamps lastScrollAtRef) lands
@@ -124,9 +126,9 @@ export function useChatOlderMessagesAnchor({
       },
       {
         root: scrollRoot,
-        // Pre-fetch BEFORE the user reaches the very top so the next page is
-        // already prepended by the time their finger gets there.
-        rootMargin: "300px 0px 0px 0px",
+        // Pre-fetch well BEFORE the user reaches the very top so the next
+        // page is already prepended by the time their finger gets there.
+        rootMargin: `${PREFETCH_ROOT_MARGIN_PX}px 0px 0px 0px`,
         threshold: 0,
       },
     );
@@ -184,6 +186,7 @@ export function useChatOlderMessagesAnchor({
         return;
       }
 
+      void container.offsetHeight;
       const nextScrollHeight = container.scrollHeight;
       const delta = nextScrollHeight - previousScrollHeight;
       container.scrollTop = previousScrollTop + delta;
@@ -198,7 +201,7 @@ export function useChatOlderMessagesAnchor({
 
       // Watch for newly-prepended images decoding and re-apply the anchor
       // so their final height doesn't push content down later.
-      watchPrependedImagesAndReanchor(container, previousScrollTop, previousScrollHeight);
+      watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
     },
     [scrollContainerRef],
   );
@@ -206,20 +209,20 @@ export function useChatOlderMessagesAnchor({
   return { anchoredPrepend };
 }
 
-function watchPrependedImagesAndReanchor(
+function watchPrependedMediaAndReanchor(
   container: HTMLElement,
   previousScrollTop: number,
   previousScrollHeight: number,
 ) {
-  // Only watch images currently above the user's viewport (the ones we
+  // Only watch media currently above the user's viewport (the ones we
   // just prepended). Newly-decoded images below would belong to the
   // pin-to-bottom flow, not us.
-  const visibleTop = previousScrollTop;
-  const candidates = Array.from(container.querySelectorAll("img")).filter((img) => {
-    if (img.complete && img.naturalHeight > 0) return false;
-    const rect = img.getBoundingClientRect();
+  const candidates = Array.from(container.querySelectorAll("img, video")).filter((media) => {
+    if (media instanceof HTMLImageElement && media.complete && media.naturalHeight > 0) return false;
+    if (media instanceof HTMLVideoElement && media.readyState >= 1) return false;
+    const rect = media.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    return rect.bottom - containerRect.top < visibleTop + 50;
+    return rect.bottom <= containerRect.top + 80;
   });
 
   if (!candidates.length) return;
@@ -227,26 +230,28 @@ function watchPrependedImagesAndReanchor(
   let stopped = false;
   const stop = () => {
     stopped = true;
-    candidates.forEach((img) => {
-      img.removeEventListener("load", onImgLoad);
-      img.removeEventListener("error", onImgLoad);
+    candidates.forEach((media) => {
+      media.removeEventListener("load", onMediaLoad);
+      media.removeEventListener("loadedmetadata", onMediaLoad);
+      media.removeEventListener("loadeddata", onMediaLoad);
+      media.removeEventListener("error", onMediaLoad);
     });
   };
 
-  // Incremental anchoring: each image-load delta is added to the user's
+  // Incremental anchoring: each media-load delta is added to the user's
   // CURRENT scrollTop (not the captured `previousScrollTop`). This way, if
   // the user keeps scrolling up after the prepend, we don't yank them back
   // to where they were when the page was fetched — we just absorb the
   // newly-resolved image height under their current finger position.
   let lastScrollHeight = container.scrollHeight;
 
-  const onImgLoad = () => {
+  const onMediaLoad = () => {
     if (stopped) return;
     const nextHeight = container.scrollHeight;
     const delta = nextHeight - lastScrollHeight;
     lastScrollHeight = nextHeight;
     if (delta === 0) return;
-    // Only compensate when the image that grew sits ABOVE the user's
+    // Only compensate when the media that grew sits ABOVE the user's
     // current viewport — otherwise the layout shift didn't push their
     // visible content and we'd just create a phantom jump.
     // Cheap heuristic: any positive delta from above-the-fold images
@@ -254,9 +259,11 @@ function watchPrependedImagesAndReanchor(
     container.scrollTop = container.scrollTop + delta;
   };
 
-  candidates.forEach((img) => {
-    img.addEventListener("load", onImgLoad, { once: true });
-    img.addEventListener("error", onImgLoad, { once: true });
+  candidates.forEach((media) => {
+    media.addEventListener("load", onMediaLoad, { once: true });
+    media.addEventListener("loadedmetadata", onMediaLoad, { once: true });
+    media.addEventListener("loadeddata", onMediaLoad, { once: true });
+    media.addEventListener("error", onMediaLoad, { once: true });
   });
 
   window.setTimeout(stop, POST_RESTORE_IMAGE_WATCH_MS);
