@@ -1287,6 +1287,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
   const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
   const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+  const playerDragStartRef = useRef<{ playerId: string; position: { x: number; y: number }; currentPitchPosition?: PitchPosition } | null>(null);
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
