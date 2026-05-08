@@ -787,7 +787,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select("id, opponent, title")
+        .select("id, opponent, title, start_time")
         .eq("id", linkedEventId!)
         .single();
       if (error) throw error;
@@ -4682,6 +4682,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideExtras
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  kickoffTime={linkedEventDetails?.start_time ?? null}
                 />
                 {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
@@ -6302,6 +6303,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hideExtras
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  kickoffTime={linkedEventDetails?.start_time ?? null}
                 />
                 {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button

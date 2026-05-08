@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
+import { toast } from "@/hooks/use-toast";
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
@@ -80,6 +81,10 @@ interface GameTimerProps {
   // External minutes per half control
   minutesPerHalf?: number;
   onMinutesPerHalfChange?: (minutes: number) => void;
+  /** ISO timestamp of the linked event's kickoff. When set:
+   *  - Manual start before kickoff is blocked.
+   *  - Timer auto-starts at kickoff. */
+  kickoffTime?: string | null;
 }
 
 // Legacy key used by widgets to find any active timer
@@ -195,7 +200,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   hidePlayPause = false,
   minutesPerHalf: externalMinutesPerHalf,
   onMinutesPerHalfChange,
+  kickoffTime,
 }, ref) => {
+  const internalKickoffMs = kickoffTime ? new Date(kickoffTime).getTime() : null;
+  const kickoffMs = internalKickoffMs && !isNaN(internalKickoffMs) ? internalKickoffMs : null;
   const [internalMinutesPerHalf, setInternalMinutesPerHalf] = useState(45);
   const [currentHalf, setCurrentHalf] = useState<1 | 2>(1);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -255,28 +263,36 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
-        // Use UNCAPPED drift so the timer catches up fully after backgrounding.
-        // Previously this used a 30s cap, but the save-effect would then overwrite
-        // lastUpdateTime with Date.now(), preventing the reconcile effect from
-        // ever seeing the real drift.
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-        const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
-        
-        // Check if half ended while backgrounded
-        if (newElapsed >= halfDuration) {
-          if (saved.currentHalf === 1) {
-            setCurrentHalf(2);
-            setElapsedSeconds(0);
-            setIsRunning(false);
-            onHalfChangeRef.current?.(2);
-          } else {
-            setElapsedSeconds(halfDuration);
-            setIsRunning(false);
-            setIsGameFinished(true);
-          }
+        // Safeguard: if the app was backgrounded/closed for more than 5 minutes,
+        // do NOT silently fast-forward the clock (this previously caused games
+        // to auto-jump to half time after the app was closed). Pause at the
+        // last known position and let the coach decide what to do.
+        const SAFE_DRIFT_SECS = 5 * 60;
+        if (secondsPassed > SAFE_DRIFT_SECS) {
+          setElapsedSeconds(saved.elapsedSeconds);
+          setIsRunning(false);
+          toast({
+            title: "Timer paused",
+            description: `Pitch board was closed for ${Math.round(secondsPassed / 60)} min while the timer was running. Tap play to resume.`,
+          });
         } else {
-          setElapsedSeconds(newElapsed);
-          setIsRunning(true);
+          const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
+          if (newElapsed >= halfDuration) {
+            if (saved.currentHalf === 1) {
+              setCurrentHalf(2);
+              setElapsedSeconds(0);
+              setIsRunning(false);
+              onHalfChangeRef.current?.(2);
+            } else {
+              setElapsedSeconds(halfDuration);
+              setIsRunning(false);
+              setIsGameFinished(true);
+            }
+          } else {
+            setElapsedSeconds(newElapsed);
+            setIsRunning(true);
+          }
         }
       } else {
         setElapsedSeconds(saved.elapsedSeconds);
@@ -306,6 +322,16 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Cannot resume if game is finished
     if (isGameFinished) return false;
 
+    // If linked to an event, block manual start before kickoff time.
+    if (!isRunning && kickoffMs && Date.now() < kickoffMs && elapsedSeconds === 0 && currentHalf === 1) {
+      const minsUntil = Math.ceil((kickoffMs - Date.now()) / 60000);
+      toast({
+        title: "Game hasn't started yet",
+        description: `This match is linked to an event. Timer will auto-start at kick-off (in ~${minsUntil} min).`,
+      });
+      return false;
+    }
+
     let nextIsRunning = false;
     setIsRunning(prev => {
       nextIsRunning = !prev;
@@ -313,7 +339,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     });
 
     return nextIsRunning;
-  }, [isGameFinished]);
+  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf]);
 
   const resetTimer = useCallback(() => {
     setIsRunning(false);
@@ -333,6 +359,38 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     toggleTimer,
     resetTimer,
   }), [elapsedSeconds, currentHalf, minutesPerHalf, isRunning, isGameFinished, toggleTimer, resetTimer]);
+
+  // Auto-start at kickoff when linked to an event.
+  // Fires once when the timer is at 0:00 in the first half, not running, not finished,
+  // and we're within a +/- 2 hour window of kickoff (so a hot-reload way later
+  // doesn't suddenly fire).
+  useEffect(() => {
+    if (!hasInitialized || readOnly || !kickoffMs) return;
+    if (isRunning || isGameFinished) return;
+    if (currentHalf !== 1 || elapsedSeconds !== 0) return;
+
+    const tryStart = () => {
+      const now = Date.now();
+      const delta = now - kickoffMs;
+      // Only auto-start within 2 hours after kickoff (avoid old events triggering).
+      if (delta >= 0 && delta <= 2 * 60 * 60 * 1000) {
+        setIsRunning(true);
+        toast({
+          title: "Kick-off!",
+          description: "Match timer started automatically.",
+        });
+      }
+    };
+
+    // Fire immediately if kickoff already passed (within window).
+    tryStart();
+
+    const msUntilKickoff = kickoffMs - Date.now();
+    if (msUntilKickoff > 0 && msUntilKickoff <= 2 * 60 * 60 * 1000) {
+      const t = window.setTimeout(tryStart, msUntilKickoff + 250);
+      return () => window.clearTimeout(t);
+    }
+  }, [hasInitialized, readOnly, kickoffMs, isRunning, isGameFinished, currentHalf, elapsedSeconds]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -417,11 +475,25 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
       if (uncappedDrift <= 30) return; // Normal tick would have handled this
-      
+
+      // Safeguard: don't silently fast-forward if app was closed >5 min.
+      // Pause at the saved position so the coach decides what to do.
+      const SAFE_DRIFT_SECS = 5 * 60;
+      if (uncappedDrift > SAFE_DRIFT_SECS) {
+        console.log(`[Timer] Resume drift ${uncappedDrift}s exceeds safe window; pausing.`);
+        setIsRunning(false);
+        setElapsedSeconds(saved.elapsedSeconds);
+        toast({
+          title: "Timer paused",
+          description: `Pitch board was closed for ${Math.round(uncappedDrift / 60)} min. Tap play to resume.`,
+        });
+        return;
+      }
+
       const reconciledElapsed = Math.min(saved.elapsedSeconds + uncappedDrift, halfDurationSeconds);
       console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, elapsed ${saved.elapsedSeconds} -> ${reconciledElapsed}`);
       setElapsedSeconds(reconciledElapsed);
-      
+
       // Check if half ended during background
       if (reconciledElapsed >= halfDurationSeconds) {
         if (currentHalf === 1) {
