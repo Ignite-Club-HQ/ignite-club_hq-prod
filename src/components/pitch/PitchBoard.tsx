@@ -3637,7 +3637,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setDraggedPlayer(playerId);
     // Auto-expand the bench so users can drop directly onto it without opening it first
     const dragged = players.find(p => p.id === playerId);
-    if (dragged?.position) setBenchCollapsed(false);
+    if (dragged?.position) {
+      setBenchCollapsed(false);
+      // Landscape uses the bottom sheet; open it on the bench tab
+      setBottomSheetTab("bench");
+      setSheetHeightPct(prev => (prev < 50 ? 50 : prev));
+      setToolbarCollapsed(false);
+    }
   };
 
   const handleDragEnd = () => {
