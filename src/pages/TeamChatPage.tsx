@@ -1555,34 +1555,33 @@ export default function TeamChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <TeamChatMessagesViewport
-            filteredMessages={filteredMessages || []}
-            scrollAreaRef={scrollAreaRef}
-            loadTriggerRef={loadTriggerRef}
-            messagesEndRef={messagesEndRef}
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
-            loadOlderMessages={loadOlderMessages}
+            onLoadOlder={loadOlderMessages}
             searchQuery={searchQuery}
             isPinned={isPinned}
             isNativeIOS={isNativeIOS}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
-            highlightedMessageId={highlightedMessageId}
-            renderMessage={(msg, index, arr) => {
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            endElementId="team-chat-end"
+            loadTriggerStyle={{ overflowAnchor: "none" }}
+            renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
               return (
-                <div>
+                <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                   <div
                     id={`message-${msg.id}`}
                     className={`transition-colors duration-500 ${
-                      highlightedMessageId === msg.id
-                        ? "bg-primary/10 rounded-lg"
-                        : ""
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
                     }`}
                   >
                     <ChatMessage
@@ -1618,7 +1617,7 @@ export default function TeamChatPage() {
                       searchQuery={searchQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
-                      isLastMessage={index === (filteredMessages?.length || 0) - 1}
+                      isLastMessage={index === arr.length - 1}
                       isPending={msg.id.startsWith("queued-")}
                       contextId={teamId || ""}
                       isClubAnnouncement={msg.is_club_announcement}
@@ -1634,7 +1633,7 @@ export default function TeamChatPage() {
                       onPublishToGallery={handlePublishToGallery}
                     />
                   </div>
-                </div>
+                </>
               );
             }}
           />
