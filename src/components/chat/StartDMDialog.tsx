@@ -107,7 +107,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         (!sub.expires_at || new Date(sub.expires_at) > new Date())
       ) ?? false;
     },
-    enabled: !!user && isOpen,
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Check if current user can send DMs (has admin role or allowed by club settings)
