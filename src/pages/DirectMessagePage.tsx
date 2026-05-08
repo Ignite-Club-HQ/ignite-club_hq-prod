@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -217,6 +218,7 @@ export default function DirectMessagePage() {
   const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
   const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
@@ -241,8 +243,9 @@ export default function DirectMessagePage() {
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
+    if (isUserActive()) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, []);
+  }, [isUserActive]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -546,6 +549,7 @@ export default function DirectMessagePage() {
 
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);

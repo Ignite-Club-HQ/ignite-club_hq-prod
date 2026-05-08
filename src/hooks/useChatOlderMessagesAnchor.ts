@@ -30,7 +30,7 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 120;
+const IDLE_GATE_MS = 300;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
 
 export function useChatOlderMessagesAnchor({
