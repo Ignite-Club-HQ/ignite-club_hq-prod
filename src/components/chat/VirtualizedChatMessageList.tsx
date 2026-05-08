@@ -85,7 +85,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const lastFirstIdRef = useRef<string | null>(messages[0]?.id ?? null);
 
   const newFirstId = messages[0]?.id ?? null;
-  if (
+  const justInitiallyPopulated =
+    lastSeenLengthRef.current === 0 && messages.length > 0;
+  if (justInitiallyPopulated) {
+    // First real data after an empty mount (notification cold-open, thread
+    // switch, etc.) — re-anchor so `initialTopMostItemIndex` lands us on
+    // the latest message instead of treating the load as a tail-append.
+    firstIndexRef.current = START_INDEX - messages.length;
+  } else if (
     messages.length > lastSeenLengthRef.current &&
     lastFirstIdRef.current &&
     newFirstId &&
@@ -108,6 +115,34 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   lastSeenLengthRef.current = messages.length;
   lastFirstIdRef.current = newFirstId;
   const firstItemIndex = firstIndexRef.current;
+
+  // Belt-and-braces: when messages first populate, force a scroll-to-bottom
+  // on the next two frames. `initialTopMostItemIndex` is only honoured on
+  // the very first render; if data arrives a tick later (the common case
+  // for notification-launched threads), we have to drive it ourselves.
+  useEffect(() => {
+    if (!justInitiallyPopulated) return;
+    const last = messages.length - 1;
+    if (last < 0) return;
+    const jump = () =>
+      virtuosoRef.current?.scrollToIndex({
+        index: last,
+        align: "end",
+        behavior: "auto",
+      });
+    jump();
+    const r1 = requestAnimationFrame(() => {
+      jump();
+      const r2 = requestAnimationFrame(jump);
+      (jump as unknown as { _r2?: number })._r2 = r2;
+    });
+    const t = window.setTimeout(jump, 200);
+    return () => {
+      cancelAnimationFrame(r1);
+      window.clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justInitiallyPopulated]);
 
   const handleStartReached = useCallback(() => {
     if (!hasOlder || isLoadingOlder) return;
