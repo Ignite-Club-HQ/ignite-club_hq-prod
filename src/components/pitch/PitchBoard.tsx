@@ -5707,6 +5707,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           miniLeagueTeams={miniLeagueTeams}
         />
 
+        {/* Bench-to-Pitch Substitution Dialog - landscape */}
+        <Suspense fallback={null}>
+          <BenchToSubDialog
+            open={benchToSubOpen}
+            onOpenChange={(open) => {
+              setBenchToSubOpen(open);
+              if (!open) setBenchToSubPlayer(null);
+            }}
+            benchPlayer={players.find(p => p.id === benchToSubPlayer) || null}
+            allPitchPlayers={playersOnPitch}
+            onSelectOption={handleBenchToSubSelect}
+            miniLeagueTeams={miniLeagueTeams}
+          />
+        </Suspense>
+
         {/* Formation Change Dialog */}
         <FormationChangeDialog
           open={formationChangeDialogOpen}
