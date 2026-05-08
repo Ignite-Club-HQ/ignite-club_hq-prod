@@ -107,7 +107,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         (!sub.expires_at || new Date(sub.expires_at) > new Date())
       ) ?? false;
     },
-    enabled: !!user && isOpen,
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Check if current user can send DMs (has admin role or allowed by club settings)
@@ -198,7 +199,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
       return { canSend: false, reason: "not_admin" };
     },
-    enabled: !!user && isOpen && hasProAccess === true,
+    enabled: !!user && hasProAccess === true,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch users that can be DMed (members of shared Pro clubs + mini-league parents) excluding app admins
@@ -331,7 +333,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
       return { users, clubs, teams };
     },
-    enabled: !!user && isOpen && hasProAccess === true,
+    enabled: !!user && hasProAccess === true,
+    staleTime: 2 * 60 * 1000,
   });
 
   const dmableUsers = dmData?.users || [];
@@ -517,7 +520,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         </ResponsiveDialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4 px-1">
-          {checkingPro || checkingCanSend || loadingUsers ? (
+          {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
@@ -618,7 +621,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
               <div>
                 <div className="space-y-1">
-                  {filteredUsers.length === 0 ? (
+                  {loadingUsers && filteredUsers.length === 0 ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
                       {searchQuery || selectedClubId !== "all" || selectedTeamId !== "all" 
                         ? "No members found" 
