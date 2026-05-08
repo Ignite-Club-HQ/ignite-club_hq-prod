@@ -412,11 +412,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
   const [maxSpreadMinutes, setMaxSpreadMinutes] = useState(() => initialMaxSpreadMinutes); // Max acceptable playing-time spread (minutes)
   const [showLineupPicker, setShowLineupPicker] = useState(() => {
-    // Show lineup picker on mount if setting enabled AND linked to a game event AND
-    // either there's no saved state OR the saved state was for a different event
-    // (treat as fresh game context for the new event).
+    // Show lineup picker on mount only when launching into a fresh match context.
+    // Skip the picker if:
+    //  - saved state exists for the same event, OR
+    //  - the user has already set up a lineup (any player placed on pitch) or
+    //    configured auto-subs for this team — even if the saved event differs.
+    //    Re-opening from the match should drop straight into the board, not setup.
     const savedForSameEvent = !!savedState && savedState.linkedEventId === initialLinkedEventId;
-    return initialShowLineupPicker && !!initialLinkedEventId && !savedForSameEvent && !readOnly && !miniLeagueTeams;
+    const hasExistingLineup = !!savedState && (
+      (savedState.players?.some(p => p && p.position !== null)) ||
+      ((savedState.autoSubPlan?.length ?? 0) > 0)
+    );
+    return initialShowLineupPicker
+      && !!initialLinkedEventId
+      && !savedForSameEvent
+      && !hasExistingLineup
+      && !readOnly
+      && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
   // Settings ref for usePitchSettings (avoids stale closures)
