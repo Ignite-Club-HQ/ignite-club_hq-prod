@@ -75,17 +75,27 @@ export function useInitialChatBottomPin({
     if (!viewport) return;
 
     let ticking = false;
+    let lastScrollTop = viewport.scrollTop;
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
-        // Don't trust scroll events fired within the post-pin settle window —
-        // they're almost always layout shifts (image loads, late messages,
-        // composer resizes), not real user intent.
-        if (performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS) return;
         const metrics = getChatScrollMetrics(scrollContainerRef.current);
-        if (metrics && metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX) {
+        if (!metrics) return;
+        const currentTop = metrics.viewport.scrollTop;
+        const movedUpwardPx = lastScrollTop - currentTop;
+        lastScrollTop = currentTop;
+
+        const withinTrustWindow =
+          performance.now() - pinnedAtRef.current < POST_PIN_TRUST_WINDOW_MS;
+
+        // Inside the trust window we still allow detecting clear user intent:
+        // a meaningful upward drag in a single frame is never produced by our
+        // own snap-to-bottom (which only ever decreases distanceFromBottom).
+        if (withinTrustWindow && movedUpwardPx < USER_INTENT_UPWARD_PX) return;
+
+        if (metrics.distanceFromBottom > USER_SCROLL_AWAY_THRESHOLD_PX || movedUpwardPx >= USER_INTENT_UPWARD_PX) {
           userScrolledAwayRef.current = true;
         }
       });
