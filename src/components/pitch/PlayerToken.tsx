@@ -97,7 +97,7 @@ const PlayerToken = memo(function PlayerToken({
 
     return (
       <div
-        draggable={!onClick && !readOnly && !player.isInjured}
+        draggable={!readOnly && !player.isInjured}
         onDragStart={readOnly || player.isInjured ? undefined : onDragStart}
         onDragEnd={readOnly || player.isInjured ? undefined : onDragEnd}
         onTouchStart={readOnly ? undefined : onTouchStart}
