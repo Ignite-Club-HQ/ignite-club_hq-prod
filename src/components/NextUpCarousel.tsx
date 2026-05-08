@@ -51,7 +51,12 @@ interface NextUpCarouselProps {
 // accordion in its collapsed state. This stops the home page from jolting
 // downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
 // moment after the initial paint and the accordion appears.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[260px]";
+// Reserve enough vertical space to fit the fully expanded card layout
+// (incl. the Children's RSVP accordion bar and personal RSVP summary line)
+// so the home page never grows / pushes other content downward as the
+// per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
+// moment after first paint.
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[320px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
