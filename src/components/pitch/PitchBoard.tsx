@@ -5272,7 +5272,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   isMovable={movablePitchPlayerIds.has(player.id)}
                   isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
                   previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                  subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
+                  subAnimation={subAnimationPlayers.in === player.id ? "in" : (subAnimationPlayers.swap === player.id || swapFlashIds.includes(player.id)) ? "swap" : null}
                   readOnly={readOnly}
                   teamColor={getPlayerTeamColor(player)}
                   isNextSub={nextSubInfo?.playerOutId === player.id}
