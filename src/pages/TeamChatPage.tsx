@@ -8,6 +8,8 @@ import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { VirtualizedChatMessageList } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
