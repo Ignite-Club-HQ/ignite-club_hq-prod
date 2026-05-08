@@ -3782,6 +3782,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
     capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
     // (Bench auto-open removed — it stole pointer events and broke drag)
@@ -3814,6 +3818,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchOffset(null);
     touchIdRef.current = null;
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
