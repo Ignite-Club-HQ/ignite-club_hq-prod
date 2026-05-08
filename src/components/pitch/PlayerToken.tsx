@@ -21,6 +21,7 @@ interface PlayerTokenProps {
   onDragEnd: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   onInjuryToggle?: () => void;
   onRemoveFillIn?: () => void;
   isDragging: boolean;
@@ -49,6 +50,7 @@ const PlayerToken = memo(function PlayerToken({
   onDragEnd,
   onTouchStart,
   onClick,
+  onDoubleClick,
   onInjuryToggle,
   onRemoveFillIn,
   isDragging,
@@ -209,6 +211,7 @@ const PlayerToken = memo(function PlayerToken({
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
       onClick={readOnly ? undefined : onClick}
+      onDoubleClick={readOnly ? undefined : onDoubleClick}
       className={cn(
         "flex flex-col items-center select-none touch-none transition-[transform,opacity] duration-300 ease-out",
         !readOnly && "cursor-grab active:cursor-grabbing",

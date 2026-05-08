@@ -3562,29 +3562,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const benchElement = document.getElementById('pitch-bench');
 
     let droppedOnBench = false;
-    if (benchElement) {
-      const benchRect = benchElement.getBoundingClientRect();
-      if (
-        touch.clientX >= benchRect.left &&
-        touch.clientX <= benchRect.right &&
-        touch.clientY >= benchRect.top &&
-        touch.clientY <= benchRect.bottom
-      ) {
-        droppedOnBench = true;
-        const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
-        if (benchPlayersAvail.length > 0) {
-          // Open sub picker instead of bare bench drop
-          setSelectedOnPitch(touchDragPlayer);
-          setSubPreviewOpen(true);
-        } else {
-          setPlayers(prev =>
-            prev.map(p =>
-              p.id === touchDragPlayer ? { ...p, position: null } : p
-            )
-          );
-        }
-      }
-    }
+    // Drag-to-bench disabled: bench substitutions are handled via double-tap.
+
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
@@ -3679,24 +3658,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     if (readOnly) return;
     if (!draggedPlayer) return;
-
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
-
-    // If dragging a pitch player to the bench AND there's at least one available
-    // bench player, open the substitution picker (drag-to-sub shortcut).
-    if (dragged?.position && benchPlayersAvail.length > 0) {
-      setSelectedOnPitch(draggedPlayer);
-      setSubPreviewOpen(true);
-      setDraggedPlayer(null);
-      return;
-    }
-
-    setPlayers(prev =>
-      prev.map(p =>
-        p.id === draggedPlayer ? { ...p, position: null } : p
-      )
-    );
+    // Drag is reserved for swapping positions on the pitch.
+    // Use double-tap on a pitch player to open the substitution picker.
     setDraggedPlayer(null);
   };
 
@@ -5042,7 +5005,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handlePlayerClick(player.id, true);
                       return;
                     }
-                    // Double-tap detection for pitch action menu
+                    // Double-tap to open substitution picker (replaces drag-to-bench)
                     const now = Date.now();
                     const last = lastTapRef.current;
                     if (last && last.playerId === player.id && now - last.time < 400) {
@@ -5051,14 +5014,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       setTouchDragPlayer(null);
                       setTouchOffset(null);
                       touchIdRef.current = null;
-                      setPitchPlayerActionTarget(player.id);
-                      setPitchPlayerActionOpen(true);
+                      setSelectedOnPitch(player.id);
+                      setSubPreviewOpen(true);
                     } else {
                       lastTapRef.current = { playerId: player.id, time: now };
                       handleTouchStart(player.id, e);
                     }
                   }}
                   onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
+                  onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                   isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
@@ -7010,14 +6974,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
                     touchIdRef.current = null;
-                    setPitchPlayerActionTarget(player.id);
-                    setPitchPlayerActionOpen(true);
+                    setSelectedOnPitch(player.id);
+                    setSubPreviewOpen(true);
                   } else {
                     lastTapRef.current = { playerId: player.id, time: now };
                     handleTouchStart(player.id, e);
                   }
                 }}
                 onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
+                onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                 isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                 isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                 isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
