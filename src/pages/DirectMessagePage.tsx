@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";

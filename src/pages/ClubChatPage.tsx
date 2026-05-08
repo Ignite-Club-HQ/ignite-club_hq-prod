@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
