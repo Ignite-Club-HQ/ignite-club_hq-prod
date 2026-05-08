@@ -213,7 +213,13 @@ const PlayerToken = memo(function PlayerToken({
       data-player-id={player.id}
       data-player-variant="pitch"
       draggable={!readOnly}
-      onDragStart={readOnly ? undefined : onDragStart}
+      onDragStart={readOnly ? undefined : (e) => {
+        try {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", player.id);
+        } catch {}
+        onDragStart();
+      }}
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
       onClick={readOnly ? undefined : onClick}
