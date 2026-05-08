@@ -226,46 +226,45 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           </div>
         )}
 
-        {/* Footer: photos + unread (subtle) */}
-        {(photos.length > 0 || (unreadMessages && unreadMessages > 0)) && (
-          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
-            {photos.length > 0 ? (
-              <button
-                type="button"
-                className="flex items-center gap-2 min-w-0 flex-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-                }}
-              >
-                <div className="flex -space-x-1.5 shrink-0">
-                  {photos.slice(0, 3).map((photo, i) => (
-                    <div
-                      key={i}
-                      className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
-                    >
-                      <img
-                        src={photo.url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <span className="text-[11px] text-muted-foreground truncate">
-                  {photos.length} new photo{photos.length > 1 ? "s" : ""}
-                </span>
-              </button>
-            ) : <span />}
-            {unreadMessages && unreadMessages > 0 ? (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-                <MessageCircle className="h-3 w-3" />
-                {unreadMessages}
+        {/* Footer: photos + unread (subtle). Always rendered to reserve stable
+            height so deferred photo/unread queries don't push the page down. */}
+        <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
+          {photos.length > 0 ? (
+            <button
+              type="button"
+              className="flex items-center gap-2 min-w-0 flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
+              }}
+            >
+              <div className="flex -space-x-1.5 shrink-0">
+                {photos.slice(0, 3).map((photo, i) => (
+                  <div
+                    key={i}
+                    className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-2 ring-card shrink-0"
+                  >
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                ))}
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
-            ) : null}
-          </div>
-        )}
+            </button>
+          ) : <span className="flex-1" />}
+          {unreadMessages && unreadMessages > 0 ? (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
+              <MessageCircle className="h-3 w-3" />
+              {unreadMessages}
+            </span>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );
