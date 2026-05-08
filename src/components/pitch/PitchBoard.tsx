@@ -3586,17 +3586,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
       e.preventDefault();
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
   };
 
@@ -3663,21 +3654,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // Final position update from touchend to prevent coordinate gap with last touchmove
     if (!droppedOnBench && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setPlayers(prev =>
-        prev.map(p =>
-          p.id === touchDragPlayer
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
   };
 
   // Wheel zoom
@@ -3689,13 +3673,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   };
 
-  const handleDragStart = (playerId: string) => {
+  const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
+    if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
     setDraggedPlayer(playerId);
   };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
   };
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
