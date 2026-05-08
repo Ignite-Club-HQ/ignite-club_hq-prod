@@ -323,50 +323,60 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       {/* Image / video attachment */}
       {imageUrl && !imageError && (
         <div className="rounded-lg overflow-hidden max-w-xs">
-          {(!imageLoaded || isLoadingSignedUrl) && (
-            <Skeleton className="w-48 h-32" />
-          )}
-          {!isLoadingSignedUrl && effectiveImageUrl && (
-            isVideoUrl(effectiveImageUrl) ? (
-              <div
-                className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
-                onClick={handleImageClick}
-                onTouchStart={stopMediaGesture}
-                onTouchMove={stopMediaGesture}
-                onTouchEnd={stopMediaGesture}
-                onPointerDown={stopMediaGesture}
-              >
-                <video
-                  src={effectiveImageUrl}
-                  className="w-full h-auto max-h-64 object-cover"
-                  preload="metadata"
-                  playsInline
-                  muted
-                  onLoadedData={handleImageLoad}
-                  onError={handleImageError}
-                />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="rounded-full bg-black/60 p-3">
-                    <Play className="h-6 w-6 fill-white text-white" />
+          {/* Fixed-aspect frame so the bubble reserves its final height
+              BEFORE the image decodes. Skeleton + image share the same box
+              and the image fades in via opacity — no layout shift when
+              imageLoaded flips, no scrollHeight change when signed URLs
+              resolve later. This is what keeps history scroll anchored
+              while images above the viewport hydrate. */}
+          <div className="relative w-full aspect-[4/3] bg-muted/40">
+            {(!imageLoaded || isLoadingSignedUrl) && (
+              <Skeleton className="absolute inset-0 w-full h-full" />
+            )}
+            {!isLoadingSignedUrl && effectiveImageUrl && (
+              isVideoUrl(effectiveImageUrl) ? (
+                <div
+                  className="absolute inset-0 cursor-pointer"
+                  onClick={handleImageClick}
+                  onTouchStart={stopMediaGesture}
+                  onTouchMove={stopMediaGesture}
+                  onTouchEnd={stopMediaGesture}
+                  onPointerDown={stopMediaGesture}
+                >
+                  <video
+                    src={effectiveImageUrl}
+                    className={`w-full h-full object-cover transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    preload="metadata"
+                    playsInline
+                    muted
+                    onLoadedData={handleImageLoad}
+                    onError={handleImageError}
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="rounded-full bg-black/60 p-3">
+                      <Play className="h-6 w-6 fill-white text-white" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <img
-                ref={imgRef}
-                src={effectiveImageUrl}
-                alt="Attachment"
-                className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-                onClick={handleImageClick}
-                onTouchStart={stopMediaGesture}
-                onTouchMove={stopMediaGesture}
-                onTouchEnd={stopMediaGesture}
-                onPointerDown={stopMediaGesture}
-              />
-            )
-          )}
+              ) : (
+                <img
+                  ref={imgRef}
+                  src={effectiveImageUrl}
+                  alt="Attachment"
+                  decoding="async"
+                  loading="lazy"
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                  onClick={handleImageClick}
+                  onTouchStart={stopMediaGesture}
+                  onTouchMove={stopMediaGesture}
+                  onTouchEnd={stopMediaGesture}
+                  onPointerDown={stopMediaGesture}
+                />
+              )
+            )}
+          </div>
         </div>
       )}
 
