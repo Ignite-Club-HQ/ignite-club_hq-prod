@@ -835,7 +835,7 @@ export default function EventsPage() {
                   day_today:
                     "text-foreground font-semibold ring-1 ring-foreground/20 ring-inset",
                 }}
-                components={{
+                 components={{
                   DayContent: ({ date }) => {
                     const dayEvents = events?.filter((e) => isSameDay(parseISO(e.event_date), date)) || [];
                     const hasGame = dayEvents.some((e) => e.type === "game");
@@ -849,22 +849,27 @@ export default function EventsPage() {
                     if (hasSocial) dots.push({ color: "bg-warning", label: "Social" });
                     const visibleDots = dots.slice(0, 2);
 
+                    // Fixed grid: number occupies top half, indicator row occupies a
+                    // reserved bottom strip on every cell so dots sit on a consistent
+                    // baseline across the entire month — even days with zero events.
                     return (
-                      <div className="relative flex flex-col items-center justify-center w-full h-full">
-                        <span className="leading-none">{date.getDate()}</span>
-                        {visibleDots.length > 0 && (
-                          <div
-                            className="flex items-center gap-[3px] mt-0.5"
-                            aria-label={visibleDots.map((d) => d.label).join(", ")}
-                          >
-                            {visibleDots.map((d, i) => (
-                              <span
-                                key={i}
-                                className={`h-1.5 w-1.5 rounded-full ${d.color}`}
-                              />
-                            ))}
-                          </div>
-                        )}
+                      <div className="flex flex-col items-center justify-center w-full h-full leading-none">
+                        <span className="tabular-nums">{date.getDate()}</span>
+                        <div
+                          className="mt-1 flex h-1.5 items-center justify-center gap-1"
+                          aria-label={
+                            visibleDots.length
+                              ? visibleDots.map((d) => d.label).join(", ")
+                              : undefined
+                          }
+                        >
+                          {visibleDots.map((d, i) => (
+                            <span
+                              key={i}
+                              className={`h-1.5 w-1.5 rounded-full ${d.color}`}
+                            />
+                          ))}
+                        </div>
                       </div>
                     );
                   },
