@@ -315,18 +315,18 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["all-reaction-users", allUserIds],
     queryFn: async () => {
       if (allUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", allUserIds);
-      if (error) throw error;
-      return data;
+      const map = await fetchProfilesWithCache(allUserIds);
+      return Array.from(map.values()).map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+      }));
     },
     enabled: isOpen && allUserIds.length > 0,
+    staleTime: 60_000,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
