@@ -3655,7 +3655,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const dragged = players.find(p => p.id === draggedPlayer);
       const target = players.find(p => p.id === targetId);
       if (dragged?.position && target?.position) {
-        handlePreSwapFromDialog(draggedPlayer, targetId);
+        handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
         setDraggedPlayer(null);
         return;
       }
