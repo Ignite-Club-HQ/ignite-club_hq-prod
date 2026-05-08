@@ -136,8 +136,8 @@ export default function BenchToSubDialog({
           )}
         </div>
 
-        <ResponsiveDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-12 text-base">
+        <ResponsiveDialogFooter className="border-t border-border px-5 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-11 text-base">
             Cancel
           </Button>
         </ResponsiveDialogFooter>
