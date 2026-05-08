@@ -3560,11 +3560,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
 
     let nearest: { id: string; distance: number } | null = null;
-    containerRef.current?.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+    document.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
       const playerId = tokenEl.getAttribute("data-player-id");
       if (!playerId || playerId === excludedPlayerId) return;
+      const player = playersRef.current.find(p => p.id === playerId);
+      if (!player?.position) return;
+      if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
       const rect = tokenEl.getBoundingClientRect();
-      const hitSlop = 12;
+      const hitSlop = 24;
       if (clientX < rect.left - hitSlop || clientX > rect.right + hitSlop || clientY < rect.top - hitSlop || clientY > rect.bottom + hitSlop) return;
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
@@ -3574,8 +3577,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     if (nearest) return nearest.id;
 
+    const pitchRect = containerRef.current?.getBoundingClientRect();
+    if (pitchRect) {
+      const hitRadius = Math.max(38, Math.min(58, Math.min(pitchRect.width, pitchRect.height) * 0.1));
+      playersRef.current.forEach(player => {
+        if (!player.position || player.id === excludedPlayerId) return;
+        if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return;
+        const centerX = pitchRect.left + (player.position.x / 100) * pitchRect.width;
+        const centerY = pitchRect.top + (player.position.y / 100) * pitchRect.height;
+        const distance = Math.hypot(clientX - centerX, clientY - centerY);
+        if (distance <= hitRadius && (!nearest || distance < nearest.distance)) {
+          nearest = { id: player.id, distance };
+        }
+      });
+    }
+
+    if (nearest) return nearest.id;
+
     return null;
-  }, []);
+  }, [miniLeagueTeams, selectedTeamForSettings]);
 
   const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
