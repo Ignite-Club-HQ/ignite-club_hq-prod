@@ -3631,6 +3631,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!draggedPlayer || !containerRef.current) return;
 
+    // Detect drop on another pitch player → swap positions
+    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+    const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+    const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+
+    if (targetId && targetId !== draggedPlayer) {
+      const dragged = players.find(p => p.id === draggedPlayer);
+      const target = players.find(p => p.id === targetId);
+      if (dragged?.position && target?.position) {
+        handlePreSwapFromDialog(draggedPlayer, targetId);
+        setDraggedPlayer(null);
+        return;
+      }
+    }
+
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
