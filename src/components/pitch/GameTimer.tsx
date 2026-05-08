@@ -360,6 +360,38 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     resetTimer,
   }), [elapsedSeconds, currentHalf, minutesPerHalf, isRunning, isGameFinished, toggleTimer, resetTimer]);
 
+  // Auto-start at kickoff when linked to an event.
+  // Fires once when the timer is at 0:00 in the first half, not running, not finished,
+  // and we're within a +/- 2 hour window of kickoff (so a hot-reload way later
+  // doesn't suddenly fire).
+  useEffect(() => {
+    if (!hasInitialized || readOnly || !kickoffMs) return;
+    if (isRunning || isGameFinished) return;
+    if (currentHalf !== 1 || elapsedSeconds !== 0) return;
+
+    const tryStart = () => {
+      const now = Date.now();
+      const delta = now - kickoffMs;
+      // Only auto-start within 2 hours after kickoff (avoid old events triggering).
+      if (delta >= 0 && delta <= 2 * 60 * 60 * 1000) {
+        setIsRunning(true);
+        toast({
+          title: "Kick-off!",
+          description: "Match timer started automatically.",
+        });
+      }
+    };
+
+    // Fire immediately if kickoff already passed (within window).
+    tryStart();
+
+    const msUntilKickoff = kickoffMs - Date.now();
+    if (msUntilKickoff > 0 && msUntilKickoff <= 2 * 60 * 60 * 1000) {
+      const t = window.setTimeout(tryStart, msUntilKickoff + 250);
+      return () => window.clearTimeout(t);
+    }
+  }, [hasInitialized, readOnly, kickoffMs, isRunning, isGameFinished, currentHalf, elapsedSeconds]);
+
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
