@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap } from "lucide-react";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { setChatVirtualizationEnabled } from "@/lib/featureFlags/chatVirtualization";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
