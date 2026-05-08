@@ -53,14 +53,24 @@ export function useChatOlderMessagesAnchor({
     onTrigger();
   }, [onTrigger]);
 
-  // Track "recently scrolled" so we don't trigger fetches mid-flick.
-  // CRITICAL: only stamp the timestamp when the user is meaningfully away
-  // from the bottom. The initial bottom-pin sequence performs many
-  // programmatic `scrollTop = scrollHeight - clientHeight` writes that each
-  // fire a real "scroll" event; if we stamped on every event, the very
-  // first paint after a fresh install would set lastScrollAtRef and let
-  // the older-messages observer fire on the next tick — the jolt the user
+  // Track "recently scrolled" so the IntersectionObserver below knows the
+  // user has actually moved the viewport (vs. our own bottom-pin writes
+  // that fire synthetic scroll events on first open).
+  //
+  // CRITICAL: only stamp when the user is meaningfully away from the
+  // bottom. The initial bottom-pin sequence performs many programmatic
+  // `scrollTop = scrollHeight - clientHeight` writes that each fire a real
+  // "scroll" event; if we stamped on every event, the very first paint
+  // after a fresh install would set lastScrollAtRef and let the
+  // older-messages observer fire on the next tick — the jolt the user
   // sees on first thread open after install.
+  //
+  // This handler intentionally does NOT call triggerOlder. The
+  // IntersectionObserver below is the single source of truth for deciding
+  // when to fetch the next page; having two redundant trigger paths
+  // (scroll-distance threshold + IO sentinel) caused multiple flushSync
+  // re-renders during a single fast upward flick — which the user
+  // perceived as "viewport jumps and shifts unexpectedly".
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -69,40 +79,10 @@ export function useChatOlderMessagesAnchor({
         container.scrollHeight - container.clientHeight - container.scrollTop;
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
-
-      // IntersectionObserver can miss the 1px sentinel during fast mobile
-      // momentum scrolls or after iOS/WebView layout correction. Use a direct
-      // scrollTop threshold as the authoritative fallback so history never
-      // gets stuck at the oldest loaded page.
-      if (
-        enabled &&
-        hasOlderMessages &&
-        !isLoadingOlder &&
-        !document.hidden &&
-        container.scrollTop <= PREFETCH_ROOT_MARGIN_PX
-      ) {
-        triggerOlder();
-      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
-
-  // If a fetch finishes while the user is still pinned near the top sentinel,
-  // immediately fetch the next page. This gives WhatsApp-style continuous
-  // history loading and prevents the list from stopping until the user nudges
-  // the scroll position again.
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!enabled || !container || !hasOlderMessages || isLoadingOlder) return;
-    if (document.hidden || lastScrollAtRef.current === 0) return;
-    const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
-    if (distanceFromBottom < 200) return;
-    if (container.scrollTop <= PREFETCH_ROOT_MARGIN_PX) {
-      const frame = requestAnimationFrame(triggerOlder);
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
+  }, [scrollContainerRef]);
 
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
