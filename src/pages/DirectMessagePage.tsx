@@ -243,8 +243,9 @@ export default function DirectMessagePage() {
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
+    if (isUserActive()) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, []);
+  }, [isUserActive]);
 
   const targetMessageId = searchParams.get("message");
 
