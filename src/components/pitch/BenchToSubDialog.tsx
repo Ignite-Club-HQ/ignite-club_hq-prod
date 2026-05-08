@@ -7,7 +7,7 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
+import { ArrowRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import { MiniLeagueTeams, getSpecificPositionLabel } from "./types";
@@ -25,8 +25,7 @@ interface Player {
 
 interface SubOption {
   pitchPlayer: Player;
-  type: "direct" | "swap";
-  swapPlayer?: Player;
+  positionLabel: string;
 }
 
 interface BenchToSubDialogProps {
@@ -60,39 +59,23 @@ export default function BenchToSubDialog({
     return player.assignedPositions.includes(position);
   };
 
-  // Find all pitch players this bench player can replace
+  // Find pitch players this bench player can replace directly. Position-swap
+  // permutations are intentionally not listed here: they create noisy duplicate
+  // rows and are handled by drag-to-swap on the pitch before making a sub.
   const options: SubOption[] = [];
 
   filteredPitchPlayers.forEach(pitchPlayer => {
     if (!pitchPlayer.currentPitchPosition) return;
     
     const pos = pitchPlayer.currentPitchPosition;
-    const canDirectly = canPlayPosition(benchPlayer, pos);
-
-    if (canDirectly) {
-      options.push({ pitchPlayer, type: "direct" });
-    } else {
-      // Check if a swap with another pitch player enables the sub
-      filteredPitchPlayers
-        .filter(p => p.id !== pitchPlayer.id && p.currentPitchPosition)
-        .forEach(swapPlayer => {
-          const swapCanCover = canPlayPosition(swapPlayer, pos);
-          const benchCanPlaySwap = canPlayPosition(benchPlayer, swapPlayer.currentPitchPosition!);
-          
-          if (
-            swapPlayer.currentPitchPosition !== pos &&
-            swapCanCover &&
-            benchCanPlaySwap
-          ) {
-            options.push({ pitchPlayer, type: "swap", swapPlayer });
-          }
-        });
-    }
+    if (!canPlayPosition(benchPlayer, pos)) return;
+    options.push({
+      pitchPlayer,
+      positionLabel: getSpecificPositionLabel(pitchPlayer.position?.x, pos),
+    });
   });
 
-  const directOptions = options.filter(o => o.type === "direct");
-  const swapOptions = options.filter(o => o.type === "swap");
-  const hasNoOptions = directOptions.length === 0 && swapOptions.length === 0;
+  const hasNoOptions = options.length === 0;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
