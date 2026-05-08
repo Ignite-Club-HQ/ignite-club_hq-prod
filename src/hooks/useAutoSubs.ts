@@ -166,7 +166,14 @@ export function useAutoSubs({
     setAutoSubActive(false);
     setAutoSubPaused(false);
     setPendingAutoSub(null);
+    setPendingBatchSubs([]);
     setSubConfirmDialogOpen(false);
+    setNextSubInfo(null);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) {
+      clearTimeout(subDueTimerRef.current);
+      subDueTimerRef.current = null;
+    }
     planActivationTimeRef.current = null;
     toast({ title: "Auto-sub plan cancelled" });
   }, [toast]);
