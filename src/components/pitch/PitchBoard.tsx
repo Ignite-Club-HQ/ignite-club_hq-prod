@@ -3537,6 +3537,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return clampPitchPosition(x, y);
   }, [clampPitchPosition]);
 
+  const getPitchPlayerAtPoint = useCallback((clientX: number, clientY: number, excludedPlayerId?: string) => {
+    const elements = typeof document.elementsFromPoint === "function"
+      ? document.elementsFromPoint(clientX, clientY)
+      : [document.elementFromPoint(clientX, clientY)].filter(Boolean) as Element[];
+
+    for (const element of elements) {
+      const tokenEl = (element as HTMLElement).closest?.('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+      const playerId = tokenEl?.getAttribute("data-player-id") || null;
+      if (playerId && playerId !== excludedPlayerId) return playerId;
+    }
+
+    return null;
+  }, []);
+
   const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
     return getPositionFromCoords(y, teamSize);
