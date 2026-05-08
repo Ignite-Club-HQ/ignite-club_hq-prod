@@ -1690,9 +1690,11 @@ export default function HomePage() {
       <NativeAppDownloadBanner />
 
 
-      {/* My Teams & Leagues - Premium Carousel (lazy chunk + viewport-deferred) */}
-      <LazyMount minHeight={180} rootMargin="400px">
-        <Suspense fallback={<div className="h-[180px] rounded-xl bg-muted/40 animate-pulse" />}>
+      {/* My Teams & Leagues - Premium Carousel (lazy chunk + viewport-deferred).
+          minHeight matches the rendered carousel (section title 28px + gap 12px +
+          card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
+      <LazyMount minHeight={260} rootMargin="400px">
+        <Suspense fallback={<div className="h-[260px] rounded-xl bg-muted/40 animate-pulse" />}>
           <MyTeamsPremiumCarousel />
         </Suspense>
       </LazyMount>
