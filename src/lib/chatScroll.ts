@@ -40,8 +40,16 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
     requestAnimationFrame(snap);
   });
 
-  // Catch async ResizeObserver → state update → re-render → layout cycle
-  setTimeout(snap, 150);
+  // Catch async ResizeObserver → state update → re-render → layout cycle.
+  // CRITICAL: bail if the user has since scrolled meaningfully away from the
+  // bottom. Without this guard, this delayed snap fires mid-flick (the user
+  // started scrolling up between the initial snap and now) and yanks them
+  // back to bottom — the "I scroll up and it jumps back down" jolt.
+  setTimeout(() => {
+    const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+    if (distance > 80) return;
+    snap();
+  }, 150);
 }
 
 export function scrollChatElementIntoView(container: HTMLElement | null | undefined, element: HTMLElement | null | undefined) {
