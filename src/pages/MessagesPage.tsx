@@ -1617,16 +1617,23 @@ export default function MessagesPage() {
                   </div>
                 </div>
                 <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  <MessagePreview 
-                    text={item.lastMessage?.text} 
-                    imageUrl={item.lastMessage?.image_url}
-                    author={item.lastMessage?.author}
-                    hasUnread={hasUnread}
-                    fallback="Official announcements and updates"
-                    eventTitles={eventTitleMap}
-                    vaultFolderNames={vaultFolderNameMap}
-                    vaultFileNames={vaultFileNameMap}
-                  />
+                  {item.draftText ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold text-destructive">Draft:</span>
+                      <span className="truncate">{item.draftText}</span>
+                    </span>
+                  ) : (
+                    <MessagePreview
+                      text={item.lastMessage?.text}
+                      imageUrl={item.lastMessage?.image_url}
+                      author={item.lastMessage?.author}
+                      hasUnread={hasUnread}
+                      fallback="Official announcements and updates"
+                      eventTitles={eventTitleMap}
+                      vaultFolderNames={vaultFolderNameMap}
+                      vaultFileNames={vaultFileNameMap}
+                    />
+                  )}
                 </p>
               </div>
             </CardContent>
