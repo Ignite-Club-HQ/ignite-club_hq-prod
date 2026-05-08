@@ -290,13 +290,20 @@ export function useInitialChatBottomPin({
         }
       }
 
-      // Re-snap whenever an image inside the viewport finishes loading.
+      // Re-snap whenever an image inside the viewport finishes loading —
+      // but only for images whose bounding rect is at or below the current
+      // visible region. A late-loading avatar 50 messages above shouldn't
+      // trigger a snap that yanks the user back to bottom.
       const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
       const attachImageListeners = () => {
         const images = viewport.querySelectorAll<HTMLImageElement>("img");
+        const vpRect = viewport.getBoundingClientRect();
         images.forEach((img) => {
           if (img.complete && img.naturalHeight > 0) return;
           if (imageListeners.some((entry) => entry.img === img)) return;
+          const r = img.getBoundingClientRect();
+          // Skip images well above the visible viewport.
+          if (r.bottom < vpRect.top - 100) return;
           const handler = () => safeGuardSnap();
           img.addEventListener("load", handler, { once: true });
           img.addEventListener("error", handler, { once: true });
