@@ -1740,14 +1740,21 @@ export default function MessagesPage() {
                   </div>
                 </div>
                 <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  <span className="flex items-center gap-1.5">
-                    {isOwn && <span className="text-muted-foreground">You:</span>}
-                    {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                    <span className="truncate">
-                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) : 
-                       conv?.last_message?.image_url ? "Image" : "Start a conversation"}
+                  {item.draftText ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold text-destructive">Draft:</span>
+                      <span className="truncate">{item.draftText}</span>
                     </span>
-                  </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      {isOwn && <span className="text-muted-foreground">You:</span>}
+                      {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                      <span className="truncate">
+                        {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) :
+                         conv?.last_message?.image_url ? "Image" : "Start a conversation"}
+                      </span>
+                    </span>
+                  )}
                 </p>
               </div>
             </CardContent>
