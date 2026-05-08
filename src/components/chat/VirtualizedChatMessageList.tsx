@@ -53,6 +53,22 @@ interface Props<TMessage extends { id: string }> {
   onAtBottomChange?: (atBottom: boolean) => void;
 }
 
+const ChatVirtuosoScroller = forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+  ({ style, ...props }, scrollerRef) => (
+    <div
+      {...props}
+      ref={scrollerRef}
+      data-chat-scroll-lock="true"
+      style={{
+        ...style,
+        overscrollBehaviorY: "contain",
+        WebkitOverflowScrolling: "touch",
+      }}
+    />
+  ),
+);
+ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
+
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
     messages,
@@ -233,6 +249,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const components = useMemo(
     () => ({
+      Scroller: ChatVirtuosoScroller,
       // Keep the list header purely structural and independent of loading
       // state. Rendering the spinner here makes Virtuoso re-measure header
       // content exactly while it is trying to preserve a top anchor.
