@@ -5064,7 +5064,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <PlayerToken
                   key={player.id}
                   player={player}
-                  onDragStart={() => !readOnly && handleDragStart(player.id)}
+                  onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                   onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                     if (readOnly) return;
@@ -5073,6 +5073,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handlePlayerClick(player.id, true);
                       return;
                     }
+                    e.preventDefault();
                     // Double-tap to open substitution picker (replaces drag-to-bench)
                     const now = Date.now();
                     const last = lastTapRef.current;
