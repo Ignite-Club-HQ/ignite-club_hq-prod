@@ -3578,8 +3578,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const benchElement = document.getElementById('pitch-bench');
 
     let droppedOnBench = false;
-    // Drag-to-bench disabled: bench substitutions are handled via double-tap.
-
+    // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
+    const draggedSrc = players.find(p => p.id === touchDragPlayer);
+    const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
+    if (draggedIsBench) {
+      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
+      if (pitchEl) {
+        const rect = pitchEl.getBoundingClientRect();
+        const isOnPitch = touch.clientX >= rect.left && touch.clientX <= rect.right &&
+          touch.clientY >= rect.top && touch.clientY <= rect.bottom;
+        if (isOnPitch) {
+          setBenchToSubPlayer(touchDragPlayer);
+          setBenchToSubOpen(true);
+          setPortraitSheetOpen(false);
+          setToolbarCollapsed(true);
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          return;
+        }
+      }
+    }
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
@@ -3641,13 +3660,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!draggedPlayer || !containerRef.current) return;
 
+    const dragged = players.find(p => p.id === draggedPlayer);
+    const draggedIsBench = dragged ? !playersOnPitch.some(p => p.id === draggedPlayer) : false;
+
+    // Bench → pitch: open BenchToSubDialog so the user picks who comes off.
+    if (draggedIsBench) {
+      setBenchToSubPlayer(draggedPlayer);
+      setBenchToSubOpen(true);
+      setPortraitSheetOpen(false);
+      setToolbarCollapsed(true);
+      setDraggedPlayer(null);
+      return;
+    }
+
     // Detect drop on another pitch player → swap positions
     const dropEl = document.elementFromPoint(e.clientX, e.clientY);
     const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
     const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
 
     if (targetId && targetId !== draggedPlayer) {
-      const dragged = players.find(p => p.id === draggedPlayer);
       const target = players.find(p => p.id === targetId);
       if (dragged?.position && target?.position) {
         handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
