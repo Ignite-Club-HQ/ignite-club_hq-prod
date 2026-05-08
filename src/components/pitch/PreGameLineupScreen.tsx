@@ -153,7 +153,18 @@ export default function PreGameLineupScreen({
   );
 
   const benchPlayers = useMemo(
-    () => players.filter(p => !assignedPlayerIds.has(p.id) && !p.isInjured),
+    () => {
+      // Defensive dedupe by id — upstream sources occasionally fan out
+      // duplicate roster rows (e.g. multi-role members) which would otherwise
+      // render the same player multiple times in the bench list.
+      const seen = new Set<string>();
+      return players.filter(p => {
+        if (assignedPlayerIds.has(p.id) || p.isInjured) return false;
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+    },
     [players, assignedPlayerIds]
   );
 
