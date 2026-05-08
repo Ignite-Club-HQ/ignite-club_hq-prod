@@ -1286,6 +1286,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
   const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
+  const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -3504,6 +3505,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (touches.length < 2) return null;
     return getPinchDist(touches);
   };
+
+  const clampPitchPosition = useCallback((x: number, y: number) => ({
+    x: Math.max(5, Math.min(95, x)),
+    y: Math.max(5, Math.min(95, y)),
+  }), []);
+
+  const capturePlayerDragOffset = useCallback((playerId: string, clientX: number, clientY: number) => {
+    if (!containerRef.current) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const player = playersRef.current.find(p => p.id === playerId);
+    if (!player?.position) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const rect = containerRef.current.getBoundingClientRect();
+    playerDragOffsetRef.current = {
+      x: ((clientX - rect.left) / rect.width) * 100 - player.position.x,
+      y: ((clientY - rect.top) / rect.height) * 100 - player.position.y,
+    };
+  }, []);
+
+  const getClientPitchPosition = useCallback((clientX: number, clientY: number) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const offset = playerDragOffsetRef.current;
+    const x = ((clientX - rect.left) / rect.width) * 100 - (offset?.x ?? 0);
+    const y = ((clientY - rect.top) / rect.height) * 100 - (offset?.y ?? 0);
+    return clampPitchPosition(x, y);
+  }, [clampPitchPosition]);
+
+  const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
+    const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
+    return getPositionFromCoords(y, teamSize);
+  }, [miniLeagueTeams, teamSize]);
+
+  const updateDraggedPlayerPosition = useCallback((playerId: string, position: { x: number; y: number }) => {
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId
+        ? { ...p, position, currentPitchPosition: getDraggedPlayerPositionType(p, position) }
+        : p
+    ));
+  }, [getDraggedPlayerPositionType]);
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
