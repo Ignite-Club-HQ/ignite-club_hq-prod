@@ -5388,6 +5388,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               style={{ maxHeight: `${sheetHeightPct}%`, height: 'auto' }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDrop={handlePitchDrop}
             >
               {/* Draggable header area - handle + tabs */}
               <div
@@ -6568,7 +6571,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onDragEnter={handleDragOver}
                   onDrop={handlePitchDrop}
                 />
-                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDragOver={handleDragOver} onDragEnter={handleDragOver} onDrop={handlePitchDrop}>
 
               {/* Handle bar - draggable */}
               <div 
