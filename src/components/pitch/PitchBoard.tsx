@@ -3642,7 +3642,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     const benchElement = document.getElementById('pitch-bench');
 
-    let droppedOnBench = false;
+    const droppedOnBench = false;
     // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
     const draggedSrc = players.find(p => p.id === touchDragPlayer);
     const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
