@@ -1450,13 +1450,26 @@ export default function MessagesPage() {
       });
     }
 
-    return items;
+    // Attach drafts and bump lastActivity if draft is more recent than last message
+    return items.map((item) => {
+      const draftId = item.type === 'broadcast' ? 'broadcast' : item.id;
+      const draft = draftFor(draftId);
+      if (!draft) return item;
+      const draftTime = draft.updatedAt;
+      const lastTime = item.lastActivity;
+      const isNewer = !lastTime || new Date(draftTime).getTime() > new Date(lastTime).getTime();
+      return {
+        ...item,
+        draftText: draft.text,
+        lastActivity: isNewer ? draftTime : lastTime,
+      };
+    });
   }, [
     showBroadcast, displayLatestBroadcast, unreadCounts,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, user?.id, showIgniteSupport, systemMessage,
+    filteredDMs, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
 
   // Resolve event titles referenced in any conversation preview so they
