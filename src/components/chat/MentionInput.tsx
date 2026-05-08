@@ -741,26 +741,64 @@ export function MentionInput({
 
       {showSuggestions && users && users.length > 0 && (
         <div
-          className="absolute bottom-full left-0 right-0 mb-1 bg-popover border rounded-lg shadow-lg overflow-hidden z-50"
+          className="absolute bottom-full left-1 mb-2 z-50 w-fit min-w-[200px] max-w-[min(320px,calc(100%-0.5rem))] rounded-2xl border border-border/40 bg-popover/85 backdrop-blur-xl shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)] dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.7)] overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
           onClick={(e) => e.stopPropagation()}
+          role="listbox"
+          aria-label="Mention suggestions"
         >
-          {users.map((user, index) => (
-            <button
-              key={user.id}
-              className={`w-full flex items-center gap-2 p-2 text-left hover:bg-accent transition-colors ${
-                index === selectedIndex ? "bg-accent" : ""
-              }`}
-              onClick={() => insertMention(user)}
-            >
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={user.avatar_url || undefined} />
-                <AvatarFallback className="text-xs">
-                  {user.display_name?.[0] || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm">{user.display_name}</span>
-            </button>
-          ))}
+          <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            Mention
+          </div>
+          <div className="px-1 pb-1">
+            {users.map((user, index) => {
+              const isSelected = index === selectedIndex;
+              const name = user.display_name || "";
+              // Highlight matching substring
+              const lowerName = name.toLowerCase();
+              const lowerQ = mentionSearch.toLowerCase();
+              const matchIdx = lowerQ ? lowerName.indexOf(lowerQ) : -1;
+              const before = matchIdx >= 0 ? name.slice(0, matchIdx) : name;
+              const match = matchIdx >= 0 ? name.slice(matchIdx, matchIdx + mentionSearch.length) : "";
+              const after = matchIdx >= 0 ? name.slice(matchIdx + mentionSearch.length) : "";
+
+              return (
+                <button
+                  key={user.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  className={`relative w-full flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl text-left transition-colors ${
+                    isSelected
+                      ? "bg-foreground/[0.06] dark:bg-foreground/[0.08]"
+                      : "hover:bg-foreground/[0.04]"
+                  }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertMention(user)}
+                >
+                  {isSelected && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-primary/70" />
+                  )}
+                  <Avatar className="h-7 w-7 shrink-0">
+                    <AvatarImage src={user.avatar_url || undefined} />
+                    <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
+                      {name.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="flex-1 min-w-0 truncate text-[13px] leading-tight text-foreground/90">
+                    {matchIdx >= 0 ? (
+                      <>
+                        {before}
+                        <span className="text-primary font-medium">{match}</span>
+                        {after}
+                      </>
+                    ) : (
+                      name
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
