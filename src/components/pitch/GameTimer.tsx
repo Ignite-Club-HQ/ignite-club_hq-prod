@@ -322,6 +322,16 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Cannot resume if game is finished
     if (isGameFinished) return false;
 
+    // If linked to an event, block manual start before kickoff time.
+    if (!isRunning && kickoffMs && Date.now() < kickoffMs && elapsedSeconds === 0 && currentHalf === 1) {
+      const minsUntil = Math.ceil((kickoffMs - Date.now()) / 60000);
+      toast({
+        title: "Game hasn't started yet",
+        description: `This match is linked to an event. Timer will auto-start at kick-off (in ~${minsUntil} min).`,
+      });
+      return false;
+    }
+
     let nextIsRunning = false;
     setIsRunning(prev => {
       nextIsRunning = !prev;
@@ -329,7 +339,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     });
 
     return nextIsRunning;
-  }, [isGameFinished]);
+  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf]);
 
   const resetTimer = useCallback(() => {
     setIsRunning(false);
