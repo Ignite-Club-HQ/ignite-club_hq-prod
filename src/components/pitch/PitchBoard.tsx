@@ -3717,6 +3717,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
 
   // Touch handlers for mobile drag-and-drop
@@ -4886,14 +4887,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
             style={{ zIndex: 0 }}
             onWheel={handleWheel}
+            onDrop={handlePitchDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
           >
             <div 
               className={cn(
-              "transition-transform duration-100",
+              "transition-transform duration-100 w-full h-full",
               drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
             )}
               onDrop={handlePitchDrop}
               onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
               onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
               onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
               onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
@@ -6874,14 +6879,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           id="portrait-pitch-area"
           className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
           onWheel={handleWheel}
+          onDrop={handlePitchDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragOver}
         >
           <div 
             className={cn(
-            "transition-transform duration-100",
+            "transition-transform duration-100 w-full h-full",
             drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
           )}
             onDrop={handlePitchDrop}
             onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
             onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
             onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
             onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
