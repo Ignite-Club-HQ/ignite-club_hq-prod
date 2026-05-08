@@ -54,9 +54,15 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
 
       const scrollContainer = target.closest(CHAT_SCROLL_SELECTOR) as HTMLElement | null;
 
-      // Prevent Android pull-to-refresh when dragging down from non-scrollable chat chrome (header/composer).
+      // Prevent Android pull-to-refresh ONLY when dragging down from explicit
+      // chat chrome (header/composer marked with data-chat-chrome). Previously
+      // this fired for ANY non-scrollable target, which intermittently cancelled
+      // legitimate touchmoves inside menus, sheets and image viewers, producing
+      // the "scroll froze / skipped a frame" symptom mid-flick.
       if (!scrollContainer) {
-        if (deltaY > 0) event.preventDefault();
+        if (deltaY > 0 && target.closest('[data-chat-chrome="true"]')) {
+          event.preventDefault();
+        }
         return;
       }
 
