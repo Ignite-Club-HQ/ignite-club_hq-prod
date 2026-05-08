@@ -111,7 +111,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className="shrink-0 w-[85vw] max-w-[320px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
+      className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] cursor-pointer border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-border transition-all snap-start overflow-hidden relative"
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
