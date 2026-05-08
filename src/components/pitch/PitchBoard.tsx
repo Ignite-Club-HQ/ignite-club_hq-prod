@@ -3661,6 +3661,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragStartRef.current = null;
           return;
         }
       }
@@ -3676,6 +3677,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchOffset(null);
     touchIdRef.current = null;
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   // Wheel zoom
@@ -3718,6 +3720,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPortraitSheetOpen(false);
       setToolbarCollapsed(true);
       setDraggedPlayer(null);
+      playerDragOffsetRef.current = null;
+      playerDragStartRef.current = null;
       return;
     }
 
@@ -3729,6 +3733,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (dragged?.position && target?.position) {
         handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
         setDraggedPlayer(null);
+        playerDragOffsetRef.current = null;
+        playerDragStartRef.current = null;
         return;
       }
     }
