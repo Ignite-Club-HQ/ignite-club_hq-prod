@@ -828,12 +828,12 @@ export default function EventsPage() {
                   hasEvent: eventDates,
                 }}
                 classNames={{
-                  // Softer selected state so event indicators remain readable
+                  // Soft selected state, light border, indicators stay prominent
                   day_selected:
-                    "bg-primary/15 text-foreground font-semibold ring-1 ring-primary/50 ring-inset hover:bg-primary/20 focus:bg-primary/20",
+                    "bg-primary/10 text-foreground font-semibold ring-1 ring-primary/30 ring-inset hover:bg-primary/15 focus:bg-primary/15",
                   // Subtle independent today ring (no fill)
                   day_today:
-                    "text-foreground font-semibold ring-1 ring-foreground/25 ring-inset",
+                    "text-foreground font-semibold ring-1 ring-foreground/20 ring-inset",
                 }}
                 components={{
                   DayContent: ({ date }) => {
@@ -842,34 +842,27 @@ export default function EventsPage() {
                     const hasTraining = dayEvents.some((e) => e.type === "training");
                     const hasSocial = dayEvents.some((e) => e.type === "social");
 
-                    // One micro-bar per event type present (max 3, type-mapped colors)
-                    const bars: { color: string; label: string }[] = [];
-                    if (hasGame) bars.push({ color: "bg-destructive", label: "Game" });
-                    if (hasTraining) bars.push({ color: "bg-primary", label: "Training" });
-                    if (hasSocial) bars.push({ color: "bg-warning", label: "Social" });
-
-                    const totalCount = dayEvents.length;
-                    const overflow = Math.max(0, totalCount - bars.length);
+                    // Type-mapped dots, max 2 (priority: game, training, social)
+                    const dots: { color: string; label: string }[] = [];
+                    if (hasGame) dots.push({ color: "bg-destructive", label: "Game" });
+                    if (hasTraining) dots.push({ color: "bg-primary", label: "Training" });
+                    if (hasSocial) dots.push({ color: "bg-warning", label: "Social" });
+                    const visibleDots = dots.slice(0, 2);
 
                     return (
-                      <div className="relative flex flex-col items-center justify-center w-full h-full pb-1.5">
+                      <div className="relative flex flex-col items-center justify-center w-full h-full">
                         <span className="leading-none">{date.getDate()}</span>
-                        {bars.length > 0 && (
+                        {visibleDots.length > 0 && (
                           <div
-                            className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-[3px]"
-                            aria-label={bars.map((b) => b.label).join(", ")}
+                            className="flex items-center gap-[3px] mt-0.5"
+                            aria-label={visibleDots.map((d) => d.label).join(", ")}
                           >
-                            {bars.map((b, i) => (
+                            {visibleDots.map((d, i) => (
                               <span
                                 key={i}
-                                className={`h-[3px] w-3 rounded-full ${b.color}`}
+                                className={`h-1.5 w-1.5 rounded-full ${d.color}`}
                               />
                             ))}
-                            {overflow > 0 && (
-                              <span className="text-[8px] leading-none text-muted-foreground/80 font-semibold ml-[1px]">
-                                +{overflow}
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
