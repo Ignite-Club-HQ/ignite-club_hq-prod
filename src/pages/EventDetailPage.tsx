@@ -1474,30 +1474,6 @@ export default function EventDetailPage() {
       });
     },
   });
-              user_id: a.user_id,
-              type: "duty_completed",
-              message: `${memberName} completed ${duty.name} for ${event.title}`,
-              related_id: id,
-            }));
-          
-          if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
-          }
-        }
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
-      toast({ title: "Duty completed!" });
-    },
-    onError: (error) => {
-      toast({ 
-        title: "Failed to complete duty", 
-        description: error.message,
-        variant: "destructive" 
-      });
-    },
-  });
 
   // Undo duty completion (in case of accidental tap)
   const uncompleteDutyMutation = useMutation({
