@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
+import { toast } from "@/hooks/use-toast";
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
