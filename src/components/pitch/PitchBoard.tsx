@@ -6761,23 +6761,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                              !readOnly && subMode && !player.isInjured 
                                ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
                                : !readOnly && !subMode && !swapMode
-                                 ? () => {
-                                     if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                     const now = Date.now();
-                                     const last = lastTapRef.current;
-                                     if (last && last.playerId === player.id && now - last.time < 400) {
-                                       lastTapRef.current = null;
-                                       setBenchInjuryTarget(player.id);
-                                       setBenchInjuryConfirmOpen(true);
-                                     } else {
-                                       lastTapRef.current = { playerId: player.id, time: now };
-                                       // Single tap during active game: open BenchToSubDialog for quick "slot in"
-                                       if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
-                                         setBenchToSubPlayer(player.id);
-                                         setBenchToSubOpen(true);
-                                       }
-                                     }
-                                   }
+                                  ? () => {
+                                      if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                      // Slice A: if a pitch player is tap-selected, route bench tap into the sub flow.
+                                      if (tapSelectedPlayerId) {
+                                        handlePlayerClick(player.id, false);
+                                        return;
+                                      }
+                                      const now = Date.now();
+                                      const last = lastTapRef.current;
+                                      if (last && last.playerId === player.id && now - last.time < 400) {
+                                        lastTapRef.current = null;
+                                        setBenchInjuryTarget(player.id);
+                                        setBenchInjuryConfirmOpen(true);
+                                      } else {
+                                        lastTapRef.current = { playerId: player.id, time: now };
+                                        // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                        if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                          setBenchToSubPlayer(player.id);
+                                          setBenchToSubOpen(true);
+                                        }
+                                      }
+                                    }
                                  : undefined
                            }
                             onInjuryToggle={undefined}
