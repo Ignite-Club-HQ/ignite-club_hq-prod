@@ -69,8 +69,13 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     : Math.max(160, composerHeight + 48);
 
   if (useVirtualized && !searchQuery) {
+    // CRITICAL: keep per-row wrapper *identical* for every index. Any
+    // index-conditional class (e.g. `pt-4` on all-but-first) means the
+    // previously-first row gains height the moment older messages prepend,
+    // which makes virtuoso shift the viewport. Top spacing is owned by the
+    // Header in `VirtualizedChatMessageList`.
     const renderVirtualRow = (msg: TMessage, index: number, arr: TMessage[]) => (
-      <div className={`px-4 ${index === 0 ? "" : "pt-4"}`}>
+      <div className="px-4 pt-4">
         {renderRow(msg, index, arr)}
       </div>
     );
@@ -86,7 +91,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           isLoadingOlder={isLoadingOlder}
           onLoadOlder={onLoadOlder}
           renderItem={renderVirtualRow}
-          topPadding={16}
+          topPadding={0}
           bottomPadding={bottomPad}
         />
       </div>
