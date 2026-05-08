@@ -199,7 +199,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
       return { canSend: false, reason: "not_admin" };
     },
-    enabled: !!user && isOpen && hasProAccess === true,
+    enabled: !!user && hasProAccess === true,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch users that can be DMed (members of shared Pro clubs + mini-league parents) excluding app admins
