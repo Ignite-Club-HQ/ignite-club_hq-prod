@@ -222,7 +222,7 @@ export function useInitialChatBottomPin({
     let rafId = 0;
     const STABILITY_MS = 100;
     const MAX_WAIT_MS = 1500;
-    const POST_PIN_GUARD_MS = 6000;
+    const POST_PIN_GUARD_MS = 2000;
     const BOTTOM_THRESHOLD_PX = 2;
     const MAX_SETTLE_ATTEMPTS = 8;
 
