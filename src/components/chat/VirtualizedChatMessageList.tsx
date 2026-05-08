@@ -5,7 +5,6 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
