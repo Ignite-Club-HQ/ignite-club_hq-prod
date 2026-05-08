@@ -5552,11 +5552,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                  : !readOnly && !subMode && !swapMode
                                     ? () => {
                                         if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                        // Slice A: if a pitch player is tap-selected, route bench tap into the sub flow.
-                                        if (tapSelectedPlayerId) {
-                                          handlePlayerClick(player.id, false);
-                                          return;
-                                        }
                                         const now = Date.now();
                                         const last = lastTapRef.current;
                                         if (last && last.playerId === player.id && now - last.time < 400) {
