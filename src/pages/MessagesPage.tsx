@@ -168,6 +168,7 @@ interface UnifiedConversation {
   canManage?: boolean;
   canHide?: boolean;
   dmData?: any;
+  draftText?: string;
 }
 
 export default function MessagesPage() {
