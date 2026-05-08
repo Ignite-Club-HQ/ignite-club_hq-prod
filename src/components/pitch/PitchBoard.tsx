@@ -4433,9 +4433,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             )}
             {!readOnly && !subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm text-muted-foreground"
                 onClick={handleSetupGame}
               >
                 <Play className="h-4 w-4" />
