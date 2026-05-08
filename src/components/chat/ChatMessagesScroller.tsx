@@ -1,6 +1,9 @@
-import { type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
-import { VirtualizedChatMessageList } from "@/components/chat/VirtualizedChatMessageList";
+import {
+  VirtualizedChatMessageList,
+  type VirtualizedChatMessageListHandle,
+} from "@/components/chat/VirtualizedChatMessageList";
 
 /**
  * Shared scroller used by Team / Group / Club / Broadcast chat pages.
@@ -68,6 +71,27 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     ? Math.max(128, composerHeight + 40)
     : Math.max(160, composerHeight + 48);
 
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
+
+  // When the keyboard opens/closes or the composer grows, the viewport
+  // resizes underneath the virtualised list. If the user was at the bottom
+  // we must re-pin to the latest message — otherwise the most recent
+  // messages get hidden behind the keyboard and they "can't see what they
+  // just sent". Fires immediately and again after the keyboard animation.
+  useEffect(() => {
+    if (!useVirtualized || searchQuery) return;
+    const handle = virtualHandleRef.current;
+    if (!handle) return;
+    if (!handle.isAtBottom()) return;
+    handle.scrollToBottom("auto");
+    const t1 = window.setTimeout(() => handle.scrollToBottom("auto"), 80);
+    const t2 = window.setTimeout(() => handle.scrollToBottom("auto"), 280);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [useVirtualized, searchQuery, isKeyboardOpen, composerHeight, bottomPad]);
+
   if (useVirtualized && !searchQuery) {
     // CRITICAL: keep per-row wrapper *identical* for every index. Any
     // index-conditional class (e.g. `pt-4` on all-but-first) means the
@@ -86,6 +110,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
         style={{ opacity: isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
       >
         <VirtualizedChatMessageList
+          ref={virtualHandleRef}
           messages={messages}
           hasOlder={hasOlderMessages}
           isLoadingOlder={isLoadingOlder}
