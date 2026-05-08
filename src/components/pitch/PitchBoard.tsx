@@ -3679,24 +3679,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     if (readOnly) return;
     if (!draggedPlayer) return;
-
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
-
-    // If dragging a pitch player to the bench AND there's at least one available
-    // bench player, open the substitution picker (drag-to-sub shortcut).
-    if (dragged?.position && benchPlayersAvail.length > 0) {
-      setSelectedOnPitch(draggedPlayer);
-      setSubPreviewOpen(true);
-      setDraggedPlayer(null);
-      return;
-    }
-
-    setPlayers(prev =>
-      prev.map(p =>
-        p.id === draggedPlayer ? { ...p, position: null } : p
-      )
-    );
+    // Drag is reserved for swapping positions on the pitch.
+    // Use double-tap on a pitch player to open the substitution picker.
     setDraggedPlayer(null);
   };
 
