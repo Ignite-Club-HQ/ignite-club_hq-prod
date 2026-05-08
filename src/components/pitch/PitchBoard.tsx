@@ -3578,8 +3578,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const benchElement = document.getElementById('pitch-bench');
 
     let droppedOnBench = false;
-    // Drag-to-bench disabled: bench substitutions are handled via double-tap.
-
+    // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
+    const draggedSrc = players.find(p => p.id === touchDragPlayer);
+    const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
+    if (draggedIsBench) {
+      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
+      if (pitchEl) {
+        const rect = pitchEl.getBoundingClientRect();
+        const isOnPitch = touch.clientX >= rect.left && touch.clientX <= rect.right &&
+          touch.clientY >= rect.top && touch.clientY <= rect.bottom;
+        if (isOnPitch) {
+          setBenchToSubPlayer(touchDragPlayer);
+          setBenchToSubOpen(true);
+          setPortraitSheetOpen(false);
+          setToolbarCollapsed(true);
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          return;
+        }
+      }
+    }
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
