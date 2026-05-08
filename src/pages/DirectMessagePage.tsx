@@ -218,6 +218,7 @@ export default function DirectMessagePage() {
   const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
   const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
