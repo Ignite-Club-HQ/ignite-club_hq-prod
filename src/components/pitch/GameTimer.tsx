@@ -103,6 +103,7 @@ interface TimerState {
   teamName?: string;
   isGameFinished?: boolean; // Track if game has reached full time
   gameFinishedAt?: number; // Timestamp when game finished (for auto-reset)
+  manualReset?: boolean; // Set when coach manually reset; suppresses auto fast-forward
 }
 
 const getTeamTimerStorageKey = (teamId: string) => {
