@@ -5,6 +5,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
@@ -53,8 +54,8 @@ interface Props<TMessage extends { id: string }> {
   onAtBottomChange?: (atBottom: boolean) => void;
 }
 
-const ChatVirtuosoScroller = forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
-  ({ style, ...props }, scrollerRef) => (
+const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
+  ({ context: _context, style, ...props }, scrollerRef) => (
     <div
       {...props}
       ref={scrollerRef}
