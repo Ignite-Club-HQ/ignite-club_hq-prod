@@ -201,11 +201,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       followOutput={followOutput}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
+      // Estimate so off-screen rows reserve realistic space; otherwise
+      // virtuoso uses tiny placeholders that grow on mount and shift the
+      // scrollbar/scrollTop while the user is scrolling.
+      defaultItemHeight={88}
+      // Keep a generous upward viewport for smooth back-scrolling. Don't
+      // also set `overscan` — virtuoso applies both and the interaction
+      // produces visible re-anchor jumps on slow devices.
       increaseViewportBy={{ top: 1200, bottom: 600 }}
       atBottomThreshold={120}
       components={components}
-      // Avoid scroll-anchoring fighting virtuoso's own anchoring on iOS.
-      overscan={{ main: 600, reverse: 1200 }}
     />
   );
 }
