@@ -320,7 +320,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Keep `preferredSecondHalfGkId` in sync with the live roster. A nominated
   // 2H GK is allowed to start on pitch as an outfielder, so only clear the
   // preference when the player is gone, injured, or already the 1H GK.
-  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
+  // Prefer the event the board was launched from. Falling back to savedState
+  // first caused stale links (or no link at all) when entering from "Prepare
+  // Lineup" on a different event than the previously-saved game.
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => initialLinkedEventId || savedState?.linkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
@@ -409,8 +412,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
   const [maxSpreadMinutes, setMaxSpreadMinutes] = useState(() => initialMaxSpreadMinutes); // Max acceptable playing-time spread (minutes)
   const [showLineupPicker, setShowLineupPicker] = useState(() => {
-    // Show lineup picker on mount if setting enabled AND linked to a game event AND no saved state (fresh game)
-    return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
+    // Show lineup picker on mount if setting enabled AND linked to a game event AND
+    // either there's no saved state OR the saved state was for a different event
+    // (treat as fresh game context for the new event).
+    const savedForSameEvent = !!savedState && savedState.linkedEventId === initialLinkedEventId;
+    return initialShowLineupPicker && !!initialLinkedEventId && !savedForSameEvent && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
   // Settings ref for usePitchSettings (avoids stale closures)
