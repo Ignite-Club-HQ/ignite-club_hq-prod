@@ -1,6 +1,7 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getChatScrollMetrics, resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
+import { isViewportUserActive } from "@/lib/chatScrollIntent";
 
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
@@ -222,7 +223,7 @@ export function useInitialChatBottomPin({
     let rafId = 0;
     const STABILITY_MS = 100;
     const MAX_WAIT_MS = 1500;
-    const POST_PIN_GUARD_MS = 6000;
+    const POST_PIN_GUARD_MS = 2000;
     const BOTTOM_THRESHOLD_PX = 2;
     const MAX_SETTLE_ATTEMPTS = 8;
 
@@ -290,13 +291,20 @@ export function useInitialChatBottomPin({
         }
       }
 
-      // Re-snap whenever an image inside the viewport finishes loading.
+      // Re-snap whenever an image inside the viewport finishes loading —
+      // but only for images whose bounding rect is at or below the current
+      // visible region. A late-loading avatar 50 messages above shouldn't
+      // trigger a snap that yanks the user back to bottom.
       const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
       const attachImageListeners = () => {
         const images = viewport.querySelectorAll<HTMLImageElement>("img");
+        const vpRect = viewport.getBoundingClientRect();
         images.forEach((img) => {
           if (img.complete && img.naturalHeight > 0) return;
           if (imageListeners.some((entry) => entry.img === img)) return;
+          const r = img.getBoundingClientRect();
+          // Skip images well above the visible viewport.
+          if (r.bottom < vpRect.top - 100) return;
           const handler = () => safeGuardSnap();
           img.addEventListener("load", handler, { once: true });
           img.addEventListener("error", handler, { once: true });
@@ -453,7 +461,7 @@ export function useInitialChatBottomPin({
       observer = new MutationObserver(() => {
         if (cancelled || finalizing) return;
         const vp = resolveChatScrollViewport(scrollContainerRef.current);
-        if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+        if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
         scheduleFinalize();
       });
       observer.observe(viewport, { childList: true, subtree: true, characterData: true });
@@ -463,7 +471,7 @@ export function useInitialChatBottomPin({
         resizeObserver = new ResizeObserver(() => {
           if (cancelled || finalizing) return;
           const vp = resolveChatScrollViewport(scrollContainerRef.current);
-          if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+          if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
           scheduleFinalize();
         });
 
