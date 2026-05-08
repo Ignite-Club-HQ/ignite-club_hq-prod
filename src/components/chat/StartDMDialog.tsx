@@ -621,7 +621,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
               <div>
                 <div className="space-y-1">
-                  {filteredUsers.length === 0 ? (
+                  {loadingUsers && filteredUsers.length === 0 ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
                       {searchQuery || selectedClubId !== "all" || selectedTeamId !== "all" 
                         ? "No members found" 
