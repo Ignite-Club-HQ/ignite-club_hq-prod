@@ -186,6 +186,7 @@ export function useChatOlderMessagesAnchor({
         return;
       }
 
+      void container.offsetHeight;
       const nextScrollHeight = container.scrollHeight;
       const delta = nextScrollHeight - previousScrollHeight;
       container.scrollTop = previousScrollTop + delta;
@@ -200,7 +201,7 @@ export function useChatOlderMessagesAnchor({
 
       // Watch for newly-prepended images decoding and re-apply the anchor
       // so their final height doesn't push content down later.
-      watchPrependedImagesAndReanchor(container, previousScrollTop, previousScrollHeight);
+      watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
     },
     [scrollContainerRef],
   );
@@ -208,20 +209,22 @@ export function useChatOlderMessagesAnchor({
   return { anchoredPrepend };
 }
 
-function watchPrependedImagesAndReanchor(
+function watchPrependedMediaAndReanchor(
   container: HTMLElement,
   previousScrollTop: number,
   previousScrollHeight: number,
 ) {
-  // Only watch images currently above the user's viewport (the ones we
+  // Only watch media currently above the user's viewport (the ones we
   // just prepended). Newly-decoded images below would belong to the
   // pin-to-bottom flow, not us.
   const visibleTop = previousScrollTop;
-  const candidates = Array.from(container.querySelectorAll("img")).filter((img) => {
-    if (img.complete && img.naturalHeight > 0) return false;
-    const rect = img.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const candidates = Array.from(container.querySelectorAll("img, video")).filter((media) => {
+    if (media instanceof HTMLImageElement && media.complete && media.naturalHeight > 0) return false;
+    if (media instanceof HTMLVideoElement && media.readyState >= 1) return false;
+    const rect = media.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    return rect.bottom - containerRect.top < visibleTop + 50;
+    return rect.bottom - containerRect.top < visibleTop + 80;
   });
 
   if (!candidates.length) return;
