@@ -1287,6 +1287,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
   const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
   const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+  const playerDragStartRef = useRef<{ playerId: string; position: { x: number; y: number }; currentPitchPosition?: PitchPosition } | null>(null);
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -2752,14 +2753,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // This swaps the selected pitch player with another pitch player who can cover their position
   const handlePreSwapFromDialog = useCallback((pitchPlayerId: string, swapPlayerId: string, opts?: { reopenSubDialog?: boolean }) => {
     const reopenSubDialog = opts?.reopenSubDialog ?? true;
+    const dragStart = playerDragStartRef.current?.playerId === pitchPlayerId ? playerDragStartRef.current : null;
     const pitchPlayer = players.find(p => p.id === pitchPlayerId);
     const swapPlayer = players.find(p => p.id === swapPlayerId);
 
-    if (!pitchPlayer?.position || !swapPlayer?.position) return;
+    if (!pitchPlayer || (!pitchPlayer.position && !dragStart?.position) || !swapPlayer?.position) return;
 
-    const pos1 = { ...pitchPlayer.position };
+    const pos1 = dragStart?.position ? { ...dragStart.position } : { ...pitchPlayer.position! };
     const pos2 = { ...swapPlayer.position };
-    const pitchPos1 = pitchPlayer.currentPitchPosition;
+    const pitchPos1 = dragStart?.currentPitchPosition ?? pitchPlayer?.currentPitchPosition;
     const pitchPos2 = swapPlayer.currentPitchPosition;
 
     pushToUndoHistory(`Swap: ${pitchPlayer.name} ↔ ${swapPlayer.name}`, playersRef.current);
@@ -3537,6 +3539,44 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return clampPitchPosition(x, y);
   }, [clampPitchPosition]);
 
+  const getClientPointFromPitchPosition = useCallback((position: { x: number; y: number }) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: rect.left + (position.x / 100) * rect.width,
+      y: rect.top + (position.y / 100) * rect.height,
+    };
+  }, []);
+
+  const getPitchPlayerAtPoint = useCallback((clientX: number, clientY: number, excludedPlayerId?: string) => {
+    const elements = typeof document.elementsFromPoint === "function"
+      ? document.elementsFromPoint(clientX, clientY)
+      : [document.elementFromPoint(clientX, clientY)].filter(Boolean) as Element[];
+
+    for (const element of elements) {
+      const tokenEl = (element as HTMLElement).closest?.('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+      const playerId = tokenEl?.getAttribute("data-player-id") || null;
+      if (playerId && playerId !== excludedPlayerId) return playerId;
+    }
+
+    let nearest: { id: string; distance: number } | null = null;
+    containerRef.current?.querySelectorAll<HTMLElement>('[data-player-variant="pitch"][data-player-id]').forEach(tokenEl => {
+      const playerId = tokenEl.getAttribute("data-player-id");
+      if (!playerId || playerId === excludedPlayerId) return;
+      const rect = tokenEl.getBoundingClientRect();
+      const hitSlop = 12;
+      if (clientX < rect.left - hitSlop || clientX > rect.right + hitSlop || clientY < rect.top - hitSlop || clientY > rect.bottom + hitSlop) return;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.hypot(clientX - centerX, clientY - centerY);
+      if (!nearest || distance < nearest.distance) nearest = { id: playerId, distance };
+    });
+
+    if (nearest) return nearest.id;
+
+    return null;
+  }, []);
+
   const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
     const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
     return getPositionFromCoords(y, teamSize);
@@ -3611,7 +3651,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     const benchElement = document.getElementById('pitch-bench');
 
-    let droppedOnBench = false;
+    const droppedOnBench = false;
     // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
     const draggedSrc = players.find(p => p.id === touchDragPlayer);
     const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
@@ -3629,6 +3669,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragOffsetRef.current = null;
+          playerDragStartRef.current = null;
           return;
         }
       }
@@ -3636,14 +3678,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
-      const draggedEl = containerRef.current?.querySelector(`[data-player-variant="pitch"][data-player-id="${touchDragPlayer}"]`) as HTMLElement | null;
-      const prevPE = draggedEl?.style.pointerEvents;
-      const prevVis = draggedEl?.style.visibility;
-      if (draggedEl) { draggedEl.style.pointerEvents = "none"; draggedEl.style.visibility = "hidden"; }
-      const dropEl = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (draggedEl) { draggedEl.style.pointerEvents = prevPE || ""; draggedEl.style.visibility = prevVis || ""; }
-      const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
-      const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+      const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
+      const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+      const targetId = draggedCenterPoint
+        ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, touchDragPlayer)
+        : getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
       if (targetId && targetId !== touchDragPlayer) {
         const target = players.find(p => p.id === targetId);
         const src = players.find(p => p.id === touchDragPlayer);
@@ -3652,6 +3691,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
+          playerDragStartRef.current = null;
           return;
         }
       }
@@ -3667,6 +3707,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchOffset(null);
     touchIdRef.current = null;
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   // Wheel zoom
@@ -3681,12 +3722,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
     if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setDraggedPlayer(playerId);
   };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3704,25 +3750,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPortraitSheetOpen(false);
       setToolbarCollapsed(true);
       setDraggedPlayer(null);
+      playerDragOffsetRef.current = null;
+      playerDragStartRef.current = null;
       return;
     }
 
     // Detect drop on another pitch player → swap positions.
-    // Hide the dragged token first so elementFromPoint sees what's underneath.
-    const draggedEl = containerRef.current?.querySelector(`[data-player-variant="pitch"][data-player-id="${draggedPlayer}"]`) as HTMLElement | null;
-    const prevPE = draggedEl?.style.pointerEvents;
-    const prevVis = draggedEl?.style.visibility;
-    if (draggedEl) { draggedEl.style.pointerEvents = "none"; draggedEl.style.visibility = "hidden"; }
-    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
-    if (draggedEl) { draggedEl.style.pointerEvents = prevPE || ""; draggedEl.style.visibility = prevVis || ""; }
-    const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
-    const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+    const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
+    const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
+    const targetId = draggedCenterPoint
+      ? getPitchPlayerAtPoint(draggedCenterPoint.x, draggedCenterPoint.y, draggedPlayer)
+      : getPitchPlayerAtPoint(e.clientX, e.clientY, draggedPlayer);
 
     if (targetId && targetId !== draggedPlayer) {
       const target = players.find(p => p.id === targetId);
       if (dragged?.position && target?.position) {
         handlePreSwapFromDialog(draggedPlayer, targetId, { reopenSubDialog: false });
         setDraggedPlayer(null);
+        playerDragOffsetRef.current = null;
+        playerDragStartRef.current = null;
         return;
       }
     }
@@ -3731,6 +3777,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (position) updateDraggedPlayerPosition(draggedPlayer, position);
     setDraggedPlayer(null);
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3754,6 +3801,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setToolbarCollapsed(true);
     }
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3769,6 +3818,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
     capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
+    const player = playersRef.current.find(p => p.id === playerId);
+    playerDragStartRef.current = player?.position
+      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
+      : null;
     setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
     // (Bench auto-open removed — it stole pointer events and broke drag)
@@ -3801,6 +3854,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchOffset(null);
     touchIdRef.current = null;
     playerDragOffsetRef.current = null;
+    playerDragStartRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
