@@ -3570,7 +3570,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
     const benchElement = document.getElementById('pitch-bench');
-    
+
     let droppedOnBench = false;
     if (benchElement) {
       const benchRect = benchElement.getBoundingClientRect();
@@ -3581,14 +3581,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         touch.clientY <= benchRect.bottom
       ) {
         droppedOnBench = true;
-        setPlayers(prev =>
-          prev.map(p =>
-            p.id === touchDragPlayer ? { ...p, position: null } : p
-          )
-        );
+        const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
+        if (benchPlayersAvail.length > 0) {
+          // Open sub picker instead of bare bench drop
+          setSelectedOnPitch(touchDragPlayer);
+          setSubPreviewOpen(true);
+        } else {
+          setPlayers(prev =>
+            prev.map(p =>
+              p.id === touchDragPlayer ? { ...p, position: null } : p
+            )
+          );
+        }
       }
     }
-    
+
+    // Detect drop on another pitch token → swap positions
+    if (!droppedOnBench) {
+      const dropEl = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+      const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+      if (targetId && targetId !== touchDragPlayer) {
+        const target = players.find(p => p.id === targetId);
+        const src = players.find(p => p.id === touchDragPlayer);
+        if (src?.position && target?.position) {
+          handlePreSwapFromDialog(touchDragPlayer, targetId);
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          return;
+        }
+      }
+    }
+
     // Final position update from touchend to prevent coordinate gap with last touchmove
     if (!droppedOnBench && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
