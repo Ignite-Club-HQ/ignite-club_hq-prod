@@ -255,14 +255,33 @@ export function useInitialChatBottomPin({
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return;
 
+      // Track whether the user has touched the viewport since reveal. Once
+      // they touch the chat, ALL automatic snaps from this guard go silent
+      // unless they're still pinned within 1px of bottom. Without this, the
+      // ResizeObserver / image-load / delayed-snap chain fights every finger
+      // drag for 6s after open — that's the "I scroll up and it jumps back
+      // down" jolt the user sees mid-flick.
+      let userTouched = false;
+      const onTouch = () => { userTouched = true; };
+      viewport.addEventListener("touchstart", onTouch, { passive: true, once: true });
+      viewport.addEventListener("wheel", onTouch, { passive: true, once: true });
+
+      const safeGuardSnap = () => {
+        if (cancelled || userScrolledAwayRef.current) return;
+        if (userTouched) {
+          // User is interacting — only correct if they're still at the very
+          // bottom. Any non-trivial distance means they're scrolling up.
+          const m = getChatScrollMetrics(scrollContainerRef.current);
+          if (!m || m.distanceFromBottom > 8) return;
+        }
+        scrollChatToBottom(scrollContainerRef.current);
+      };
+
       // Watch for size changes on BOTH the viewport (e.g. keyboard opens) and
-      // the inner content (e.g. composer height changes that grow padding-bottom,
-      // images loading, late-rendered messages). Without observing the inner
-      // content, dynamic padding-bottom changes after reveal would push content
-      // up and leave the user above the bottom.
+      // the inner content (composer height changes, images, late messages).
       postPinResizeObserver?.disconnect();
       if (typeof ResizeObserver !== "undefined") {
-        postPinResizeObserver = new ResizeObserver(() => guardSnap());
+        postPinResizeObserver = new ResizeObserver(() => safeGuardSnap());
         postPinResizeObserver.observe(viewport);
 
         const innerContent = viewport.firstElementChild;
@@ -272,18 +291,13 @@ export function useInitialChatBottomPin({
       }
 
       // Re-snap whenever an image inside the viewport finishes loading.
-      // Without this, late-loading attachments push content down AFTER
-      // we've revealed the chat, leaving the user above the bottom.
       const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
       const attachImageListeners = () => {
         const images = viewport.querySelectorAll<HTMLImageElement>("img");
         images.forEach((img) => {
           if (img.complete && img.naturalHeight > 0) return;
           if (imageListeners.some((entry) => entry.img === img)) return;
-          const handler = () => {
-            if (cancelled || userScrolledAwayRef.current) return;
-            scrollChatToBottom(scrollContainerRef.current);
-          };
+          const handler = () => safeGuardSnap();
           img.addEventListener("load", handler, { once: true });
           img.addEventListener("error", handler, { once: true });
           imageListeners.push({ img, handler });
@@ -291,32 +305,24 @@ export function useInitialChatBottomPin({
       };
       attachImageListeners();
 
-      // Watch for newly added images (e.g. lazy-rendered messages)
       const imageMountObserver = new MutationObserver(() => {
         if (cancelled || userScrolledAwayRef.current) return;
         attachImageListeners();
       });
       imageMountObserver.observe(viewport, { childList: true, subtree: true });
 
-      guardSnap();
-      // Belt-and-braces: schedule unconditional snaps across the full settle
-      // window to catch late layout shifts that can sneak past the
-      // ResizeObserver / image-load listeners — most commonly the composer
-      // measuring its real height after first paint, and signed-URL images
-      // mounting their <img> tags only after their URL resolves. Without
-      // these, the user sees the chat correctly pinned to bottom on open
-      // and then watches it shift upward "at the last second".
+      safeGuardSnap();
+      // Belt-and-braces delayed snaps — also gated by safeGuardSnap so they
+      // never override an in-progress user drag.
       const delayedSnapTimers = [80, 240, 500, 900, 1500, 2400, 3500, 5000].map((delay) =>
         setTimeout(() => {
           if (cancelled || userScrolledAwayRef.current) return;
           const m = getChatScrollMetrics(scrollContainerRef.current);
           if (!m) return;
-          // Skip when already pinned to bottom — re-snapping triggers layout
-          // reads that on iOS WKWebView can interrupt rubber-band/inertia.
-          // Otherwise ALWAYS correct drift; never gate on a px threshold,
-          // since first-load profile/avatar hydration on long threads can
-          // grow content by far more than 400px in one tick.
           if (m.distanceFromBottom <= 1) return;
+          // After user touch, only correct very small drift — never yank
+          // them back from a real scroll.
+          if (userTouched && m.distanceFromBottom > 8) return;
           scrollChatToBottom(scrollContainerRef.current);
         }, delay),
       );
@@ -330,6 +336,8 @@ export function useInitialChatBottomPin({
         });
         imageListeners.length = 0;
         delayedSnapTimers.forEach(clearTimeout);
+        viewport.removeEventListener("touchstart", onTouch);
+        viewport.removeEventListener("wheel", onTouch);
       }, POST_PIN_GUARD_MS);
     };
 
