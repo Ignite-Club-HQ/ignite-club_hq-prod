@@ -263,28 +263,36 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
-        // Use UNCAPPED drift so the timer catches up fully after backgrounding.
-        // Previously this used a 30s cap, but the save-effect would then overwrite
-        // lastUpdateTime with Date.now(), preventing the reconcile effect from
-        // ever seeing the real drift.
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-        const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
-        
-        // Check if half ended while backgrounded
-        if (newElapsed >= halfDuration) {
-          if (saved.currentHalf === 1) {
-            setCurrentHalf(2);
-            setElapsedSeconds(0);
-            setIsRunning(false);
-            onHalfChangeRef.current?.(2);
-          } else {
-            setElapsedSeconds(halfDuration);
-            setIsRunning(false);
-            setIsGameFinished(true);
-          }
+        // Safeguard: if the app was backgrounded/closed for more than 5 minutes,
+        // do NOT silently fast-forward the clock (this previously caused games
+        // to auto-jump to half time after the app was closed). Pause at the
+        // last known position and let the coach decide what to do.
+        const SAFE_DRIFT_SECS = 5 * 60;
+        if (secondsPassed > SAFE_DRIFT_SECS) {
+          setElapsedSeconds(saved.elapsedSeconds);
+          setIsRunning(false);
+          toast({
+            title: "Timer paused",
+            description: `Pitch board was closed for ${Math.round(secondsPassed / 60)} min while the timer was running. Tap play to resume.`,
+          });
         } else {
-          setElapsedSeconds(newElapsed);
-          setIsRunning(true);
+          const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
+          if (newElapsed >= halfDuration) {
+            if (saved.currentHalf === 1) {
+              setCurrentHalf(2);
+              setElapsedSeconds(0);
+              setIsRunning(false);
+              onHalfChangeRef.current?.(2);
+            } else {
+              setElapsedSeconds(halfDuration);
+              setIsRunning(false);
+              setIsGameFinished(true);
+            }
+          } else {
+            setElapsedSeconds(newElapsed);
+            setIsRunning(true);
+          }
         }
       } else {
         setElapsedSeconds(saved.elapsedSeconds);
