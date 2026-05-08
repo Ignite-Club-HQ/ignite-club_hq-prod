@@ -4388,31 +4388,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           {/* Sub-related controls group - centered */}
           <div className="flex items-center gap-3">
 
-            {/* Swap & Sub buttons */}
+            {/* Bench (sub) button — Swap removed; drag-to-swap remains */}
             {!readOnly && (
               <>
-                {playersOnPitch.length >= 2 && !subMode && (
-                  <Button
-                    variant={swapMode ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
-                  >
-                    <ArrowLeftRight className="h-4 w-4" />
-                    {swapMode ? "Cancel" : "Swap"}
-                  </Button>
-                )}
-                {!swapMode && (
-                  <Button
-                    variant={subMode ? "secondary" : "default"}
-                    size="sm"
-                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={() => toggleSubMode()}
-                  >
-                    <Users className="h-4 w-4" />
-                    {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
-                  </Button>
-                )}
+                <Button
+                  variant={subMode ? "secondary" : "default"}
+                  size="sm"
+                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                  onClick={() => toggleSubMode()}
+                  title="Open bench to substitute a player"
+                >
+                  <Users className="h-4 w-4" />
+                  {subMode ? "Cancel" : `Bench (${playersOnBench.length})`}
+                </Button>
                 {(subMode || swapMode) && (
                   <Button
                     variant="ghost"
