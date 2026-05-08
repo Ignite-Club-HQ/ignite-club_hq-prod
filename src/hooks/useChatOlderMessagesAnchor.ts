@@ -30,7 +30,8 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 300;
+const IDLE_GATE_MS = 90;
+const PREFETCH_ROOT_MARGIN_PX = 1200;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
 
 export function useChatOlderMessagesAnchor({
@@ -94,11 +95,12 @@ export function useChatOlderMessagesAnchor({
 
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
-          // User is mid-flick — re-check shortly so we don't miss the window.
+          // User is mid-flick — re-check very shortly so older pages begin
+          // loading while momentum is still carrying the user into history.
           window.setTimeout(() => {
             const stillIntersecting =
               trigger.getBoundingClientRect().top <
-              scrollRoot.getBoundingClientRect().bottom + 2000;
+              scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
             // Re-apply ALL guards inside the deferred path. Without these,
             // a programmatic scrollTop set by the initial bottom-pin (which
             // fires a real "scroll" event and stamps lastScrollAtRef) lands
@@ -124,9 +126,9 @@ export function useChatOlderMessagesAnchor({
       },
       {
         root: scrollRoot,
-        // Pre-fetch BEFORE the user reaches the very top so the next page is
-        // already prepended by the time their finger gets there.
-        rootMargin: "300px 0px 0px 0px",
+        // Pre-fetch well BEFORE the user reaches the very top so the next
+        // page is already prepended by the time their finger gets there.
+        rootMargin: `${PREFETCH_ROOT_MARGIN_PX}px 0px 0px 0px`,
         threshold: 0,
       },
     );
