@@ -155,13 +155,16 @@ export default function BroadcastChatPage() {
 
   const targetMessageId = searchParams.get("message");
 
-  // Set highlighted message from URL param
+  // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
-    if (targetMessageId) {
-      setHighlightedMessageId(targetMessageId);
-      const timer = setTimeout(() => setHighlightedMessageId(null), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!targetMessageId) return;
+    const cancel = scrollToTargetMessageWhenReady(
+      targetMessageId,
+      scrollAreaRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+    return cancel;
   }, [targetMessageId]);
 
   // Check if user is app admin
