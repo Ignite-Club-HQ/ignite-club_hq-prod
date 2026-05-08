@@ -3705,8 +3705,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     if (readOnly) return;
     if (!draggedPlayer) return;
-    // Drag is reserved for swapping positions on the pitch.
-    // Use double-tap on a pitch player to open the substitution picker.
+    // Pitch → bench drag opens the sub picker for that pitch player.
+    const dragged = players.find(p => p.id === draggedPlayer);
+    const draggedIsOnPitch = dragged ? playersOnPitch.some(p => p.id === draggedPlayer) : false;
+    if (draggedIsOnPitch) {
+      setSelectedOnPitch(draggedPlayer);
+      setSubPreviewOpen(true);
+    }
     setDraggedPlayer(null);
   };
 
