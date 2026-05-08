@@ -33,6 +33,7 @@ interface UseChatOlderMessagesAnchorOptions {
 const IDLE_GATE_MS = 90;
 const PREFETCH_ROOT_MARGIN_PX = 1200;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
+const MIN_TRIGGER_INTERVAL_MS = 250;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -43,6 +44,14 @@ export function useChatOlderMessagesAnchor({
   onTrigger,
 }: UseChatOlderMessagesAnchorOptions) {
   const lastScrollAtRef = useRef(0);
+  const lastTriggerAtRef = useRef(0);
+
+  const triggerOlder = useCallback(() => {
+    const now = performance.now();
+    if (now - lastTriggerAtRef.current < MIN_TRIGGER_INTERVAL_MS) return;
+    lastTriggerAtRef.current = now;
+    onTrigger();
+  }, [onTrigger]);
 
   // Track "recently scrolled" so we don't trigger fetches mid-flick.
   // CRITICAL: only stamp the timestamp when the user is meaningfully away
@@ -60,10 +69,24 @@ export function useChatOlderMessagesAnchor({
         container.scrollHeight - container.clientHeight - container.scrollTop;
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
+
+      // IntersectionObserver can miss the 1px sentinel during fast mobile
+      // momentum scrolls or after iOS/WebView layout correction. Use a direct
+      // scrollTop threshold as the authoritative fallback so history never
+      // gets stuck at the oldest loaded page.
+      if (
+        enabled &&
+        hasOlderMessages &&
+        !isLoadingOlder &&
+        !document.hidden &&
+        container.scrollTop <= PREFETCH_ROOT_MARGIN_PX
+      ) {
+        triggerOlder();
+      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
 
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
