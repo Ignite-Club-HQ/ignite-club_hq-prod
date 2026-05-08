@@ -828,9 +828,17 @@ export default function EventsPage() {
                   hasEvent: eventDates,
                 }}
                 classNames={{
+                  table: "w-full border-collapse",
+                  head_row: "grid w-full grid-cols-7",
+                  head_cell:
+                    "flex h-8 items-center justify-center text-center text-[0.8rem] font-normal text-muted-foreground",
+                  row: "grid w-full grid-cols-7 mt-1",
+                  cell: "relative flex h-14 items-center justify-center p-0 text-center text-sm",
+                  day:
+                    "relative mx-auto flex h-12 w-full max-w-12 min-h-0 items-start justify-center rounded-lg p-0 text-[17px] font-normal leading-none transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100",
                   // Soft selected state, light border, indicators stay prominent
                   day_selected:
-                    "bg-primary/10 text-foreground font-semibold ring-1 ring-primary/30 ring-inset hover:bg-primary/15 focus:bg-primary/15",
+                    "bg-primary/10 text-foreground font-semibold ring-1 ring-primary/25 ring-inset hover:bg-primary/15 focus:bg-primary/15",
                   // Subtle independent today ring (no fill)
                   day_today:
                     "text-foreground font-semibold ring-1 ring-foreground/20 ring-inset",
@@ -849,14 +857,16 @@ export default function EventsPage() {
                     if (hasSocial) dots.push({ color: "bg-warning", label: "Social" });
                     const visibleDots = dots.slice(0, 2);
 
-                    // Fixed grid: number occupies top half, indicator row occupies a
-                    // reserved bottom strip on every cell so dots sit on a consistent
-                    // baseline across the entire month — even days with zero events.
+                    // Fixed internal grid: the date and dot rail are absolutely placed
+                    // inside every identical day button, so event/no-event, selected,
+                    // muted and double-digit dates all share the same optical baseline.
                     return (
-                      <div className="flex flex-col items-center justify-center w-full h-full leading-none">
-                        <span className="tabular-nums">{date.getDate()}</span>
+                      <div className="relative h-full w-full leading-none">
+                        <span className="absolute left-1/2 top-[12px] -translate-x-1/2 tabular-nums">
+                          {date.getDate()}
+                        </span>
                         <div
-                          className="mt-1 flex h-1.5 items-center justify-center gap-1"
+                          className="absolute left-0 right-0 top-[34px] flex h-2 items-center justify-center gap-1.5"
                           aria-label={
                             visibleDots.length
                               ? visibleDots.map((d) => d.label).join(", ")
@@ -866,7 +876,7 @@ export default function EventsPage() {
                           {visibleDots.map((d, i) => (
                             <span
                               key={i}
-                              className={`h-1.5 w-1.5 rounded-full ${d.color}`}
+                              className={`h-[5px] w-[5px] rounded-full ${d.color}`}
                             />
                           ))}
                         </div>
