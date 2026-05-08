@@ -4437,10 +4437,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="flex-1">Training Mode</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
-                          <Play className="h-4 w-4" />
-                          Setup Game
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
