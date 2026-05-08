@@ -3829,6 +3829,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return () => clearTimeout(t);
   }, [playersOnPitch, autoSubActive, autoSubPlan.length, regeneratePlanRef]);
 
+  // ── Cancel auto-subs if the plan references a player who no longer exists ──
+  // Catches any removal path (fill-in delete, roster change, etc.) so the
+  // panel can't keep showing a "next sub" for a deleted player.
+  useEffect(() => {
+    if (!autoSubActive || autoSubPlan.length === 0) return;
+    const playerIds = new Set(players.map(p => p.id));
+    const remaining = autoSubPlan.filter(s => !s.executed);
+    const orphaned = remaining.some(
+      s => !playerIds.has(s.playerIn.id) || !playerIds.has(s.playerOut.id)
+    );
+    if (orphaned) {
+      handleCancelAutoSubPlan();
+      toast({
+        title: "Auto-subs cancelled",
+        description: "A player in the plan was removed",
+      });
+    }
+  }, [players, autoSubActive, autoSubPlan, handleCancelAutoSubPlan, toast]);
+
   // Filtered on-pitch players for mini-league team selector (hides the other team)
   const filteredPlayersOnPitch = useMemo(() => {
     if (!miniLeagueTeams || selectedTeamForSettings === "both") return playersOnPitch;
