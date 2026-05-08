@@ -7047,7 +7047,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <PlayerToken
                 key={player.id}
                 player={player}
-                onDragStart={() => !readOnly && handleDragStart(player.id)}
+                onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                 onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                   if (readOnly) return;
@@ -7056,6 +7056,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     handlePlayerClick(player.id, true);
                     return;
                   }
+                  e.preventDefault();
                   const now = Date.now();
                   const last = lastTapRef.current;
                   if (last && last.playerId === player.id && now - last.time < 400) {
