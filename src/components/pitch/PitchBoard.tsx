@@ -3570,7 +3570,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
     const benchElement = document.getElementById('pitch-bench');
-    
+
     let droppedOnBench = false;
     if (benchElement) {
       const benchRect = benchElement.getBoundingClientRect();
@@ -3581,14 +3581,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         touch.clientY <= benchRect.bottom
       ) {
         droppedOnBench = true;
-        setPlayers(prev =>
-          prev.map(p =>
-            p.id === touchDragPlayer ? { ...p, position: null } : p
-          )
-        );
+        const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
+        if (benchPlayersAvail.length > 0) {
+          // Open sub picker instead of bare bench drop
+          setSelectedOnPitch(touchDragPlayer);
+          setSubPreviewOpen(true);
+        } else {
+          setPlayers(prev =>
+            prev.map(p =>
+              p.id === touchDragPlayer ? { ...p, position: null } : p
+            )
+          );
+        }
       }
     }
-    
+
+    // Detect drop on another pitch token → swap positions
+    if (!droppedOnBench) {
+      const dropEl = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+      const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+      if (targetId && targetId !== touchDragPlayer) {
+        const target = players.find(p => p.id === targetId);
+        const src = players.find(p => p.id === touchDragPlayer);
+        if (src?.position && target?.position) {
+          handlePreSwapFromDialog(touchDragPlayer, targetId);
+          setTouchDragPlayer(null);
+          setTouchOffset(null);
+          touchIdRef.current = null;
+          return;
+        }
+      }
+    }
+
     // Final position update from touchend to prevent coordinate gap with last touchmove
     if (!droppedOnBench && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -3631,6 +3656,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!draggedPlayer || !containerRef.current) return;
 
+    // Detect drop on another pitch player → swap positions
+    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+    const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
+    const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+
+    if (targetId && targetId !== draggedPlayer) {
+      const dragged = players.find(p => p.id === draggedPlayer);
+      const target = players.find(p => p.id === targetId);
+      if (dragged?.position && target?.position) {
+        handlePreSwapFromDialog(draggedPlayer, targetId);
+        setDraggedPlayer(null);
+        return;
+      }
+    }
+
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -3649,6 +3689,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     if (readOnly) return;
     if (!draggedPlayer) return;
+
+    const dragged = players.find(p => p.id === draggedPlayer);
+    const benchPlayersAvail = players.filter(p => p.position === null && !p.isInjured);
+
+    // If dragging a pitch player to the bench AND there's at least one available
+    // bench player, open the substitution picker (drag-to-sub shortcut).
+    if (dragged?.position && benchPlayersAvail.length > 0) {
+      setSelectedOnPitch(draggedPlayer);
+      setSubPreviewOpen(true);
+      setDraggedPlayer(null);
+      return;
+    }
 
     setPlayers(prev =>
       prev.map(p =>

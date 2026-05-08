@@ -202,6 +202,8 @@ const PlayerToken = memo(function PlayerToken({
 
   return (
     <div
+      data-player-id={player.id}
+      data-player-variant="pitch"
       draggable={!readOnly}
       onDragStart={readOnly ? undefined : onDragStart}
       onDragEnd={readOnly ? undefined : onDragEnd}
