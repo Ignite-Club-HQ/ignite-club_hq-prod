@@ -192,9 +192,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           )}
         </div>
 
-        {/* Event block */}
+        {/* Event block — fixed min-height so the placeholder and resolved
+            event variants don't change card size when nextEvents resolves. */}
         {nextEvent && evStyle && dateParts ? (
-          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1">
+          <div className="rounded-md bg-muted/40 px-3 py-2.5 flex flex-col gap-1 min-h-[62px]">
             <div className="flex items-center gap-2 min-w-0">
               <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${evStyle.dot}`} aria-hidden="true" />
               <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground shrink-0">{evStyle.label}</span>
@@ -210,7 +211,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
           </div>
         ) : (
-          <div className="rounded-md bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-2">
+          <div className="rounded-md bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-2 min-h-[62px]">
             <span className="text-xs text-muted-foreground italic">No upcoming events</span>
             {item.canManage ? (
               <button
