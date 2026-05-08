@@ -231,26 +231,28 @@ function watchPrependedMediaAndReanchor(
   let stopped = false;
   const stop = () => {
     stopped = true;
-    candidates.forEach((img) => {
-      img.removeEventListener("load", onImgLoad);
-      img.removeEventListener("error", onImgLoad);
+    candidates.forEach((media) => {
+      media.removeEventListener("load", onMediaLoad);
+      media.removeEventListener("loadedmetadata", onMediaLoad);
+      media.removeEventListener("loadeddata", onMediaLoad);
+      media.removeEventListener("error", onMediaLoad);
     });
   };
 
-  // Incremental anchoring: each image-load delta is added to the user's
+  // Incremental anchoring: each media-load delta is added to the user's
   // CURRENT scrollTop (not the captured `previousScrollTop`). This way, if
   // the user keeps scrolling up after the prepend, we don't yank them back
   // to where they were when the page was fetched — we just absorb the
   // newly-resolved image height under their current finger position.
   let lastScrollHeight = container.scrollHeight;
 
-  const onImgLoad = () => {
+  const onMediaLoad = () => {
     if (stopped) return;
     const nextHeight = container.scrollHeight;
     const delta = nextHeight - lastScrollHeight;
     lastScrollHeight = nextHeight;
     if (delta === 0) return;
-    // Only compensate when the image that grew sits ABOVE the user's
+    // Only compensate when the media that grew sits ABOVE the user's
     // current viewport — otherwise the layout shift didn't push their
     // visible content and we'd just create a phantom jump.
     // Cheap heuristic: any positive delta from above-the-fold images
@@ -258,9 +260,11 @@ function watchPrependedMediaAndReanchor(
     container.scrollTop = container.scrollTop + delta;
   };
 
-  candidates.forEach((img) => {
-    img.addEventListener("load", onImgLoad, { once: true });
-    img.addEventListener("error", onImgLoad, { once: true });
+  candidates.forEach((media) => {
+    media.addEventListener("load", onMediaLoad, { once: true });
+    media.addEventListener("loadedmetadata", onMediaLoad, { once: true });
+    media.addEventListener("loadeddata", onMediaLoad, { once: true });
+    media.addEventListener("error", onMediaLoad, { once: true });
   });
 
   window.setTimeout(stop, POST_RESTORE_IMAGE_WATCH_MS);
