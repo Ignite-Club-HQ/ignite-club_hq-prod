@@ -206,6 +206,8 @@ export default function AppSettingsPage() {
           </CardContent>
         </Card>
 
+        <ChatVirtualizationCard />
+
         <div className="text-center text-sm text-muted-foreground pt-4">
           <p>Current status: {isClubCreationLocked ? "Only app admins can create clubs" : "Anyone can create clubs"}</p>
         </div>
