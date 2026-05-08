@@ -3829,6 +3829,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return () => clearTimeout(t);
   }, [playersOnPitch, autoSubActive, autoSubPlan.length, regeneratePlanRef]);
 
+  // ── Cancel auto-subs if the plan references a player who no longer exists ──
+  // Catches any removal path (fill-in delete, roster change, etc.) so the
+  // panel can't keep showing a "next sub" for a deleted player.
+  useEffect(() => {
+    if (!autoSubActive || autoSubPlan.length === 0) return;
+    const playerIds = new Set(players.map(p => p.id));
+    const remaining = autoSubPlan.filter(s => !s.executed);
+    const orphaned = remaining.some(
+      s => !playerIds.has(s.playerIn.id) || !playerIds.has(s.playerOut.id)
+    );
+    if (orphaned) {
+      handleCancelAutoSubPlan();
+      toast({
+        title: "Auto-subs cancelled",
+        description: "A player in the plan was removed",
+      });
+    }
+  }, [players, autoSubActive, autoSubPlan, handleCancelAutoSubPlan, toast]);
+
   // Filtered on-pitch players for mini-league team selector (hides the other team)
   const filteredPlayersOnPitch = useMemo(() => {
     if (!miniLeagueTeams || selectedTeamForSettings === "both") return playersOnPitch;
@@ -4133,13 +4152,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     setPlayers(prev => prev.filter(p => p.id !== playerId));
 
-    // If autosubs reference this fill-in player, cancel the plan
+    // If autosubs reference this fill-in player, fully cancel the plan
+    // (clears plan, active flag, paused flag, and any pending sub dialog state).
     const referencedInPlan = autoSubPlan.some(
       sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId
     );
     if (autoSubActive && referencedInPlan) {
-      setAutoSubPlan([]);
-      setAutoSubActive(false);
+      handleCancelAutoSubPlan();
       toast({
         title: "Auto-subs cancelled",
         description: `${player.name} was in the plan — auto-subs have been cancelled`,
@@ -4150,7 +4169,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         description: `${player.name} has been removed`,
       });
     }
-  }, [readOnly, players, toast, autoSubPlan, autoSubActive, setAutoSubPlan, setAutoSubActive]);
+  }, [readOnly, players, toast, autoSubPlan, autoSubActive, handleCancelAutoSubPlan]);
 
   // Get existing jersey numbers for auto-suggest
   const existingJerseyNumbers = useMemo(() => {
