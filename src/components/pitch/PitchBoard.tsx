@@ -5022,6 +5022,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     }
                   }}
                   onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
+                  onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                   isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
