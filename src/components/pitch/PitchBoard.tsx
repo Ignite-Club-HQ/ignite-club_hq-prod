@@ -163,7 +163,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const t = setTimeout(() => {
         toast({
           title: "Quick tip",
-          description: "Tap a player, then tap another to swap, or a bench player to substitute. Drag still works.",
+          description: "Tap a player on the pitch to sub or swap them. Drag also works.",
         });
         try { localStorage.setItem(KEY, "1"); } catch {}
       }, 1200);
