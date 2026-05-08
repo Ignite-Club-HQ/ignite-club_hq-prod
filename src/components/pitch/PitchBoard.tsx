@@ -163,7 +163,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const t = setTimeout(() => {
         toast({
           title: "Quick tip",
-          description: "Tap a player, then tap another to swap, or a bench player to substitute. Drag still works.",
+          description: "Tap a player on the pitch to sub or swap them. Drag also works.",
         });
         try { localStorage.setItem(KEY, "1"); } catch {}
       }, 1200);
@@ -1394,28 +1394,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [swapPlayer2, setSwapPlayer2] = useState<string | null>(null);
   const [pitchSwapConfirmOpen, setPitchSwapConfirmOpen] = useState(false);
 
-  // Tap-to-select model (Slice A): tap a pitch player to highlight, tap a second to swap.
-  // Independent of subMode/swapMode so existing flows are unaffected.
-  const [tapSelectedPlayerId, setTapSelectedPlayerId] = useState<string | null>(null);
-  const tapSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearTapSelection = useCallback(() => {
-    if (tapSelectionTimerRef.current) {
-      clearTimeout(tapSelectionTimerRef.current);
-      tapSelectionTimerRef.current = null;
-    }
-    setTapSelectedPlayerId(null);
-  }, []);
-  const armTapSelection = useCallback((playerId: string) => {
-    if (tapSelectionTimerRef.current) clearTimeout(tapSelectionTimerRef.current);
-    setTapSelectedPlayerId(playerId);
-    tapSelectionTimerRef.current = setTimeout(() => {
-      setTapSelectedPlayerId(null);
-      tapSelectionTimerRef.current = null;
-    }, 5000);
-  }, []);
-  useEffect(() => () => {
-    if (tapSelectionTimerRef.current) clearTimeout(tapSelectionTimerRef.current);
-  }, []);
+
 
   // Swap-based substitution state (for sequencing: swap dialog first, then sub dialog)
   const [pendingSwapBasedSub, setPendingSwapBasedSub] = useState<{
@@ -2900,52 +2879,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Slice A: tap-to-select gesture model (additive — only outside subMode/swapMode).
-      // Tap a pitch player to highlight; tap a second pitch player to swap; tap bench
-      // player to substitute. Double-tap and drag continue to work unchanged.
+      // Option 1: a single tap on a pitch player opens the SubstitutionPreviewDialog,
+      // which shows direct subs AND swap-with-other-pitch-player options together.
+      // Two taps to a sub or swap, no Bench mode required.
       if (isOnPitch) {
-        if (tapSelectedPlayerId === playerId) {
-          // Tapping the same player deselects.
-          clearTapSelection();
-          return;
-        }
-        if (!tapSelectedPlayerId) {
-          armTapSelection(playerId);
-          return;
-        }
-        // Second pitch tap → use existing swap confirm path.
-        const firstId = tapSelectedPlayerId;
-        const first = players.find(p => p.id === firstId);
-        const second = players.find(p => p.id === playerId);
-        const isCrossTeam = miniLeagueTeams && first?.teamSide && second?.teamSide && first.teamSide !== second.teamSide;
-        if (isCrossTeam) {
-          toast({
-            title: "Cannot swap",
-            description: "You can only swap players on the same team.",
-            variant: "destructive",
-          });
-          clearTapSelection();
-          return;
-        }
-        clearTapSelection();
-        setSwapPlayer1(firstId);
-        setSwapPlayer2(playerId);
-        setPitchSwapConfirmOpen(true);
+        setSelectedOnPitch(playerId);
+        setSubPreviewOpen(true);
         return;
       }
-      // Bench tap while a pitch player is selected → reuse the manual sub flow.
-      if (!isOnPitch && tapSelectedPlayerId) {
-        const benchPlayer = players.find(p => p.id === playerId);
-        if (benchPlayer?.isInjured) {
-          toast({ title: "Player is injured", description: "Choose a different bench player.", variant: "destructive" });
-          return;
-        }
-        const pitchPlayerId = tapSelectedPlayerId;
-        clearTapSelection();
-        setPendingManualSub({ pitchPlayerId, benchPlayerId: playerId });
-        setManualSubConfirmOpen(true);
-        return;
-      }
+      // Bench tap while a pitch player is in the preview dialog: handled inside the dialog.
+      // Otherwise (no pitch player selected) — preserve existing bench tap behavior below.
       return;
     }
 
@@ -5086,7 +5029,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
                   onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id)) || (!subMode && !swapMode && tapSelectedPlayerId === player.id)}
+                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                   isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
                   isInvalidTarget={swapMode && swapPlayer1 !== null && swapPlayer1 !== player.id && !getValidSwapPlayerIds.has(player.id)}
                   isMovable={movablePitchPlayerIds.has(player.id)}
@@ -5588,11 +5531,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                  : !readOnly && !subMode && !swapMode
                                     ? () => {
                                         if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                        // Slice A: if a pitch player is tap-selected, route bench tap into the sub flow.
-                                        if (tapSelectedPlayerId) {
-                                          handlePlayerClick(player.id, false);
-                                          return;
-                                        }
                                         const now = Date.now();
                                         const last = lastTapRef.current;
                                         if (last && last.playerId === player.id && now - last.time < 400) {
@@ -6761,28 +6699,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                              !readOnly && subMode && !player.isInjured 
                                ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
                                : !readOnly && !subMode && !swapMode
-                                  ? () => {
-                                      if (touchHandledRef.current) { touchHandledRef.current = false; return; }
-                                      // Slice A: if a pitch player is tap-selected, route bench tap into the sub flow.
-                                      if (tapSelectedPlayerId) {
-                                        handlePlayerClick(player.id, false);
-                                        return;
-                                      }
-                                      const now = Date.now();
-                                      const last = lastTapRef.current;
-                                      if (last && last.playerId === player.id && now - last.time < 400) {
-                                        lastTapRef.current = null;
-                                        setBenchInjuryTarget(player.id);
-                                        setBenchInjuryConfirmOpen(true);
-                                      } else {
-                                        lastTapRef.current = { playerId: player.id, time: now };
-                                        // Single tap during active game: open BenchToSubDialog for quick "slot in"
-                                        if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
-                                          setBenchToSubPlayer(player.id);
-                                          setBenchToSubOpen(true);
-                                        }
-                                      }
-                                    }
+                                   ? () => {
+                                       if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                       const now = Date.now();
+                                       const last = lastTapRef.current;
+                                       if (last && last.playerId === player.id && now - last.time < 400) {
+                                         lastTapRef.current = null;
+                                         setBenchInjuryTarget(player.id);
+                                         setBenchInjuryConfirmOpen(true);
+                                       } else {
+                                         lastTapRef.current = { playerId: player.id, time: now };
+                                         // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                         if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                           setBenchToSubPlayer(player.id);
+                                           setBenchToSubOpen(true);
+                                         }
+                                       }
+                                     }
                                  : undefined
                            }
                             onInjuryToggle={undefined}
@@ -7046,7 +6979,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
                 onDoubleClick={!readOnly ? () => { setSelectedOnPitch(player.id); setSubPreviewOpen(true); } : undefined}
                 isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id)) || (!subMode && !swapMode && tapSelectedPlayerId === player.id)}
+                isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                 isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
                 isInvalidTarget={swapMode && swapPlayer1 !== null && swapPlayer1 !== player.id && !getValidSwapPlayerIds.has(player.id)}
                 isMovable={movablePitchPlayerIds.has(player.id)}
