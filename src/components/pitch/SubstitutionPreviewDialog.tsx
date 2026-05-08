@@ -91,29 +91,8 @@ export default function SubstitutionPreviewDialog({
         type: "direct",
         description: `${benchPlayer.name} takes ${requiredPos} position`,
       });
-    } else {
-      // Check if position swap enables this bench player
-      const otherPitchPlayers = filteredPitchPlayers.filter(p => p.id !== pitchPlayer.id);
-      
-      otherPitchPlayers.forEach(swapPlayer => {
-        const swapPlayerCanCoverRequired = canPlayPosition(swapPlayer, requiredPos);
-        const benchCanPlaySwapPosition = swapPlayer.currentPitchPosition && 
-          canPlayPosition(benchPlayer, swapPlayer.currentPitchPosition);
-        
-        if (
-          swapPlayer.currentPitchPosition !== requiredPos &&
-          swapPlayerCanCoverRequired &&
-          benchCanPlaySwapPosition
-        ) {
-          substitutionOptions.push({
-            benchPlayer,
-            type: "swap",
-            swapPlayer,
-            description: `${swapPlayer.name} moves to ${requiredPos}, ${benchPlayer.name} takes ${swapPlayer.currentPitchPosition}`,
-          });
-        }
-      });
     }
+    // Note: swap-with-pitch-player options intentionally omitted — tap = sub, drag = swap.
   });
 
   const directOptions = substitutionOptions.filter(o => o.type === "direct");
