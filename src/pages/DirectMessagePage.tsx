@@ -17,6 +17,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
