@@ -1272,7 +1272,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
     },
     onError: (error) => {
       toast({ 
