@@ -3539,6 +3539,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return clampPitchPosition(x, y);
   }, [clampPitchPosition]);
 
+  const getClientPointFromPitchPosition = useCallback((position: { x: number; y: number }) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: rect.left + (position.x / 100) * rect.width,
+      y: rect.top + (position.y / 100) * rect.height,
+    };
+  }, []);
+
   const getPitchPlayerAtPoint = useCallback((clientX: number, clientY: number, excludedPlayerId?: string) => {
     const elements = typeof document.elementsFromPoint === "function"
       ? document.elementsFromPoint(clientX, clientY)
