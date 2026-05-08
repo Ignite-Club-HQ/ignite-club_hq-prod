@@ -6,6 +6,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -1794,59 +1795,59 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-chat-scroll-lock="true"
-            ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', opacity: isPinned ? 1 : 0, transition: 'opacity 120ms ease-out', pointerEvents: isPinned ? 'auto' : 'none', touchAction: 'pan-y' }}
-          >
-            <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-            {/* Invisible trigger for infinite scroll */}
-            {hasOlderMessages && !searchQuery && (
-              <div ref={loadTriggerRef} className="h-1" />
-            )}
-            {(filteredMessages || []).map((msg, index, arr) => {
-            const isOwnMessage = msg.author_id === user?.id;
-            const messageReactions = messageReactionsMap.get(msg.id) || [];
-            const currentDate = new Date(msg.created_at);
-            const prevMessage = index > 0 ? arr[index - 1] : null;
-            const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
-            
-            return (
-              <div key={msg.id}>
-                {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                <GroupChatMessageRow
-                  msg={msg}
-                  messagesById={messagesById}
-                  isOwnMessage={isOwnMessage}
-                  isAdmin={isAdmin}
-                  highlightedMessageId={highlightedMessageId}
-                  messageReactions={messageReactions}
-                  userId={user?.id}
-                  getProfile={getProfile}
-                  readFrontier={readFrontier}
-                  readCounts={readCounts}
-                  handleReply={handleReply}
-                  handleEdit={handleEdit}
-                  deleteMessageMutation={deleteMessageMutation}
-                  toggleReactionMutation={toggleReactionMutation}
-                  groupId={groupId || ""}
-                  searchQuery={searchQuery}
-                  isPinned={pinnedMessageIds.has(msg.id)}
-                  pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
-                  onPin={pinMessage}
-                  onUnpin={unpinMessage}
-                  canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
-                  isPublishingToGallery={galleryPublishingIds.has(msg.id)}
-                  isPublishedToGallery={galleryPublishedIds.has(msg.id)}
-                  onPublishToGallery={handlePublishToGallery}
-                />
-              </div>
-            );
-          })}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            renderRow={(msg, index, arr) => {
+              const isOwnMessage = msg.author_id === user?.id;
+              const messageReactions = messageReactionsMap.get(msg.id) || [];
+              const currentDate = new Date(msg.created_at);
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <GroupChatMessageRow
+                    msg={msg}
+                    messagesById={messagesById}
+                    isOwnMessage={isOwnMessage}
+                    isAdmin={isAdmin}
+                    highlightedMessageId={highlightedMessageId}
+                    messageReactions={messageReactions}
+                    userId={user?.id}
+                    getProfile={getProfile}
+                    readFrontier={readFrontier}
+                    readCounts={readCounts}
+                    handleReply={handleReply}
+                    handleEdit={handleEdit}
+                    deleteMessageMutation={deleteMessageMutation}
+                    toggleReactionMutation={toggleReactionMutation}
+                    groupId={groupId || ""}
+                    searchQuery={searchQuery}
+                    isPinned={pinnedMessageIds.has(msg.id)}
+                    pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                    onPin={pinMessage}
+                    onUnpin={unpinMessage}
+                    canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
+                    isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                    isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                    onPublishToGallery={handlePublishToGallery}
+                  />
+                </>
+              );
+            }}
+          />
         )}
       </div>
 
