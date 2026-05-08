@@ -44,7 +44,17 @@ export function useInitialChatBottomPin({
   // away from the bottom. Generous to avoid tripping on layout/content jumps
   // when fresh server data appends new messages after the cached render.
   const USER_SCROLL_AWAY_THRESHOLD_PX = 400;
-  const POST_PIN_TRUST_WINDOW_MS = 3500;
+  // Short trust window: only swallow scroll events from the pin sequence's
+  // own programmatic settle. After this, ANY upward movement is treated as
+  // user intent and disables auto-snap. Previously 3500ms — long enough
+  // that a user who scrolled up immediately after opening a thread would
+  // get yanked back down by delayed snaps / ResizeObserver / image-load
+  // re-anchors. That was the "I scroll up and it scrolls back down" bug.
+  const POST_PIN_TRUST_WINDOW_MS = 600;
+  // Hard upward-movement override: even inside the trust window, a real
+  // user-initiated upward drag of more than this many pixels disables
+  // auto-snap immediately. Touch flicks easily exceed this.
+  const USER_INTENT_UPWARD_PX = 60;
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
