@@ -3650,14 +3650,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // Detect drop on another pitch token → swap positions
     if (!droppedOnBench) {
-      const draggedEl = containerRef.current?.querySelector(`[data-player-variant="pitch"][data-player-id="${touchDragPlayer}"]`) as HTMLElement | null;
-      const prevPE = draggedEl?.style.pointerEvents;
-      const prevVis = draggedEl?.style.visibility;
-      if (draggedEl) { draggedEl.style.pointerEvents = "none"; draggedEl.style.visibility = "hidden"; }
-      const dropEl = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (draggedEl) { draggedEl.style.pointerEvents = prevPE || ""; draggedEl.style.visibility = prevVis || ""; }
-      const targetTokenEl = (dropEl as HTMLElement | null)?.closest('[data-player-variant="pitch"][data-player-id]') as HTMLElement | null;
-      const targetId = targetTokenEl?.getAttribute('data-player-id') || null;
+      const targetId = getPitchPlayerAtPoint(touch.clientX, touch.clientY, touchDragPlayer);
       if (targetId && targetId !== touchDragPlayer) {
         const target = players.find(p => p.id === targetId);
         const src = players.find(p => p.id === touchDragPlayer);
