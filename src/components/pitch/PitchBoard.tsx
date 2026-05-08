@@ -2900,10 +2900,52 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Double-tap on pitch players is now handled by the dedicated `onDoubleClick`
-      // handler on PlayerToken (which opens the substitution picker). We intentionally
-      // do NOT detect a double-tap here — previously this opened the injury action
-      // menu and would fire after the user cancelled the substitution dialog.
+      // Slice A: tap-to-select gesture model (additive — only outside subMode/swapMode).
+      // Tap a pitch player to highlight; tap a second pitch player to swap; tap bench
+      // player to substitute. Double-tap and drag continue to work unchanged.
+      if (isOnPitch) {
+        if (tapSelectedPlayerId === playerId) {
+          // Tapping the same player deselects.
+          clearTapSelection();
+          return;
+        }
+        if (!tapSelectedPlayerId) {
+          armTapSelection(playerId);
+          return;
+        }
+        // Second pitch tap → use existing swap confirm path.
+        const firstId = tapSelectedPlayerId;
+        const first = players.find(p => p.id === firstId);
+        const second = players.find(p => p.id === playerId);
+        const isCrossTeam = miniLeagueTeams && first?.teamSide && second?.teamSide && first.teamSide !== second.teamSide;
+        if (isCrossTeam) {
+          toast({
+            title: "Cannot swap",
+            description: "You can only swap players on the same team.",
+            variant: "destructive",
+          });
+          clearTapSelection();
+          return;
+        }
+        clearTapSelection();
+        setSwapPlayer1(firstId);
+        setSwapPlayer2(playerId);
+        setPitchSwapConfirmOpen(true);
+        return;
+      }
+      // Bench tap while a pitch player is selected → reuse the manual sub flow.
+      if (!isOnPitch && tapSelectedPlayerId) {
+        const benchPlayer = players.find(p => p.id === playerId);
+        if (benchPlayer?.isInjured) {
+          toast({ title: "Player is injured", description: "Choose a different bench player.", variant: "destructive" });
+          return;
+        }
+        const pitchPlayerId = tapSelectedPlayerId;
+        clearTapSelection();
+        setPendingManualSub({ pitchPlayerId, benchPlayerId: playerId });
+        setManualSubConfirmOpen(true);
+        return;
+      }
       return;
     }
 
