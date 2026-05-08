@@ -88,6 +88,22 @@ export function useChatOlderMessagesAnchor({
     return () => container.removeEventListener("scroll", onScroll);
   }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
 
+  // If a fetch finishes while the user is still pinned near the top sentinel,
+  // immediately fetch the next page. This gives WhatsApp-style continuous
+  // history loading and prevents the list from stopping until the user nudges
+  // the scroll position again.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!enabled || !container || !hasOlderMessages || isLoadingOlder) return;
+    if (document.hidden || lastScrollAtRef.current === 0) return;
+    const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
+    if (distanceFromBottom < 200) return;
+    if (container.scrollTop <= PREFETCH_ROOT_MARGIN_PX) {
+      const frame = requestAnimationFrame(triggerOlder);
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
+
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
   useEffect(() => {
