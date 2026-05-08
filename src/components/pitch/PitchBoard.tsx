@@ -2724,28 +2724,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
   // Handle pre-swap from substitution preview dialog
   // This swaps the selected pitch player with another pitch player who can cover their position
-  const handlePreSwapFromDialog = useCallback((pitchPlayerId: string, swapPlayerId: string) => {
-    console.log('handlePreSwapFromDialog called!', { pitchPlayerId, swapPlayerId });
-    
+  const handlePreSwapFromDialog = useCallback((pitchPlayerId: string, swapPlayerId: string, opts?: { reopenSubDialog?: boolean }) => {
+    const reopenSubDialog = opts?.reopenSubDialog ?? true;
     const pitchPlayer = players.find(p => p.id === pitchPlayerId);
     const swapPlayer = players.find(p => p.id === swapPlayerId);
-    
-    console.log('Found players:', { pitchPlayer: pitchPlayer?.name, swapPlayer: swapPlayer?.name });
-    
-    if (!pitchPlayer?.position || !swapPlayer?.position) {
-      console.log('Missing position data, returning early');
-      return;
-    }
-    
+
+    if (!pitchPlayer?.position || !swapPlayer?.position) return;
+
     const pos1 = { ...pitchPlayer.position };
     const pos2 = { ...swapPlayer.position };
     const pitchPos1 = pitchPlayer.currentPitchPosition;
     const pitchPos2 = swapPlayer.currentPitchPosition;
-    
-    // Push to undo history before making changes
+
     pushToUndoHistory(`Swap: ${pitchPlayer.name} ↔ ${swapPlayer.name}`, playersRef.current);
-    
-    // Swap their positions
+
     setPlayers(prev => prev.map(p => {
       if (p.id === pitchPlayerId) {
         return { ...p, position: pos2, currentPitchPosition: pitchPos2 };
@@ -2755,20 +2747,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       return p;
     }));
-    
-    toast({ 
-      title: "Positions swapped", 
-      description: `${pitchPlayer.name} ↔ ${swapPlayer.name}` 
+
+    toast({
+      title: "Positions swapped",
+      description: `${pitchPlayer.name} ↔ ${swapPlayer.name}`
     });
-    
-    // Close dialog briefly, then reopen to show updated substitution options
+
+    if (!reopenSubDialog) return;
+
+    // In-dialog flow: reopen the substitution picker with updated options.
     setSubPreviewOpen(false);
     setSelectedOnBench(null);
-    
-    // Keep the original player selected (now in swapped position)
     setSelectedOnPitch(pitchPlayerId);
-    
-    // Reopen dialog after brief delay to show new direct substitution options
     setTimeout(() => {
       setSubPreviewOpen(true);
     }, 150);
