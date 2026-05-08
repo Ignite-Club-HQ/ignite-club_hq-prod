@@ -5033,7 +5033,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <PlayerToken
                   key={player.id}
                   player={player}
-                  onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
+                  onDragStart={() => !readOnly && handleDragStart(player.id)}
                   onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                     if (readOnly) return;
