@@ -200,7 +200,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   hidePlayPause = false,
   minutesPerHalf: externalMinutesPerHalf,
   onMinutesPerHalfChange,
+  kickoffTime,
 }, ref) => {
+  const internalKickoffMs = kickoffTime ? new Date(kickoffTime).getTime() : null;
+  const kickoffMs = internalKickoffMs && !isNaN(internalKickoffMs) ? internalKickoffMs : null;
   const [internalMinutesPerHalf, setInternalMinutesPerHalf] = useState(45);
   const [currentHalf, setCurrentHalf] = useState<1 | 2>(1);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
