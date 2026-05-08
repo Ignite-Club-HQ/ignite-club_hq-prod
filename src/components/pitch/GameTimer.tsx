@@ -592,17 +592,22 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             {getDisplayTime(false)}
           </span>
         </div>
-        {!readOnly && !hidePlayPause && (
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")} 
-            onClick={toggleTimer}
-            disabled={isGameFinished}
-          >
-            {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
-          </Button>
-        )}
+        {!readOnly && !hidePlayPause && (() => {
+          const beforeKickoff = !!kickoffMs && Date.now() < kickoffMs && elapsedSeconds === 0 && currentHalf === 1 && !isRunning;
+          const minsUntil = beforeKickoff ? Math.ceil((kickoffMs! - Date.now()) / 60000) : 0;
+          return (
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")}
+              onClick={toggleTimer}
+              disabled={isGameFinished || beforeKickoff}
+              title={beforeKickoff ? `Kick-off in ~${minsUntil} min — timer auto-starts` : undefined}
+            >
+              {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
+            </Button>
+          );
+        })()}
       </div>
     );
   }
