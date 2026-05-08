@@ -620,7 +620,7 @@ function ChatMessageInner({
       reactionType: type,
       existingReaction,
     });
-  }, [addReactionMutation, clearDismissGuard, removeReactionMutation, getLatestReactions, currentUserId]);
+  }, [addReactionMutation, armDismissGuard, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const closeReactionPicker = useCallback(() => {
     clearDismissGuard();
