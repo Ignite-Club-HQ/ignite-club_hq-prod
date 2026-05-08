@@ -5005,7 +5005,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handlePlayerClick(player.id, true);
                       return;
                     }
-                    // Double-tap detection for pitch action menu
+                    // Double-tap to open substitution picker (replaces drag-to-bench)
                     const now = Date.now();
                     const last = lastTapRef.current;
                     if (last && last.playerId === player.id && now - last.time < 400) {
@@ -5014,8 +5014,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       setTouchDragPlayer(null);
                       setTouchOffset(null);
                       touchIdRef.current = null;
-                      setPitchPlayerActionTarget(player.id);
-                      setPitchPlayerActionOpen(true);
+                      setSelectedOnPitch(player.id);
+                      setSubPreviewOpen(true);
                     } else {
                       lastTapRef.current = { playerId: player.id, time: now };
                       handleTouchStart(player.id, e);
