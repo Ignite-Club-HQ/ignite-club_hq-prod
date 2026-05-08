@@ -650,7 +650,7 @@ export default function TeamChatPage() {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh

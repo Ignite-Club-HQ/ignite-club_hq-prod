@@ -589,7 +589,7 @@ export default function GroupChatPage() {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
