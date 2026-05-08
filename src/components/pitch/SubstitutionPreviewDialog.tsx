@@ -215,7 +215,7 @@ export default function SubstitutionPreviewDialog({
                 No bench players can cover{" "}
                 <span className={cn("font-bold", posColors.text)}>{specificPos}</span>.
               </p>
-              <p className="text-xs mt-1">Add players to the bench or assign positions.</p>
+              <p className="text-xs mt-1">Tip: drag a player to swap positions on the pitch.</p>
             </div>
           )}
         </div>
