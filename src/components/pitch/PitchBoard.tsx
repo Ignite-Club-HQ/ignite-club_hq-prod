@@ -1384,6 +1384,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [fillInDialogOpen, setFillInDialogOpen] = useState(false);
   const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
