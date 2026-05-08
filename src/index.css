@@ -289,4 +289,13 @@ html, body {
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  /* Disable browser scroll-anchoring on the entire chat thread. Our
+     useChatOlderMessagesAnchor / useInitialChatBottomPin hooks own every
+     scrollTop write; the browser picking its own anchor element fights
+     those writes and produces the visible "viewport jumps then settles"
+     effect during pagination, image hydration and reaction edits. */
+  overflow-anchor: none;
+}
+[data-chat-scroll-lock="true"] * {
+  overflow-anchor: none;
 }
