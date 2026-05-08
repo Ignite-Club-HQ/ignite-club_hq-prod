@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -651,18 +652,24 @@ export default function ClubChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the loader defined below.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
     // Create abort controller for timeout (25s headroom for slow networks)
     const controller = new AbortController();
@@ -741,24 +748,18 @@ export default function ClubChatPage() {
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
       })) as Message[];
 
-      // Prepend older messages to cache (preserve object shape with messages + hasOlderMessages)
-      queryClient.setQueryData(["club-messages", clubId], (old: any) => {
-        const existingMessages: Message[] = old?.messages || [];
-        return {
-          ...(old || {}),
-          messages: [...olderMessages, ...existingMessages],
-          hasOlderMessages: hasMore,
-        };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend older messages to cache + restore scroll anchor synchronously
+      // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
+      // in the same task.
+      anchoredPrepend(() => {
+        queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+          const existingMessages: Message[] = old?.messages || [];
+          return {
+            ...(old || {}),
+            messages: [...olderMessages, ...existingMessages],
+            hasOlderMessages: hasMore,
+          };
+        });
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -766,33 +767,12 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting || isLoadingOlder || !hasOlderMessages) return;
-        // Require the user to have scrolled away from the bottom before fetching
-        // older messages. Otherwise short threads (whose trigger is already in
-        // view on open) auto-fetch a page and the scroll-restore visibly jolts
-        // the chat upward right after pin completes.
-        const distanceFromBottom =
-          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-        if (distanceFromBottom < 200) return;
-        loadOlderMessages();
-      },
-      // Pre-fetch older messages BEFORE the user reaches the very top so the next
-      // page is already in the DOM, eliminating the scroll-then-wait stutter.
-      { root: scrollRoot, rootMargin: "1500px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {

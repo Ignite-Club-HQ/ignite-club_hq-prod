@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -747,18 +748,24 @@ export default function GroupChatPage() {
     localMessagesRef.current = localMessages;
   }, [localMessages]);
 
+  // Forward ref so the anchor hook can call the loader defined below.
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
+
+  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+    scrollContainerRef: scrollAreaRef,
+    loadTriggerRef,
+    hasOlderMessages,
+    isLoadingOlder,
+    enabled: infiniteScrollEnabled && !searchQuery,
+    onTrigger: () => loadOlderMessagesRef.current?.(),
+  });
+
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
     const currentMessages = localMessagesRef.current;
     if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-
-    // Preserve scroll position using container metrics only.
-    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
-    const scrollContainer = scrollAreaRef.current;
-    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
-    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
 
     // Create abort controller for timeout. 25s gives slow networks/cold queries
     // enough headroom; the previous 10s was tripping AbortError on real users.
@@ -797,34 +804,22 @@ export default function GroupChatPage() {
       const authorIds = [...new Set(reversedOlder.map((m) => m.author_id))];
 
       // PASS 1: Render messages IMMEDIATELY with no enrichment.
-      // This eliminates the perceived "scroll → wait → messages appear" stutter.
-      // Reactions, reply previews, and author profiles get filled in by PASS 2 below.
       const initialOlderMessages = reversedOlder.map((msg) => ({
         ...msg,
         author: null,
         reply_to: null,
       })) as GroupMessage[];
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
-        if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
-        return {
-          ...old,
-          messages: [...initialOlderMessages, ...old.messages],
-          // CRITICAL: preserve / update hasOlderMessages so the sync effect
-          // (which reads it back into local state) doesn't reset it to false
-          // and remove the infinite-scroll trigger after the first page.
-          hasOlderMessages: hasMore,
-        };
-      });
-
-      // Restore the previous viewport anchor inside the chat scroller only.
-      requestAnimationFrame(() => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-
-        const nextScrollHeight = container.scrollHeight;
-        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
-        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
+      anchoredPrepend(() => {
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+          if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
+          return {
+            ...old,
+            messages: [...initialOlderMessages, ...old.messages],
+            hasOlderMessages: hasMore,
+          };
+        });
       });
 
       // PASS 2: Fire-and-forget enrichment. Allow loader to release immediately
@@ -889,34 +884,12 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
 
-  // Intersection observer for infinite scroll
+  // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting || isLoadingOlder || !hasOlderMessages) return;
-        // Require the user to have scrolled away from the bottom before fetching
-        // older messages. Without this, short threads (where the trigger is
-        // already in view on open) auto-fetch a page and the scroll-restore
-        // logic visibly jolts the chat upward right after pin completes.
-        const distanceFromBottom =
-          scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-        if (distanceFromBottom < 200) return;
-        loadOlderMessages();
-      },
-      // rootMargin pre-fetches older messages BEFORE the user reaches the very top
-      // so the next page is already in the DOM by the time they keep scrolling up.
-      // This prevents the visible "scroll → wait a few seconds → messages appear" stutter.
-      { root: scrollRoot, rootMargin: "300px 0px 0px 0px", threshold: 0 }
-    );
-    
-    observer.observe(loadTriggerRef.current);
-    return () => observer.disconnect();
-  }, [loadOlderMessages, isLoadingOlder, hasOlderMessages, searchQuery, infiniteScrollEnabled]);
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
 
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
