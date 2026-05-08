@@ -1305,6 +1305,10 @@ export default function MessagesPage() {
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
 
+  // Live drafts (unsent text in any chat composer)
+  const allDrafts = useAllChatDrafts();
+  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
+
   // Build unified conversation list
   const unifiedConversations = useMemo(() => {
     const items: UnifiedConversation[] = [];
