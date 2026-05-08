@@ -5967,35 +5967,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
         {!readOnly && (
           <>
-            {/* Swap button */}
-            {playersOnPitch.length >= 2 && !subMode && (
-              <Button
-                variant={swapMode ? "outline" : "ghost"}
-                size="sm"
-                className="h-9 shrink-0 gap-1 px-2 text-xs"
-                onClick={toggleSwapMode}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                {swapMode ? "Cancel" : "Swap"}
-              </Button>
-            )}
-            {/* Sub button */}
+            {/* Bench (sub) button — Swap removed; drag-to-swap remains */}
             {!swapMode && (
               <Button
                 variant={subMode ? "secondary" : "default"}
                 size="sm"
                 className="h-9 shrink-0 gap-1 px-2 text-xs"
                 onClick={() => toggleSubMode()}
+                title="Open bench to substitute a player"
               >
                 <Users className="h-4 w-4" />
-                {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                {subMode ? "Cancel" : `Bench (${playersOnBench.length})`}
               </Button>
             )}
             {!subMode && !swapMode && !(gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-9 shrink-0 gap-1 px-2 text-xs"
+                className="h-9 shrink-0 gap-1 px-2 text-xs text-muted-foreground"
                 onClick={handleSetupGame}
               >
                 <Play className="h-4 w-4" />
