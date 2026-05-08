@@ -52,6 +52,8 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   }, 150);
 }
 
+const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
 export function scrollChatElementIntoView(container: HTMLElement | null | undefined, element: HTMLElement | null | undefined) {
   const viewport = resolveChatScrollViewport(container);
   if (!viewport || !element) return;
@@ -59,7 +61,10 @@ export function scrollChatElementIntoView(container: HTMLElement | null | undefi
   const viewportRect = viewport.getBoundingClientRect();
   const elementRect = element.getBoundingClientRect();
   const targetTop = viewport.scrollTop + elementRect.top - viewportRect.top - Math.max(24, (viewport.clientHeight - elementRect.height) / 2);
-  viewport.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+  // Android Chrome WebView: smooth scroll programmatic calls hijack any
+  // in-progress touch/inertia scroll. Use auto on Android (per project memory)
+  // and smooth elsewhere.
+  viewport.scrollTo({ top: Math.max(0, targetTop), behavior: isAndroid ? "auto" : "smooth" });
 }
 
 /**
