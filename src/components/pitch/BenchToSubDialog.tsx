@@ -7,7 +7,7 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
+import { ArrowRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import { MiniLeagueTeams, getSpecificPositionLabel } from "./types";
@@ -25,8 +25,7 @@ interface Player {
 
 interface SubOption {
   pitchPlayer: Player;
-  type: "direct" | "swap";
-  swapPlayer?: Player;
+  positionLabel: string;
 }
 
 interface BenchToSubDialogProps {
@@ -60,143 +59,74 @@ export default function BenchToSubDialog({
     return player.assignedPositions.includes(position);
   };
 
-  // Find all pitch players this bench player can replace
+  // Find pitch players this bench player can replace directly. Position-swap
+  // permutations are intentionally not listed here: they create noisy duplicate
+  // rows and are handled by drag-to-swap on the pitch before making a sub.
   const options: SubOption[] = [];
 
   filteredPitchPlayers.forEach(pitchPlayer => {
     if (!pitchPlayer.currentPitchPosition) return;
     
     const pos = pitchPlayer.currentPitchPosition;
-    const canDirectly = canPlayPosition(benchPlayer, pos);
-
-    if (canDirectly) {
-      options.push({ pitchPlayer, type: "direct" });
-    } else {
-      // Check if a swap with another pitch player enables the sub
-      filteredPitchPlayers
-        .filter(p => p.id !== pitchPlayer.id && p.currentPitchPosition)
-        .forEach(swapPlayer => {
-          const swapCanCover = canPlayPosition(swapPlayer, pos);
-          const benchCanPlaySwap = canPlayPosition(benchPlayer, swapPlayer.currentPitchPosition!);
-          
-          if (
-            swapPlayer.currentPitchPosition !== pos &&
-            swapCanCover &&
-            benchCanPlaySwap
-          ) {
-            options.push({ pitchPlayer, type: "swap", swapPlayer });
-          }
-        });
-    }
+    if (!canPlayPosition(benchPlayer, pos)) return;
+    options.push({
+      pitchPlayer,
+      positionLabel: getSpecificPositionLabel(pitchPlayer.position?.x, pos),
+    });
   });
 
-  const directOptions = options.filter(o => o.type === "direct");
-  const swapOptions = options.filter(o => o.type === "swap");
-  const hasNoOptions = directOptions.length === 0 && swapOptions.length === 0;
+  const hasNoOptions = options.length === 0;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Bring On {benchPlayer.name}</ResponsiveDialogTitle>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[82vh] overflow-hidden flex flex-col p-0">
+        <ResponsiveDialogHeader className="px-5 pt-5 pb-3 border-b border-border text-left">
+          <ResponsiveDialogTitle>Choose player off</ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Select a player to come <span className="font-medium text-foreground">off</span> the pitch
+            <span className="font-medium text-foreground">{benchPlayer.name}</span> will come onto the pitch.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 py-2">
-          {directOptions.length > 0 && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2">
+          {options.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Direct Substitutions
-              </p>
-              {directOptions.map((option, idx) => {
+              {options.map((option) => {
                 const pos = option.pitchPlayer.currentPitchPosition!;
                 const posColors = POSITION_COLORS[pos];
-                const specificPos = getSpecificPositionLabel(option.pitchPlayer.position?.x, pos);
                 return (
-                  <Button
-                    key={`direct-${idx}`}
-                    variant="outline"
-                    className="w-full justify-start h-auto p-3 hover:bg-muted/50"
+                  <button
+                    key={option.pitchPlayer.id}
+                    type="button"
+                    className="w-full rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => onSelectOption(option.pitchPlayer.id)}
                   >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
-                        "bg-destructive/20 text-destructive border border-destructive/30"
-                      )}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-sm font-bold text-destructive">
                         {option.pitchPlayer.number || option.pitchPlayer.name.slice(0, 2).toUpperCase()}
                       </div>
-                      <div className="flex-1 min-w-0 text-left">
-                        <p className="font-medium truncate">{option.pitchPlayer.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Plays <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
-                          {" → "}{benchPlayer.name} takes <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
-                        </p>
-                      </div>
-                      <Check className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
-          )}
-
-          {swapOptions.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                With Position Swap
-              </p>
-              {swapOptions.map((option, idx) => {
-                const pos = option.pitchPlayer.currentPitchPosition!;
-                const posColors = POSITION_COLORS[pos];
-                const specificPos = getSpecificPositionLabel(option.pitchPlayer.position?.x, pos);
-                const swapPos = option.swapPlayer!.currentPitchPosition!;
-                const swapPosColors = POSITION_COLORS[swapPos];
-                const specificSwapPos = getSpecificPositionLabel(option.swapPlayer!.position?.x, swapPos);
-                return (
-                  <Button
-                    key={`swap-${idx}`}
-                    variant="outline"
-                    className="w-full justify-start h-auto p-3 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10"
-                    onClick={() => onSelectOption(option.pitchPlayer.id, option.swapPlayer!.id)}
-                  >
-                    <div className="flex flex-col gap-1 w-full text-left">
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                          "bg-amber-500/20 text-amber-500 border border-amber-500/30"
-                        )}>
-                          {option.pitchPlayer.number || option.pitchPlayer.name.slice(0, 2).toUpperCase()}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{option.pitchPlayer.name}</p>
+                          <span className={cn("shrink-0 text-[10px] font-bold uppercase", posColors.text)}>
+                            {option.positionLabel}
+                          </span>
                         </div>
-                        <span className="font-medium text-sm">{option.pitchPlayer.name}</span>
-                        <span className={cn("text-xs font-bold", posColors.text)}>{specificPos}</span>
-                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs">Off</span>
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+                          <span className="shrink-0">Bench</span>
+                          <ArrowRight className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{benchPlayer.name} takes {option.positionLabel}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
-                        <ArrowLeftRight className="h-3 w-3 text-amber-500" />
-                        <span>
-                          <span className="font-medium text-foreground">{option.swapPlayer?.name}</span>
-                          {" "}
-                          <span className={cn("font-bold", swapPosColors.text)}>{specificSwapPos}</span>
-                          {" → "}
-                          <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
-                          {", "}
-                          {benchPlayer.name} takes{" "}
-                          <span className={cn("font-bold", swapPosColors.text)}>{specificSwapPos}</span>
-                        </span>
-                      </div>
+                      <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
                     </div>
-                  </Button>
+                  </button>
                 );
               })}
             </div>
           )}
 
           {hasNoOptions && (
-            <div className="text-center py-6 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground">
               <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No substitution options available.</p>
               <p className="text-xs mt-1">
@@ -206,8 +136,8 @@ export default function BenchToSubDialog({
           )}
         </div>
 
-        <ResponsiveDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-12 text-base">
+        <ResponsiveDialogFooter className="border-t border-border px-5 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-11 text-base">
             Cancel
           </Button>
         </ResponsiveDialogFooter>
