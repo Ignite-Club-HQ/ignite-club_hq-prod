@@ -66,13 +66,21 @@ export function useChatAutoScrollToLatest({
       }
     };
 
+    let resizeRaf = 0;
     const handleViewportResize = () => {
       if (!isComposerTarget(document.activeElement)) return;
-      // Always keep the outer window pinned to top
-      resetViewportScroll();
-      if (isNearBottom(scrollContainerRef.current)) {
-        snapToBottom();
-      }
+      // Coalesce the rapid Android keyboard-animation resize events into a
+      // single rAF tick so we snap at most once per frame.
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        const vp = resolveChatScrollViewport(scrollContainerRef.current);
+        if (vp && isViewportUserActive(vp)) return;
+        resetViewportScroll();
+        if (isNearBottom(scrollContainerRef.current)) {
+          snapToBottom();
+        }
+      });
     };
 
     let disposeKeyboardScrollLock: (() => void) | undefined;
