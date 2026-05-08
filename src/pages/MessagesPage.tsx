@@ -1297,10 +1297,11 @@ export default function MessagesPage() {
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
-      // Otherwise require at least one real message to show in Recents.
-      return !!conv.last_message;
+      // Surface if there's a real message OR an unsent draft for this thread.
+      const hasDraft = !!allDrafts[conv.id]?.text?.trim();
+      return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query]);
+  }, [dmConversations, hiddenDMMap, query, allDrafts]);
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
