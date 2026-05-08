@@ -70,6 +70,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
+  const isScrollingRef = useRef(false);
+  const loadOlderAfterScrollRef = useRef(false);
 
   // Virtuoso's anchored-prepend trick: keep a sliding `firstItemIndex` that
   // decreases by the count of items prepended. CRITICAL: this MUST be
@@ -109,8 +111,28 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const handleStartReached = useCallback(() => {
     if (!hasOlder || isLoadingOlder) return;
+    // Prepending older messages while the finger/momentum scroll is active is
+    // the main source of visible upward-scroll jitter: Virtuoso correctly
+    // re-anchors, but that re-measure still fights the in-progress gesture.
+    // Queue the fetch until scrolling settles so the list moves only under
+    // user input during the gesture.
+    if (isScrollingRef.current) {
+      loadOlderAfterScrollRef.current = true;
+      return;
+    }
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
+
+  const handleIsScrollingChange = useCallback(
+    (scrolling: boolean) => {
+      isScrollingRef.current = scrolling;
+      if (scrolling || !loadOlderAfterScrollRef.current) return;
+      loadOlderAfterScrollRef.current = false;
+      if (!hasOlder || isLoadingOlder) return;
+      onLoadOlder();
+    },
+    [hasOlder, isLoadingOlder, onLoadOlder],
+  );
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -166,6 +188,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
+  // Use layout height instead of getBoundingClientRect height. The default
+  // measurement can include transient transforms/paint-state changes in rich
+  // bubbles; offsetHeight stays tied to actual layout, reducing scroll-time
+  // remeasurement noise.
+  const itemSize = useCallback((el: HTMLElement) => {
+    return Math.ceil(el.offsetHeight || el.getBoundingClientRect().height);
+  }, []);
+
   const components = useMemo(
     () => ({
       Header: () =>
@@ -191,15 +221,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     <Virtuoso
       ref={virtuosoRef}
       className={className}
-      style={{ height: "100%", ...style }}
+      style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={messages}
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={Math.max(0, messages.length - 1)}
       startReached={handleStartReached}
+      isScrolling={handleIsScrollingChange}
       atBottomStateChange={handleAtBottomChange}
       followOutput={followOutput}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
+      itemSize={itemSize}
       // Estimate so off-screen rows reserve realistic space; otherwise
       // virtuoso uses tiny placeholders that grow on mount and shift the
       // scrollbar/scrollTop while the user is scrolling.
@@ -208,7 +240,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // also set `overscan` — virtuoso applies both and the interaction
       // produces visible re-anchor jumps on slow devices.
       increaseViewportBy={{ top: 1200, bottom: 600 }}
+      minOverscanItemCount={{ top: 12, bottom: 8 }}
       atBottomThreshold={120}
+      skipAnimationFrameInResizeObserver
       components={components}
     />
   );
