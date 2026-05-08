@@ -828,14 +828,14 @@ export default function EventsPage() {
                   hasEvent: eventDates,
                 }}
                 classNames={{
-                  table: "w-full border-collapse",
-                  head_row: "grid w-full grid-cols-7",
+                  table: "w-full table-fixed border-separate border-spacing-y-1",
+                  head_row: "",
                   head_cell:
-                    "flex h-8 items-center justify-center text-center text-[0.8rem] font-normal text-muted-foreground",
-                  row: "grid w-full grid-cols-7 mt-1",
-                  cell: "relative flex h-14 items-center justify-center p-0 text-center text-sm",
+                    "h-8 text-center text-[0.8rem] font-normal text-muted-foreground",
+                  row: "",
+                  cell: "h-14 p-0 text-center align-middle",
                   day:
-                    "relative mx-auto flex h-12 w-full max-w-12 min-h-0 items-start justify-center rounded-lg p-0 text-[17px] font-normal leading-none transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100",
+                    "relative mx-auto flex h-11 w-11 min-h-0 items-start justify-center rounded-lg p-0 text-[17px] font-normal leading-none transition-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 aria-selected:opacity-100",
                   // Soft selected state, light border, indicators stay prominent
                   day_selected:
                     "bg-primary/10 text-foreground font-semibold ring-1 ring-primary/25 ring-inset hover:bg-primary/15 focus:bg-primary/15",
@@ -862,11 +862,11 @@ export default function EventsPage() {
                     // muted and double-digit dates all share the same optical baseline.
                     return (
                       <div className="relative h-full w-full leading-none">
-                        <span className="absolute left-1/2 top-[12px] -translate-x-1/2 tabular-nums">
+                        <span className="absolute inset-x-0 top-[10px] text-center tabular-nums">
                           {date.getDate()}
                         </span>
                         <div
-                          className="absolute left-0 right-0 top-[34px] flex h-2 items-center justify-center gap-1.5"
+                          className="absolute inset-x-0 top-[32px] flex h-2 items-center justify-center gap-1.5"
                           aria-label={
                             visibleDots.length
                               ? visibleDots.map((d) => d.label).join(", ")
