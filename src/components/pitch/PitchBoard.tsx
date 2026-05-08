@@ -5371,13 +5371,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
           <div className="absolute inset-0 z-[68] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-            {/* Backdrop - pass through when drawing */}
+            {/* Backdrop - pass through when drawing. Forward drag events to pitch
+                so dragging bench players over the backdrop still allows drop. */}
             <div 
               className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
               onClick={drawingTool === "none" ? () => {
                 if (ignoreNextLandscapeBackdropClickRef.current) return;
                 setToolbarCollapsed(true);
               } : undefined}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDrop={handlePitchDrop}
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
@@ -6557,7 +6561,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Portrait Bottom Sheet */}
             {portraitSheetOpen && (
               <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-                <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
+                <div
+                  className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
+                  onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDrop={handlePitchDrop}
+                />
                 <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
               {/* Handle bar - draggable */}
