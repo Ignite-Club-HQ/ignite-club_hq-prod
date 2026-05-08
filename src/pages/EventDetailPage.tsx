@@ -1422,11 +1422,15 @@ export default function EventDetailPage() {
         }
       }
 
-      const { error } = await supabase
+      const { data: updatedDuty, error } = await supabase
         .from("duties")
         .update({ status: "completed" as DutyStatus, completed_at: new Date().toISOString() })
-        .eq("id", dutyId);
+        .eq("id", dutyId)
+        .eq("status", "open")
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!updatedDuty) return;
 
       // Notify team/club admins and coaches about duty completion
       if (event && duty) {
@@ -1440,17 +1444,20 @@ export default function EventDetailPage() {
         const { data: admins } = await roleQuery;
         
         if (admins && admins.length > 0) {
-          const notifications = admins
-            .filter(a => a.user_id !== user?.id)
-            .map(a => ({
-              user_id: a.user_id,
+          const recipientIds = Array.from(
+            new Set(admins.map(a => a.user_id).filter((userId): userId is string => !!userId && userId !== user?.id))
+          );
+          const message = `${memberName} completed ${duty.name} for ${event.title}`;
+          const notifications = recipientIds.map(userId => ({
+              user_id: userId,
               type: "duty_completed",
-              message: `${memberName} completed ${duty.name} for ${event.title}`,
+              message,
               related_id: id,
             }));
           
           if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
+            const { error: notificationError } = await supabase.from("notifications").insert(notifications);
+            if (notificationError && notificationError.code !== "23505") throw notificationError;
           }
         }
       }
