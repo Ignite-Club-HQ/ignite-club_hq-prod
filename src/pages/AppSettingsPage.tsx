@@ -213,3 +213,44 @@ export default function AppSettingsPage() {
     </div>
   );
 }
+
+/**
+ * Per-device toggle for the virtualised chat list. Stored in localStorage
+ * via `setChatVirtualizationEnabled` so each admin can dogfood without a
+ * deploy. Off by default; the legacy mapped list remains the safe fallback.
+ */
+function ChatVirtualizationCard() {
+  const enabled = useChatVirtualizationFlag();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-primary" />
+          Virtualised chat list (beta)
+        </CardTitle>
+        <CardDescription>
+          Renders only the chat messages near your viewport. Smoother on long threads,
+          but still being verified — toggle off if you notice anything off. Setting is
+          per-device.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Label htmlFor="chat-virtualization" className="text-base font-medium">
+              Enable on this device
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Restart any open chat after toggling.
+            </p>
+          </div>
+          <Switch
+            id="chat-virtualization"
+            checked={enabled}
+            onCheckedChange={(checked) => setChatVirtualizationEnabled(checked)}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
