@@ -269,12 +269,13 @@ export function useInitialChatBottomPin({
 
       const safeGuardSnap = () => {
         if (cancelled || userScrolledAwayRef.current) return;
-        if (userTouched) {
-          // User is interacting — only correct if they're still at the very
-          // bottom. Any non-trivial distance means they're scrolling up.
-          const m = getChatScrollMetrics(scrollContainerRef.current);
-          if (!m || m.distanceFromBottom > 8) return;
-        }
+        const m = getChatScrollMetrics(scrollContainerRef.current);
+        if (!m) return;
+        // Tight gate: only correct genuine drift from the bottom. Any
+        // non-trivial distance means the viewport is no longer pinned and
+        // a forced snap would visibly yank the user mid-scroll.
+        const allowedDrift = userTouched ? 8 : 24;
+        if (m.distanceFromBottom > allowedDrift) return;
         scrollChatToBottom(scrollContainerRef.current);
       };
 
