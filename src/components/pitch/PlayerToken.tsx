@@ -21,6 +21,7 @@ interface PlayerTokenProps {
   onDragEnd: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   onInjuryToggle?: () => void;
   onRemoveFillIn?: () => void;
   isDragging: boolean;
