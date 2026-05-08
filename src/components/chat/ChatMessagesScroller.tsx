@@ -69,6 +69,11 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     : Math.max(160, composerHeight + 48);
 
   if (useVirtualized && !searchQuery) {
+    const renderVirtualRow = (msg: TMessage, index: number, arr: TMessage[]) => (
+      <div className={`px-4 ${index === 0 ? "" : "pt-4"}`}>
+        {renderRow(msg, index, arr)}
+      </div>
+    );
     return (
       <div
         className="flex-1 min-h-0 overflow-hidden"
@@ -80,7 +85,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           hasOlder={hasOlderMessages}
           isLoadingOlder={isLoadingOlder}
           onLoadOlder={onLoadOlder}
-          renderItem={renderRow}
+          renderItem={renderVirtualRow}
           topPadding={16}
           bottomPadding={bottomPad}
         />
