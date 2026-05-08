@@ -2408,40 +2408,45 @@ export default function EventDetailPage() {
               <span>${Number(eventPrice).toFixed(2)} per person</span>
             </div>
           )}
-          {/* Pitch Board / Start Game button for game events — only available on the day of the game */}
+          {/* Pitch Board / Start Game button for game events.
+              Admins & coaches can open it for any upcoming game (not just on
+              game day) so they can pre-set the lineup and auto-sub plan
+              ahead of time. Past games (>3h after kickoff) stay hidden. */}
           {canAccessPitchBoard && teamMembers && (() => {
             const eventTime = parseISO(event.event_date);
             const now = new Date();
             const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
-            const isWithin120Min = minutesUntilKickoff <= 120;
+            const isWithin120Min = minutesUntilKickoff <= 120 && minutesUntilKickoff > 0;
             const hasStarted = minutesUntilKickoff <= 0;
             const isPastGame = hasStarted && minutesUntilKickoff < -180; // more than 3 hours ago
-            const isGameDay = isSameDay(eventTime, now);
-
-            // Pitch board can only be started/opened on the day of the game
-            if (!isGameDay) return null;
 
             // Don't show any pitch board button for past games
             if (isPastGame) return null;
 
-            return isWithin120Min ? (
-              <Button
-                variant="default"
-                size="lg"
-                className="w-full mt-2 h-14 text-lg font-bold gap-3"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-5 w-5" />
-                {hasStarted ? "Open Match" : "Start Game"}
-              </Button>
-            ) : (
+            // Live / imminent: prominent CTA
+            if (hasStarted || isWithin120Min) {
+              return (
+                <Button
+                  variant="default"
+                  size="lg"
+                  className="w-full mt-2 h-14 text-lg font-bold gap-3"
+                  onClick={() => setShowPitchBoard(true)}
+                >
+                  <Play className="h-5 w-5" />
+                  {hasStarted ? "Open Match" : "Start Game"}
+                </Button>
+              );
+            }
+
+            // Future game: pre-prep lineup & auto-subs
+            return (
               <Button
                 variant="outline"
                 className="w-full mt-2"
                 onClick={() => setShowPitchBoard(true)}
               >
                 <Play className="h-4 w-4 mr-2" />
-                Open Pitch Board
+                Prepare Lineup &amp; Auto-Subs
               </Button>
             );
           })()}
