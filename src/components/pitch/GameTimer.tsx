@@ -392,67 +392,48 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   }), [elapsedSeconds, currentHalf, minutesPerHalf, isRunning, isGameFinished, toggleTimer, resetTimer]);
 
   // Auto-start at kickoff when linked to an event.
-  // - Fires when timer is at 0:00 in the first half, not running, not finished.
-  // - If kickoff already passed, fast-forwards the clock so it reflects the
-  //   real elapsed time since kickoff (handles half boundary).
+  // - Only starts the timer AT kickoff (not fast-forwarded later).
+  // - If the app is open at kickoff, fires immediately.
+  // - If the app opens AFTER kickoff, do NOT auto-start (no fast-forward).
+  //   The coach can manually start, and the saved state from a prior
+  //   in-app auto-start will be restored normally by the load effect.
   // - Skipped if the coach manually reset the timer (manualReset flag).
   useEffect(() => {
     if (!hasInitialized || readOnly || !kickoffMs) return;
     if (isRunning || isGameFinished) return;
     if (currentHalf !== 1 || elapsedSeconds !== 0) return;
 
-    // Respect manual reset — coach explicitly cleared the clock to start later.
+    // Respect manual reset
     try {
       const saved = loadTimerState(teamId);
       if (saved?.manualReset) return;
     } catch {}
 
-    const tryStart = () => {
-      const now = Date.now();
-      const delta = now - kickoffMs;
-      // Only auto-start within 2 hours after kickoff (avoid old events triggering).
-      if (delta < 0 || delta > 2 * 60 * 60 * 1000) return;
+    const now = Date.now();
+    const delta = now - kickoffMs;
 
-      const halfDuration = minutesPerHalf * 60;
-      const elapsedSecsSinceKickoff = Math.floor(delta / 1000);
+    // Already past kickoff — do nothing. Coach must start manually.
+    if (delta > 0) return;
 
-      if (elapsedSecsSinceKickoff < halfDuration) {
-        // Still in first half
-        setCurrentHalf(1);
-        setElapsedSeconds(elapsedSecsSinceKickoff);
-        setIsRunning(true);
-      } else if (elapsedSecsSinceKickoff < halfDuration * 2) {
-        // Now in second half
-        setCurrentHalf(2);
-        setElapsedSeconds(elapsedSecsSinceKickoff - halfDuration);
-        setIsRunning(true);
-        onHalfChangeRef.current?.(2);
-      } else {
-        // Game would already be finished
-        setCurrentHalf(2);
-        setElapsedSeconds(halfDuration);
-        setIsRunning(false);
-        setIsGameFinished(true);
-        return;
-      }
+    // Schedule the auto-start exactly at kickoff (only if within 2h window).
+    const msUntilKickoff = -delta;
+    if (msUntilKickoff > 2 * 60 * 60 * 1000) return;
 
+    const t = window.setTimeout(() => {
+      // Re-check guards at fire time
+      try {
+        const saved = loadTimerState(teamId);
+        if (saved?.manualReset) return;
+      } catch {}
+      setIsRunning(true);
       toast({
         title: "Kick-off!",
-        description: elapsedSecsSinceKickoff > 30
-          ? `Match timer started automatically (synced to ${Math.floor(elapsedSecsSinceKickoff / 60)} min in).`
-          : "Match timer started automatically.",
+        description: "Match timer started automatically.",
       });
-    };
+    }, msUntilKickoff + 250);
 
-    // Fire immediately if kickoff already passed (within window).
-    tryStart();
-
-    const msUntilKickoff = kickoffMs - Date.now();
-    if (msUntilKickoff > 0 && msUntilKickoff <= 2 * 60 * 60 * 1000) {
-      const t = window.setTimeout(tryStart, msUntilKickoff + 250);
-      return () => window.clearTimeout(t);
-    }
-  }, [hasInitialized, readOnly, kickoffMs, isRunning, isGameFinished, currentHalf, elapsedSeconds, minutesPerHalf, teamId]);
+    return () => window.clearTimeout(t);
+  }, [hasInitialized, readOnly, kickoffMs, isRunning, isGameFinished, currentHalf, elapsedSeconds, teamId]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
