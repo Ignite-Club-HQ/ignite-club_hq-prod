@@ -1326,6 +1326,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [selectedOnBench, setSelectedOnBench] = useState<string | null>(null);
   const [subAnimationPlayers, setSubAnimationPlayers] = useState<{ in: string | null; out: string | null; swap: string | null }>({ in: null, out: null, swap: null });
   const subAnimationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Brief visual + haptic feedback when two pitch players swap positions via drag.
+  const [swapFlashIds, setSwapFlashIds] = useState<string[]>([]);
+  const swapFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashSwapFeedback = useCallback((idA: string, idB: string) => {
+    if (swapFlashTimerRef.current) clearTimeout(swapFlashTimerRef.current);
+    setSwapFlashIds([idA, idB]);
+    hapticImpactLight();
+    swapFlashTimerRef.current = setTimeout(() => {
+      setSwapFlashIds([]);
+      swapFlashTimerRef.current = null;
+    }, 600);
+  }, []);
 
   // Sequential chain animation helper
   const runSubAnimation = useCallback((playerOutId: string, playerInId: string, swapPlayerId?: string) => {
