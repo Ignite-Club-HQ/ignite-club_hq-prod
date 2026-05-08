@@ -1286,6 +1286,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
   const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
+  const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -3505,6 +3506,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return getPinchDist(touches);
   };
 
+  const clampPitchPosition = useCallback((x: number, y: number) => ({
+    x: Math.max(5, Math.min(95, x)),
+    y: Math.max(5, Math.min(95, y)),
+  }), []);
+
+  const capturePlayerDragOffset = useCallback((playerId: string, clientX: number, clientY: number) => {
+    if (!containerRef.current) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const player = playersRef.current.find(p => p.id === playerId);
+    if (!player?.position) {
+      playerDragOffsetRef.current = null;
+      return;
+    }
+    const rect = containerRef.current.getBoundingClientRect();
+    playerDragOffsetRef.current = {
+      x: ((clientX - rect.left) / rect.width) * 100 - player.position.x,
+      y: ((clientY - rect.top) / rect.height) * 100 - player.position.y,
+    };
+  }, []);
+
+  const getClientPitchPosition = useCallback((clientX: number, clientY: number) => {
+    if (!containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const offset = playerDragOffsetRef.current;
+    const x = ((clientX - rect.left) / rect.width) * 100 - (offset?.x ?? 0);
+    const y = ((clientY - rect.top) / rect.height) * 100 - (offset?.y ?? 0);
+    return clampPitchPosition(x, y);
+  }, [clampPitchPosition]);
+
+  const getDraggedPlayerPositionType = useCallback((player: Player, position: { x: number; y: number }) => {
+    const y = miniLeagueTeams && player.teamSide === "b" ? 100 - position.y : position.y;
+    return getPositionFromCoords(y, teamSize);
+  }, [miniLeagueTeams, teamSize]);
+
+  const updateDraggedPlayerPosition = useCallback((playerId: string, position: { x: number; y: number }) => {
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId
+        ? { ...p, position, currentPitchPosition: getDraggedPlayerPositionType(p, position) }
+        : p
+    ));
+  }, [getDraggedPlayerPositionType]);
+
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
@@ -3541,17 +3586,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
       if (!touch) return;
       e.preventDefault();
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
   };
 
@@ -3618,21 +3654,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // Final position update from touchend to prevent coordinate gap with last touchmove
     if (!droppedOnBench && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setPlayers(prev =>
-        prev.map(p =>
-          p.id === touchDragPlayer
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
   };
 
   // Wheel zoom
@@ -3644,13 +3673,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   };
 
-  const handleDragStart = (playerId: string) => {
+  const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
+    if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
     setDraggedPlayer(playerId);
   };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
   };
 
   const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3685,18 +3716,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-    setPlayers(prev => 
-      prev.map(p => 
-        p.id === draggedPlayer 
-          ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-          : p
-      )
-    );
+    const position = getClientPitchPosition(e.clientX, e.clientY);
+    if (position) updateDraggedPlayerPosition(draggedPlayer, position);
     setDraggedPlayer(null);
+    playerDragOffsetRef.current = null;
   };
 
   const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -3734,6 +3757,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (touchDragPlayer !== null) return;
     const touch = e.touches[0];
     touchIdRef.current = touch.identifier;
+    capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
     setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
     // (Bench auto-open removed — it stole pointer events and broke drag)
@@ -3756,23 +3780,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       touch.clientY >= pitchRect.top &&
       touch.clientY <= pitchRect.bottom
     ) {
-      const x = ((touch.clientX - pitchRect.left) / pitchRect.width) * 100;
-      const y = ((touch.clientY - pitchRect.top) / pitchRect.height) * 100;
-      
-      setPlayers(prev => 
-        prev.map(p => 
-          p.id === touchDragPlayer 
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
+      const position = getClientPitchPosition(touch.clientX, touch.clientY);
+      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
     }
-  }, [readOnly, touchDragPlayer]);
+  }, [readOnly, touchDragPlayer, getClientPitchPosition, updateDraggedPlayerPosition]);
 
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
     touchIdRef.current = null;
+    playerDragOffsetRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
@@ -5047,7 +5064,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <PlayerToken
                   key={player.id}
                   player={player}
-                  onDragStart={() => !readOnly && handleDragStart(player.id)}
+                  onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                   onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                     if (readOnly) return;
@@ -5056,6 +5073,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handlePlayerClick(player.id, true);
                       return;
                     }
+                    e.preventDefault();
                     // Double-tap to open substitution picker (replaces drag-to-bench)
                     const now = Date.now();
                     const last = lastTapRef.current;
@@ -7029,7 +7047,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <PlayerToken
                 key={player.id}
                 player={player}
-                onDragStart={() => !readOnly && handleDragStart(player.id)}
+                onDragStart={(e) => !readOnly && handleDragStart(player.id, e)}
                 onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                   if (readOnly) return;
@@ -7038,6 +7056,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     handlePlayerClick(player.id, true);
                     return;
                   }
+                  e.preventDefault();
                   const now = Date.now();
                   const last = lastTapRef.current;
                   if (last && last.playerId === player.id && now - last.time < 400) {
