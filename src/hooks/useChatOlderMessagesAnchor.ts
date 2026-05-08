@@ -139,13 +139,13 @@ export function useChatOlderMessagesAnchor({
               !document.hidden &&
               distance >= 200
             ) {
-              onTrigger();
+              triggerOlder();
             }
           }, IDLE_GATE_MS);
           return;
         }
 
-        onTrigger();
+        triggerOlder();
       },
       {
         root: scrollRoot,
@@ -164,7 +164,7 @@ export function useChatOlderMessagesAnchor({
     enabled,
     hasOlderMessages,
     isLoadingOlder,
-    onTrigger,
+    triggerOlder,
   ]);
 
   /**
