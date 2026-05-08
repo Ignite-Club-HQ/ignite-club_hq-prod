@@ -4132,11 +4132,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     setPlayers(prev => prev.filter(p => p.id !== playerId));
-    toast({
-      title: "Fill-in player removed",
-      description: `${player.name} has been removed`,
-    });
-  }, [readOnly, players, toast]);
+
+    // If autosubs reference this fill-in player, cancel the plan
+    const referencedInPlan = autoSubPlan.some(
+      sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId
+    );
+    if (autoSubActive && referencedInPlan) {
+      setAutoSubPlan([]);
+      setAutoSubActive(false);
+      toast({
+        title: "Auto-subs cancelled",
+        description: `${player.name} was in the plan — auto-subs have been cancelled`,
+      });
+    } else {
+      toast({
+        title: "Fill-in player removed",
+        description: `${player.name} has been removed`,
+      });
+    }
+  }, [readOnly, players, toast, autoSubPlan, autoSubActive, setAutoSubPlan, setAutoSubActive]);
 
   // Get existing jersey numbers for auto-suggest
   const existingJerseyNumbers = useMemo(() => {
