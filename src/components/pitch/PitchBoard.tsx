@@ -3595,7 +3595,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         const target = players.find(p => p.id === targetId);
         const src = players.find(p => p.id === touchDragPlayer);
         if (src?.position && target?.position) {
-          handlePreSwapFromDialog(touchDragPlayer, targetId);
+          handlePreSwapFromDialog(touchDragPlayer, targetId, { reopenSubDialog: false });
           setTouchDragPlayer(null);
           setTouchOffset(null);
           touchIdRef.current = null;
