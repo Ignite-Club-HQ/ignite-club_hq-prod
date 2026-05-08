@@ -333,7 +333,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
       return { users, clubs, teams };
     },
-    enabled: !!user && isOpen && hasProAccess === true,
+    enabled: !!user && hasProAccess === true,
+    staleTime: 2 * 60 * 1000,
   });
 
   const dmableUsers = dmData?.users || [];
