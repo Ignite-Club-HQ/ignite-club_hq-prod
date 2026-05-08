@@ -217,13 +217,12 @@ function watchPrependedMediaAndReanchor(
   // Only watch media currently above the user's viewport (the ones we
   // just prepended). Newly-decoded images below would belong to the
   // pin-to-bottom flow, not us.
-  const visibleTop = previousScrollTop;
   const candidates = Array.from(container.querySelectorAll("img, video")).filter((media) => {
     if (media instanceof HTMLImageElement && media.complete && media.naturalHeight > 0) return false;
     if (media instanceof HTMLVideoElement && media.readyState >= 1) return false;
     const rect = media.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    return rect.bottom - containerRect.top < visibleTop + 80;
+    return rect.bottom <= containerRect.top + 80;
   });
 
   if (!candidates.length) return;
