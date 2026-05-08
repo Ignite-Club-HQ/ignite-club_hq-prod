@@ -1,7 +1,8 @@
 import { RefObject, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
-import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
+import { isViewportUserActive } from "@/lib/chatScrollIntent";
 
 interface UseChatAutoScrollToLatestOptions {
   scrollContainerRef: RefObject<HTMLElement>;
