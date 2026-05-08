@@ -838,9 +838,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Get real players from team members with preferred positions from database
   // For mini-league mode, also assign team sides based on miniLeagueTeams config
-  const realPlayers = useMemo(() => members
-    .filter(m => m.role === "player")
-    .map((m, index) => {
+  const realPlayers = useMemo(() => {
+    // Dedupe members by user_id first — a person can appear multiple times in
+    // `members` if they hold more than one role on the team (e.g. player +
+    // team_admin), or if upstream joins fan out duplicate rows. Without this
+    // dedupe the lineup setup screen renders the same player multiple times.
+    const seen = new Set<string>();
+    const uniquePlayers = members.filter((m) => {
+      if (m.role !== "player") return false;
+      if (!m.user_id || seen.has(m.user_id)) return false;
+      seen.add(m.user_id);
+      return true;
+    });
+    return uniquePlayers.map((m, index) => {
       const savedPos = teamPlayerPositions?.find(p => p.user_id === m.user_id || p.child_id === m.user_id);
       // Determine team side for mini-league mode
       let teamSide: "a" | "b" | undefined;
@@ -861,7 +871,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         minutesPlayed: 0,
         teamSide,
       };
-    }), [members, teamPlayerPositions, miniLeagueTeams]);
+    });
+  }, [members, teamPlayerPositions, miniLeagueTeams]);
 
   const savedPlayers = savedState?.players || [];
   const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
