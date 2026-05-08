@@ -4460,7 +4460,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </Badge>
           )}
           {linkedEventId && (
-            <div className="min-w-0 max-w-[36vw] shrink overflow-hidden">
+            <div className="min-w-0 flex-1 max-w-md overflow-hidden">
               <LinkedEventHeader
                 eventId={linkedEventId}
                 teamId={teamId}
