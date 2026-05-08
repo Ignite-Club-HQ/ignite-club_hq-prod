@@ -507,6 +507,7 @@ export default function ClubChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
