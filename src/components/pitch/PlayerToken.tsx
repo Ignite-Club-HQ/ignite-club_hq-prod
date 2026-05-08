@@ -98,7 +98,13 @@ const PlayerToken = memo(function PlayerToken({
     return (
       <div
         draggable={!readOnly && !player.isInjured}
-        onDragStart={readOnly || player.isInjured ? undefined : onDragStart}
+        onDragStart={readOnly || player.isInjured ? undefined : (e) => {
+          try {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", player.id);
+          } catch {}
+          onDragStart();
+        }}
         onDragEnd={readOnly || player.isInjured ? undefined : onDragEnd}
         onTouchStart={readOnly ? undefined : onTouchStart}
         onClick={readOnly ? undefined : onClick}
@@ -207,7 +213,13 @@ const PlayerToken = memo(function PlayerToken({
       data-player-id={player.id}
       data-player-variant="pitch"
       draggable={!readOnly}
-      onDragStart={readOnly ? undefined : onDragStart}
+      onDragStart={readOnly ? undefined : (e) => {
+        try {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", player.id);
+        } catch {}
+        onDragStart();
+      }}
       onDragEnd={readOnly ? undefined : onDragEnd}
       onTouchStart={readOnly ? undefined : onTouchStart}
       onClick={readOnly ? undefined : onClick}
