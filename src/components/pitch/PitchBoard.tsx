@@ -57,7 +57,7 @@ import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
-import { hapticImpactMedium } from "@/lib/haptics";
+import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 
 // Import types and utils from extracted files
 import { 
