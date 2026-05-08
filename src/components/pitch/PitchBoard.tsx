@@ -57,7 +57,7 @@ import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
-import { hapticImpactMedium } from "@/lib/haptics";
+import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 
 // Import types and utils from extracted files
 import { 
@@ -1326,6 +1326,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [selectedOnBench, setSelectedOnBench] = useState<string | null>(null);
   const [subAnimationPlayers, setSubAnimationPlayers] = useState<{ in: string | null; out: string | null; swap: string | null }>({ in: null, out: null, swap: null });
   const subAnimationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Brief visual + haptic feedback when two pitch players swap positions via drag.
+  const [swapFlashIds, setSwapFlashIds] = useState<string[]>([]);
+  const swapFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashSwapFeedback = useCallback((idA: string, idB: string) => {
+    if (swapFlashTimerRef.current) clearTimeout(swapFlashTimerRef.current);
+    setSwapFlashIds([idA, idB]);
+    hapticImpactLight();
+    swapFlashTimerRef.current = setTimeout(() => {
+      setSwapFlashIds([]);
+      swapFlashTimerRef.current = null;
+    }, 600);
+  }, []);
 
   // Sequential chain animation helper
   const runSubAnimation = useCallback((playerOutId: string, playerInId: string, swapPlayerId?: string) => {
@@ -3686,12 +3698,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       return p;
     }));
-    toast({
-      title: "Positions swapped",
-      description: `${sourceName} ↔ ${targetName}`,
-    });
+    flashSwapFeedback(sourcePlayerId, targetPlayerId);
     return true;
-  }, [miniLeagueTeams, pushToUndoHistory, toast]);
+  }, [miniLeagueTeams, pushToUndoHistory, flashSwapFeedback]);
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
@@ -5263,7 +5272,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   isMovable={movablePitchPlayerIds.has(player.id)}
                   isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
                   previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                  subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
+                  subAnimation={subAnimationPlayers.in === player.id ? "in" : (subAnimationPlayers.swap === player.id || swapFlashIds.includes(player.id)) ? "swap" : null}
                   readOnly={readOnly}
                   teamColor={getPlayerTeamColor(player)}
                   isNextSub={nextSubInfo?.playerOutId === player.id}
@@ -7245,7 +7254,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 isMovable={movablePitchPlayerIds.has(player.id)}
                 isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
                 previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
+                subAnimation={subAnimationPlayers.in === player.id ? "in" : (subAnimationPlayers.swap === player.id || swapFlashIds.includes(player.id)) ? "swap" : null}
                 readOnly={readOnly}
                 teamColor={getPlayerTeamColor(player)}
                 isNextSub={nextSubInfo?.playerOutId === player.id}
