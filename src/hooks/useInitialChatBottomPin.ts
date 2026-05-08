@@ -471,7 +471,7 @@ export function useInitialChatBottomPin({
         resizeObserver = new ResizeObserver(() => {
           if (cancelled || finalizing) return;
           const vp = resolveChatScrollViewport(scrollContainerRef.current);
-          if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+          if (vp && !isViewportUserActive(vp)) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
           scheduleFinalize();
         });
 
