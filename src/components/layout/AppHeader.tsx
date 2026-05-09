@@ -629,7 +629,6 @@ export function AppHeader() {
           navigate(`/events/${relatedId}`);
           return;
         case "photo_comment":
-        case "photo_uploaded":
         case "photo_reaction": {
           const { data: photoCheck } = await supabase
             .from("photos")
@@ -640,9 +639,30 @@ export function AppHeader() {
             toast.info("This photo is no longer available.");
             return;
           }
-          // photo_comment notifications should land on the comment screen
+          // Reactions/comments target a specific photo — open the lightbox.
           const suffix = notification.type === "photo_comment" ? "&comments=1" : "";
           navigate(`/media?photo=${relatedId}${suffix}`);
+          return;
+        }
+        case "photo_uploaded": {
+          // New uploads should land on the GALLERY (filtered to the team/club),
+          // never fullscreen on a single photo.
+          const { data: photoCheck } = await supabase
+            .from("photos")
+            .select("id, team_id, club_id, deleted_at")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (!photoCheck || photoCheck.deleted_at) {
+            navigate("/media");
+            return;
+          }
+          if (photoCheck.team_id) {
+            navigate(`/media?team=${photoCheck.team_id}`);
+          } else if (photoCheck.club_id) {
+            navigate(`/media?club=${photoCheck.club_id}`);
+          } else {
+            navigate("/media");
+          }
           return;
         }
         case "comment_reaction":
