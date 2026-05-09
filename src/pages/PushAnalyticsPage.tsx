@@ -174,6 +174,33 @@ export default function PushAnalyticsPage() {
     enabled: isAdmin === true,
   });
 
+  // 24-hour push health snapshot — stuck placeholders, retry rate, missed
+  // dispatches. Backed by the get_push_notification_health() SECURITY DEFINER
+  // RPC so we can join across notifications + logs without loosening RLS.
+  const { data: health, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
+    queryKey: ["push-notification-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_push_notification_health");
+      if (error) throw error;
+      return data as {
+        window_hours: number;
+        generated_at: string;
+        total_24h: number;
+        sent_real: number;
+        failed_24h: number;
+        expired_24h: number;
+        skipped_24h: number;
+        stuck_placeholders: number;
+        pending_inflight: number;
+        legacy_retry_placeholders: number;
+        notifications_with_retries: number;
+        missed_notifications: number;
+      };
+    },
+    enabled: isAdmin === true,
+    refetchInterval: 60_000,
+  });
+
   // Update settings mutation
   const updateSettings = useMutation({
     mutationFn: async (settings: Partial<AlertSettings>) => {
