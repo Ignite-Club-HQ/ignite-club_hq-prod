@@ -163,7 +163,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const messagesLengthRef = useRef(messages.length);
-  messagesLengthRef.current = messages.length;
+  // Synchronous in-flight guard for `startReached`. The parent's
+  // `isLoadingOlder` state flips via setState, so two `startReached` events
+  // fired in the same frame on a fast upward flick both see `false` and
+  // double-fetch — the prepended page is then merged twice into the data
+  // array, producing duplicate IDs and "ghost" rows in Virtuoso.
+  const loadingOlderInFlightRef = useRef(false);
+  // Once messages.length grows, the prepend has landed — release the guard.
+  useEffect(() => {
+    if (messages.length > messagesLengthRef.current) {
+      loadingOlderInFlightRef.current = false;
+    }
+    messagesLengthRef.current = messages.length;
+  }, [messages.length]);
 
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
@@ -185,6 +197,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // baseFirstId is no longer in the data) is moved into a layout effect below
   // so StrictMode / concurrent re-renders cannot double-fire it mid-scroll
   // and snap the viewport while the user is reading history.
+  // NOTE: anchor math is computed against the raw `messages` array (not the
+  // de-duped one) because the parent's pagination merges land here first; if
+  // a duplicate ever slips in we still want the FIRST occurrence (index 0)
+  // to be the anchor, which matches `uniqueMessages[0]`.
   const baseFirstId = anchorRef.current.baseFirstId;
   const baseOffset =
     messages.length === 0
@@ -253,6 +269,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) return;
     if (!hasOlder || isLoadingOlder) return;
+    if (loadingOlderInFlightRef.current) return;
+    loadingOlderInFlightRef.current = true;
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
@@ -289,22 +307,31 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [],
   );
 
-  // O(1) id → index map so itemContent doesn't run an O(n) scan per row on
-  // every render (which on a 500-message thread is 250k comparisons per
-  // re-render and shows up as scroll jank / row flicker).
-  const indexById = useMemo(() => {
-    const m = new Map<string, number>();
-    for (let i = 0; i < messages.length; i++) m.set(messages[i].id, i);
-    return m;
+  // O(1) id → index map AND defensive de-duplication. Pagination races (two
+  // `startReached` events firing before React flushes `isLoadingOlder=true`)
+  // can land the same older page twice, producing duplicate IDs in the array.
+  // Virtuoso would then render a "ghost" duplicate row whose key collides
+  // with a sibling. Filter out any second occurrence here so the list the
+  // virtualiser sees is always strictly unique.
+  const { uniqueMessages, indexById } = useMemo(() => {
+    const map = new Map<string, number>();
+    const unique: TMessage[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      const id = messages[i].id;
+      if (map.has(id)) continue;
+      map.set(id, unique.length);
+      unique.push(messages[i]);
+    }
+    return { uniqueMessages: unique, indexById: map };
   }, [messages]);
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
       const idx = indexById.get(message.id);
       if (idx === undefined) return null;
-      return renderItem(message, idx, messages);
+      return renderItem(message, idx, uniqueMessages);
     },
-    [messages, renderItem, indexById],
+    [uniqueMessages, renderItem, indexById],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
@@ -314,16 +341,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // image rows measured. Supplying per-row estimates keeps the scroll range
   // close before mount, so stopping a fast scroll does not re-anchor visibly.
   const heightEstimates = useMemo(
-    () => messages.map((message, index) => estimateChatRowHeight(message, index, messages)),
-    [messages],
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
+    [uniqueMessages],
   );
 
-  // Use sub-pixel-accurate height. offsetHeight is integer-truncated so a
-  // 0.5px discrepancy on every measure→paint cycle re-applies paddingTop and
-  // shows up as scroll "shake" on fast flicks.
-  const itemSize = useCallback((el: HTMLElement) => {
-    return el.getBoundingClientRect().height;
-  }, []);
+  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
+  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
+  // with fractional device-pixel ratios (most Android phones) the bounding
+  // rect oscillates by ~0.5px between paints during momentum scrolling.
+  // Virtuoso re-applies paddingTop on every change, which is exactly the
+  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
 
   const components = useMemo(
     () => ({
@@ -342,7 +369,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       ref={virtuosoRef}
       className={className}
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
-      data={messages}
+      data={uniqueMessages}
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
       alignToBottom
@@ -351,7 +378,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
-      itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
       // Conservative overscan for image-heavy threads on Android. Larger
