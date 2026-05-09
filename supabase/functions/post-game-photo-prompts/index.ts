@@ -9,10 +9,12 @@ const corsHeaders = {
 const IGNITE_SUPPORT_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 /**
- * Hourly cron: scan team game/mini_league events that ended between
- * 2 and 3 hours ago and post a "Got photos from today?" prompt to the
- * team chat — but only if no photos for the event exist and no prompt
- * has been posted yet (the RPC enforces both checks).
+ * Hourly cron: scan team game / mini-league events that ended between
+ * 2 and 24 hours ago and post a "Got photos from today?" prompt to the
+ * team chat. The RPC is idempotent — it short-circuits if a prompt for
+ * the same (team, event) already exists in the last 24h or if any photos
+ * have already been uploaded for the event — so widening the scan window
+ * is safe and lets us recover from any missed/timed-out hourly run.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,20 +27,22 @@ Deno.serve(async (req) => {
 
   try {
     const now = new Date();
-    const lowerBound = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(); // 3h ago
-    const upperBound = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2h ago
+    // Eligibility: effective end timestamp must be between 24h and 2h ago.
+    // The 2h floor lets late additions / score updates settle before nudging.
+    const lowerBound = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const upperBound = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
 
-    // Find recently-ended games for teams.
-    // We use COALESCE(end_time, start_time) to estimate end if end_time is null,
-    // adding a 90-min buffer for games without an explicit end_time.
+    // Pull a generous superset by start_time, then filter by computed end below.
+    // Cap to 500 to bound a single cron's work; idempotent dedupe handles repeats.
     const { data: events, error: eventsError } = await supabase
       .from("events")
       .select("id, team_id, end_time, start_time, type, opponent, is_cancelled")
       .in("type", ["game", "mini_league"])
       .eq("is_cancelled", false)
       .not("team_id", "is", null)
-      .gte("start_time", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
-      .lte("start_time", upperBound);
+      .gte("start_time", new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString())
+      .lte("start_time", upperBound)
+      .limit(500);
 
     if (eventsError) {
       console.error("[post-game-prompts] events query failed", eventsError);
