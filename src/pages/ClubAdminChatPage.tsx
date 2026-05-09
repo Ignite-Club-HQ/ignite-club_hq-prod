@@ -508,7 +508,9 @@ export default function ClubAdminChatPage() {
     if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
-    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatch.id);
+    if (idx < 0) return;
+    requestAnimationFrame(() => virtualHandleRef.current?.scrollToIndex(idx, "center"));
   }, [filteredMessages, isSearchFetching, searchQuery]);
 
   const updateMessageMutation = useMutation({
@@ -805,7 +807,7 @@ export default function ClubAdminChatPage() {
                         hasReply={!!msg.reply_to_id}
                         onReply={() => {
                           setReplyTo(msg);
-                          setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
+                          setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
                         }}
                         onEdit={handleEdit}
                       />
