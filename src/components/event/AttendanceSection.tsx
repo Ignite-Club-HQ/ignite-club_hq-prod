@@ -114,6 +114,34 @@ export function AttendanceSection({
     return map;
   }, [eventViews]);
 
+  // Fetch the most recent bulk reminder for this event (24h cooldown window).
+  // Only admins query — non-admins never see the bulk reminder button anyway.
+  const cooldownWindowMs = 24 * 60 * 60 * 1000;
+  const { data: lastReminder, refetch: refetchLastReminder } = useQuery({
+    queryKey: ["event-reminder-log-latest", eventId],
+    queryFn: async () => {
+      const cutoff = new Date(Date.now() - cooldownWindowMs).toISOString();
+      const { data, error } = await supabase
+        .from("event_reminder_log")
+        .select("sent_at, recipients_count")
+        .eq("event_id", eventId)
+        .gte("sent_at", cutoff)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+
+  const cooldownActive = !!lastReminder?.sent_at &&
+    Date.now() - new Date(lastReminder.sent_at).getTime() < cooldownWindowMs;
+  const cooldownNextAvailableAt = lastReminder?.sent_at
+    ? new Date(new Date(lastReminder.sent_at).getTime() + cooldownWindowMs)
+    : null;
+
   // notRespondedUserIds excludes second parents whose child responded — use as source of truth
   const notRespondedSet = useMemo(() => new Set(notRespondedUserIds), [notRespondedUserIds]);
 
@@ -147,7 +175,22 @@ export function AttendanceSection({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        // 429 from edge function comes through as a non-2xx; the body is in `error.context`
+        // for some SDK versions, otherwise message is the only signal. Surface the friendly copy.
+        const ctxBody = (error as any)?.context?.body
+          || (typeof (error as any)?.message === "string" ? (error as any).message : "");
+        const isCooldown = typeof ctxBody === "string" && ctxBody.includes("cooldown");
+        if (isCooldown && cooldownNextAvailableAt) {
+          toast({
+            title: "Reminder already sent",
+            description: `Another reminder can be sent ${formatRelativeFuture(cooldownNextAvailableAt)}.`,
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
       const parts: string[] = [];
       if (data?.emailsSent > 0) parts.push(`${data.emailsSent} email${data.emailsSent === 1 ? "" : "s"}`);
       if (data?.pushSent > 0) parts.push(`${data.pushSent} push notification${data.pushSent === 1 ? "" : "s"}`);
@@ -155,6 +198,7 @@ export function AttendanceSection({
         title: "Reminder sent",
         description: parts.length ? `Sent ${parts.join(" and ")}.` : "No reminder could be delivered.",
       });
+      if (!isPerUser) refetchLastReminder();
     } catch (err: any) {
       toast({
         title: "Failed to send reminder",
