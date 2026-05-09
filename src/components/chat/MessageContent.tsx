@@ -346,7 +346,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         // visible under virtuoso, where rows mount fresh on every scroll.
         <div
           className="rounded-lg overflow-hidden"
-          style={{ width: 240, maxWidth: '100%' }}
+          // touchAction: 'pan-y' tells the browser that vertical scrolls
+          // initiated on the image should pass through to the chat scroller
+          // — without it iOS treats the tappable image as a gesture target
+          // and momentum-scrolling halts the moment the user's finger
+          // crosses an image while flicking through history.
+          style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y' }}
         >
           {/* Fixed-aspect frame so the bubble reserves its final height
               BEFORE the image decodes. Skeleton + image share the same box
