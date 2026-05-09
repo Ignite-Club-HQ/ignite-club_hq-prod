@@ -260,17 +260,28 @@ function watchPrependedMediaAndReanchor(
   // newly-resolved image height under their current finger position.
   let lastScrollHeight = container.scrollHeight;
 
-  const onMediaLoad = () => {
+  const onMediaLoad = (ev: Event) => {
     if (stopped) return;
+    const target = ev.currentTarget as HTMLElement | null;
+    // Re-check that this media is STILL above the user's current viewport.
+    // The candidate set was captured at prepend time, but the user may have
+    // since scrolled up — those images could now be inside (or below) the
+    // viewport, in which case "compensating" their decoded height would
+    // visibly yank the messages they're reading. Only absorb growth that
+    // happens strictly above what the user is currently looking at.
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      if (rect.bottom > containerRect.top + 80) {
+        // No longer above the fold — let it reflow naturally.
+        lastScrollHeight = container.scrollHeight;
+        return;
+      }
+    }
     const nextHeight = container.scrollHeight;
     const delta = nextHeight - lastScrollHeight;
     lastScrollHeight = nextHeight;
     if (delta === 0) return;
-    // Only compensate when the media that grew sits ABOVE the user's
-    // current viewport — otherwise the layout shift didn't push their
-    // visible content and we'd just create a phantom jump.
-    // Cheap heuristic: any positive delta from above-the-fold images
-    // (which is the candidate set we filtered to) needs compensation.
     container.scrollTop = container.scrollTop + delta;
   };
 
