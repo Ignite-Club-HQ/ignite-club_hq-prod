@@ -108,4 +108,3 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   activeCancel = cancel;
   return cancel;
 }
-}
