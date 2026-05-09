@@ -209,8 +209,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // Whole list replaced (e.g. reload) at the same length — re-anchor.
     firstIndexRef.current = START_INDEX - messages.length;
   }
-  lastSeenLengthRef.current = messages.length;
-  lastFirstIdRef.current = newFirstId;
+  if (sigChanged) {
+    lastSeenLengthRef.current = messages.length;
+    lastFirstIdRef.current = newFirstId;
+    lastLastIdRef.current = newLastId;
+    lastSigRef.current = currentSig;
+  }
   const firstItemIndex = firstIndexRef.current;
 
   // Belt-and-braces: when messages first populate, force a scroll-to-bottom
