@@ -4,6 +4,7 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -119,6 +120,8 @@ export default function BroadcastChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
@@ -126,7 +129,7 @@ export default function BroadcastChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -339,15 +342,17 @@ export default function BroadcastChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: "broadcast",
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -472,7 +477,7 @@ export default function BroadcastChatPage() {
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 

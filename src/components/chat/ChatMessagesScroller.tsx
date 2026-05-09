@@ -77,6 +77,16 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = next as HTMLDivElement | null;
   }, [scrollAreaRef]);
 
+  useEffect(() => {
+    if (useVirtualized && !searchQuery) return;
+    return () => {
+      const current = scrollAreaRef.current;
+      if (current?.closest?.('[data-chat-virtualized="true"]')) {
+        (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = null;
+      }
+    };
+  }, [scrollAreaRef, searchQuery, useVirtualized]);
+
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
   // we must re-pin to the latest message — otherwise the most recent
@@ -123,6 +133,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           topPadding={0}
           bottomPadding={bottomPad}
           scrollerRef={setVirtualScrollerRef}
+          initialBottomPinned={isPinned}
         />
       </div>
     );

@@ -54,6 +54,8 @@ interface Props<TMessage extends { id: string }> {
   onAtBottomChange?: (atBottom: boolean) => void;
   /** Exposes Virtuoso's real scroll element to legacy chat scroll hooks. */
   scrollerRef?: (element: HTMLElement | Window | null) => void;
+  /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
+  initialBottomPinned?: boolean;
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -85,6 +87,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     style,
     onAtBottomChange,
     scrollerRef,
+    initialBottomPinned = true,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
@@ -256,7 +259,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       initialTopMostItemIndex={Math.max(0, messages.length - 1)}
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomChange}
-      followOutput={followOutput}
+      followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
