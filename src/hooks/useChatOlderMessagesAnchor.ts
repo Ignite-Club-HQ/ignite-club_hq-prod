@@ -30,10 +30,10 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 90;
-const PREFETCH_ROOT_MARGIN_PX = 1200;
+const IDLE_GATE_MS = 260;
+const PREFETCH_ROOT_MARGIN_PX = 360;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
-const MIN_TRIGGER_INTERVAL_MS = 250;
+const MIN_TRIGGER_INTERVAL_MS = 900;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -45,6 +45,7 @@ export function useChatOlderMessagesAnchor({
 }: UseChatOlderMessagesAnchorOptions) {
   const lastScrollAtRef = useRef(0);
   const lastTriggerAtRef = useRef(0);
+  const pendingTriggerTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
     const now = performance.now();
@@ -52,6 +53,29 @@ export function useChatOlderMessagesAnchor({
     lastTriggerAtRef.current = now;
     onTrigger();
   }, [onTrigger]);
+
+  const scheduleTriggerWhenIdle = useCallback((scrollRoot: HTMLElement, trigger: HTMLElement) => {
+    if (pendingTriggerTimerRef.current !== null) return;
+
+    const check = () => {
+      pendingTriggerTimerRef.current = null;
+
+      if (document.hidden || isLoadingOlder || !hasOlderMessages) return;
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < IDLE_GATE_MS) {
+        pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS - sinceScroll + 40);
+        return;
+      }
+
+      const stillIntersecting =
+        trigger.getBoundingClientRect().top <
+        scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
+      const distance = scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+      if (stillIntersecting && distance >= 200) triggerOlder();
+    };
+
+    pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS);
+  }, [hasOlderMessages, isLoadingOlder, triggerOlder]);
 
   // Track "recently scrolled" so the IntersectionObserver below knows the
   // user has actually moved the viewport (vs. our own bottom-pin writes
@@ -114,30 +138,10 @@ export function useChatOlderMessagesAnchor({
 
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
-          // User is mid-flick — re-check very shortly so older pages begin
-          // loading while momentum is still carrying the user into history.
-          window.setTimeout(() => {
-            const stillIntersecting =
-              trigger.getBoundingClientRect().top <
-              scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
-            // Re-apply ALL guards inside the deferred path. Without these,
-            // a programmatic scrollTop set by the initial bottom-pin (which
-            // fires a real "scroll" event and stamps lastScrollAtRef) lands
-            // us in this branch on first open and then unconditionally calls
-            // onTrigger — causing the first-load older-messages fetch and
-            // the visible upward jolt the user reports after a fresh install.
-            const distance =
-              scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-            if (
-              stillIntersecting &&
-              hasOlderMessages &&
-              !isLoadingOlder &&
-              !document.hidden &&
-              distance >= 200
-            ) {
-              triggerOlder();
-            }
-          }, IDLE_GATE_MS);
+          // Fast upward flicks can keep moving for hundreds of ms after the
+          // IO sentinel intersects. Do not prepend/re-anchor during that
+          // momentum; queue one load and run it only once scrolling settles.
+          scheduleTriggerWhenIdle(scrollRoot, trigger);
           return;
         }
 
@@ -153,13 +157,20 @@ export function useChatOlderMessagesAnchor({
     );
 
     observer.observe(trigger);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (pendingTriggerTimerRef.current !== null) {
+        window.clearTimeout(pendingTriggerTimerRef.current);
+        pendingTriggerTimerRef.current = null;
+      }
+    };
   }, [
     scrollContainerRef,
     loadTriggerRef,
     enabled,
     hasOlderMessages,
     isLoadingOlder,
+    scheduleTriggerWhenIdle,
     triggerOlder,
   ]);
 
