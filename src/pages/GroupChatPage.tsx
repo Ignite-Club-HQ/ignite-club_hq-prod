@@ -242,10 +242,13 @@ export default function GroupChatPage() {
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  // Legacy DOM refs are no longer attached (Virtuoso owns scroll). Kept as
+  // null refs for any non-scroll code paths that still pass them around.
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [replyTo?.id, editingMessage?.id],
     56,
@@ -254,22 +257,20 @@ export default function GroupChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
-  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
-    if (isUserActive()) return;
-    scrollChatToBottom(scrollAreaRef.current);
-  }, [isUserActive]);
+    virtualHandleRef.current?.scrollToBottom("auto");
+  }, []);
 
   const targetMessageId = searchParams.get("message");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
@@ -285,7 +286,13 @@ export default function GroupChatPage() {
     canPinMore,
   } = usePinnedMessages("group", groupId);
   const handleJumpToMessage = (mid: string) =>
-    jumpToMessageInChat(mid, setHighlightedMessageId);
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
