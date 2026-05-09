@@ -92,12 +92,46 @@ function getMessageDay(value?: string | null) {
   return value ? new Date(value).toDateString() : "";
 }
 
+// Approx characters that fit on one line of a chat bubble at the current
+// viewport. Bubble max-width ≈ 75% of viewport, ~7.2px per char at 14px body
+// font. Memoised lazily so we don't read window on every estimate call.
+let __cachedCharsPerLine = 0;
+let __cachedViewportWidth = 0;
+function getCharsPerLine() {
+  const w = typeof window !== "undefined" ? window.innerWidth : 411;
+  if (w !== __cachedViewportWidth) {
+    __cachedViewportWidth = w;
+    // Bubble inner width ≈ (viewport - 32px outer padding) * 0.75 - 24px bubble padding.
+    const bubbleInner = Math.max(140, (w - 32) * 0.75 - 24);
+    __cachedCharsPerLine = Math.max(16, Math.floor(bubbleInner / 7.2));
+  }
+  return __cachedCharsPerLine;
+}
+
+// Per-token-type reserved heights for inline link/preview cards. Real cards
+// vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
+// paddingTop on under-estimates which reads as an upward jolt mid-scroll).
+const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
+  event: 220,
+  poll: 200,
+  board: 180,
+  vault: 96,
+  vaultfolder: 96,
+  vaultroot: 96,
+  gallery: 196,
+  url: 132, // generic https?:// or www. link preview
+};
+
 function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
   messages: TMessage[],
 ) {
-  const msg = message as TMessage & { author_name?: string | null } & EstimableChatMessage;
+  const msg = message as TMessage & {
+    author_name?: string | null;
+    edited_at?: string | null;
+    is_edited?: boolean | null;
+  } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
   let height = 16; // row wrapper top padding (pt-4)
 
@@ -121,31 +155,59 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   height += authorChars > 24 ? 44 : 22;
 
   if (hasReply) height += 38;
-  // Image bubble: ~240-260px frame + padding + spacing. Slightly over-
-  // reserving (vs the previous 224) is intentional — under-estimating made
-  // Virtuoso shrink paddingTop after image decode, which read as a sudden
-  // upward "jump" mid-scroll. Over-reserving causes the row to settle
-  // *down* by a few px on hydrate (visually invisible above the fold)
-  // instead of the viewport content shifting up.
+  // Image bubble: aspect-[4/3] frame at width=240 → 180px image + caption
+  // padding + bubble chrome. Slightly over-reserving keeps the row from
+  // shrinking after image decode.
   if (hasImage) height += 268;
 
-  if (text) {
-    const visibleText = text
-      .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/\[(event|poll|board|vault|vaultfolder|gallery):[^\]]+\]/gi, "")
-      .trim();
-    const lineCount = Math.max(1, Math.ceil((visibleText.length || text.length) / 28));
-    height += Math.min(10, lineCount) * 20 + 18;
+  // Strip mention pills and embed tokens before counting visible text length.
+  const visibleText = text
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi, "")
+    .trim();
+
+  if (visibleText) {
+    const charsPerLine = getCharsPerLine();
+    // Honour explicit newlines — they always start a new line regardless of
+    // line length.
+    const explicitLines = visibleText.split(/\n/);
+    let lineCount = 0;
+    for (const line of explicitLines) {
+      lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
+    }
+    // Cap at 12 lines (over-reserve rather than collapse on long messages).
+    height += Math.min(12, lineCount) * 20 + 18;
   } else if (!hasImage) {
     height += 42;
   }
 
-  const previewMatches = text.match(/https?:\/\/|www\.|\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):/gi)?.length ?? 0;
-  if (previewMatches) height += Math.min(2, previewMatches) * 116;
-  if (reactions) height += 28;
-  height += 22; // timestamp / read receipt row
+  // Inline preview cards. Match each token type separately so per-type
+  // reserved heights are accurate.
+  const tokenMatches = text.matchAll(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):[^\]]+\]/gi);
+  let previewHeight = 0;
+  let previewCount = 0;
+  for (const match of tokenMatches) {
+    if (previewCount >= 3) break;
+    const kind = (match[1] || "").toLowerCase();
+    previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 132;
+    previewCount += 1;
+  }
+  // Generic URL previews (only count once per message — we render at most one).
+  if (previewCount < 3 && /https?:\/\/|www\./i.test(text)) {
+    previewHeight += PREVIEW_HEIGHT_BY_TOKEN.url;
+  }
+  height += previewHeight;
 
-  return Math.max(64, Math.min(640, height));
+  // Reactions row wraps every ~4 chips on a phone-width bubble.
+  if (reactions) height += Math.ceil(reactions / 4) * 28;
+
+  // Timestamp / edited / read-receipt row. Edited adds an inline label;
+  // read avatars push the row taller when present.
+  height += 22;
+  if (msg.edited_at || msg.is_edited) height += 4;
+
+  // Allow taller rows now that long messages and stacked previews are real.
+  return Math.max(64, Math.min(960, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
