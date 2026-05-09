@@ -131,12 +131,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   renderRowRef.current = renderRow;
   const renderVirtualRow = useCallback(
     (msg: TMessage, index: number, arr: TMessage[]) => (
-      // `contain: layout paint` isolates each row's layout/paint from siblings
-      // so an image decode, reaction update, or signed-URL resolve in row N
-      // cannot trigger a sibling reflow that Virtuoso then has to chase with
-      // a paddingTop adjustment mid-scroll. This is the single biggest fix
-      // for "avatars overlap message bubbles" during fast back-scroll.
-      <div className="px-4 pt-4" style={{ contain: "layout paint" }}>
+      // `contain: layout` isolates each row's layout from siblings (so an
+      // image decode or reaction update can't reflow the whole list and force
+      // Virtuoso to chase with a paddingTop adjustment mid-scroll). We
+      // intentionally do NOT add `paint` / `strict` / `content` here — those
+      // would establish a containing block for `position: fixed` descendants,
+      // which clips the FullscreenImageViewer to a single row instead of the
+      // viewport when a chat image is tapped.
+      <div className="px-4 pt-4" style={{ contain: "layout" }}>
         {renderRowRef.current(msg, index, arr)}
       </div>
     ),
