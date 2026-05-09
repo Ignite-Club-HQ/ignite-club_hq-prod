@@ -1420,6 +1420,11 @@ export default function DirectMessagePage() {
                       hasReply={!!msg.reply_to_id}
                       onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
                       onEdit={handleEdit}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      canPin={!isIgniteSupportConversation && !msg.id.startsWith("queued-")}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={isIgniteSupportConversation ? undefined : pinMessage}
+                      onUnpin={isIgniteSupportConversation ? undefined : unpinMessage}
                     />
                   </div>
                 </>
