@@ -267,7 +267,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   const allUserIds = [...new Set(committed.map(r => r.user_id))];
 
   // Group reactions by type
-  const reactionCounts = reactions.reduce((acc, r) => {
+  const reactionCounts = committed.reduce((acc, r) => {
     if (!acc[r.reaction_type]) {
       acc[r.reaction_type] = { count: 0, reactions: [], userIds: [] };
     }
