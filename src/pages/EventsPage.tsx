@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useQuery } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw } from "lucide-react";
 import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -61,6 +61,8 @@ interface Event {
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   usePageTitle("Schedule");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -440,9 +442,9 @@ export default function EventsPage() {
       });
 
       // In calendar view we render a specific day, so showing every recurring
-      // occurrence is desirable. The 3-per-series cap is only meant for the
-      // upcoming list view (to avoid flooding with months of future trainings).
-      const finalEvents =
+      // occurrence is desirable. In list view we cap recurring SERIES to
+      // avoid flooding with months of future occurrences.
+      const finalEvents: Event[] =
         viewMode === "calendar"
           ? (filteredData as Event[])
           : (filterRecurringEvents(filteredData) as Event[]);
@@ -453,7 +455,10 @@ export default function EventsPage() {
       return finalEvents;
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 3 * 60 * 1000, // Cache for 3 minutes to reduce refetches
+    staleTime: 30 * 1000, // 30s — keep payload fresh on iOS where app stays resumed
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
     placeholderData: (prev) => prev,
   });
 
@@ -587,6 +592,28 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
+          {/* Manual refresh — forces fresh schedule fetch (helps when iOS keeps stale cache) */}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Refresh schedule"
+            disabled={isRefreshing}
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events", user?.id] }),
+                  queryClient.invalidateQueries({ queryKey: ["events"] }),
+                ]);
+                toast({ title: "Schedule refreshed" });
+              } finally {
+                setTimeout(() => setIsRefreshing(false), 600);
+              }
+            }}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+
           {/* Filter button - secondary action, only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
             <Button
