@@ -134,8 +134,22 @@ export async function resolveSignedUrl(url: string): Promise<string> {
   return directSignedUrl || url;
 }
 
+function readCachedSignedUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const cached = urlCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  // If the URL doesn't need signing, treat it as immediately resolvable so
+  // virtualised chat rows don't flash a skeleton on remount.
+  if (!extractPrivateStoragePath(url)) return url;
+  return null;
+}
+
 export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  // Synchronous cache hydration is critical for virtualised chat: if we
+  // start with `null` and resolve in an effect, every row remount during a
+  // fast back-scroll shows the skeleton for one frame before the cached
+  // signed URL re-applies. That looks like images "shaking" / flashing.
+  const [signedUrl, setSignedUrl] = useState<string | null>(() => readCachedSignedUrl(originalUrl));
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -145,10 +159,9 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       return;
     }
 
-    // Check cache first
-    const cached = urlCache.get(originalUrl);
-    if (cached && cached.expiresAt > Date.now()) {
-      setSignedUrl(cached.url);
+    const cachedNow = readCachedSignedUrl(originalUrl);
+    if (cachedNow) {
+      setSignedUrl(cachedNow);
       setIsLoading(false);
       return;
     }

@@ -75,9 +75,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const effectiveImageUrl = signedUrl || imageUrl;
 
   // Initialise from the decoded-cache so a remounted row that has already
-  // loaded this image once does NOT flash the skeleton again.
+  // loaded this image once does NOT flash the skeleton again. We check BOTH
+  // the original and the (synchronously-cached) signed URL because the image
+  // <img src> is the signed one but the original is what the parent passes.
+  const isAlreadyDecoded = (url: string | null | undefined) =>
+    !!url && decodedImageUrls.has(url);
   const [imageLoaded, setImageLoaded] = useState(
-    () => !!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl),
+    () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -86,7 +90,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   // don't blank a row that's already been seen.
   useEffect(() => {
     setImageError(false);
-    setImageLoaded(!!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl));
+    setImageLoaded(isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl));
   }, [imageUrl, effectiveImageUrl]);
 
   // Check if image is already cached/loaded (for browser-cached images)
@@ -94,8 +98,9 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
+      if (imageUrl) decodedImageUrls.add(imageUrl);
     }
-  }, [effectiveImageUrl]);
+  }, [effectiveImageUrl, imageUrl]);
   
   const parts = useMemo(() => {
     if (!text) return [];
@@ -225,7 +230,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
-  }, [effectiveImageUrl]);
+    if (imageUrl) decodedImageUrls.add(imageUrl);
+  }, [effectiveImageUrl, imageUrl]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
@@ -402,10 +408,14 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   width={240}
                   height={180}
                   decoding="async"
-                  loading="lazy"
+                  // Eager loading prevents virtuoso row remounts from
+                  // re-triggering the lazy intersection observer, which is
+                  // what causes images to "shake" / flash when scrolling
+                  // through history at speed.
+                  loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
