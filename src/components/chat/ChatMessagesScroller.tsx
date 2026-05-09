@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
-import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
@@ -8,14 +7,12 @@ import {
 /**
  * Shared scroller used by Team / Group / Club / Broadcast chat pages.
  *
- * When the virtualisation feature flag is OFF (default) it renders the
- * legacy scrollable div + mapped row list with the exact same DOM and refs
- * the existing chat hooks (`useChatOlderMessagesAnchor`,
- * `useInitialChatBottomPin`, `useChatAutoScrollToLatest`, etc.) rely on.
- *
- * When the flag is ON it swaps in the virtualised list. While in search
- * mode we always fall back to the legacy view because search uses
- * jump-to-message behaviour that relies on the full DOM being mounted.
+ * Virtualisation is unconditional: the virtualised list (`react-virtuoso`)
+ * is always used for normal viewing. The legacy mapped DOM is retained ONLY
+ * when search is active, because the existing search-result jump uses
+ * `document.getElementById('message-${id}')` which requires every match to
+ * be mounted. Once search is rewired to call the Virtuoso handle's
+ * `scrollToIndex`, the legacy branch can be removed entirely.
  */
 interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   messages: TMessage[];
@@ -45,7 +42,7 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
-  const useVirtualized = useChatVirtualizationFlag();
+  const useVirtualized = !props.searchQuery;
   const {
     messages,
     hasOlderMessages,
