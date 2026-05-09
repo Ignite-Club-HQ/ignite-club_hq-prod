@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
@@ -80,6 +80,12 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
   const { user } = useAuth();
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
+  // Stable per-row identifiers so React keys don't reuse a torn-down input's
+  // state (focus, selection, error pulse) when an earlier option is removed.
+  // Index keys would do exactly that on add/remove — the input below the
+  // deleted one would inherit the deleted one's DOM state.
+  const optionIdSeq = useRef(2);
+  const optionIds = useRef<string[]>(["opt-0", "opt-1"]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [closesAt, setClosesAt] = useState<string>("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -87,6 +93,8 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
   const reset = () => {
     setQuestion("");
     setOptions(["", ""]);
+    optionIds.current = ["opt-0", "opt-1"];
+    optionIdSeq.current = 2;
     setAllowMultiple(false);
     setClosesAt("");
     setSubmitAttempted(false);
@@ -94,11 +102,13 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
 
   const addOption = () => {
     if (options.length >= MAX_OPTIONS) return;
+    optionIds.current = [...optionIds.current, `opt-${optionIdSeq.current++}`];
     setOptions([...options, ""]);
   };
 
   const removeOption = (idx: number) => {
     if (options.length <= MIN_OPTIONS) return;
+    optionIds.current = optionIds.current.filter((_, i) => i !== idx);
     setOptions(options.filter((_, i) => i !== idx));
   };
 
@@ -219,7 +229,7 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
               const isDuplicate = showErrors && validation.duplicateOptionIndexes.has(idx);
 
               return (
-                <div key={idx} className="flex gap-2">
+                <div key={optionIds.current[idx] ?? `opt-fallback-${idx}`} className="flex gap-2">
                   <Input
                     name={`poll-option-${idx + 1}`}
                     value={option}
