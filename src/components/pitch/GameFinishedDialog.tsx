@@ -126,9 +126,30 @@ export default function GameFinishedDialog({
 
       // Also persist a soccer match score row (parity with basketball/netball boards),
       // so the score shows on the event card and in History.
+      // Use onlyIfMissing so manual overrides via MatchScoreCard are never clobbered.
       try {
         const homeScore = goals.filter((g) => !g.isOpponentGoal).length;
         const awayScore = goals.filter((g) => g.isOpponentGoal).length;
+
+        // Build per-player goal tallies. Own goals are stored as opponent
+        // goals (isOpponentGoal=true) so they're correctly excluded here.
+        const goalsByPlayer = new Map<string, { id: string; name: string; goals: number }>();
+        goals
+          .filter((g) => !g.isOpponentGoal && g.scorerId)
+          .forEach((g) => {
+            const existing = goalsByPlayer.get(g.scorerId!);
+            if (existing) {
+              existing.goals += 1;
+            } else {
+              goalsByPlayer.set(g.scorerId!, {
+                id: g.scorerId!,
+                name: g.scorerName || "Player",
+                goals: 1,
+              });
+            }
+          });
+        const scorerStats = Array.from(goalsByPlayer.values());
+
         await saveGameResult(
           {
             teamId,
@@ -139,14 +160,15 @@ export default function GameFinishedDialog({
             homeScore,
             awayScore,
             perQuarter: [],
-            players: [],
+            players: scorerStats as any,
           },
-          { silent: true }
+          { silent: true, onlyIfMissing: true }
         );
       } catch (err) {
         console.error("Failed to save soccer game result:", err);
       }
     }
+
 
     // Clear timer state — team-specific key first, then only clear active key if it matches
     if (teamId) {
