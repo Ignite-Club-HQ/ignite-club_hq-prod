@@ -238,7 +238,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     ref,
     () => ({
       scrollToBottom: (behavior = "auto") => {
-        const last = lastSeenLengthRef.current - 1;
+        const last = messagesLengthRef.current - 1;
         if (last < 0) return;
         virtuosoRef.current?.scrollToIndex({
           index: last,
