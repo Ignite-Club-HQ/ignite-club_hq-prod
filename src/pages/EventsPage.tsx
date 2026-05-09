@@ -608,13 +608,46 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
-          {/* Manual refresh — forces fresh schedule fetch (helps when iOS keeps stale cache) */}
+          {/* Manual refresh — tap = local refresh; admins can long-press to
+              broadcast a refresh to every connected member of the club. */}
           <Button
             variant="outline"
             size="icon"
-            aria-label="Refresh schedule"
+            aria-label={canBroadcast ? "Refresh schedule (hold to broadcast)" : "Refresh schedule"}
             disabled={isRefreshing}
+            onPointerDown={() => {
+              if (!canBroadcast || !broadcastTargetClubId) return;
+              longPressFiredRef.current = false;
+              longPressTimerRef.current = setTimeout(async () => {
+                longPressFiredRef.current = true;
+                const result = await sendScheduleBroadcast(
+                  broadcastTargetClubId,
+                  broadcastTargetTeamId,
+                );
+                if (result.ok) {
+                  toast({ title: "Schedule refresh sent to all members" });
+                } else {
+                  toast({ title: "Broadcast failed", description: result.error, variant: "destructive" });
+                }
+              }, 600);
+            }}
+            onPointerUp={() => {
+              if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = null;
+              }
+            }}
+            onPointerLeave={() => {
+              if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = null;
+              }
+            }}
             onClick={async () => {
+              if (longPressFiredRef.current) {
+                longPressFiredRef.current = false;
+                return;
+              }
               setIsRefreshing(true);
               try {
                 await Promise.all([
