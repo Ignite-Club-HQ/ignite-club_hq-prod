@@ -132,4 +132,51 @@ describe("jumpToMessageInVirtualizedChat", () => {
     expect(handle.scrollToIndex).not.toHaveBeenCalled();
     expect(setHighlight).not.toHaveBeenCalled();
   });
+
+  it("falls back to parentMessageId when target is not loaded but parent is", async () => {
+    const messages: Msg[] = [{ id: "a" }, { id: "parent" }, { id: "c" }];
+    const handle = makeHandle();
+    const setHighlight = vi.fn();
+
+    jumpToMessageInVirtualizedChat(
+      "reply-not-loaded",
+      () => messages,
+      () => handle as any,
+      setHighlight,
+      { maxAttempts: 20, intervalMs: 10, parentMessageId: "parent" },
+    );
+
+    // Walk past the half-way mark (10 ticks * 10ms = ~100ms) so the fallback
+    // kicks in.
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "center");
+    expect(setHighlight).toHaveBeenCalledWith("parent");
+    expect(document.getElementById).not.toHaveBeenCalled();
+  });
+
+  it("re-centres on the real target once it loads after a parent fallback", async () => {
+    const handle = makeHandle();
+    const setHighlight = vi.fn();
+    let messages: Msg[] = [{ id: "parent" }];
+
+    jumpToMessageInVirtualizedChat(
+      "reply",
+      () => messages,
+      () => handle as any,
+      setHighlight,
+      { maxAttempts: 40, intervalMs: 10, parentMessageId: "parent" },
+    );
+
+    // Trigger parent fallback first.
+    await vi.advanceTimersByTimeAsync(250);
+    expect(setHighlight).toHaveBeenCalledWith("parent");
+
+    // Now the real target arrives.
+    messages = [{ id: "parent" }, { id: "reply" }];
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(setHighlight).toHaveBeenCalledWith("reply");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "center");
+  });
 });
