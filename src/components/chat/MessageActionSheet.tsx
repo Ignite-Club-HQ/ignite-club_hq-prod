@@ -248,9 +248,9 @@ export function MessageActionSheet({
     onOpenChange(isOpen);
   };
 
-  const renderAction = (action: MessageAction, i: number) => (
+  const renderAction = (action: MessageAction) => (
     <button
-      key={i}
+      key={action.id}
       className={`w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
         action.destructive
           ? "text-destructive"
