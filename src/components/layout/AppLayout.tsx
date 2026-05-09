@@ -105,21 +105,49 @@ export function AppLayout() {
   // CRITICAL: Show loading screen FIRST before ANY routing decisions
   // This prevents any flash of wrong content during initialization
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
-  
+
   // Always wait for profile loading to complete before making routing decisions.
   // Previously we'd skip loading if cache had a valid profile, but on Android
-  // the cache can be stale/empty during session restore causing a flash of 
+  // the cache can be stale/empty during session restore causing a flash of
   // the complete-profile screen before the real profile loads.
   const isStillLoading = !initialized || loading || profileLoading;
-  
+
   if (isStillLoading || shouldWaitForTheme) {
     // Show appropriate message based on auth state
-    const loadingMessage = !initialized 
-      ? "Checking authentication..." 
-      : shouldWaitForTheme 
-        ? "Applying theme..." 
+    const loadingMessage = !initialized
+      ? "Checking authentication..."
+      : shouldWaitForTheme
+        ? "Applying theme..."
         : "Loading your profile...";
-    
+
+    // PRE-RENDER NAV CHROME: as soon as we know there is a logged-in user
+    // (session restored), render the AppHeader + BottomNav around a content
+    // placeholder so the user never sees a blank splash after login while
+    // the profile / club theme finish hydrating. AppHeader gracefully
+    // handles partial profile data — it reads via optional chaining and
+    // its queries are gated on `user?.id`. We still wait on the splash
+    // when there's no `user` yet (cold app start, no session) so we don't
+    // flash chrome to logged-out visitors.
+    if (initialized && user) {
+      return (
+        <div className={`bg-background flex flex-col overscroll-none min-h-0`} style={appViewportStyle}>
+          <SkipToContent />
+          <AppHeader />
+          <main
+            id="main-content"
+            aria-label="Main content"
+            className="flex-1 pb-28 px-4 max-w-lg mx-auto w-full flex flex-col items-center justify-center gap-3"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">{loadingMessage}</p>
+          </main>
+          <BottomNav />
+        </div>
+      );
+    }
+
       return (
         <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status" aria-live="polite">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
