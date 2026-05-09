@@ -42,7 +42,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat, jumpToMessageInVirtualizedChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
+import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
