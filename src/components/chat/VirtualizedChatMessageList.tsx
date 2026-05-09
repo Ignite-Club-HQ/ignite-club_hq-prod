@@ -280,6 +280,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         baseFirstIndex: START_INDEX - messages.length,
       };
       bottomPinReadyRef.current = false;
+      bottomPinReadyAtRef.current = 0;
       bottomPinRevisionRef.current += 1;
       debugLogAnchor("reset", {
         previousBaseFirstId: prev.baseFirstId,
