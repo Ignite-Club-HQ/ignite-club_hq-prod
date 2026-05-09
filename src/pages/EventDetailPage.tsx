@@ -1101,6 +1101,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
       // Refresh points history & rank after fire-and-forget early-RSVP bonus award.
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["points-history"] });
@@ -1171,6 +1172,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
       // Refresh points history & rank after fire-and-forget child early-RSVP bonus award.
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["points-history"] });
@@ -1219,6 +1221,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
     },
     onError: (error) => {
       toast({ 
@@ -1243,6 +1246,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
       
     },
     onError: (error) => {
@@ -1268,7 +1272,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
     },
     onError: (error) => {
       toast({ 
@@ -1308,7 +1312,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
     },
     onError: (error) => {
       toast({ 

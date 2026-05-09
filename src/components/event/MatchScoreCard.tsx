@@ -191,8 +191,10 @@ export function MatchScoreCard({
 
   const handleSave = async () => {
     if (!user) return;
-    const h = parseInt(homeScore, 10);
-    const a = parseInt(awayScore, 10);
+    // Treat empty inputs as 0 — the placeholder shows "0" so users often
+    // leave the box blank when their team didn't score.
+    const h = homeScore.trim() === "" ? 0 : parseInt(homeScore, 10);
+    const a = awayScore.trim() === "" ? 0 : parseInt(awayScore, 10);
     if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
       toast({
         title: "Invalid score",

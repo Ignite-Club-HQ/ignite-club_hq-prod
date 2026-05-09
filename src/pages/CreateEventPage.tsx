@@ -792,8 +792,20 @@ export default function CreateEventPage() {
       // Build a more helpful error message
       let errorDescription = "Failed to create event. ";
       
+      const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+
       if (error?.message?.includes("row-level security")) {
         errorDescription += "You don't have permission to create events for this club/team.";
+      } else if (
+        error?.code === "23505" ||
+        errorBlob.includes("events_unique_occurrence_idx") ||
+        errorBlob.includes("duplicate key") ||
+        errorBlob.includes("unique constraint")
+      ) {
+        errorDescription =
+          isRecurring
+            ? "Some dates in this recurring series already have a matching event (same title, type, team and date). Check your Schedule — a previous series may already cover these dates. Try a different title or adjust the date range."
+            : "An event with the same title, type, team and date already exists. Open your Schedule to find it — a recurring series you previously created may already cover this date.";
       } else if (error?.message?.includes("violates check constraint")) {
         errorDescription += "Please check that all fields have valid values.";
       } else if (error?.code === "23502") {

@@ -60,27 +60,47 @@ const truncateUrl = (url: string, maxLength = 50): string => {
   }
 };
 
+// Module-level cache of image URLs that have already decoded at least once
+// in this session. Prevents the skeleton flash when virtuoso remounts a chat
+// row whose image is already in the browser cache (the new <img> mounts with
+// React state imageLoaded=false even though the bytes are cached, causing a
+// 1-frame flicker on every scroll-back). Cache is keyed by the resolved
+// (signed) URL because that's what actually hits the network.
+const decodedImageUrls: Set<string> = (globalThis as any).__chatDecodedImages
+  ?? ((globalThis as any).__chatDecodedImages = new Set<string>());
+
 export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, showImageActions = false }: MessageContentProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-  
   // Get signed URL for private chat attachments
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(imageUrl);
   const effectiveImageUrl = signedUrl || imageUrl;
-  
-  // Reset image state when URL changes
+
+  // Initialise from the decoded-cache so a remounted row that has already
+  // loaded this image once does NOT flash the skeleton again. We check BOTH
+  // the original and the (synchronously-cached) signed URL because the image
+  // <img src> is the signed one but the original is what the parent passes.
+  const isAlreadyDecoded = (url: string | null | undefined) =>
+    !!url && decodedImageUrls.has(url);
+  const [imageLoaded, setImageLoaded] = useState(
+    () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
+  );
+  const [imageError, setImageError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Reset image state when URL changes — but honour the decoded-cache so we
+  // don't blank a row that's already been seen.
   useEffect(() => {
-    setImageLoaded(false);
     setImageError(false);
-  }, [imageUrl]);
-  
+    setImageLoaded(isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl));
+  }, [imageUrl, effectiveImageUrl]);
+
   // Check if image is already cached/loaded (for browser-cached images)
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
+      if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
+      if (imageUrl) decodedImageUrls.add(imageUrl);
     }
-  }, [effectiveImageUrl]);
+  }, [effectiveImageUrl, imageUrl]);
   
   const parts = useMemo(() => {
     if (!text) return [];
@@ -209,7 +229,9 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
-  }, []);
+    if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
+    if (imageUrl) decodedImageUrls.add(imageUrl);
+  }, [effectiveImageUrl, imageUrl]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
@@ -322,51 +344,89 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     <div className="space-y-2 min-w-0 max-w-full">
       {/* Image / video attachment */}
       {imageUrl && !imageError && (
-        <div className="rounded-lg overflow-hidden max-w-xs">
-          {(!imageLoaded || isLoadingSignedUrl) && (
-            <Skeleton className="w-48 h-32" />
-          )}
-          {!isLoadingSignedUrl && effectiveImageUrl && (
-            isVideoUrl(effectiveImageUrl) ? (
-              <div
-                className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
-                onClick={handleImageClick}
-                onTouchStart={stopMediaGesture}
-                onTouchMove={stopMediaGesture}
-                onTouchEnd={stopMediaGesture}
-                onPointerDown={stopMediaGesture}
-              >
-                <video
-                  src={effectiveImageUrl}
-                  className="w-full h-auto max-h-64 object-cover"
-                  preload="metadata"
-                  playsInline
-                  muted
-                  onLoadedData={handleImageLoad}
-                  onError={handleImageError}
-                />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="rounded-full bg-black/60 p-3">
-                    <Play className="h-6 w-6 fill-white text-white" />
+        // Explicit width (NOT just max-width) is critical: the chat bubble
+        // sizes to its intrinsic content, and both the skeleton and the
+        // <img> below are `position:absolute` so they contribute zero
+        // intrinsic width. Without `width: 240px` the wrapper collapses to
+        // 0×0 and the image bubble appears as a tiny grey blob — most
+        // visible under virtuoso, where rows mount fresh on every scroll.
+        <div
+          className="rounded-lg overflow-hidden"
+          // touchAction: 'pan-y' tells the browser that vertical scrolls
+          // initiated on the image should pass through to the chat scroller
+          // — without it iOS treats the tappable image as a gesture target
+          // and momentum-scrolling halts the moment the user's finger
+          // crosses an image while flicking through history.
+          style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y', overflowAnchor: 'none' }}
+          onTouchStart={stopMediaGesture}
+          onPointerDown={stopMediaGesture}
+        >
+          {/* Fixed-aspect frame so the bubble reserves its final height
+              BEFORE the image decodes. Skeleton + image share the same box
+              and the image fades in via opacity — no layout shift when
+              imageLoaded flips, no scrollHeight change when signed URLs
+              resolve later. This is what keeps history scroll anchored
+              while images above the viewport hydrate. */}
+          <div
+            className="relative w-full aspect-[4/3] bg-muted/40"
+            style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+          >
+            {(!imageLoaded || isLoadingSignedUrl) && (
+              <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
+            )}
+            {!isLoadingSignedUrl && effectiveImageUrl && (
+              isVideoUrl(effectiveImageUrl) ? (
+                <div
+                  className="absolute inset-0 cursor-pointer"
+                  style={{ touchAction: 'pan-y' }}
+                  onClick={handleImageClick}
+                  onTouchStart={stopMediaGesture}
+                  onTouchMove={stopMediaGesture}
+                  onTouchEnd={stopMediaGesture}
+                  onPointerDown={stopMediaGesture}
+                >
+                  <video
+                    src={effectiveImageUrl}
+                    className={`w-full h-full object-cover transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    preload="metadata"
+                    playsInline
+                    muted
+                    onLoadedData={handleImageLoad}
+                    onError={handleImageError}
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="rounded-full bg-black/60 p-3">
+                      <Play className="h-6 w-6 fill-white text-white" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <img
-                ref={imgRef}
-                src={effectiveImageUrl}
-                alt="Attachment"
-                className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-                onClick={handleImageClick}
-                onTouchStart={stopMediaGesture}
-                onTouchMove={stopMediaGesture}
-                onTouchEnd={stopMediaGesture}
-                onPointerDown={stopMediaGesture}
-              />
-            )
-          )}
+              ) : (
+                <img
+                  ref={imgRef}
+                  src={effectiveImageUrl}
+                  alt="Attachment"
+                  width={240}
+                  height={180}
+                  decoding="async"
+                  // Eager loading prevents virtuoso row remounts from
+                  // re-triggering the lazy intersection observer, which is
+                  // what causes images to "shake" / flash when scrolling
+                  // through history at speed.
+                  loading="eager"
+                  draggable={false}
+                  style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                  onClick={handleImageClick}
+                  onTouchStart={stopMediaGesture}
+                  onTouchMove={stopMediaGesture}
+                  onTouchEnd={stopMediaGesture}
+                  onPointerDown={stopMediaGesture}
+                />
+              )
+            )}
+          </div>
         </div>
       )}
 
@@ -406,7 +466,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Markdown link: show linkText, href to content (URL)
                 return (
                   <a
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     href={part.content}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -425,28 +485,28 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                }
               if (part.type === "event-link") {
                 // Event links are rendered as empty spans inline; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "board-link") {
                 // Board links render inline as empty; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "poll-link") {
                 // Poll tokens render as empty spans; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "vault-file" || part.type === "vault-folder" || part.type === "vault-root") {
                 // Vault tokens render as empty spans; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
-                  return <span key={index} />;
+                  return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
                 }
                 return (
                   <a
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     href={ensureProtocol(part.content)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -466,7 +526,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               if (part.type === "mention" && part.content) {
                 return (
                   <span
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     className="font-semibold"
                     style={{
                       userSelect: 'none',
@@ -482,7 +542,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               if (part.type === "text" && part.content) {
                 return (
                   <span
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     style={{
                       userSelect: 'none',
                       WebkitUserSelect: 'none',
@@ -497,7 +557,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               // Safety fallback for any part with content
               return part.content ? (
                 <span
-                  key={index}
+                  key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                   style={{
                     userSelect: 'none',
                     WebkitUserSelect: 'none',

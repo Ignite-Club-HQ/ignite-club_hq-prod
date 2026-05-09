@@ -4,6 +4,8 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -118,6 +120,8 @@ export default function BroadcastChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
@@ -125,7 +129,7 @@ export default function BroadcastChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -338,15 +342,17 @@ export default function BroadcastChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: "broadcast",
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -372,7 +378,9 @@ export default function BroadcastChatPage() {
     if (!messages || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
-      const mergedMessages = !prev
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = !prev
         ? messages
         : messages.map((message) => {
             const previousMessage = prev.find((item) => item.id === message.id);
@@ -398,6 +406,9 @@ export default function BroadcastChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("broadcast", "broadcast", mergedMessages.map((m) => ({
         id: m.id,
@@ -461,12 +472,12 @@ export default function BroadcastChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
@@ -547,7 +558,7 @@ export default function BroadcastChatPage() {
       })) as Message[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["broadcast-messages"], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
@@ -563,7 +574,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1027,67 +1038,65 @@ export default function BroadcastChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-chat-scroll-lock="true"
-            ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
-          >
-            <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-              {/* Invisible trigger for infinite scroll */}
-              {hasOlderMessages && !searchQuery && (
-                <div ref={loadTriggerRef} className="h-1" />
-              )}
-              {(filteredMessages || []).map((msg, index, arr) => {
-                const currentDate = new Date(msg.created_at);
-                const prevMessage = index > 0 ? arr[index - 1] : null;
-                const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
-                
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName="Announcements"
-                        timestamp={formatTimestamp(msg.created_at)}
-                        isOwn={msg.author_id === user?.id}
-                        isAdmin={isAppAdmin || false}
-                        reactions={msg.reactions}
-                        currentUserId={user?.id}
-                        messageType="broadcast"
-                        queryKey={queryKeyMemo}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: null }
-                            : null
-                        }
-                        onReply={isAppAdmin ? handleReply : undefined}
-                        onEdit={handleEdit}
-                        searchQuery={searchQuery}
-                        readFrontierReaders={readFrontier[msg.id] || []}
-                        readCount={readCounts[msg.id] || 0}
-                        isLastMessage={index === filteredMessages.length - 1}
-                        isPending={msg.id.startsWith("queued-")}
-                        contextId="broadcast"
-                      />
-                    </div>
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            renderRow={(msg, index, arr) => {
+              const currentDate = new Date(msg.created_at);
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName="Announcements"
+                      timestamp={formatTimestamp(msg.created_at)}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={isAppAdmin || false}
+                      reactions={msg.reactions}
+                      currentUserId={user?.id}
+                      messageType="broadcast"
+                      queryKey={queryKeyMemo}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: null }
+                          : null
+                      }
+                      onReply={isAppAdmin ? handleReply : undefined}
+                      onEdit={handleEdit}
+                      searchQuery={searchQuery}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      isLastMessage={index === arr.length - 1}
+                      isPending={msg.id.startsWith("queued-")}
+                      contextId="broadcast"
+                    />
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+                </>
+              );
+            }}
+          />
         )}
       </div>
 
@@ -1095,7 +1104,7 @@ export default function BroadcastChatPage() {
       {isAppAdmin && (
         <>
         <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

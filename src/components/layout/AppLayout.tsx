@@ -53,7 +53,7 @@ export function AppLayout() {
   const loadingLogo = useMemo(() => igniteIcon, []);
   const appViewportStyle = useMemo(
     () => (isChatThreadRoute
-      ? { height: "var(--stable-vh, 100dvh)" }
+      ? { height: "var(--visual-vh, 100dvh)" }
       : { minHeight: "var(--stable-vh, 100dvh)" }),
     [isChatThreadRoute]
   );

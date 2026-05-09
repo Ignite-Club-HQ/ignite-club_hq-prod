@@ -47,6 +47,28 @@ export function StatusBarManager() {
       return aspectRatio >= 2 ? 44 : 20;
     };
 
+    // Android floor for the status-bar inset. In edge-to-edge mode (and inside
+    // the Lovable web preview running on a real Android device) the WebView
+    // can report `env(safe-area-inset-top) = 0`, which collapses every
+    // `pt-safe` to nothing and lets the system status bar paint OVER the app
+    // header and the topmost chat message — exactly the "text going over the
+    // status bar" symptom. 24px matches the historical Android status-bar
+    // height and is a safe minimum across all current devices; if the WebView
+    // does report a real (larger) inset we still honour it via Math.max below.
+    const getAndroidSafeAreaTopFloor = () => {
+      // CRITICAL: only apply this floor inside the native Capacitor WebView.
+      // Web Android Chrome does NOT render under the system status bar (the
+      // browser URL bar owns that area), so `env(safe-area-inset-top) = 0`
+      // is correct there. Forcing 24px on web inflates `pt-safe` on AppHeader
+      // by 24px, which makes the chat container (which only subtracts 4rem
+      // for the header) overflow the viewport — the body then scrolls and
+      // the AppHeader / chat header disappear off the top.
+      if (!isNativeAndroid || typeof window === 'undefined') return 0;
+      const shortestSide = Math.min(window.screen?.width ?? 0, window.screen?.height ?? 0);
+      if (shortestSide >= 768) return 0;
+      return 24;
+    };
+
     const setSafeAreaInsets = (options?: { resetTopLock?: boolean }) => {
       if (typeof document === 'undefined') return;
 
@@ -57,7 +79,7 @@ export function StatusBarManager() {
       );
       const safeTopBase = isIOSLike
         ? Math.max(measuredTop, getNativeSafeAreaTopFloor())
-        : measuredTop;
+        : Math.max(measuredTop, getAndroidSafeAreaTopFloor());
       const preservedTop = isIOSLike && !options?.resetTopLock
         ? Math.max(
             lockedIOSSafeAreaTop,
@@ -84,12 +106,19 @@ export function StatusBarManager() {
       lockedIOSStableVh = stableHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
+    const setVisualVh = () => {
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight ?? 0;
+      if (!visualHeight) return;
+      document.documentElement.style.setProperty('--visual-vh', `${visualHeight}px`);
+    };
     setStableVh({ resetLock: true });
+    setVisualVh();
     setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
         setStableVh({ resetLock: true });
+        setVisualVh();
         setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };
@@ -98,6 +127,7 @@ export function StatusBarManager() {
     const visualViewport = window.visualViewport;
     const handleViewportInsetChange = () => {
       setStableVh();
+      setVisualVh();
       setSafeAreaInsets();
     };
 

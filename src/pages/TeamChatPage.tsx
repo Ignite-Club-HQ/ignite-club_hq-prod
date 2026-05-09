@@ -8,6 +8,8 @@ import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -182,6 +184,8 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
@@ -218,7 +222,7 @@ export default function TeamChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
@@ -646,16 +650,18 @@ export default function TeamChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: teamId,
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -682,7 +688,9 @@ export default function TeamChatPage() {
     if (!messages || !teamId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
-      const mergedMessages = !prev
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = !prev
         ? messages
         : messages.map((message) => {
             const previousMessage = prev.find((item) => item.id === message.id);
@@ -719,6 +727,9 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
@@ -819,12 +830,12 @@ export default function TeamChatPage() {
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
   // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
@@ -918,7 +929,7 @@ export default function TeamChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task, so the user never sees the intermediate state.
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["team-messages", teamId], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           if (!existingMessages.length) {
@@ -933,7 +944,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1553,95 +1564,95 @@ export default function TeamChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-chat-scroll-lock="true"
-            ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
-          >
-            <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-              {/* Invisible trigger for infinite scroll. overflow-anchor:none so
-                  the browser's scroll-anchoring never picks the sentinel itself. */}
-              {hasOlderMessages && !searchQuery && (
-                <div ref={loadTriggerRef} className="h-1" style={{ overflowAnchor: 'none' }} />
-              )}
-              {(filteredMessages || []).map((msg, index, arr) => {
-                const currentDate = new Date(msg.created_at);
-                const prevMessage = index > 0 ? arr[index - 1] : null;
-                const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
-                
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
-                        timestamp={formatMessageDate(msg.created_at)}
-                        isOwn={msg.is_club_announcement ? false : msg.author_id === user?.id}
-                        isAdmin={isAdmin || false}
-                        reactions={msg.reactions}
-                        currentUserId={user?.id}
-                        messageType="team"
-                        queryKey={queryKeyMemo}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
-                            : null
-                        }
-                        onReply={handleReply}
-                        onEdit={handleEdit}
-                        onAuthorClick={
-                          !msg.is_club_announcement && isAdmin && msg.author_id !== user?.id
-                            ? () => handleMemberProfileTap(
-                                msg.author_id,
-                                getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || "Unknown User",
-                                getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null,
-                              )
-                            : undefined
-                        }
-                        searchQuery={searchQuery}
-                        readFrontierReaders={readFrontier[msg.id] || []}
-                        readCount={readCounts[msg.id] || 0}
-                        isLastMessage={index === filteredMessages.length - 1}
-                        isPending={msg.id.startsWith("queued-")}
-                        contextId={teamId || ""}
-                        isClubAnnouncement={msg.is_club_announcement}
-                        isSystemMessage={msg.is_system_message}
-                        isPinned={pinnedMessageIds.has(msg.id)}
-                        canPin={!msg.is_club_announcement && !msg.id.startsWith("queued-")}
-                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
-                        onPin={pinMessage}
-                        onUnpin={unpinMessage}
-                        canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
-                        isPublishingToGallery={publishingIds.has(msg.id)}
-                        isPublishedToGallery={publishedIds.has(msg.id)}
-                        onPublishToGallery={handlePublishToGallery}
-                      />
-                    </div>
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            endElementId="team-chat-end"
+            loadTriggerStyle={{ overflowAnchor: "none" }}
+            renderRow={(msg, index, arr) => {
+              const currentDate = new Date(msg.created_at);
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
+                      timestamp={formatMessageDate(msg.created_at)}
+                      isOwn={msg.is_club_announcement ? false : msg.author_id === user?.id}
+                      isAdmin={isAdmin || false}
+                      reactions={msg.reactions}
+                      currentUserId={user?.id}
+                      messageType="team"
+                      queryKey={queryKeyMemo}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
+                          : null
+                      }
+                      onReply={handleReply}
+                      onEdit={handleEdit}
+                      onAuthorClick={
+                        !msg.is_club_announcement && isAdmin && msg.author_id !== user?.id
+                          ? () => handleMemberProfileTap(
+                              msg.author_id,
+                              getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || "Unknown User",
+                              getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null,
+                            )
+                          : undefined
+                      }
+                      searchQuery={searchQuery}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      isLastMessage={index === arr.length - 1}
+                      isPending={msg.id.startsWith("queued-")}
+                      contextId={teamId || ""}
+                      isClubAnnouncement={msg.is_club_announcement}
+                      isSystemMessage={msg.is_system_message}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      canPin={!msg.is_club_announcement && !msg.id.startsWith("queued-")}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={pinMessage}
+                      onUnpin={unpinMessage}
+                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      isPublishingToGallery={publishingIds.has(msg.id)}
+                      isPublishedToGallery={publishedIds.has(msg.id)}
+                      onPublishToGallery={handlePublishToGallery}
+                    />
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} id="team-chat-end" />
-            </div>
-          </div>
+                </>
+              );
+            }}
+          />
          )}
-       </div>
+        </div>
+
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

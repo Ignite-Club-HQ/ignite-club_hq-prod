@@ -6,6 +6,8 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -217,6 +219,8 @@ export default function GroupChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -255,7 +259,7 @@ export default function GroupChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
@@ -585,16 +589,18 @@ export default function GroupChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: groupId,
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -630,7 +636,9 @@ export default function GroupChatPage() {
     });
 
     setLocalMessages((prev) => {
-      const mergedMessages = messages.map((message) => {
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = messages.map((message) => {
         const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
         const previousMessage = prev?.find((item) => item.id === message.id);
         const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
@@ -657,6 +665,9 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
@@ -760,12 +771,12 @@ export default function GroupChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
@@ -822,7 +833,7 @@ export default function GroupChatPage() {
       })) as GroupMessage[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
           if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
           const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
@@ -899,7 +910,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1794,65 +1805,65 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-chat-scroll-lock="true"
-            ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
-          >
-            <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-            {/* Invisible trigger for infinite scroll */}
-            {hasOlderMessages && !searchQuery && (
-              <div ref={loadTriggerRef} className="h-1" />
-            )}
-            {(filteredMessages || []).map((msg, index, arr) => {
-            const isOwnMessage = msg.author_id === user?.id;
-            const messageReactions = messageReactionsMap.get(msg.id) || [];
-            const currentDate = new Date(msg.created_at);
-            const prevMessage = index > 0 ? arr[index - 1] : null;
-            const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
-            
-            return (
-              <div key={msg.id}>
-                {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                <GroupChatMessageRow
-                  msg={msg}
-                  messagesById={messagesById}
-                  isOwnMessage={isOwnMessage}
-                  isAdmin={isAdmin}
-                  highlightedMessageId={highlightedMessageId}
-                  messageReactions={messageReactions}
-                  userId={user?.id}
-                  getProfile={getProfile}
-                  readFrontier={readFrontier}
-                  readCounts={readCounts}
-                  handleReply={handleReply}
-                  handleEdit={handleEdit}
-                  deleteMessageMutation={deleteMessageMutation}
-                  toggleReactionMutation={toggleReactionMutation}
-                  groupId={groupId || ""}
-                  searchQuery={searchQuery}
-                  isPinned={pinnedMessageIds.has(msg.id)}
-                  pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
-                  onPin={pinMessage}
-                  onUnpin={unpinMessage}
-                  canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
-                  isPublishingToGallery={galleryPublishingIds.has(msg.id)}
-                  isPublishedToGallery={galleryPublishedIds.has(msg.id)}
-                  onPublishToGallery={handlePublishToGallery}
-                />
-              </div>
-            );
-          })}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            renderRow={(msg, index, arr) => {
+              const isOwnMessage = msg.author_id === user?.id;
+              const messageReactions = messageReactionsMap.get(msg.id) || [];
+              const currentDate = new Date(msg.created_at);
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <GroupChatMessageRow
+                    msg={msg}
+                    messagesById={messagesById}
+                    isOwnMessage={isOwnMessage}
+                    isAdmin={isAdmin}
+                    highlightedMessageId={highlightedMessageId}
+                    messageReactions={messageReactions}
+                    userId={user?.id}
+                    getProfile={getProfile}
+                    readFrontier={readFrontier}
+                    readCounts={readCounts}
+                    handleReply={handleReply}
+                    handleEdit={handleEdit}
+                    deleteMessageMutation={deleteMessageMutation}
+                    toggleReactionMutation={toggleReactionMutation}
+                    groupId={groupId || ""}
+                    searchQuery={searchQuery}
+                    isPinned={pinnedMessageIds.has(msg.id)}
+                    pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                    onPin={pinMessage}
+                    onUnpin={unpinMessage}
+                    canPublishToGallery={isOwnMessage && !!msg.image_url && !msg.id.startsWith("queued-") && (!!group?.team_id || !!group?.club_id)}
+                    isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                    isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                    onPublishToGallery={handlePublishToGallery}
+                  />
+                </>
+              );
+            }}
+          />
         )}
       </div>
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

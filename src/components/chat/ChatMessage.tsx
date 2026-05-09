@@ -602,7 +602,9 @@ function ChatMessageInner({
   }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
-    clearDismissGuard();
+    // Re-arm guard so any synthetic click iOS dispatches to underlying elements
+    // (e.g. avatar) after the picker closes is suppressed by preventIfGuarded.
+    armDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(false);
     setShowActionSheet(false);
@@ -618,7 +620,7 @@ function ChatMessageInner({
       reactionType: type,
       existingReaction,
     });
-  }, [addReactionMutation, clearDismissGuard, removeReactionMutation, getLatestReactions, currentUserId]);
+  }, [addReactionMutation, armDismissGuard, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const closeReactionPicker = useCallback(() => {
     clearDismissGuard();
@@ -815,7 +817,7 @@ function ChatMessageInner({
             className="min-w-0 max-w-full select-none"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
-              transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transition: swipeState.isSwiping || swipeState.offsetX === 0 ? 'none' : 'transform 0.2s ease-out',
               userSelect: 'none',
               WebkitUserSelect: 'none',
               WebkitTouchCallout: 'none',
@@ -831,11 +833,11 @@ function ChatMessageInner({
           >
             <div
               ref={bubbleRef}
-              className={`relative max-w-full rounded-2xl px-4 py-2 select-none transition-all duration-100 overflow-hidden ${
+              className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden ${
                 isOwn && !isClubAnnouncement
                   ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {

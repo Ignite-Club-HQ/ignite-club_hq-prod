@@ -30,10 +30,11 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 90;
-const PREFETCH_ROOT_MARGIN_PX = 1200;
+const IDLE_GATE_MS = 260;
+const PREFETCH_ROOT_MARGIN_PX = 360;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
-const MIN_TRIGGER_INTERVAL_MS = 250;
+const MIN_TRIGGER_INTERVAL_MS = 900;
+const PREPEND_IDLE_GRACE_MS = 220;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -45,22 +46,59 @@ export function useChatOlderMessagesAnchor({
 }: UseChatOlderMessagesAnchorOptions) {
   const lastScrollAtRef = useRef(0);
   const lastTriggerAtRef = useRef(0);
+  const pendingTriggerTimerRef = useRef<number | null>(null);
+  const pendingPrependRef = useRef<(() => void) | null>(null);
+  const pendingPrependTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
+    if (pendingPrependRef.current) return;
     const now = performance.now();
     if (now - lastTriggerAtRef.current < MIN_TRIGGER_INTERVAL_MS) return;
     lastTriggerAtRef.current = now;
     onTrigger();
   }, [onTrigger]);
 
-  // Track "recently scrolled" so we don't trigger fetches mid-flick.
-  // CRITICAL: only stamp the timestamp when the user is meaningfully away
-  // from the bottom. The initial bottom-pin sequence performs many
-  // programmatic `scrollTop = scrollHeight - clientHeight` writes that each
-  // fire a real "scroll" event; if we stamped on every event, the very
-  // first paint after a fresh install would set lastScrollAtRef and let
-  // the older-messages observer fire on the next tick — the jolt the user
+  const scheduleTriggerWhenIdle = useCallback((scrollRoot: HTMLElement, trigger: HTMLElement) => {
+    if (pendingTriggerTimerRef.current !== null) return;
+
+    const check = () => {
+      pendingTriggerTimerRef.current = null;
+
+      if (document.hidden || isLoadingOlder || !hasOlderMessages) return;
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < IDLE_GATE_MS) {
+        pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS - sinceScroll + 40);
+        return;
+      }
+
+      const stillIntersecting =
+        trigger.getBoundingClientRect().top <
+        scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
+      const distance = scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+      if (stillIntersecting && distance >= 200) triggerOlder();
+    };
+
+    pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS);
+  }, [hasOlderMessages, isLoadingOlder, triggerOlder]);
+
+  // Track "recently scrolled" so the IntersectionObserver below knows the
+  // user has actually moved the viewport (vs. our own bottom-pin writes
+  // that fire synthetic scroll events on first open).
+  //
+  // CRITICAL: only stamp when the user is meaningfully away from the
+  // bottom. The initial bottom-pin sequence performs many programmatic
+  // `scrollTop = scrollHeight - clientHeight` writes that each fire a real
+  // "scroll" event; if we stamped on every event, the very first paint
+  // after a fresh install would set lastScrollAtRef and let the
+  // older-messages observer fire on the next tick — the jolt the user
   // sees on first thread open after install.
+  //
+  // This handler intentionally does NOT call triggerOlder. The
+  // IntersectionObserver below is the single source of truth for deciding
+  // when to fetch the next page; having two redundant trigger paths
+  // (scroll-distance threshold + IO sentinel) caused multiple flushSync
+  // re-renders during a single fast upward flick — which the user
+  // perceived as "viewport jumps and shifts unexpectedly".
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -70,39 +108,17 @@ export function useChatOlderMessagesAnchor({
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
 
-      // IntersectionObserver can miss the 1px sentinel during fast mobile
-      // momentum scrolls or after iOS/WebView layout correction. Use a direct
-      // scrollTop threshold as the authoritative fallback so history never
-      // gets stuck at the oldest loaded page.
-      if (
-        enabled &&
-        hasOlderMessages &&
-        !isLoadingOlder &&
-        !document.hidden &&
-        container.scrollTop <= PREFETCH_ROOT_MARGIN_PX
-      ) {
-        triggerOlder();
+      // Fallback for real devices where the top IntersectionObserver can miss
+      // after browser UI/address-bar resize: if the user is physically at the
+      // top, queue one older-page load after momentum settles.
+      if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
+        const trigger = loadTriggerRef.current;
+        if (trigger) scheduleTriggerWhenIdle(container, trigger);
       }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
-
-  // If a fetch finishes while the user is still pinned near the top sentinel,
-  // immediately fetch the next page. This gives WhatsApp-style continuous
-  // history loading and prevents the list from stopping until the user nudges
-  // the scroll position again.
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!enabled || !container || !hasOlderMessages || isLoadingOlder) return;
-    if (document.hidden || lastScrollAtRef.current === 0) return;
-    const distanceFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop;
-    if (distanceFromBottom < 200) return;
-    if (container.scrollTop <= PREFETCH_ROOT_MARGIN_PX) {
-      const frame = requestAnimationFrame(triggerOlder);
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [scrollContainerRef, enabled, hasOlderMessages, isLoadingOlder, triggerOlder]);
+  }, [scrollContainerRef, loadTriggerRef, enabled, hasOlderMessages, isLoadingOlder, scheduleTriggerWhenIdle]);
 
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
@@ -134,30 +150,10 @@ export function useChatOlderMessagesAnchor({
 
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
-          // User is mid-flick — re-check very shortly so older pages begin
-          // loading while momentum is still carrying the user into history.
-          window.setTimeout(() => {
-            const stillIntersecting =
-              trigger.getBoundingClientRect().top <
-              scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
-            // Re-apply ALL guards inside the deferred path. Without these,
-            // a programmatic scrollTop set by the initial bottom-pin (which
-            // fires a real "scroll" event and stamps lastScrollAtRef) lands
-            // us in this branch on first open and then unconditionally calls
-            // onTrigger — causing the first-load older-messages fetch and
-            // the visible upward jolt the user reports after a fresh install.
-            const distance =
-              scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-            if (
-              stillIntersecting &&
-              hasOlderMessages &&
-              !isLoadingOlder &&
-              !document.hidden &&
-              distance >= 200
-            ) {
-              triggerOlder();
-            }
-          }, IDLE_GATE_MS);
+          // Fast upward flicks can keep moving for hundreds of ms after the
+          // IO sentinel intersects. Do not prepend/re-anchor during that
+          // momentum; queue one load and run it only once scrolling settles.
+          scheduleTriggerWhenIdle(scrollRoot, trigger);
           return;
         }
 
@@ -173,13 +169,20 @@ export function useChatOlderMessagesAnchor({
     );
 
     observer.observe(trigger);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (pendingTriggerTimerRef.current !== null) {
+        window.clearTimeout(pendingTriggerTimerRef.current);
+        pendingTriggerTimerRef.current = null;
+      }
+    };
   }, [
     scrollContainerRef,
     loadTriggerRef,
     enabled,
     hasOlderMessages,
     isLoadingOlder,
+    scheduleTriggerWhenIdle,
     triggerOlder,
   ]);
 
@@ -230,22 +233,57 @@ export function useChatOlderMessagesAnchor({
       const delta = nextScrollHeight - previousScrollHeight;
       container.scrollTop = previousScrollTop + delta;
 
-      // Restore scroll-behavior on the next frame so we don't fight any
-      // legitimate smooth-scroll that follows.
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
           scrollContainerRef.current.style.scrollBehavior = previousBehavior;
         }
       });
 
-      // Watch for newly-prepended images decoding and re-apply the anchor
-      // so their final height doesn't push content down later.
       watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
     },
     [scrollContainerRef],
   );
 
-  return { anchoredPrepend };
+  const queueAnchoredPrepend = useCallback((applyPrepend: () => void) => {
+    const container = scrollContainerRef.current;
+    // In virtualized mode, Virtuoso owns prepend anchoring through
+    // `firstItemIndex`. The legacy scrollHeight/scrollTop correction below
+    // double-anchors the same prepend and visibly moves rows when momentum
+    // stops, especially in image-heavy chats.
+    if (container?.closest?.('[data-chat-virtualized="true"]')) {
+      applyPrepend();
+      return;
+    }
+
+    const run = () => {
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < PREPEND_IDLE_GRACE_MS) {
+        pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS - sinceScroll + 40);
+        return;
+      }
+
+      const apply = pendingPrependRef.current;
+      pendingPrependRef.current = null;
+      pendingPrependTimerRef.current = null;
+      if (apply) anchoredPrepend(apply);
+    };
+
+    pendingPrependRef.current = applyPrepend;
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+    }
+    pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS);
+  }, [anchoredPrepend]);
+
+  useEffect(() => () => {
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+      pendingPrependTimerRef.current = null;
+    }
+    pendingPrependRef.current = null;
+  }, []);
+
+  return { anchoredPrepend, queueAnchoredPrepend };
 }
 
 function watchPrependedMediaAndReanchor(
@@ -284,17 +322,28 @@ function watchPrependedMediaAndReanchor(
   // newly-resolved image height under their current finger position.
   let lastScrollHeight = container.scrollHeight;
 
-  const onMediaLoad = () => {
+  const onMediaLoad = (ev: Event) => {
     if (stopped) return;
+    const target = ev.currentTarget as HTMLElement | null;
+    // Re-check that this media is STILL above the user's current viewport.
+    // The candidate set was captured at prepend time, but the user may have
+    // since scrolled up — those images could now be inside (or below) the
+    // viewport, in which case "compensating" their decoded height would
+    // visibly yank the messages they're reading. Only absorb growth that
+    // happens strictly above what the user is currently looking at.
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      if (rect.bottom > containerRect.top + 80) {
+        // No longer above the fold — let it reflow naturally.
+        lastScrollHeight = container.scrollHeight;
+        return;
+      }
+    }
     const nextHeight = container.scrollHeight;
     const delta = nextHeight - lastScrollHeight;
     lastScrollHeight = nextHeight;
     if (delta === 0) return;
-    // Only compensate when the media that grew sits ABOVE the user's
-    // current viewport — otherwise the layout shift didn't push their
-    // visible content and we'd just create a phantom jump.
-    // Cheap heuristic: any positive delta from above-the-fold images
-    // (which is the candidate set we filtered to) needs compensation.
     container.scrollTop = container.scrollTop + delta;
   };
 

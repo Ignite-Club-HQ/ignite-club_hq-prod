@@ -6,6 +6,8 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -154,6 +156,8 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const { isOnline } = useOnlineStatus();
 
   // Mark club message notifications as read when opening this thread
@@ -190,7 +194,7 @@ export default function ClubChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
@@ -504,16 +508,18 @@ export default function ClubChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: clubId,
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -539,7 +545,9 @@ export default function ClubChatPage() {
     if (!messages || !clubId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
-      const mergedMessages = !prev
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = !prev
         ? messages
         : messages.map((message) => {
             const previousMessage = prev.find((item) => item.id === message.id);
@@ -567,6 +575,9 @@ export default function ClubChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("club", clubId, mergedMessages.map((m) => ({
         id: m.id,
@@ -662,12 +673,12 @@ export default function ClubChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
@@ -758,7 +769,7 @@ export default function ClubChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task.
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["club-messages", clubId], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
@@ -774,7 +785,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1385,77 +1396,76 @@ export default function ClubChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-            data-chat-scroll-lock="true"
-            ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
-          >
-            <div className="space-y-4 p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-              {/* Invisible trigger for infinite scroll */}
-              {hasOlderMessages && !searchQuery && (
-                <div ref={loadTriggerRef} className="h-1" />
-              )}
-              {(filteredMessages || []).map((msg, index, arr) => {
-                const currentDate = new Date(msg.created_at);
-                const prevMessage = index > 0 ? arr[index - 1] : null;
-                const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
-                
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
-                        timestamp={formatTimestamp(msg.created_at)}
-                        isOwn={msg.author_id === user?.id}
-                        isAdmin={isClubAdmin || isAppAdmin || false}
-                        reactions={msg.reactions}
-                        currentUserId={user?.id}
-                        messageType="club"
-                        queryKey={queryKeyMemo}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
-                            : null
-                        }
-                        onReply={handleReply}
-                        onEdit={handleEdit}
-                        searchQuery={searchQuery}
-                        readFrontierReaders={readFrontier[msg.id] || []}
-                        readCount={readCounts[msg.id] || 0}
-                        isLastMessage={index === filteredMessages.length - 1}
-                        isPending={msg.id.startsWith("queued-")}
-                        contextId={clubId || ""}
-                        isPinned={pinnedMessageIds.has(msg.id)}
-                        canPin={!msg.id.startsWith("queued-")}
-                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
-                        onPin={pinMessage}
-                        onUnpin={unpinMessage}
-                        canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
-                        isPublishingToGallery={galleryPublishingIds.has(msg.id)}
-                        isPublishedToGallery={galleryPublishedIds.has(msg.id)}
-                        onPublishToGallery={handlePublishToGallery}
-                      />
-                    </div>
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            scrollAreaRef={scrollAreaRef}
+            loadTriggerRef={loadTriggerRef}
+            messagesEndRef={messagesEndRef}
+            endElementId="club-chat-end"
+            renderRow={(msg, index, arr) => {
+              const currentDate = new Date(msg.created_at);
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={currentDate} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
+                      timestamp={formatTimestamp(msg.created_at)}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={isClubAdmin || isAppAdmin || false}
+                      reactions={msg.reactions}
+                      currentUserId={user?.id}
+                      messageType="club"
+                      queryKey={queryKeyMemo}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
+                          : null
+                      }
+                      onReply={handleReply}
+                      onEdit={handleEdit}
+                      searchQuery={searchQuery}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      isLastMessage={index === arr.length - 1}
+                      isPending={msg.id.startsWith("queued-")}
+                      contextId={clubId || ""}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      canPin={!msg.id.startsWith("queued-")}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={pinMessage}
+                      onUnpin={unpinMessage}
+                      canPublishToGallery={msg.author_id === user?.id && !!msg.image_url && !msg.id.startsWith("queued-")}
+                      isPublishingToGallery={galleryPublishingIds.has(msg.id)}
+                      isPublishedToGallery={galleryPublishedIds.has(msg.id)}
+                      onPublishToGallery={handlePublishToGallery}
+                    />
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} id="club-chat-end" />
-            </div>
-          </div>
+                </>
+              );
+            }}
+          />
         )}
       </div>
 
@@ -1463,7 +1473,7 @@ export default function ClubChatPage() {
       {canAccessClubChat && (
         <>
         <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} data-chat-chrome="true" className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} data-chat-chrome="true" className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

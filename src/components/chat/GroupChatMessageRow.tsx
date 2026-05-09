@@ -418,11 +418,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             )}
             {/* Swipe-to-reply wrapper */}
-            <div
-              className="min-w-0 max-w-full"
+              <div
+                className="min-w-0 max-w-full"
               style={{
                 transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
-                transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  transition: swipeState.isSwiping || swipeState.offsetX === 0 ? 'none' : 'transform 0.2s ease-out',
               }}
               onTouchStart={(e) => {
                 gestureModeRef.current = "press";
@@ -435,9 +435,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-lg px-3 py-2 select-none transition-all duration-100 overflow-hidden ${
+                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
-                } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+                } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {

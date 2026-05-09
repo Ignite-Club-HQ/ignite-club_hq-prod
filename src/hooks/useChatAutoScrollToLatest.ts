@@ -67,20 +67,27 @@ export function useChatAutoScrollToLatest({
     };
 
     let resizeRaf = 0;
+    let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
     const handleViewportResize = () => {
       if (!isComposerTarget(document.activeElement)) return;
-      // Coalesce the rapid Android keyboard-animation resize events into a
-      // single rAF tick so we snap at most once per frame.
-      if (resizeRaf) return;
-      resizeRaf = requestAnimationFrame(() => {
-        resizeRaf = 0;
-        const vp = resolveChatScrollViewport(scrollContainerRef.current);
-        if (vp && isViewportUserActive(vp)) return;
-        resetViewportScroll();
-        if (isNearBottom(scrollContainerRef.current)) {
-          snapToBottom();
-        }
-      });
+      // Android fires a long sequence of resize events while the keyboard
+      // animates. Debounce to the trailing edge so we snap once after the
+      // keyboard has settled — not on every intermediate frame, which
+      // produces the "stair-step" jolt during keyboard open/close.
+      if (resizeDebounce) clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(() => {
+        resizeDebounce = null;
+        if (resizeRaf) return;
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0;
+          const vp = resolveChatScrollViewport(scrollContainerRef.current);
+          if (vp && isViewportUserActive(vp)) return;
+          resetViewportScroll();
+          if (isNearBottom(scrollContainerRef.current)) {
+            snapToBottom();
+          }
+        });
+      }, 60);
     };
 
     let disposeKeyboardScrollLock: (() => void) | undefined;
@@ -102,6 +109,7 @@ export function useChatAutoScrollToLatest({
       window.removeEventListener("focusin", handleFocusIn);
       window.visualViewport?.removeEventListener("resize", handleViewportResize);
       if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      if (resizeDebounce) clearTimeout(resizeDebounce);
       disposeKeyboardScrollLock?.();
     };
   }, [enabled, scrollContainerRef]);

@@ -8,6 +8,11 @@ export function resolveChatScrollViewport(container: HTMLElement | null | undefi
   return container.querySelector?.<HTMLElement>("[data-radix-scroll-area-viewport]") ?? container;
 }
 
+export function isVirtualizedChatViewport(container: HTMLElement | null | undefined) {
+  const viewport = resolveChatScrollViewport(container);
+  return !!viewport?.closest?.('[data-chat-virtualized="true"]');
+}
+
 export function getChatScrollMetrics(container: HTMLElement | null | undefined) {
   const viewport = resolveChatScrollViewport(container);
   if (!viewport) return null;

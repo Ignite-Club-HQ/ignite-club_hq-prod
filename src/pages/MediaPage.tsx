@@ -1476,25 +1476,43 @@ export default function MediaPage() {
                       onReact={(type) => reactMutation.mutate({ photoId: photo.id, reactionType: type })}
                       onRemove={() => removeReactionMutation.mutate(photo.id)}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setActiveCommentPhotoId(photo.id)}
-                      className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
-                    >
-                      <MessageCircle className="h-5 w-5" />
-                      {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
-                    </Button>
-                    {new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH && (photoViewCounts?.get(photo.id) || 0) > 0 && (
-                      <div
-                        className="flex items-center gap-1 text-muted-foreground"
-                        title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
-                        aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
-                      >
-                        <Eye className="h-5 w-5" />
-                        <span className="text-xs">{photoViewCounts?.get(photo.id)}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const viewCount = photoViewCounts?.get(photo.id) || 0;
+                      const showViews = new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH;
+                      return (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setActiveCommentPhotoId(photo.id)}
+                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
+                          >
+                            <MessageCircle className="h-5 w-5" />
+                            <span
+                              className="text-xs tabular-nums"
+                              style={{ visibility: comments.length > 0 ? "visible" : "hidden" }}
+                            >
+                              {comments.length || 0}
+                            </span>
+                          </Button>
+                          {showViews && (
+                            <div
+                              className="flex items-center gap-1 text-muted-foreground"
+                              title={`${viewCount} view${viewCount === 1 ? "" : "s"}`}
+                              aria-label={`${viewCount} views`}
+                            >
+                              <Eye className="h-5 w-5" />
+                              <span
+                                className="text-xs tabular-nums"
+                                style={{ visibility: viewCount > 0 ? "visible" : "hidden" }}
+                              >
+                                {viewCount}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {photoText && (

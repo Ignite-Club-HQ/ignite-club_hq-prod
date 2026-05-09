@@ -122,6 +122,27 @@ async function createSignedUrlDirect(url: string): Promise<string | null> {
   return data.signedUrl;
 }
 
+async function createSignedUrlViaFunction(url: string): Promise<string | null> {
+  const privatePath = extractPrivateStoragePath(url);
+  if (!privatePath) return null;
+
+  const { data, error } = await withTimeout(
+    supabase.functions.invoke("get-signed-photo-url", {
+      body: { paths: [url], expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS },
+    }),
+    REQUEST_TIMEOUT_MS,
+    "get-signed-photo-url timed out"
+  );
+
+  if (error) {
+    console.warn("[useSignedPhotoUrl] Edge signed URL fallback failed:", error.message || "unknown");
+    return null;
+  }
+
+  const signed = (data as { signedUrls?: Record<string, string> } | null)?.signedUrls?.[url];
+  return typeof signed === "string" && signed.length > 0 ? signed : null;
+}
+
 
 export async function resolveSignedUrl(url: string): Promise<string> {
   const privatePath = extractPrivateStoragePath(url);
@@ -129,13 +150,35 @@ export async function resolveSignedUrl(url: string): Promise<string> {
     return url;
   }
 
-  // Direct SDK call is fastest — skip Edge Function fallback to avoid serial waterfall
+  // Direct SDK call is fastest, but never fall back to the raw URL for private
+  // bucket objects. Those are often stored as `/object/public/...` legacy URLs
+  // even though the bucket is private, and loading them directly returns a 400
+  // "Bucket not found" placeholder instead of the image.
   const directSignedUrl = await createSignedUrlDirect(url);
-  return directSignedUrl || url;
+  if (directSignedUrl) return directSignedUrl;
+
+  const functionSignedUrl = await createSignedUrlViaFunction(url);
+  if (functionSignedUrl) return functionSignedUrl;
+
+  throw new Error("Unable to create signed URL for private storage object");
+}
+
+function readCachedSignedUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const cached = urlCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  // If the URL doesn't need signing, treat it as immediately resolvable so
+  // virtualised chat rows don't flash a skeleton on remount.
+  if (!extractPrivateStoragePath(url)) return url;
+  return null;
 }
 
 export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  // Synchronous cache hydration is critical for virtualised chat: if we
+  // start with `null` and resolve in an effect, every row remount during a
+  // fast back-scroll shows the skeleton for one frame before the cached
+  // signed URL re-applies. That looks like images "shaking" / flashing.
+  const [signedUrl, setSignedUrl] = useState<string | null>(() => readCachedSignedUrl(originalUrl));
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -145,10 +188,9 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       return;
     }
 
-    // Check cache first
-    const cached = urlCache.get(originalUrl);
-    if (cached && cached.expiresAt > Date.now()) {
-      setSignedUrl(cached.url);
+    const cachedNow = readCachedSignedUrl(originalUrl);
+    if (cachedNow) {
+      setSignedUrl(cachedNow);
       setIsLoading(false);
       return;
     }
@@ -175,7 +217,7 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       } catch (error) {
         console.error("Error fetching signed URL:", error);
         if (!isCancelled) {
-          setSignedUrl(originalUrl);
+          setSignedUrl(null);
         }
       } finally {
         if (!isCancelled) {
