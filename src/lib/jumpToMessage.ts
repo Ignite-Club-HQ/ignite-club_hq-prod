@@ -13,6 +13,8 @@ import type { VirtualizedChatMessageListHandle } from "@/components/chat/Virtual
  * No `document.getElementById('message-${id}')` lookup is used anywhere:
  * rows outside Virtuoso's render window are not in the DOM.
  */
+let activeCancel: (() => void) | null = null;
+
 export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   messageId: string,
   getMessages: () => TMessage[],
