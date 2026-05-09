@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
 } from "@/components/chat/VirtualizedChatMessageList";
 
 /**
- * Shared scroller used by Team / Group / Club / Broadcast chat pages.
+ * Shared scroller used by Team / Group / Club / Broadcast / ClubAdmin / DM
+ * chat pages.
  *
- * Virtualisation is unconditional: the virtualised list (`react-virtuoso`)
- * is always used for normal viewing. The legacy mapped DOM is retained ONLY
- * when search is active, because the existing search-result jump uses
- * `document.getElementById('message-${id}')` which requires every match to
- * be mounted. Once search is rewired to call the Virtuoso handle's
- * `scrollToIndex`, the legacy branch can be removed entirely.
+ * Virtualisation is unconditional and end-to-end: react-virtuoso owns the
+ * scroll container in normal viewing AND while search is active. Search
+ * jump-to-message goes through `virtualHandleRef.current?.scrollToIndex(...)`
+ * via `jumpToMessageInVirtualizedChat` — there is NO legacy mapped DOM and
+ * no `document.getElementById('message-${id}')` lookup left.
  */
 interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   messages: TMessage[];
@@ -22,37 +22,18 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   renderRow: (msg: TMessage, index: number, arr: TMessage[]) => ReactNode;
 
   // Layout / behaviour
-  searchQuery: string;
   isPinned: boolean;
-  isNativeIOS: boolean;
   isKeyboardOpen: boolean;
   searchOpen: boolean;
   composerHeight: number;
 
-  // Refs the legacy hooks attach to. Optional now: pages migrated to
-  // Virtuoso-owned scroll (see `keepVirtualizedInSearch`) no longer pass them.
-  scrollAreaRef?: RefObject<HTMLDivElement>;
-  loadTriggerRef?: RefObject<HTMLDivElement>;
-  messagesEndRef?: RefObject<HTMLDivElement>;
-  endElementId?: string;
-
-  /** Forwarded to the load-trigger sentinel for parity with existing code. */
+  /** Forwarded for parity with existing call sites; not used in virtual mode. */
   loadTriggerStyle?: CSSProperties;
 
   /**
-   * Pages that have rewired their search jump-to-message to Virtuoso's
-   * `scrollToIndex` (via the exposed handle) pass `true` so the legacy
-   * fallback DOM is skipped during search and Virtuoso owns scroll
-   * end-to-end. Default false preserves the legacy fallback for un-migrated
-   * pages.
-   */
-  keepVirtualizedInSearch?: boolean;
-
-  /**
-   * Optional handle ref. When provided, the parent owns the
-   * VirtualizedChatMessageList handle and can imperatively call
-   * `scrollToBottom`, `scrollToIndex`, `isAtBottom`, `isNearBottom`. The
-   * internal keyboard/composer re-pin effect uses the same ref.
+   * Imperative handle. The parent owns it and uses it to drive
+   * `scrollToBottom`, `scrollToIndex`, `isAtBottom`, `isNearBottom`. Search
+   * jump-to-message uses `scrollToIndex` via this handle.
    */
   virtualHandleRef?: RefObject<VirtualizedChatMessageListHandle>;
 }
@@ -60,24 +41,16 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
-  const useVirtualized = !!props.keepVirtualizedInSearch || !props.searchQuery;
   const {
     messages,
     hasOlderMessages,
     isLoadingOlder,
     onLoadOlder,
     renderRow,
-    searchQuery,
     isPinned,
-    isNativeIOS,
     isKeyboardOpen,
     searchOpen,
     composerHeight,
-    scrollAreaRef,
-    loadTriggerRef,
-    messagesEndRef,
-    endElementId,
-    loadTriggerStyle,
     virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
@@ -100,30 +73,17 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
-  // CRITICAL: Do NOT hand Virtuoso's internal scroller to the legacy
-  // `scrollAreaRef`. Legacy chat hooks (auto-scroll, bottom-pin, older-message
-  // anchor) imperatively mutate `scrollTop` on whatever element this ref
-  // points at — and Virtuoso also drives that element. Two owners on the
-  // same scrollTop produces the "rows stacking / jump on fast scroll"
-  // corruption the user reported. Keep the ref null in virtualised mode so
-  // legacy hooks no-op; Virtuoso owns scrolling end-to-end via its handle.
+
+  // Virtuoso owns its own scroller; no external ref handover (legacy chat
+  // hooks that mutated `scrollTop` directly are gone).
   const setVirtualScrollerRef = useCallback((_element: HTMLElement | Window | null) => {
     // intentional no-op
   }, []);
 
-  useEffect(() => {
-    if (useVirtualized && scrollAreaRef) {
-      // Make sure no stale legacy ref points at a now-unmounted Virtuoso
-      // scroller from a previous render of this component.
-      (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = null;
-    }
-  }, [scrollAreaRef, useVirtualized]);
-
-  // The legacy initial-pin hook is intentionally disabled in virtualized mode,
-  // so it never flips `isPinned` / enables top pagination there. Do that once
-  // the list has real data; otherwise the wrapper can stay opacity:0 (blank)
-  // and `startReached` can be called before the first bottom pin completes.
-  const virtualReady = !useVirtualized || messages.length > 0;
+  // Wait for real data before revealing the list, otherwise the wrapper can
+  // stay opacity:0 (blank) and `startReached` can fire before the first
+  // bottom pin completes.
+  const virtualReady = messages.length > 0;
   const lastMessageId = messages[messages.length - 1]?.id;
 
   // When the keyboard opens/closes or the composer grows, the viewport
@@ -132,7 +92,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // messages get hidden behind the keyboard and they "can't see what they
   // just sent". Fires immediately and again after the keyboard animation.
   useEffect(() => {
-    if (!useVirtualized || !virtualReady) return;
+    if (!virtualReady) return;
     const handle = virtualHandleRef.current;
     if (!handle) return;
     const isReplyOrEditResize = composerHeight > 64;
@@ -155,8 +115,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     //  - keyboard mid-animation (~280ms)
     //  - keyboard fully settled on Android (~550ms — longest observed)
     //  - very-late visualViewport reflow on some Android keyboards (~900ms)
-    // Each later jump still re-checks user intent so we never yank a finger
-    // that has started scrolling history mid-animation.
     const delays = [80, 280, 550, 900];
     const timeouts = delays.map((ms) =>
       window.setTimeout(() => {
@@ -164,11 +122,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       }, ms),
     );
 
-    // Belt-and-braces: also re-pin on every visualViewport resize while this
-    // effect is alive. Android Chrome resizes visualViewport multiple times
-    // as the keyboard settles, and on some devices the LAST resize lands
-    // after our 550ms timeout but before 900ms — without listening for it
-    // the latest message can end up partially clipped behind the composer.
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     const onViewportResize = () => {
       if (shouldRepin()) pin();
@@ -179,7 +132,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       timeouts.forEach((id) => window.clearTimeout(id));
       vv?.removeEventListener("resize", onViewportResize);
     };
-  }, [useVirtualized, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId, virtualHandleRef]);
+  }, [virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId, virtualHandleRef]);
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
@@ -210,53 +163,24 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     [],
   );
 
-  if (useVirtualized) {
-    return (
-      <div
-        className="flex-1 min-h-0 overflow-hidden"
-        data-chat-virtualized="true"
-        style={{ opacity: virtualReady || isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
-      >
-        <VirtualizedChatMessageList
-          ref={virtualHandleRef}
-          messages={messages}
-          hasOlder={hasOlderMessages}
-          isLoadingOlder={isLoadingOlder}
-          onLoadOlder={onLoadOlder}
-          renderItem={renderVirtualRow}
-          topPadding={0}
-          bottomPadding={bottomPad}
-          scrollerRef={setVirtualScrollerRef}
-          initialBottomPinned={virtualReady || isPinned}
-        />
-      </div>
-    );
-  }
-
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide"
-      data-chat-scroll-lock="true"
-      ref={scrollAreaRef}
-      style={{
-        WebkitOverflowScrolling: isNativeIOS ? "auto" : "touch",
-        opacity: isPinned ? 1 : 0,
-        transition: "opacity 120ms ease-out",
-        pointerEvents: isPinned ? "auto" : "none",
-        touchAction: "pan-y",
-        overflowAnchor: "none",
-        scrollbarGutter: "stable",
-      }}
+      className="flex-1 min-h-0 overflow-hidden"
+      data-chat-virtualized="true"
+      style={{ opacity: virtualReady || isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
     >
-      <div className="p-4" style={{ paddingBottom: typeof bottomPad === "number" ? `${bottomPad}px` : bottomPad, overflowAnchor: "none" }}>
-        {hasOlderMessages && !searchQuery && (
-          <div ref={loadTriggerRef} className="h-1" style={loadTriggerStyle} />
-        )}
-        {messages.map((msg, index, arr) => (
-          <div key={msg.id} className="pt-4" style={{ overflowAnchor: "none" }}>{renderRow(msg, index, arr)}</div>
-        ))}
-        <div ref={messagesEndRef} id={endElementId} />
-      </div>
+      <VirtualizedChatMessageList
+        ref={virtualHandleRef}
+        messages={messages}
+        hasOlder={hasOlderMessages}
+        isLoadingOlder={isLoadingOlder}
+        onLoadOlder={onLoadOlder}
+        renderItem={renderVirtualRow}
+        topPadding={0}
+        bottomPadding={bottomPad}
+        scrollerRef={setVirtualScrollerRef}
+        initialBottomPinned={virtualReady || isPinned}
+      />
     </div>
   );
 }

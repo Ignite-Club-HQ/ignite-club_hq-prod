@@ -1227,14 +1227,11 @@ export default function DirectMessagePage() {
             hasOlderMessages={false}
             isLoadingOlder={false}
             onLoadOlder={() => {}}
-            searchQuery={searchQuery}
             isPinned={isPinned}
-            isNativeIOS={isNativeIOS}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
             virtualHandleRef={virtualHandleRef}
-            keepVirtualizedInSearch
             renderRow={(msg, index, arr) => {
               const showDateSeparator = index === 0 ||
                 !isSameDay(new Date(msg.created_at), new Date(arr[index - 1]?.created_at));

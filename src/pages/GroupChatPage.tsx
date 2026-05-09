@@ -1805,14 +1805,11 @@ export default function GroupChatPage() {
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
             onLoadOlder={loadOlderMessages}
-            searchQuery={searchQuery}
             isPinned={isPinned}
-            isNativeIOS={isNativeIOS}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
             virtualHandleRef={virtualHandleRef}
-            keepVirtualizedInSearch
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
               const messageReactions = messageReactionsMap.get(msg.id) || [];
