@@ -6,6 +6,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -218,6 +219,8 @@ export default function GroupChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -256,7 +259,7 @@ export default function GroupChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
@@ -586,16 +589,18 @@ export default function GroupChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: groupId,
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -771,7 +776,7 @@ export default function GroupChatPage() {
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
