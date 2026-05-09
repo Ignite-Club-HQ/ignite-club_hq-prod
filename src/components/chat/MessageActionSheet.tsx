@@ -112,6 +112,8 @@ export function MessageActionSheet({
 
   if (hasImage && onViewImage) {
     actions.push({
+      id: "publish-gallery",
+      id: "view-image",
       label: "View Image",
       icon: <ImageIcon className="h-5 w-5" />,
       onClick: onViewImage,
@@ -128,6 +130,7 @@ export function MessageActionSheet({
         ? "Published to Gallery"
         : "Publish to Media Gallery";
     actions.push({
+      id: "reply",
       label,
       icon: isPublishingToGallery
         ? <Loader2 className="h-5 w-5 animate-spin" />
@@ -143,6 +146,7 @@ export function MessageActionSheet({
 
   if (canReply) {
     actions.push({
+      id: "edit",
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
       onClick: onReply,
@@ -151,6 +155,7 @@ export function MessageActionSheet({
 
   if (canEdit) {
     actions.push({
+      id: "copy-message",
       label: "Edit",
       icon: <Pencil className="h-5 w-5" />,
       onClick: onEdit,
@@ -161,6 +166,7 @@ export function MessageActionSheet({
   if (messageText) {
     const isMessageCopied = copiedText === messageText;
     actions.push({
+      id: "open-link",
       label: isMessageCopied ? "Copied!" : "Copy Message",
       icon: isMessageCopied ? <Check className="h-5 w-5 text-primary" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
@@ -180,6 +186,7 @@ export function MessageActionSheet({
       
       // Open Link action
       actions.push({
+        id: "copy-link",
         label: urls.length > 1 ? "Open Link" : "Open Link",
         icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
@@ -190,6 +197,8 @@ export function MessageActionSheet({
 
       // Copy Link action
       actions.push({
+        id: "pin",
+        id: "unpin",
         label: isLinkCopied ? "Link Copied!" : "Copy Link",
         icon: isLinkCopied ? <Check className="h-5 w-5 text-primary" /> : <Link className="h-5 w-5" />,
         onClick: () => {
@@ -213,6 +222,7 @@ export function MessageActionSheet({
       });
     } else if (!isPinned && onPin) {
       actions.push({
+        id: "delete",
         label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
         icon: <Pin className="h-5 w-5" />,
         onClick: onPin,
