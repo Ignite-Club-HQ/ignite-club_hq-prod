@@ -605,7 +605,6 @@ export default function EventsPage() {
                   queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events", user?.id] }),
                   queryClient.invalidateQueries({ queryKey: ["events"] }),
                 ]);
-                toast({ title: "Schedule refreshed" });
               } finally {
                 setTimeout(() => setIsRefreshing(false), 600);
               }
