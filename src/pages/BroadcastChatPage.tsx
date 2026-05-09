@@ -1039,9 +1039,8 @@ export default function BroadcastChatPage() {
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
-            scrollAreaRef={scrollAreaRef}
-            loadTriggerRef={loadTriggerRef}
-            messagesEndRef={messagesEndRef}
+            virtualHandleRef={virtualHandleRef}
+            keepVirtualizedInSearch
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
