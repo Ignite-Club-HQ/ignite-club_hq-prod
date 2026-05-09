@@ -624,10 +624,11 @@ export default function EventsPage() {
                   broadcastTargetClubId,
                   broadcastTargetTeamId,
                 );
-                if (result.ok) {
+                if (result.ok === true) {
                   toast({ title: "Schedule refresh sent to all members" });
                 } else {
-                  toast({ title: "Broadcast failed", description: result.error, variant: "destructive" });
+                  const errMsg = (result as { ok: false; error: string }).error;
+                  toast({ title: "Broadcast failed", description: errMsg, variant: "destructive" });
                 }
               }, 600);
             }}
