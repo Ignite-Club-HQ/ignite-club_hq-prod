@@ -611,3 +611,26 @@ function ViewerList({
     </ul>
   );
 }
+
+// ---- Relative time helpers --------------------------------------------------
+// Lightweight, dependency-free strings suitable for short admin UI labels.
+function formatRelativePast(when: Date): string {
+  const diffMs = Date.now() - when.getTime();
+  const mins = Math.max(1, Math.round(diffMs / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatRelativeFuture(when: Date): string {
+  const diffMs = when.getTime() - Date.now();
+  if (diffMs <= 0) return "now";
+  const mins = Math.max(1, Math.round(diffMs / 60000));
+  if (mins < 60) return `in ${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `in ${hours}h`;
+  const days = Math.round(hours / 24);
+  return `in ${days}d`;
+}
