@@ -8,7 +8,7 @@ import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
-import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
@@ -184,8 +184,7 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const chatVirtualizationEnabled = useChatVirtualizationFlag();
-  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
+  const useVirtualizedChat = !searchQuery;
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
