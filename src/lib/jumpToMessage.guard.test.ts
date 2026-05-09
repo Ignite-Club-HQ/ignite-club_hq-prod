@@ -38,11 +38,15 @@ describe("chat jump-to-message DOM-fallback guard", () => {
     });
   }
 
-  it("the jump helper itself contains no getElementById usage", () => {
+  it("the jump helper itself contains no getElementById call", () => {
     const src = readFileSync(
       join(__dirname, "..", "lib", "jumpToMessage.ts"),
       "utf8",
     );
-    expect(src).not.toMatch(/getElementById/);
+    // Strip line + block comments so the doc-string mention doesn't trip us.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(code).not.toMatch(/getElementById\s*\(/);
   });
 });
