@@ -25,16 +25,18 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
         .maybeSingle();
 
       let opponentLabel: string | null = null;
+      let eventStart: string | null = null;
       if (data?.event_id) {
         const { data: ev } = await supabase
           .from("events")
-          .select("opponent, type")
+          .select("opponent, type, start_time")
           .eq("id", data.event_id)
           .maybeSingle();
         if (ev?.opponent) opponentLabel = ev.opponent as string;
+        if (ev?.start_time) eventStart = ev.start_time as string;
       }
 
-      return data ? { ...data, opponentLabel } : null;
+      return data ? { ...data, opponentLabel, eventStart } : null;
     },
     enabled: !!cardId,
     staleTime: 30 * 1000,
@@ -72,8 +74,23 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
   const teamName = (card as { teams?: { name?: string } | null }).teams?.name || "Team";
   const isPrompt = card.is_prompt;
   const count = card.photo_count;
+  const promptHeadline = (() => {
+    const ref = (card as { eventStart?: string | null }).eventStart || card.created_at;
+    if (!ref) return "Got photos from the game?";
+    const refDate = new Date(ref);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayDiff = Math.round((startOfDay(now) - startOfDay(refDate)) / 86400000);
+    if (dayDiff <= 0) return "Got photos from today?";
+    if (dayDiff === 1) return "Got photos from yesterday?";
+    if (dayDiff < 7) {
+      const weekday = refDate.toLocaleDateString(undefined, { weekday: "long" });
+      return `Got photos from ${weekday}?`;
+    }
+    return "Got photos from the game?";
+  })();
   const headline = isPrompt
-    ? "Got photos from today?"
+    ? promptHeadline
     : card.opponentLabel
       ? `📸 ${count} photo${count === 1 ? "" : "s"} from vs ${card.opponentLabel}`
       : `📸 ${count} new ${teamName} photo${count === 1 ? "" : "s"}`;
