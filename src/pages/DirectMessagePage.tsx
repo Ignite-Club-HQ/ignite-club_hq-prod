@@ -555,7 +555,7 @@ export default function DirectMessagePage() {
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {

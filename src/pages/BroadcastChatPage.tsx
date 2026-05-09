@@ -352,7 +352,7 @@ export default function BroadcastChatPage() {
     if (useVirtualizedChat) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);

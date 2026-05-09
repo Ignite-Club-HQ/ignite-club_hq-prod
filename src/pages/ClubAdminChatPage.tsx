@@ -363,7 +363,7 @@ export default function ClubAdminChatPage() {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
