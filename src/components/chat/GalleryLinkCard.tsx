@@ -25,16 +25,18 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
         .maybeSingle();
 
       let opponentLabel: string | null = null;
+      let eventStart: string | null = null;
       if (data?.event_id) {
         const { data: ev } = await supabase
           .from("events")
-          .select("opponent, type")
+          .select("opponent, type, start_time")
           .eq("id", data.event_id)
           .maybeSingle();
         if (ev?.opponent) opponentLabel = ev.opponent as string;
+        if (ev?.start_time) eventStart = ev.start_time as string;
       }
 
-      return data ? { ...data, opponentLabel } : null;
+      return data ? { ...data, opponentLabel, eventStart } : null;
     },
     enabled: !!cardId,
     staleTime: 30 * 1000,
