@@ -472,7 +472,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
-      alignToBottom
+      // NOTE: `alignToBottom` was removed. With anchored prepends
+      // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
+      // pins the BOTTOM of the viewport when content grows above the current
+      // scroll position. The visible result is exactly the reported symptom:
+      // user scrolls up, hits the top of the loaded set, the older page lands
+      // ~1–2s later, and the viewport "jumps higher" to messages they never
+      // scrolled through — because the bottom-anchor lets the topmost visible
+      // row swap to a much older one. The initial-mount bottom pin is already
+      // handled by `initialTopMostItemIndex={LAST, end}` and the belt-and-
+      // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
+      // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomChange}
       followOutput={initialBottomPinned ? followOutput : false}
@@ -480,11 +490,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       itemContent={itemContent}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
-      // Conservative overscan for image-heavy threads on Android. Larger
-      // values mount/unmount too many heavy rows per scroll tick and blow
-      // the per-frame budget, leaving a "ghost" partial paint that looks
-      // like rows stacking on top of each other.
-      increaseViewportBy={{ top: 600, bottom: 200 }}
+      // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
+      // fires `startReached` when the first data item mounts, so a larger top
+      // window means we kick off the older-page fetch BEFORE the user
+      // hard-stops at scrollTop=0. With the previous 600px the fetch only
+      // started after the gesture stopped, so the prepend landed 1–2s later
+      // and the anchored shift read as the viewport "teleporting" to older
+      // messages it never scrolled through. 1400px gives the fetch enough
+      // runway to land while the finger is still moving. Bottom kept tight
+      // so we don't mount heavy image rows the user is scrolling away from.
+      increaseViewportBy={{ top: 1400, bottom: 200 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
