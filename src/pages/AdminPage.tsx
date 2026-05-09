@@ -192,6 +192,12 @@ export default function AdminPage() {
               description="Disable the + attachment menu in DMs by club or user"
               onClick={() => navigate("/admin/dm-attachments")}
             />
+            <AdminMenuItem
+              icon={ImageIcon}
+              label="Chat Photo Reminders"
+              description="Tune the gallery-reminder window and per-author cooldown"
+              onClick={() => navigate("/admin/chat-photo-reminders")}
+            />
           </CardContent>
         </Card>
       )}
