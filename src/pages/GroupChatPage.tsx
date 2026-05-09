@@ -631,7 +631,9 @@ export default function GroupChatPage() {
     });
 
     setLocalMessages((prev) => {
-      const mergedMessages = messages.map((message) => {
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = messages.map((message) => {
         const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
         const previousMessage = prev?.find((item) => item.id === message.id);
         const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
@@ -658,6 +660,9 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
@@ -761,7 +766,7 @@ export default function GroupChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
@@ -823,7 +828,7 @@ export default function GroupChatPage() {
       })) as GroupMessage[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
           if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
           const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
@@ -900,7 +905,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {

@@ -34,6 +34,7 @@ const IDLE_GATE_MS = 260;
 const PREFETCH_ROOT_MARGIN_PX = 360;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
 const MIN_TRIGGER_INTERVAL_MS = 900;
+const PREPEND_IDLE_GRACE_MS = 220;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -46,8 +47,11 @@ export function useChatOlderMessagesAnchor({
   const lastScrollAtRef = useRef(0);
   const lastTriggerAtRef = useRef(0);
   const pendingTriggerTimerRef = useRef<number | null>(null);
+  const pendingPrependRef = useRef<(() => void) | null>(null);
+  const pendingPrependTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
+    if (pendingPrependRef.current) return;
     const now = performance.now();
     if (now - lastTriggerAtRef.current < MIN_TRIGGER_INTERVAL_MS) return;
     lastTriggerAtRef.current = now;
@@ -103,10 +107,18 @@ export function useChatOlderMessagesAnchor({
         container.scrollHeight - container.clientHeight - container.scrollTop;
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
+
+      // Fallback for real devices where the top IntersectionObserver can miss
+      // after browser UI/address-bar resize: if the user is physically at the
+      // top, queue one older-page load after momentum settles.
+      if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
+        const trigger = loadTriggerRef.current;
+        if (trigger) scheduleTriggerWhenIdle(container, trigger);
+      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, loadTriggerRef, enabled, hasOlderMessages, isLoadingOlder, scheduleTriggerWhenIdle]);
 
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
@@ -232,7 +244,36 @@ export function useChatOlderMessagesAnchor({
     [scrollContainerRef],
   );
 
-  return { anchoredPrepend };
+  const queueAnchoredPrepend = useCallback((applyPrepend: () => void) => {
+    const run = () => {
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < PREPEND_IDLE_GRACE_MS) {
+        pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS - sinceScroll + 40);
+        return;
+      }
+
+      const apply = pendingPrependRef.current;
+      pendingPrependRef.current = null;
+      pendingPrependTimerRef.current = null;
+      if (apply) anchoredPrepend(apply);
+    };
+
+    pendingPrependRef.current = applyPrepend;
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+    }
+    pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS);
+  }, [anchoredPrepend]);
+
+  useEffect(() => () => {
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+      pendingPrependTimerRef.current = null;
+    }
+    pendingPrependRef.current = null;
+  }, []);
+
+  return { anchoredPrepend, queueAnchoredPrepend };
 }
 
 function watchPrependedMediaAndReanchor(

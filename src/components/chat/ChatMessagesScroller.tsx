@@ -134,14 +134,16 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
         transition: "opacity 120ms ease-out",
         pointerEvents: isPinned ? "auto" : "none",
         touchAction: "pan-y",
+        overflowAnchor: "none",
+        scrollbarGutter: "stable",
       }}
     >
-      <div className="space-y-4 p-4" style={{ paddingBottom: `${bottomPad}px` }}>
+      <div className="p-4" style={{ paddingBottom: `${bottomPad}px`, overflowAnchor: "none" }}>
         {hasOlderMessages && !searchQuery && (
           <div ref={loadTriggerRef} className="h-1" style={loadTriggerStyle} />
         )}
         {messages.map((msg, index, arr) => (
-          <div key={msg.id}>{renderRow(msg, index, arr)}</div>
+          <div key={msg.id} className="pt-4" style={{ overflowAnchor: "none" }}>{renderRow(msg, index, arr)}</div>
         ))}
         <div ref={messagesEndRef} id={endElementId} />
       </div>
