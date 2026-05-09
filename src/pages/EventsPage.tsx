@@ -585,6 +585,20 @@ export default function EventsPage() {
     });
   }, [user, userMemberships, membershipsLoading, isLoading, isFetching, events, isInitialLoad, isStuckOnSpinner]);
 
+  // Subscribe to server-side schedule refresh broadcasts for clubs the user belongs to.
+  useScheduleBroadcastListener(userMemberships?.clubIds);
+
+  // Long-press on the refresh button (admins only) sends a broadcast that
+  // forces every connected member's schedule to re-fetch.
+  const adminClubIds = userMemberships?.clubAdminClubIds ?? [];
+  const canBroadcast = adminClubIds.length > 0;
+  const broadcastTargetClubId = clubFilter && adminClubIds.includes(clubFilter)
+    ? clubFilter
+    : adminClubIds[0];
+  const broadcastTargetTeamId = teamFilter || null;
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
   if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;
   }
