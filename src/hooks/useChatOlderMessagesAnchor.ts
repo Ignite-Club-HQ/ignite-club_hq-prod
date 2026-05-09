@@ -222,7 +222,11 @@ export function useChatOlderMessagesAnchor({
         requestAnimationFrame(() => {
           const c = scrollContainerRef.current;
           if (!c) return;
-          c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
+          if (previousScrollTop <= 4) {
+            c.scrollTop = 0;
+          } else {
+            c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
+          }
           c.style.scrollBehavior = previousBehavior;
         });
         return;
