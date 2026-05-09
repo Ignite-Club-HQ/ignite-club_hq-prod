@@ -218,16 +218,14 @@ export function useChatOlderMessagesAnchor({
       // Disable any inherited smooth-scroll while we hard-set scrollTop.
       container.style.scrollBehavior = "auto";
 
-      // flushSync forces React to commit (and the browser to lay out) the
-      // new DOM synchronously, so we can read the new scrollHeight and
-      // restore scrollTop before any paint occurs.
-      try {
-        flushSync(() => {
-          applyPrepend();
-        });
-      } catch {
-        // flushSync throws if called from inside a render — fall back to
-        // a normal update + rAF restore.
+      // If the user is mid-flick (a real scroll event landed within the
+      // last 80ms), DO NOT flushSync. The synchronous commit + layout
+      // happens on the input frame and the user feels the stutter. Fall
+      // back to the rAF-restore path: paint may briefly show the unshifted
+      // top, but the scroll itself stays smooth.
+      const scrollHot = performance.now() - lastScrollAtRef.current < 80;
+
+      const rafRestore = () => {
         applyPrepend();
         requestAnimationFrame(() => {
           const c = scrollContainerRef.current;
@@ -238,7 +236,26 @@ export function useChatOlderMessagesAnchor({
             c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
           }
           c.style.scrollBehavior = previousBehavior;
+          watchPrependedMediaAndReanchor(c, previousScrollTop, previousScrollHeight);
         });
+      };
+
+      if (scrollHot) {
+        rafRestore();
+        return;
+      }
+
+      // flushSync forces React to commit (and the browser to lay out) the
+      // new DOM synchronously, so we can read the new scrollHeight and
+      // restore scrollTop before any paint occurs.
+      try {
+        flushSync(() => {
+          applyPrepend();
+        });
+      } catch {
+        // flushSync throws if called from inside a render — fall back to
+        // a normal update + rAF restore.
+        rafRestore();
         return;
       }
 
@@ -265,7 +282,6 @@ export function useChatOlderMessagesAnchor({
       });
 
       watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
-    },
     [scrollContainerRef],
   );
 
