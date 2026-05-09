@@ -92,16 +92,23 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     };
   }, [scrollAreaRef, searchQuery, useVirtualized]);
 
+  // The legacy initial-pin hook is intentionally disabled in virtualized mode,
+  // so it never flips `isPinned` / enables top pagination there. Do that once
+  // the list has real data; otherwise the wrapper can stay opacity:0 (blank)
+  // and `startReached` can be called before the first bottom pin completes.
+  const virtualReady = !useVirtualized || !!searchQuery || messages.length > 0;
+
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
   // we must re-pin to the latest message — otherwise the most recent
   // messages get hidden behind the keyboard and they "can't see what they
   // just sent". Fires immediately and again after the keyboard animation.
   useEffect(() => {
-    if (!useVirtualized || searchQuery) return;
+    if (!useVirtualized || searchQuery || !virtualReady) return;
     const handle = virtualHandleRef.current;
     if (!handle) return;
-    if (!handle.isAtBottom()) return;
+    const isReplyOrEditResize = composerHeight > 64;
+    if (!isReplyOrEditResize && !handle.isAtBottom()) return;
     handle.scrollToBottom("auto");
     const t1 = window.setTimeout(() => handle.scrollToBottom("auto"), 80);
     const t2 = window.setTimeout(() => handle.scrollToBottom("auto"), 280);
@@ -109,7 +116,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [useVirtualized, searchQuery, isKeyboardOpen, composerHeight, bottomPad]);
+  }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad]);
 
   if (useVirtualized && !searchQuery) {
     // CRITICAL: keep per-row wrapper *identical* for every index. Any
@@ -126,7 +133,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       <div
         className="flex-1 min-h-0 overflow-hidden"
         data-chat-virtualized="true"
-        style={{ opacity: isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
+        style={{ opacity: virtualReady || isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
       >
         <VirtualizedChatMessageList
           ref={virtualHandleRef}
