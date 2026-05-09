@@ -31,11 +31,11 @@ export function getChatScrollMetrics(container: HTMLElement | null | undefined) 
  * Uses an immediate snap + double-rAF + a 150ms delayed pass to catch
  * async layout changes (e.g. ResizeObserver updating composer height).
  */
-import { installChatScrollIntentTracking, isViewportUserActive } from "./chatScrollIntent";
+import { installChatScrollIntentTracking, isViewportTouching, isViewportUserActive } from "./chatScrollIntent";
 
 export function scrollChatToBottom(
   container: HTMLElement | null | undefined,
-  options: { persistent?: boolean } = {},
+  options: { persistent?: boolean; force?: boolean } = {},
 ) {
   const viewport = resolveChatScrollViewport(container);
   if (!viewport) return;
@@ -55,7 +55,7 @@ export function scrollChatToBottom(
   // Bail if user has scrolled away OR is actively interacting — never yank
   // a finger drag back to bottom.
   setTimeout(() => {
-    if (isViewportUserActive(viewport)) return;
+    if (options.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
     const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
     if (distance > 80) return;
     snap();
@@ -67,7 +67,7 @@ export function scrollChatToBottom(
   if (options.persistent) {
     [300, 500, 750].forEach((delay) => {
       setTimeout(() => {
-        if (isViewportUserActive(viewport)) return;
+        if (options.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
         const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
         // Allow a wider tolerance here since keyboard can shift layout abruptly
         if (distance > 400) return;
