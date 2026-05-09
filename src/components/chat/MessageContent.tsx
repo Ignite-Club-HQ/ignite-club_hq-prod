@@ -351,7 +351,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           // — without it iOS treats the tappable image as a gesture target
           // and momentum-scrolling halts the moment the user's finger
           // crosses an image while flicking through history.
-          style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y' }}
+          style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y', overflowAnchor: 'none' }}
           onTouchStart={stopMediaGesture}
           onPointerDown={stopMediaGesture}
         >
@@ -361,9 +361,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               imageLoaded flips, no scrollHeight change when signed URLs
               resolve later. This is what keeps history scroll anchored
               while images above the viewport hydrate. */}
-          <div className="relative w-full aspect-[4/3] bg-muted/40">
+          <div
+            className="relative w-full aspect-[4/3] bg-muted/40"
+            style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+          >
             {(!imageLoaded || isLoadingSignedUrl) && (
-              <Skeleton className="absolute inset-0 w-full h-full pointer-events-none" />
+              <Skeleton className="absolute inset-0 w-full h-full pointer-events-none rounded-none animate-none" />
             )}
             {!isLoadingSignedUrl && effectiveImageUrl && (
               isVideoUrl(effectiveImageUrl) ? (
@@ -396,10 +399,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   ref={imgRef}
                   src={effectiveImageUrl}
                   alt="Attachment"
+                  width={240}
+                  height={180}
                   decoding="async"
                   loading="lazy"
                   draggable={false}
-                  style={{ touchAction: 'pan-y' }}
+                  style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
                   className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
