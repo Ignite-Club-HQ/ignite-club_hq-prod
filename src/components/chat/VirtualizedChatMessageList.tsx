@@ -52,6 +52,8 @@ interface Props<TMessage extends { id: string }> {
   style?: React.CSSProperties;
   /** Notified on at-bottom transitions so the parent can drive its FAB. */
   onAtBottomChange?: (atBottom: boolean) => void;
+  /** Exposes Virtuoso's real scroll element to legacy chat scroll hooks. */
+  scrollerRef?: (element: HTMLElement | null) => void;
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -82,13 +84,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     className,
     style,
     onAtBottomChange,
+    scrollerRef,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
-  const isScrollingRef = useRef(false);
-  const loadOlderAfterScrollRef = useRef(false);
 
   // Virtuoso's anchored-prepend trick: keep a sliding `firstItemIndex` that
   // decreases by the count of items prepended. CRITICAL: this MUST be
@@ -163,28 +164,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const handleStartReached = useCallback(() => {
     if (!hasOlder || isLoadingOlder) return;
-    // Prepending older messages while the finger/momentum scroll is active is
-    // the main source of visible upward-scroll jitter: Virtuoso correctly
-    // re-anchors, but that re-measure still fights the in-progress gesture.
-    // Queue the fetch until scrolling settles so the list moves only under
-    // user input during the gesture.
-    if (isScrollingRef.current) {
-      loadOlderAfterScrollRef.current = true;
-      return;
-    }
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
-
-  const handleIsScrollingChange = useCallback(
-    (scrolling: boolean) => {
-      isScrollingRef.current = scrolling;
-      if (scrolling || !loadOlderAfterScrollRef.current) return;
-      loadOlderAfterScrollRef.current = false;
-      if (!hasOlder || isLoadingOlder) return;
-      onLoadOlder();
-    },
-    [hasOlder, isLoadingOlder, onLoadOlder],
-  );
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
