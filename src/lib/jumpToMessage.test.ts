@@ -77,7 +77,7 @@ describe("jumpToMessageInVirtualizedChat", () => {
     const handle = makeHandle();
     const setHighlight = vi.fn();
 
-    // First jump targets a not-yet-loaded id.
+    // First jump targets a not-yet-loaded id with a long polling window.
     jumpToMessageInVirtualizedChat(
       "missing",
       () => messages,
@@ -86,25 +86,32 @@ describe("jumpToMessageInVirtualizedChat", () => {
       { maxAttempts: 40, intervalMs: 50 },
     );
 
-    // Rapidly fire a second jump for a loaded id — should cancel the first.
+    // Rapidly fire a second jump for a loaded id ("a", idx 0). If the first
+    // jump were still alive it would never resolve to idx 0, but its polling
+    // ticks would still fire — we assert the timers were cleared by checking
+    // setHighlight is never called with the missing id and only idx 0 scrolls.
     jumpToMessageInVirtualizedChat(
-      "b",
+      "a",
       () => messages,
       () => handle as any,
       setHighlight,
     );
 
     await vi.advanceTimersByTimeAsync(60);
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(1, "center");
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(0, "center");
 
-    // Advance well past the first loop's polling window — no further activity
-    // should occur for the cancelled jump.
-    handle.scrollToIndex.mockClear();
-    setHighlight.mockClear();
-    await vi.advanceTimersByTimeAsync(5000);
+    // Drain the second jump's settle (350ms) and highlight-clear (2500ms).
+    await vi.advanceTimersByTimeAsync(3000);
 
-    // Only the highlight-clear timer for jump #2 may fire; no scrollToIndex.
-    expect(handle.scrollToIndex).not.toHaveBeenCalled();
+    // Every scrollToIndex call must be for idx 0 — none for the cancelled jump.
+    for (const call of handle.scrollToIndex.mock.calls) {
+      expect(call[0]).toBe(0);
+    }
+    // Highlight is only ever set for "a"; the cancelled jump's polling
+    // ticks never run a successful resolution.
+    for (const call of setHighlight.mock.calls) {
+      expect([null, "a"]).toContain(call[0]);
+    }
     expect(document.getElementById).not.toHaveBeenCalled();
   });
 
