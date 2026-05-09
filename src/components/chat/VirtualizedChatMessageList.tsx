@@ -47,7 +47,7 @@ interface Props<TMessage extends { id: string }> {
   /** Padding above the first message (e.g. for the "load older" spinner). */
   topPadding?: number;
   /** Padding below the last message (typically composer + safe-area). */
-  bottomPadding?: number;
+  bottomPadding?: number | string;
   className?: string;
   style?: React.CSSProperties;
   /** Notified on at-bottom transitions so the parent can drive its FAB. */
