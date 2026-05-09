@@ -14,14 +14,15 @@
 let lastScrollAt = 0;
 let installed = false;
 
-const onScroll = (event: Event) => {
+const isChatEventTarget = (target: EventTarget | null): target is HTMLElement => {
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest('[data-chat-scroll-lock="true"], [data-chat-virtualized="true"]');
+};
+
+const markChatActivity = (event: Event) => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  // Cheap structural test — avoids running for every scroll on the page.
-  if (
-    target.dataset.chatScrollLock === "true" ||
-    target.closest('[data-chat-virtualized="true"]')
-  ) {
+  // Cheap structural test — avoids running for every scroll/gesture on the page.
+  if (isChatEventTarget(target)) {
     lastScrollAt = performance.now();
   }
 };
@@ -30,8 +31,15 @@ function ensureInstalled() {
   if (installed || typeof document === "undefined") return;
   installed = true;
   // Capture phase so we observe BEFORE child handlers can stopPropagation.
-  // Passive — we never preventDefault on scroll.
-  document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+  // Include pre-scroll gestures: on a fast first flick, the browser may not
+  // dispatch `scroll` until after React commits a link/reply hydration update.
+  // Marking touch/wheel/pointer activity closes that race.
+  const opts = { capture: true, passive: true } as const;
+  document.addEventListener("scroll", markChatActivity, opts);
+  document.addEventListener("touchstart", markChatActivity, opts);
+  document.addEventListener("touchmove", markChatActivity, opts);
+  document.addEventListener("wheel", markChatActivity, opts);
+  document.addEventListener("pointerdown", markChatActivity, opts);
 }
 
 export function getLastChatScrollAt(): number {
