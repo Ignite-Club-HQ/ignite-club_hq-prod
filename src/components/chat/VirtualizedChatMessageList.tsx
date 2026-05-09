@@ -47,13 +47,13 @@ interface Props<TMessage extends { id: string }> {
   /** Padding above the first message (e.g. for the "load older" spinner). */
   topPadding?: number;
   /** Padding below the last message (typically composer + safe-area). */
-  bottomPadding?: number;
+  bottomPadding?: number | string;
   className?: string;
   style?: React.CSSProperties;
   /** Notified on at-bottom transitions so the parent can drive its FAB. */
   onAtBottomChange?: (atBottom: boolean) => void;
   /** Exposes Virtuoso's real scroll element to legacy chat scroll hooks. */
-  scrollerRef?: (element: HTMLElement | null) => void;
+  scrollerRef?: (element: HTMLElement | Window | null) => void;
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -116,9 +116,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     newFirstId &&
     lastFirstIdRef.current !== newFirstId
   ) {
-    // Older messages prepended — slide the index baseline so the current
-    // viewport stays anchored to the same row.
-    firstIndexRef.current -= messages.length - lastSeenLengthRef.current;
+    // Older messages prepended — slide by the actual number of rows inserted
+    // before the previous first row. Do NOT use total length delta: a query
+    // refresh/realtime append can land in the same render as the prepend and
+    // would over-shift the anchor, which is the visible stop-scroll jolt.
+    const previousFirstIndex = messages.findIndex((message) => message.id === lastFirstIdRef.current);
+    firstIndexRef.current -= previousFirstIndex > 0
+      ? previousFirstIndex
+      : messages.length - lastSeenLengthRef.current;
   } else if (messages.length < lastSeenLengthRef.current) {
     // Reset (thread switch / clear).
     firstIndexRef.current = START_INDEX - messages.length;
