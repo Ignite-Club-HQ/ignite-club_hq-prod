@@ -834,7 +834,7 @@ export default function ScoreTracker({
                         {goal.scorerName}
                       </span>
                     )}
-                    {!isMiniLeague && goal.isOpponentGoal && <span>Opp</span>}
+                    {!isMiniLeague && goal.isOpponentGoal && <span>{goal.isOwnGoal ? "OG" : "Opp"}</span>}
                     {isMiniLeague && !goal.scorerName && (
                       <span>{goal.teamSide === "a" ? teamAName : teamBName}</span>
                     )}
