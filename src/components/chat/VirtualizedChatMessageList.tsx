@@ -446,23 +446,41 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [uniqueMessages],
   );
 
+  // CRITICAL flicker fix: keep `itemContent` identity stable across messages
+  // mutations. If this callback's identity changes when an older page lands,
+  // Virtuoso re-invokes it for every visible row, defeating React.memo on
+  // ChatMessage and producing a full-row repaint flash mid-scroll. We capture
+  // the per-render data into refs and reference them inside a callback that
+  // is created ONCE per component instance.
+  const renderItemRef = useRef(renderItem);
+  const uniqueMessagesRef = useRef(uniqueMessages);
+  const indexByIdRef = useRef(indexById);
+  const heightEstimatesRef = useRef(heightEstimates);
+  useLayoutEffect(() => {
+    renderItemRef.current = renderItem;
+    uniqueMessagesRef.current = uniqueMessages;
+    indexByIdRef.current = indexById;
+    heightEstimatesRef.current = heightEstimates;
+  }, [renderItem, uniqueMessages, indexById, heightEstimates]);
+
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
-      const idx = indexById.get(message.id);
+      const idx = indexByIdRef.current.get(message.id);
       if (idx === undefined) return null;
-      const child = renderItem(message, idx, uniqueMessages);
+      const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
       if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0 ? heightEstimates[idx] : undefined;
+      const estimated = idx >= 0 ? heightEstimatesRef.current[idx] : undefined;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
           {child}
         </DebugRowProbe>
       );
     },
-    [uniqueMessages, renderItem, indexById, heightEstimates],
+    [],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
+
 
   // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
   // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
