@@ -885,9 +885,15 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
-            {/* Inline "Add to gallery" chip — only on own image messages */}
-            {canPublishToGallery && isOwn && imageUrl && onPublishToGallery && !id.startsWith("queued-") && (
-              <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+            {/* Inline "Add to gallery" chip — only on own image messages.
+                Reserve a fixed-height slot whenever this is an own image
+                message that isn't queued, so that the chip appearing once
+                permissions hydrate (canPublishToGallery / onPublishToGallery)
+                never grows the row mid-scroll and pushes everything below
+                it downward during a fast upward flick. */}
+            {isOwn && imageUrl && !id.startsWith("queued-") && (
+              <div className={`mt-1 flex h-7 items-center ${isOwn ? "justify-end" : "justify-start"}`}>
+                {canPublishToGallery && onPublishToGallery ? (
                 <button
                   type="button"
                   disabled={isPublishingToGallery || isPublishedToGallery}
@@ -928,6 +934,7 @@ function ChatMessageInner({
                         : "Add to gallery"}
                   </span>
                 </button>
+                ) : null}
               </div>
             )}
           </div>
@@ -987,7 +994,7 @@ function ChatMessageInner({
           onReactionClick={handleReactionClick}
         />
         
-        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 ${isOwn ? "justify-end" : ""}`}>
+        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
           {isPending && (
             <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
               <Clock className="h-3 w-3" />

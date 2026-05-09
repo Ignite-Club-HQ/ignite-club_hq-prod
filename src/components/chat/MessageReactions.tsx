@@ -1,4 +1,5 @@
-import { memo, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -243,12 +244,30 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
 }: MessageReactionsDisplayProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!reactions || reactions.length === 0) return null;
+  // Defer reactions visibility commits until chat scrolling is idle.
+  // A realtime reaction arriving on a message currently above the
+  // viewport would otherwise grow that row by ~22px and shove every
+  // visible row below it down by the same amount mid-flick. We commit
+  // the visible reaction set on first mount immediately (no scroll yet),
+  // then route subsequent changes through `runWhenChatScrollIdle` so
+  // pop-ins always happen between flicks.
+  const [committed, setCommitted] = useState<Reaction[]>(reactions);
+  const firstCommitRef = useRef(true);
+  useEffect(() => {
+    if (firstCommitRef.current) {
+      firstCommitRef.current = false;
+      setCommitted(reactions);
+      return;
+    }
+    return runWhenChatScrollIdle(() => setCommitted(reactions), 250);
+  }, [reactions]);
 
-  const allUserIds = [...new Set(reactions.map(r => r.user_id))];
+  if (!committed || committed.length === 0) return null;
+
+  const allUserIds = [...new Set(committed.map(r => r.user_id))];
 
   // Group reactions by type
-  const reactionCounts = reactions.reduce((acc, r) => {
+  const reactionCounts = committed.reduce((acc, r) => {
     if (!acc[r.reaction_type]) {
       acc[r.reaction_type] = { count: 0, reactions: [], userIds: [] };
     }
@@ -287,7 +306,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
         </div>
       </PopoverTrigger>
       <AllReactionsContent
-        reactions={reactions}
+        reactions={committed}
         allUserIds={allUserIds}
         currentUserId={currentUserId}
         onReactionClick={onReactionClick}
