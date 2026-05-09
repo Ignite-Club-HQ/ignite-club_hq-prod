@@ -518,7 +518,7 @@ export default function ClubChatPage() {
     if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
   }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
