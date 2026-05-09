@@ -646,23 +646,15 @@ export default function TeamChatPage() {
     setInfiniteScrollEnabled(false);
   }, [teamId, queryClient]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: teamId,
-    enabled: !useVirtualizedChat,
-    onPinned: () => setInfiniteScrollEnabled(true),
-  });
+  // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
+  // gate on as soon as we have any messages so older-page loads can begin.
+  const isPinned = true;
+  useEffect(() => {
+    if ((localMessages?.length ?? 0) > 0) setInfiniteScrollEnabled(true);
+  }, [localMessages?.length]);
 
-  // Scroll to bottom when replying, editing, or sending a new message
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
-    if (useVirtualizedChat) return;
-    if (!isReplyOrEdit && isUserActive()) return;
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
