@@ -367,6 +367,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               isVideoUrl(effectiveImageUrl) ? (
                 <div
                   className="absolute inset-0 cursor-pointer"
+                  style={{ touchAction: 'pan-y' }}
                   onClick={handleImageClick}
                   onTouchStart={stopMediaGesture}
                   onTouchMove={stopMediaGesture}
