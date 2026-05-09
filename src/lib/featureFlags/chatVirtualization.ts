@@ -1,9 +1,9 @@
 /**
  * Feature flag for the virtualised chat message list.
  *
- * Off by default. Per-device override via localStorage; build-time override
- * via `VITE_CHAT_VIRTUALIZATION=1`. The legacy non-virtualised list remains
- * the safe fallback whenever this is disabled.
+ * On by default. Per-device override via localStorage (set "0" to opt out);
+ * build-time override via `VITE_CHAT_VIRTUALIZATION=0` to force off. The
+ * legacy non-virtualised list remains the safe fallback when disabled.
  */
 const STORAGE_KEY = "ff:chat-virtualization";
 const EVENT = "ff:chat-virtualization:changed";
@@ -19,7 +19,8 @@ export function isChatVirtualizationEnabled(): boolean {
     /* ignore */
   }
   // @ts-ignore - import.meta.env at build time
-  return Boolean(import.meta?.env?.VITE_CHAT_VIRTUALIZATION === "1");
+  if (import.meta?.env?.VITE_CHAT_VIRTUALIZATION === "0") return false;
+  return true;
 }
 
 export function setChatVirtualizationEnabled(enabled: boolean): void {
