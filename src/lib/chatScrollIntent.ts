@@ -33,3 +33,8 @@ export function isViewportUserActive(viewport: HTMLElement | null | undefined): 
   if (!ts) return false;
   return performance.now() - ts < COOLDOWN_MS;
 }
+
+export function isViewportTouching(viewport: HTMLElement | null | undefined): boolean {
+  if (!viewport) return false;
+  return isTouching.has(viewport);
+}
