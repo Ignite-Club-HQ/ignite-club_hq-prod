@@ -152,7 +152,7 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const useVirtualizedChat = !searchQuery;
+  const useVirtualizedChat = true;
   const { isOnline } = useOnlineStatus();
 
   // Mark club message notifications as read when opening this thread
