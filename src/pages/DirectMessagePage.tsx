@@ -1350,6 +1350,15 @@ export default function DirectMessagePage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      {!isIgniteSupportConversation && (
+        <PinnedMessagesBanner
+          pins={pinnedMessages}
+          onJumpToMessage={handleJumpToPinned}
+          onUnpin={unpinMessage}
+        />
+      )}
+
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
