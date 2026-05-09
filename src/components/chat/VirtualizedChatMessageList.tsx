@@ -318,12 +318,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [messages],
   );
 
-  // Use layout height instead of getBoundingClientRect height. The default
-  // measurement can include transient transforms/paint-state changes in rich
-  // bubbles; offsetHeight stays tied to actual layout, reducing scroll-time
-  // remeasurement noise.
+  // Use sub-pixel-accurate height. offsetHeight is integer-truncated so a
+  // 0.5px discrepancy on every measure→paint cycle re-applies paddingTop and
+  // shows up as scroll "shake" on fast flicks.
   const itemSize = useCallback((el: HTMLElement) => {
-    return Math.ceil(el.offsetHeight || el.getBoundingClientRect().height);
+    return el.getBoundingClientRect().height;
   }, []);
 
   const components = useMemo(
@@ -353,16 +352,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
-      // Estimate so off-screen rows reserve realistic space; otherwise
-      // virtuoso uses tiny placeholders that grow on mount and shift the
-      // scrollbar/scrollTop while the user is scrolling.
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
-      // Keep a generous upward viewport for smooth back-scrolling. Don't
-      // also set `overscan` — virtuoso applies both and the interaction
-      // produces visible re-anchor jumps on slow devices.
-      increaseViewportBy={{ top: 1200, bottom: 600 }}
-      minOverscanItemCount={{ top: 12, bottom: 8 }}
+      // Conservative overscan for image-heavy threads on Android. Larger
+      // values mount/unmount too many heavy rows per scroll tick and blow
+      // the per-frame budget, leaving a "ghost" partial paint that looks
+      // like rows stacking on top of each other.
+      increaseViewportBy={{ top: 600, bottom: 200 }}
       atBottomThreshold={120}
       scrollerRef={scrollerRef}
       components={components}
