@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Reply, Clock, Megaphone, ImagePlus, Check, Loader2 } from "lucide-react";
 import {
@@ -125,6 +126,7 @@ function ChatMessageInner({
   isPublishingToGallery = false,
   onPublishToGallery,
 }: ChatMessageProps) {
+  const navigate = useNavigate();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
@@ -706,11 +708,28 @@ function ChatMessageInner({
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (isSystemMessage || isMembershipSystemText(text)) {
+    // Detect tappable [publish:<teamId>] CTA appended by the chat-photo
+    // gallery reminder cron and render it as a button under the pill.
+    const publishMatch = text.match(/\[publish:([0-9a-f-]{36})\]/i);
+    const cleanedText = publishMatch
+      ? text.replace(publishMatch[0], "").trim()
+      : text;
     return (
-      <div ref={rowRef} className="flex justify-center my-2 px-4">
-        <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
-          {text}
+      <div ref={rowRef} className="flex flex-col items-center gap-2 my-2 px-4">
+        <div className="max-w-[85%] rounded-2xl bg-muted/70 px-3 py-2 text-center text-[12px] text-muted-foreground whitespace-pre-line">
+          {cleanedText}
         </div>
+        {publishMatch && (
+          <button
+            type="button"
+            onClick={() => {
+              navigate(`/teams/${publishMatch[1]}/publish-chat-photos`);
+            }}
+            className="rounded-full bg-primary text-primary-foreground text-xs font-medium px-4 py-1.5 shadow-sm hover:opacity-90 transition touch-manipulation"
+          >
+            Add to gallery
+          </button>
+        )}
       </div>
     );
   }

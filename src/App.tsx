@@ -103,6 +103,7 @@ const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage
 const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const AdminDmAttachmentsPage = lazy(() => import("./pages/AdminDmAttachmentsPage"));
 const AdminChatPhotoRemindersPage = lazy(() => import("./pages/AdminChatPhotoRemindersPage"));
+const PublishChatPhotosPage = lazy(() => import("./pages/PublishChatPhotosPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
 const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
@@ -288,6 +289,7 @@ const App = () => {
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
                   <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
+                  <Route path="/teams/:teamId/publish-chat-photos" element={<PublishChatPhotosPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
