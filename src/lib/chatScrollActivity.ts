@@ -72,3 +72,57 @@ export function runWhenChatScrollIdle(cb: () => void, idleMs = 250): () => void 
     if (timer) clearTimeout(timer);
   };
 }
+
+function findChatViewport(element: HTMLElement | null): HTMLElement | null {
+  if (!element) return null;
+  return element.closest<HTMLElement>('[data-chat-scroll-lock="true"]');
+}
+
+/**
+ * Observes a height-changing chat sub-tree and absorbs its resize when it is
+ * above the visible viewport. This prevents the classic post-scroll jolt where
+ * deferred link previews, replies, reactions, or async cards grow after
+ * momentum ends and push the message the user stopped on downward.
+ */
+export function observeChatElementHeight(element: HTMLElement | null): () => void {
+  ensureInstalled();
+  if (!element || typeof ResizeObserver === "undefined") return () => {};
+
+  let lastHeight = element.getBoundingClientRect().height;
+  let adjusting = false;
+
+  const observer = new ResizeObserver((entries) => {
+    if (adjusting) return;
+    const entry = entries[0];
+    if (!entry) return;
+
+    const nextHeight = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+    const delta = nextHeight - lastHeight;
+    lastHeight = nextHeight;
+    if (Math.abs(delta) < 0.75) return;
+
+    const viewport = findChatViewport(element);
+    if (!viewport) return;
+    if (viewport.closest('[data-chat-virtualized="true"]')) return;
+
+    const elementRect = element.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+
+    // Only compensate growth/shrink above the viewport. If the changing card
+    // is visible, the user should see that row settle naturally rather than the
+    // scroll container fighting their focal point.
+    if (elementRect.top >= viewportRect.top - 1) return;
+
+    const previousBehavior = viewport.style.scrollBehavior;
+    adjusting = true;
+    viewport.style.scrollBehavior = "auto";
+    viewport.scrollTop += delta;
+    requestAnimationFrame(() => {
+      viewport.style.scrollBehavior = previousBehavior;
+      adjusting = false;
+    });
+  });
+
+  observer.observe(element);
+  return () => observer.disconnect();
+}
