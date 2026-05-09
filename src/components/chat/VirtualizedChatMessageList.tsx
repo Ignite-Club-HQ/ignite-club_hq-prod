@@ -317,11 +317,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       jump("raf1");
       r2 = requestAnimationFrame(() => {
         jump("raf2");
+        if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
         bottomPinReadyRef.current = true;
       });
     });
     const t = window.setTimeout(() => {
       jump("timeout-200");
+      if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
     }, 200);
     return () => {
