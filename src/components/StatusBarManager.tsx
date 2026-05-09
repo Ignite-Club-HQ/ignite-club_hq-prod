@@ -56,9 +56,14 @@ export function StatusBarManager() {
     // height and is a safe minimum across all current devices; if the WebView
     // does report a real (larger) inset we still honour it via Math.max below.
     const getAndroidSafeAreaTopFloor = () => {
-      if (typeof window === 'undefined') return 0;
-      // Skip the floor on tablets / desktop-class viewports where the device
-      // status bar is not overlaying the WebView.
+      // CRITICAL: only apply this floor inside the native Capacitor WebView.
+      // Web Android Chrome does NOT render under the system status bar (the
+      // browser URL bar owns that area), so `env(safe-area-inset-top) = 0`
+      // is correct there. Forcing 24px on web inflates `pt-safe` on AppHeader
+      // by 24px, which makes the chat container (which only subtracts 4rem
+      // for the header) overflow the viewport — the body then scrolls and
+      // the AppHeader / chat header disappear off the top.
+      if (!isNativeAndroid || typeof window === 'undefined') return 0;
       const shortestSide = Math.min(window.screen?.width ?? 0, window.screen?.height ?? 0);
       if (shortestSide >= 768) return 0;
       return 24;
