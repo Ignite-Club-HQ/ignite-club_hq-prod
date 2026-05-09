@@ -294,6 +294,22 @@ export default function ClubAdminChatPage() {
   );
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
+
+  // Deep-link / push-notification jump: ?message=<id>
+  // Polls until the target renders so it works even if the message
+  // arrives after the initial query settles. ClubAdmin has no
+  // older-message pagination, so no tryLoadOlder is wired.
+  const targetMessageId = searchParams.get("message");
+  useEffect(() => {
+    if (!targetMessageId) return;
+    const cancel = jumpToMessageInVirtualizedChat(
+      targetMessageId,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+    );
+    return cancel;
+  }, [targetMessageId]);
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
