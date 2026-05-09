@@ -230,7 +230,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const handleImageLoad = useCallback(() => {
     setImageLoaded(true);
     if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
-  }, [effectiveImageUrl]);
+    if (imageUrl) decodedImageUrls.add(imageUrl);
+  }, [effectiveImageUrl, imageUrl]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
