@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw } from "lucide-react";
@@ -26,6 +26,8 @@ import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
+import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
+import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
@@ -583,6 +585,20 @@ export default function EventsPage() {
     });
   }, [user, userMemberships, membershipsLoading, isLoading, isFetching, events, isInitialLoad, isStuckOnSpinner]);
 
+  // Subscribe to server-side schedule refresh broadcasts for clubs the user belongs to.
+  useScheduleBroadcastListener(userMemberships?.clubIds);
+
+  // Long-press on the refresh button (admins only) sends a broadcast that
+  // forces every connected member's schedule to re-fetch.
+  const adminClubIds = userMemberships?.clubAdminClubIds ?? [];
+  const canBroadcast = adminClubIds.length > 0;
+  const broadcastTargetClubId = clubFilter && adminClubIds.includes(clubFilter)
+    ? clubFilter
+    : adminClubIds[0];
+  const broadcastTargetTeamId = teamFilter || null;
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
   if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;
   }
@@ -592,13 +608,47 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
-          {/* Manual refresh — forces fresh schedule fetch (helps when iOS keeps stale cache) */}
+          {/* Manual refresh — tap = local refresh; admins can long-press to
+              broadcast a refresh to every connected member of the club. */}
           <Button
             variant="outline"
             size="icon"
-            aria-label="Refresh schedule"
+            aria-label={canBroadcast ? "Refresh schedule (hold to broadcast)" : "Refresh schedule"}
             disabled={isRefreshing}
+            onPointerDown={() => {
+              if (!canBroadcast || !broadcastTargetClubId) return;
+              longPressFiredRef.current = false;
+              longPressTimerRef.current = setTimeout(async () => {
+                longPressFiredRef.current = true;
+                const result = await sendScheduleBroadcast(
+                  broadcastTargetClubId,
+                  broadcastTargetTeamId,
+                );
+                if (result.ok === true) {
+                  toast({ title: "Schedule refresh sent to all members" });
+                } else {
+                  const errMsg = (result as { ok: false; error: string }).error;
+                  toast({ title: "Broadcast failed", description: errMsg, variant: "destructive" });
+                }
+              }, 600);
+            }}
+            onPointerUp={() => {
+              if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = null;
+              }
+            }}
+            onPointerLeave={() => {
+              if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = null;
+              }
+            }}
             onClick={async () => {
+              if (longPressFiredRef.current) {
+                longPressFiredRef.current = false;
+                return;
+              }
               setIsRefreshing(true);
               try {
                 await Promise.all([
