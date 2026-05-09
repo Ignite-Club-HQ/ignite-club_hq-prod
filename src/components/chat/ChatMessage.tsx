@@ -696,7 +696,7 @@ function ChatMessageInner({
   if (!isOwn && isBlocked(authorId)) return null;
 
   // Gallery upload cards: rendered centered as a card (not a pill).
-  const galleryCardMatch = isSystemMessage ? text.match(/^\s*\[gallery:([0-9a-f-]{36})\]\s*$/i) : null;
+  const galleryCardMatch = isSystemMessage ? text.match(/^\s*\[(?:gallery|galleryprompt):([0-9a-f-]{36})\]\s*$/i) : null;
   if (galleryCardMatch) {
     return (
       <div ref={rowRef} className="flex justify-center my-2 px-3">
