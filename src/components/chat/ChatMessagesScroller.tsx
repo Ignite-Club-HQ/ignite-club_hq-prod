@@ -77,19 +77,23 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     : `calc(var(--bottom-nav-offset, 0px) + 24px)`;
 
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
-  const setVirtualScrollerRef = useCallback((element: HTMLElement | Window | null) => {
-    const next = element instanceof HTMLElement ? element : null;
-    (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = next as HTMLDivElement | null;
-  }, [scrollAreaRef]);
+  // CRITICAL: Do NOT hand Virtuoso's internal scroller to the legacy
+  // `scrollAreaRef`. Legacy chat hooks (auto-scroll, bottom-pin, older-message
+  // anchor) imperatively mutate `scrollTop` on whatever element this ref
+  // points at — and Virtuoso also drives that element. Two owners on the
+  // same scrollTop produces the "rows stacking / jump on fast scroll"
+  // corruption the user reported. Keep the ref null in virtualised mode so
+  // legacy hooks no-op; Virtuoso owns scrolling end-to-end via its handle.
+  const setVirtualScrollerRef = useCallback((_element: HTMLElement | Window | null) => {
+    // intentional no-op
+  }, []);
 
   useEffect(() => {
-    if (useVirtualized && !searchQuery) return;
-    return () => {
-      const current = scrollAreaRef.current;
-      if (current?.closest?.('[data-chat-virtualized="true"]')) {
-        (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = null;
-      }
-    };
+    if (useVirtualized && !searchQuery) {
+      // Make sure no stale legacy ref points at a now-unmounted Virtuoso
+      // scroller from a previous render of this component.
+      (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = null;
+    }
   }, [scrollAreaRef, searchQuery, useVirtualized]);
 
   // The legacy initial-pin hook is intentionally disabled in virtualized mode,
@@ -119,17 +123,27 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     };
   }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId]);
 
-  if (useVirtualized && !searchQuery) {
-    // CRITICAL: keep per-row wrapper *identical* for every index. Any
-    // index-conditional class (e.g. `pt-4` on all-but-first) means the
-    // previously-first row gains height the moment older messages prepend,
-    // which makes virtuoso shift the viewport. Top spacing is owned by the
-    // Header in `VirtualizedChatMessageList`.
-    const renderVirtualRow = (msg: TMessage, index: number, arr: TMessage[]) => (
-      <div className="px-4 pt-4">
-        {renderRow(msg, index, arr)}
+  // Stable renderer identity — recreating it on every parent re-render
+  // invalidates Virtuoso's `itemContent` and forces every visible row tree to
+  // re-evaluate (defeats `memo` on ChatMessage). `renderRow` is captured by
+  // ref so the parent's per-render closure changes don't churn this.
+  const renderRowRef = useRef(renderRow);
+  renderRowRef.current = renderRow;
+  const renderVirtualRow = useCallback(
+    (msg: TMessage, index: number, arr: TMessage[]) => (
+      // `contain: layout paint` isolates each row's layout/paint from siblings
+      // so an image decode, reaction update, or signed-URL resolve in row N
+      // cannot trigger a sibling reflow that Virtuoso then has to chase with
+      // a paddingTop adjustment mid-scroll. This is the single biggest fix
+      // for "avatars overlap message bubbles" during fast back-scroll.
+      <div className="px-4 pt-4" style={{ contain: "layout paint" }}>
+        {renderRowRef.current(msg, index, arr)}
       </div>
-    );
+    ),
+    [],
+  );
+
+  if (useVirtualized && !searchQuery) {
     return (
       <div
         className="flex-1 min-h-0 overflow-hidden"

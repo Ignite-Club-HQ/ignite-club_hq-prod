@@ -181,27 +181,40 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     baseFirstIndex: START_INDEX - messages.length,
   });
 
-  let bottomPinRevision = bottomPinRevisionRef.current;
-  if (messages.length === 0) {
-    anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
-  } else {
-    const baseFirstId = anchorRef.current.baseFirstId;
-    const baseOffset = baseFirstId ? messages.findIndex((message) => message.id === baseFirstId) : -1;
-    if (!baseFirstId || baseOffset === -1) {
-      bottomPinRevisionRef.current += 1;
-      bottomPinRevision = bottomPinRevisionRef.current;
-      bottomPinReadyRef.current = false;
+  // Pure derivation — no ref mutations during render. Anchor reset (when the
+  // baseFirstId is no longer in the data) is moved into a layout effect below
+  // so StrictMode / concurrent re-renders cannot double-fire it mid-scroll
+  // and snap the viewport while the user is reading history.
+  const baseFirstId = anchorRef.current.baseFirstId;
+  const baseOffset =
+    messages.length === 0
+      ? 0
+      : baseFirstId
+      ? messages.findIndex((message) => message.id === baseFirstId)
+      : -1;
+  const needsAnchorReset = messages.length > 0 && (!baseFirstId || baseOffset === -1);
+  const effectiveBaseIndex = needsAnchorReset
+    ? START_INDEX - messages.length
+    : anchorRef.current.baseFirstIndex;
+  const effectiveBaseOffset = needsAnchorReset ? 0 : Math.max(0, baseOffset);
+  const firstItemIndex = effectiveBaseIndex - effectiveBaseOffset;
+  const bottomPinRevision = bottomPinRevisionRef.current;
+  wasEmptyRef.current = messages.length === 0;
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
+      return;
+    }
+    if (needsAnchorReset) {
       anchorRef.current = {
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
       };
+      bottomPinReadyRef.current = false;
+      bottomPinRevisionRef.current += 1;
     }
-  }
-  const anchorOffset = anchorRef.current.baseFirstId
-    ? messages.findIndex((message) => message.id === anchorRef.current.baseFirstId)
-    : 0;
-  const firstItemIndex = anchorRef.current.baseFirstIndex - Math.max(0, anchorOffset);
-  wasEmptyRef.current = messages.length === 0;
+  }, [needsAnchorReset, newFirstId, messages.length]);
 
   // Belt-and-braces: when messages first populate OR the mounted list is
   // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
@@ -305,12 +318,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [messages],
   );
 
-  // Use layout height instead of getBoundingClientRect height. The default
-  // measurement can include transient transforms/paint-state changes in rich
-  // bubbles; offsetHeight stays tied to actual layout, reducing scroll-time
-  // remeasurement noise.
+  // Use sub-pixel-accurate height. offsetHeight is integer-truncated so a
+  // 0.5px discrepancy on every measure→paint cycle re-applies paddingTop and
+  // shows up as scroll "shake" on fast flicks.
   const itemSize = useCallback((el: HTMLElement) => {
-    return Math.ceil(el.offsetHeight || el.getBoundingClientRect().height);
+    return el.getBoundingClientRect().height;
   }, []);
 
   const components = useMemo(
@@ -340,16 +352,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
-      // Estimate so off-screen rows reserve realistic space; otherwise
-      // virtuoso uses tiny placeholders that grow on mount and shift the
-      // scrollbar/scrollTop while the user is scrolling.
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
-      // Keep a generous upward viewport for smooth back-scrolling. Don't
-      // also set `overscan` — virtuoso applies both and the interaction
-      // produces visible re-anchor jumps on slow devices.
-      increaseViewportBy={{ top: 1200, bottom: 600 }}
-      minOverscanItemCount={{ top: 12, bottom: 8 }}
+      // Conservative overscan for image-heavy threads on Android. Larger
+      // values mount/unmount too many heavy rows per scroll tick and blow
+      // the per-frame budget, leaving a "ghost" partial paint that looks
+      // like rows stacking on top of each other.
+      increaseViewportBy={{ top: 600, bottom: 200 }}
       atBottomThreshold={120}
       scrollerRef={scrollerRef}
       components={components}
