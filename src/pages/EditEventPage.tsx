@@ -482,6 +482,19 @@ export default function EditEventPage() {
 
     const parsedDateTime = new Date(eventDateTime);
 
+    // Keep start_time / end_time in sync with the new event_date.
+    // Preserve duration when both original timestamps existed.
+    const newStartIso = parsedDateTime.toISOString();
+    let newEndIso: string | null = null;
+    if (event?.start_time && event?.end_time) {
+      const durMs = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+      if (Number.isFinite(durMs) && durMs > 0) {
+        newEndIso = new Date(parsedDateTime.getTime() + durMs).toISOString();
+      }
+    } else if (event?.end_time) {
+      newEndIso = event.end_time;
+    }
+
     try {
       const parsedPrice = price ? parseFloat(price) : null;
       const updateData = {
