@@ -9,6 +9,7 @@ const EVENT_TOKEN_RE = /\[event:([0-9a-f-]{36})\]/gi;
 const POLL_TOKEN_RE = /\[poll:([0-9a-f-]{36})\]/gi;
 const BOARD_TOKEN_RE = /\[board:([0-9a-f-]{36})\]/gi;
 const GALLERY_TOKEN_RE = /\[gallery:([0-9a-f-]{36})\]/gi;
+const GALLERY_PROMPT_TOKEN_RE = /\[galleryprompt:([0-9a-f-]{36})\]/gi;
 const PUBLISH_TOKEN_RE = /\[publish:([0-9a-f-]{36})\]/gi;
 const VAULT_FILE_TOKEN_RE = /\[vault:([0-9a-f-]{36})\]/gi;
 const VAULT_FOLDER_TOKEN_RE = /\[vaultfolder:([0-9a-f-]{36})\]/gi;
