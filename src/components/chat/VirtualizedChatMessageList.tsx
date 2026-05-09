@@ -219,7 +219,6 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       style={{
         ...style,
         overscrollBehaviorY: "contain",
-        WebkitOverflowScrolling: "touch",
       }}
     />
   ),
@@ -554,20 +553,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
 
-  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
-  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
-  // with fractional device-pixel ratios (most Android phones) the bounding
-  // rect oscillates by ~0.5px between paints during momentum scrolling.
-  // Virtuoso re-applies paddingTop on every change, which is exactly the
-  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
-
-
-  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
-  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
-  // with fractional device-pixel ratios (most Android phones) the bounding
-  // rect oscillates by ~0.5px between paints during momentum scrolling.
-  // Virtuoso re-applies paddingTop on every change, which is exactly the
-  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
+  // Force integer measurements. React-Virtuoso's default itemSize uses
+  // getBoundingClientRect(), which can oscillate by sub-pixels on fractional
+  // DPR phones during momentum scrolling. Each tiny measurement delta causes
+  // Virtuoso to mutate paddingTop, which reads as the remaining upward jitter.
+  const itemSize = useCallback((el: HTMLElement, field: "offsetHeight" | "offsetWidth") => {
+    return field === "offsetHeight" ? el.offsetHeight : el.offsetWidth;
+  }, []);
 
   const components = useMemo(
     () => ({
@@ -621,6 +613,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
+      itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
       // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
