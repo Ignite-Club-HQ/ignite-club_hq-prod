@@ -37,10 +37,11 @@ interface ReplyIndicatorProps {
     text: string;
     authorName: string | null;
   } | null;
+  hasReply?: boolean;
   isOwn: boolean;
 }
 
-export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isOwn }: ReplyIndicatorProps) {
+export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, hasReply = false, isOwn }: ReplyIndicatorProps) {
   // Track the LAST committed value separately from the prop. If the prop
   // changes from null → object (or vice versa) while the chat is being
   // scrolled, defer the visible commit until scroll has been idle for
@@ -76,16 +77,21 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
     const cancel = runWhenChatScrollIdle(() => commit(next), 250);
     return cancel;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replyToMessage?.text, replyToMessage?.authorName]);
+  }, [replyToMessage?.text, replyToMessage?.authorName, hasReply]);
 
-  if (!committed) return null;
+  const shouldReserve = hasReply || !!committed;
+  if (!shouldReserve) return null;
+  const hidden = !committed;
 
   return (
-    <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${isOwn ? 'ml-auto' : ''}`}>
+    <div
+      className={`text-xs p-2 mb-1 min-h-[42px] rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${hidden ? 'invisible' : ''} ${isOwn ? 'ml-auto' : ''}`}
+      aria-hidden={hidden || undefined}
+    >
       <p className="text-muted-foreground font-medium truncate">
-        {committed.authorName || ""}
+        {committed?.authorName || "\u00A0"}
       </p>
-      <p className="text-muted-foreground/70 truncate">{committed.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
+      <p className="text-muted-foreground/70 truncate">{committed?.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1') || "\u00A0"}</p>
     </div>
   );
 });

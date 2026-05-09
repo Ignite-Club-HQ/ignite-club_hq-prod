@@ -60,6 +60,7 @@ export interface ChatMessageProps {
   messageType: "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
+  hasReply?: boolean;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   onEdit?: (message: { id: string; text: string }) => void;
   onAuthorClick?: () => void;
@@ -100,6 +101,7 @@ function ChatMessageInner({
   messageType,
   queryKey,
   replyToMessage,
+  hasReply = false,
   onReply,
   onEdit,
   onAuthorClick,
@@ -796,7 +798,7 @@ function ChatMessageInner({
             {displayName || "\u00A0"}
           </button>
         ) : null}
-        <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
+        <ReplyIndicator replyToMessage={replyToMessage} hasReply={hasReply || !!replyToMessage} isOwn={isOwn} />
         <div className="relative min-w-0 max-w-full group/msg">
           {/* Swipe indicator - text only, shown when past threshold */}
           {canReply && swipeState.pastThreshold && (
@@ -1098,6 +1100,7 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.isAdmin !== next.isAdmin ||
     prev.currentUserId !== next.currentUserId ||
     prev.messageType !== next.messageType ||
+    prev.hasReply !== next.hasReply ||
     prev.searchQuery !== next.searchQuery ||
     prev.readCount !== next.readCount ||
     prev.readerName !== next.readerName ||

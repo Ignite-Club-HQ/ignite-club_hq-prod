@@ -1612,6 +1612,7 @@ export default function TeamChatPage() {
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
                           : null
                       }
+                      hasReply={!!msg.reply_to_id}
                       onReply={handleReply}
                       onEdit={handleEdit}
                       onAuthorClick={

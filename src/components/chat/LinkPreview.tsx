@@ -124,14 +124,21 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
   // upward flick. Composer previews opt out, so typing a URL doesn't create
   // a blank card before the fetch returns.
   if (!skipPreview && reserveSpace && preview === undefined) {
-    return <div className="h-20 w-full max-w-full min-w-0" aria-hidden="true" />;
+    return <div className="h-20 w-full max-w-full min-w-0 invisible" aria-hidden="true" />;
   }
 
-  if (skipPreview || preview === undefined || preview === null) {
+  if (skipPreview || preview === undefined) {
     return null;
   }
 
   const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+  const fallbackHost = (() => {
+    try {
+      return new URL(fullUrl).hostname.replace(/^www\./, "");
+    } catch {
+      return "Link";
+    }
+  })();
 
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -140,16 +147,16 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
 
   return (
     <div
-      className="flex min-h-20 w-full max-w-full min-w-0 box-border items-start gap-3 overflow-hidden rounded-lg border border-border/40 bg-muted/80 px-3 py-2 transition-opacity cursor-pointer active:opacity-80 dark:bg-muted/60"
+      className="flex h-20 w-full max-w-full min-w-0 box-border items-start gap-3 overflow-hidden rounded-lg border border-border/40 bg-muted/80 px-3 py-2 transition-opacity cursor-pointer active:opacity-80 dark:bg-muted/60"
       onClick={handleCardClick}
       onTouchEnd={(e) => e.stopPropagation()}
       role="link"
     >
-      {preview.image && (
+      {preview?.image && (
         <div className="w-16 h-16 shrink-0 rounded overflow-hidden">
           <img
             src={preview.image}
-            alt={preview.title || "Link preview"}
+            alt={preview?.title || "Link preview"}
             className="w-full h-full object-cover"
             decoding="async"
             onError={(e) => (e.currentTarget.style.display = "none")}
@@ -157,13 +164,13 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
         </div>
       )}
       <div className="flex flex-1 min-w-0 flex-col justify-center overflow-hidden">
-        {preview.siteName && (
+        {preview?.siteName && (
           <p className="text-xs text-muted-foreground truncate">{preview.siteName}</p>
         )}
-        {preview.title && (
-          <p className="text-sm font-medium truncate">{preview.title}</p>
-        )}
-        {!compact && preview.description && (
+        <p className="text-sm font-medium truncate">
+          {preview?.title || fallbackHost}
+        </p>
+        {!compact && preview?.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">{preview.description}</p>
         )}
         <p className="text-xs text-muted-foreground truncate mt-0.5 text-left max-w-full">
