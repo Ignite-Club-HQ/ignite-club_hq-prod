@@ -78,9 +78,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   index: number,
   messages: TMessage[],
 ) {
-  const msg = message as TMessage & EstimableChatMessage;
+  const msg = message as TMessage & { author_name?: string | null } & EstimableChatMessage;
   const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
-  let height = 16; // row wrapper top padding
+  let height = 16; // row wrapper top padding (pt-4)
 
   if (msg.created_at) {
     const currentDay = getMessageDay(msg.created_at);
@@ -95,9 +95,17 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
 
-  height += 22; // author/header line or reserved name row
+  // Author / header line. Long author names ("Sam Bond mum of Harry and
+  // Otto") wrap to 2 lines on phones — under-counting this is what makes
+  // the viewport jolt as older messages mount during back-scroll.
+  const authorChars = (msg.author_name ?? "").length;
+  height += authorChars > 24 ? 44 : 22;
+
   if (hasReply) height += 38;
-  if (hasImage) height += 208; // fixed 240x180 media frame + bubble padding
+  // Image bubble: 240×180 frame + ~16 bubble padding + ~24 spacing. Has to
+  // match the rendered DOM almost exactly or Virtuoso re-anchors as rows
+  // mount on scroll-up, which is the "jitter with images" symptom.
+  if (hasImage) height += 224;
 
   if (text) {
     const visibleText = text
@@ -112,10 +120,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   const previewMatches = text.match(/https?:\/\/|www\.|\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):/gi)?.length ?? 0;
   if (previewMatches) height += Math.min(2, previewMatches) * 116;
-  if (reactions) height += 24;
-  height += 20; // timestamp / read receipt row
+  if (reactions) height += 28;
+  height += 22; // timestamp / read receipt row
 
-  return Math.max(64, Math.min(560, height));
+  return Math.max(64, Math.min(640, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -324,7 +332,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Estimate so off-screen rows reserve realistic space; otherwise
       // virtuoso uses tiny placeholders that grow on mount and shift the
       // scrollbar/scrollTop while the user is scrolling.
-      defaultItemHeight={112}
+      defaultItemHeight={140}
       heightEstimates={heightEstimates}
       // Keep a generous upward viewport for smooth back-scrolling. Don't
       // also set `overscan` — virtuoso applies both and the interaction
