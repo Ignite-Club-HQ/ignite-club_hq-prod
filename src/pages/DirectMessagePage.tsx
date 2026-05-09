@@ -18,6 +18,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -261,6 +263,23 @@ export default function DirectMessagePage() {
     );
     return cancel;
   }, [targetMessageId]);
+
+  // Pinned messages (DM)
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("dm", conversationId);
+  const handleJumpToPinned = (mid: string) =>
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
@@ -1331,6 +1350,15 @@ export default function DirectMessagePage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      {!isIgniteSupportConversation && (
+        <PinnedMessagesBanner
+          pins={pinnedMessages}
+          onJumpToMessage={handleJumpToPinned}
+          onUnpin={unpinMessage}
+        />
+      )}
+
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
@@ -1392,6 +1420,11 @@ export default function DirectMessagePage() {
                       hasReply={!!msg.reply_to_id}
                       onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
                       onEdit={handleEdit}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      canPin={!isIgniteSupportConversation && !msg.id.startsWith("queued-")}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={isIgniteSupportConversation ? undefined : pinMessage}
+                      onUnpin={isIgniteSupportConversation ? undefined : unpinMessage}
                     />
                   </div>
                 </>
