@@ -113,10 +113,24 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const handle = virtualHandleRef.current;
     if (!handle) return;
     const isReplyOrEditResize = composerHeight > 64;
-    if (!isReplyOrEditResize && !handle.isAtBottom()) return;
+    const wasAtBottom = handle.isAtBottom();
+    if (!isReplyOrEditResize && !wasAtBottom) return;
     handle.scrollToBottom("auto");
-    const t1 = window.setTimeout(() => handle.scrollToBottom("auto"), 80);
-    const t2 = window.setTimeout(() => handle.scrollToBottom("auto"), 280);
+    // Re-check before each delayed jump — if the user has started scrolling
+    // up in the intervening frames, do NOT yank them back to the bottom.
+    // Without this guard, a composer height change (or keyboard event) that
+    // fires while the user is reading history pulls the viewport down mid-
+    // scroll, which reads as "shaky glitches".
+    const t1 = window.setTimeout(() => {
+      if (handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom)) {
+        handle.scrollToBottom("auto");
+      }
+    }, 80);
+    const t2 = window.setTimeout(() => {
+      if (handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom)) {
+        handle.scrollToBottom("auto");
+      }
+    }, 280);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
