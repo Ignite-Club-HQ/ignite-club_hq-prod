@@ -176,6 +176,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     baseFirstId: newFirstId,
     baseFirstIndex: START_INDEX - messages.length,
   });
+  const prependGapEstimatesRef = useRef<number[]>([]);
 
   let justInitiallyPopulated = false;
   if (messages.length === 0) {
@@ -189,6 +190,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
       };
+      prependGapEstimatesRef.current = [];
+    } else if (baseOffset > prependGapEstimatesRef.current.length) {
+      const baseMessage = messages[baseOffset] as TMessage & EstimableChatMessage;
+      const baseDay = getMessageDay(baseMessage.created_at);
+      const firstNewMessage = messages[prependGapEstimatesRef.current.length] as TMessage & EstimableChatMessage;
+      const syntheticPrev = baseMessage.created_at && baseDay !== getMessageDay(firstNewMessage?.created_at)
+        ? ({ id: "__virtual_prepend_gap__", created_at: previousDayIso(baseMessage.created_at) } as TMessage & EstimableChatMessage)
+        : undefined;
+      const estimate = estimateChatRowHeight(baseMessage, baseOffset, messages);
+      prependGapEstimatesRef.current = [
+        ...prependGapEstimatesRef.current,
+        ...Array.from({ length: baseOffset - prependGapEstimatesRef.current.length }, () => estimate),
+      ];
     }
   }
   const anchorOffset = anchorRef.current.baseFirstId
