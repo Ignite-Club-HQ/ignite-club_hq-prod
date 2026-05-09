@@ -144,21 +144,12 @@ serve(async (req: Request): Promise<Response> => {
       }
     };
 
-    // Pre-insert placeholder logs to prevent duplicate retries across runs
-    const placeholders = missedNotifications.map(n => ({
-      notification_id: n.id,
-      user_id: n.user_id,
-      endpoint: 'retry-placeholder',
-      status: 'sent',
-      status_code: null,
-      error_message: 'Queued by retry-missed-push-notifications',
-    }));
-    const { error: placeholderError } = await supabase
-      .from('push_notification_logs')
-      .insert(placeholders);
-    if (placeholderError) {
-      console.error('[RETRY-PUSH] Failed to insert placeholder logs:', placeholderError);
-    }
+    // NOTE: We deliberately do NOT pre-insert placeholder logs here.
+    // send-push-notification has its own claim mechanism (a 'pending' placeholder row)
+    // that dedups concurrent invocations. If we pre-inserted a placeholder here,
+    // send-push-notification would see it and skip — meaning the retry would never
+    // actually be sent. Cross-run dedup is handled by the next run seeing the real
+    // log row that send-push-notification writes after sending.
 
     // Dispatch with controlled concurrency (20 at a time)
     const CONCURRENCY = 20;
