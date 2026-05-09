@@ -592,6 +592,28 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
+          {/* Manual refresh — forces fresh schedule fetch (helps when iOS keeps stale cache) */}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Refresh schedule"
+            disabled={isRefreshing}
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events", user?.id] }),
+                  queryClient.invalidateQueries({ queryKey: ["events"] }),
+                ]);
+                toast({ title: "Schedule refreshed" });
+              } finally {
+                setTimeout(() => setIsRefreshing(false), 600);
+              }
+            }}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+
           {/* Filter button - secondary action, only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
             <Button
