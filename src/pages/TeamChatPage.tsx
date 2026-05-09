@@ -207,6 +207,9 @@ export default function TeamChatPage() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   
+  // Legacy DOM refs are no longer required (Virtuoso owns scroll), but keep
+  // the declarations so any non-scroll code paths that still touch the names
+  // continue to compile. The refs are never attached to anything live.
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
