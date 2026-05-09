@@ -152,7 +152,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       // would establish a containing block for `position: fixed` descendants,
       // which clips the FullscreenImageViewer to a single row instead of the
       // viewport when a chat image is tapped.
-      <div className="px-4 pt-4" style={{ contain: "layout" }}>
+      // `data-message-id` is consumed by the e2e regression spec to assert
+      // row order and per-row avatar containment under fast upward scroll.
+      <div
+        className="px-4 pt-4"
+        data-message-id={msg.id}
+        data-chat-row="true"
+        style={{ contain: "layout" }}
+      >
         {renderRowRef.current(msg, index, arr)}
       </div>
     ),
