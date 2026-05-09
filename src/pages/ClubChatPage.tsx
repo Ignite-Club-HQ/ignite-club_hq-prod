@@ -663,7 +663,7 @@ export default function ClubChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
@@ -759,7 +759,7 @@ export default function ClubChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task.
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["club-messages", clubId], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
@@ -775,7 +775,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {

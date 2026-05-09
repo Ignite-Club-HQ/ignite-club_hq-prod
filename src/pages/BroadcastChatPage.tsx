@@ -462,7 +462,7 @@ export default function BroadcastChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
@@ -548,7 +548,7 @@ export default function BroadcastChatPage() {
       })) as Message[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["broadcast-messages"], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
@@ -564,7 +564,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {

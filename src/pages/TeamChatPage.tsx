@@ -820,7 +820,7 @@ export default function TeamChatPage() {
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
   // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
@@ -919,7 +919,7 @@ export default function TeamChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task, so the user never sees the intermediate state.
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData(["team-messages", teamId], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           if (!existingMessages.length) {
@@ -934,7 +934,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
