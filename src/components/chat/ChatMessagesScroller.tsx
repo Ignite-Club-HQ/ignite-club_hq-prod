@@ -145,7 +145,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           topPadding={0}
           bottomPadding={bottomPad}
           scrollerRef={setVirtualScrollerRef}
-          initialBottomPinned={isPinned}
+          initialBottomPinned={virtualReady || isPinned}
         />
       </div>
     );
