@@ -154,6 +154,35 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
 
+/**
+ * Wraps a virtualised row to record render churn (key stability signal) and
+ * the first-paint measured height vs the static estimate. Only mounted when
+ * `isChatVirtDebugEnabled()` is true, so it has zero cost in production.
+ */
+function DebugRowProbe({
+  messageId,
+  estimated,
+  children,
+}: {
+  messageId: string;
+  estimated: number | undefined;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  debugTrackRender(messageId);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    debugLogMeasure(messageId, estimated, el.offsetHeight);
+  }, [messageId, estimated]);
+  return (
+    <div ref={ref} data-debug-probe={messageId}>
+      {children}
+    </div>
+  );
+}
+
+
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
     messages,
