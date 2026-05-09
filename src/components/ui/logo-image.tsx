@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface LogoImageProps {
   src: string;
@@ -7,12 +7,41 @@ interface LogoImageProps {
   fallback?: React.ReactNode;
 }
 
+// Module-level cache of logo URLs that have already decoded successfully.
+// Warmed by `preloadLogo()` so that when the AppHeader mounts after login,
+// the club logo paints synchronously instead of flashing in after a
+// network round-trip + decode. Survives unmounts within the same tab.
+const decodedLogoUrls = new Set<string>();
+const preloadedImages = new Map<string, HTMLImageElement>();
+
+export function preloadLogo(src: string | null | undefined) {
+  if (!src || preloadedImages.has(src)) return;
+  const img = new Image();
+  img.decoding = "sync";
+  img.fetchPriority = "high" as HTMLImageElement["fetchPriority"];
+  img.src = src;
+  preloadedImages.set(src, img);
+  img.decode?.().then(() => {
+    decodedLogoUrls.add(src);
+  }).catch(() => {
+    /* ignore — onError on the visible <img> handles the fallback */
+  });
+}
+
 /**
- * Image component with built-in error fallback.
- * If the image fails to load, renders the fallback or nothing.
+ * Image component with built-in error fallback. Eager-loaded so the club
+ * logo never appears as a "loading later" element in the top nav after
+ * login — the URL is also pushed into a module-level decode cache so a
+ * second mount (e.g. route change) paints instantly.
  */
 export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
+
+  // Warm cache on every render so navigation between routes keeps the
+  // decoded entry hot.
+  useEffect(() => {
+    preloadLogo(src);
+  }, [src]);
 
   if (failed) {
     return <>{fallback}</> || null;
@@ -23,6 +52,9 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
       src={src}
       alt={alt}
       className={className}
+      loading="eager"
+      decoding="sync"
+      fetchPriority="high"
       onError={() => setFailed(true)}
     />
   );
