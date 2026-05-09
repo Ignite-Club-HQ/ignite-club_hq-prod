@@ -32,9 +32,17 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     tryLoadOlder,
   } = options;
 
+  // Auto-cancel any in-flight jump so rapid search-result navigation
+  // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
+  // or let a stale 2.5s highlight-clear wipe the newest target.
+  if (activeCancel) activeCancel();
+
   let attempts = 0;
   let cancelled = false;
   let lastLoadOlderAttempt = -1;
+  let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
+  let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   const tick = () => {
     if (cancelled) return;
