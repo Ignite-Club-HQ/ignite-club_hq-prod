@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 interface LinkPreviewData {
   url: string;
@@ -17,6 +18,12 @@ interface LinkPreviewProps {
   onRemove?: () => void;
   compact?: boolean;
 }
+
+// Module-level cache so the same URL never refetches across remounts AND
+// renders synchronously on every subsequent appearance. Keyed by raw URL.
+type CacheEntry = LinkPreviewData | null; // null = no preview / errored
+const previewCache = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<CacheEntry>>();
 
 // Skip link previews for app's own domains
 const isAppDomain = (url: string): boolean => {
@@ -33,63 +40,88 @@ const isAppDomain = (url: string): boolean => {
   }
 };
 
-export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps) {
-  const [preview, setPreview] = useState<LinkPreviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
+  if (previewCache.has(url)) return previewCache.get(url)!;
+  const existing = inflight.get(url);
+  if (existing) return existing;
 
-  // Skip previews for app's own domains
+  const p = (async () => {
+    try {
+      let fetchUrl = url;
+      if (!fetchUrl.startsWith('http://') && !fetchUrl.startsWith('https://')) {
+        fetchUrl = `https://${fetchUrl}`;
+      }
+      const { data, error } = await supabase.functions.invoke("fetch-link-preview", {
+        body: { url: fetchUrl },
+      });
+      if (error) throw error;
+      const hasContent = data && (data.title || data.description || data.image);
+      const value = hasContent ? (data as LinkPreviewData) : null;
+      previewCache.set(url, value);
+      return value;
+    } catch (err) {
+      console.error("Failed to fetch link preview:", err);
+      previewCache.set(url, null);
+      return null;
+    } finally {
+      inflight.delete(url);
+    }
+  })();
+  inflight.set(url, p);
+  return p;
+}
+
+export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps) {
   const skipPreview = isAppDomain(url);
+  // Synchronous cache hit → render the final card on the very first commit,
+  // which is what makes repeat-mount (re-render during scroll) jolt-free.
+  const cached = !skipPreview && previewCache.has(url) ? previewCache.get(url)! : undefined;
+  const [preview, setPreview] = useState<CacheEntry | undefined>(cached);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    // Don't fetch previews for app domains
-    if (skipPreview) {
-      setLoading(false);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (skipPreview) return;
+    if (previewCache.has(url)) {
+      // Already cached — make sure local state matches in case the URL
+      // prop changed across renders.
+      const v = previewCache.get(url)!;
+      if (v !== preview) setPreview(v);
       return;
     }
 
-    const fetchPreview = async () => {
-      try {
-        setLoading(true);
-        setError(false);
+    let cancelIdle: (() => void) | null = null;
+    let cancelled = false;
 
-        // Ensure URL has protocol
-        let fetchUrl = url;
-        if (!fetchUrl.startsWith('http://') && !fetchUrl.startsWith('https://')) {
-          fetchUrl = `https://${fetchUrl}`;
-        }
+    fetchPreviewOnce(url).then((value) => {
+      if (cancelled || !mountedRef.current) return;
+      // CRITICAL: do NOT setState mid-flick. Inserting/removing a
+      // ~80px-tall preview card while the user is fast-scrolling shifts
+      // every row below by the card height — the user sees the message
+      // they were reading "drop down" by 80px. Wait for scroll-idle.
+      cancelIdle = runWhenChatScrollIdle(() => {
+        if (cancelled || !mountedRef.current) return;
+        setPreview(value);
+      }, 250);
+    });
 
-        const { data, error: fnError } = await supabase.functions.invoke("fetch-link-preview", {
-          body: { url: fetchUrl },
-        });
-
-        if (fnError) throw fnError;
-        setPreview(data);
-      } catch (err) {
-        console.error("Failed to fetch link preview:", err);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      cancelled = true;
+      cancelIdle?.();
     };
-
-    fetchPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, skipPreview]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-1">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading preview...</span>
-      </div>
-    );
-  }
-
-  // Check if preview has any meaningful content
-  const hasContent = preview && (preview.title || preview.description || preview.image);
-
-  // If no preview content or skipped, don't render anything (link is shown inline)
-  if (error || !preview || !hasContent || skipPreview) {
+  // Render NOTHING until we have a definitive answer. Previously this
+  // returned a "Loading preview..." spinner row that reserved ~24px and
+  // then collapsed/grew, contributing to the same scroll jolt.
+  if (skipPreview || preview === undefined || preview === null) {
     return null;
   }
 
