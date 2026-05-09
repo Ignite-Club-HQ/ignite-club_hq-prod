@@ -30,10 +30,10 @@ interface UseChatOlderMessagesAnchorOptions {
   onTrigger: () => void;
 }
 
-const IDLE_GATE_MS = 90;
-const PREFETCH_ROOT_MARGIN_PX = 1200;
+const IDLE_GATE_MS = 260;
+const PREFETCH_ROOT_MARGIN_PX = 360;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
-const MIN_TRIGGER_INTERVAL_MS = 250;
+const MIN_TRIGGER_INTERVAL_MS = 900;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -45,6 +45,7 @@ export function useChatOlderMessagesAnchor({
 }: UseChatOlderMessagesAnchorOptions) {
   const lastScrollAtRef = useRef(0);
   const lastTriggerAtRef = useRef(0);
+  const pendingTriggerTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
     const now = performance.now();
@@ -52,6 +53,29 @@ export function useChatOlderMessagesAnchor({
     lastTriggerAtRef.current = now;
     onTrigger();
   }, [onTrigger]);
+
+  const scheduleTriggerWhenIdle = useCallback((scrollRoot: HTMLElement, trigger: HTMLElement) => {
+    if (pendingTriggerTimerRef.current !== null) return;
+
+    const check = () => {
+      pendingTriggerTimerRef.current = null;
+
+      if (document.hidden || isLoadingOlder || !hasOlderMessages) return;
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < IDLE_GATE_MS) {
+        pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS - sinceScroll + 40);
+        return;
+      }
+
+      const stillIntersecting =
+        trigger.getBoundingClientRect().top <
+        scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
+      const distance = scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
+      if (stillIntersecting && distance >= 200) triggerOlder();
+    };
+
+    pendingTriggerTimerRef.current = window.setTimeout(check, IDLE_GATE_MS);
+  }, [hasOlderMessages, isLoadingOlder, triggerOlder]);
 
   // Track "recently scrolled" so the IntersectionObserver below knows the
   // user has actually moved the viewport (vs. our own bottom-pin writes
