@@ -282,6 +282,7 @@ export function useChatOlderMessagesAnchor({
       });
 
       watchPrependedMediaAndReanchor(container, previousScrollTop, previousScrollHeight);
+    },
     [scrollContainerRef],
   );
 
