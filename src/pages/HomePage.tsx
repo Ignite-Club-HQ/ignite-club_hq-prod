@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
