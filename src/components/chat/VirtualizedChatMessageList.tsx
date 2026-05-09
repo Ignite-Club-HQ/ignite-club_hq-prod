@@ -58,6 +58,62 @@ interface Props<TMessage extends { id: string }> {
   initialBottomPinned?: boolean;
 }
 
+type EstimableChatMessage = {
+  text?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  created_at?: string | null;
+  reply_to?: unknown;
+  reply_to_id?: string | null;
+  reactions?: unknown[] | null;
+  is_system_message?: boolean | null;
+};
+
+function estimateChatRowHeight<TMessage extends { id: string }>(
+  message: TMessage,
+  index: number,
+  messages: TMessage[],
+) {
+  const msg = message as TMessage & EstimableChatMessage;
+  const prev = messages[index - 1] as (TMessage & EstimableChatMessage) | undefined;
+  let height = 16; // row wrapper top padding
+
+  if (msg.created_at) {
+    const currentDay = new Date(msg.created_at).toDateString();
+    const previousDay = prev?.created_at ? new Date(prev.created_at).toDateString() : null;
+    if (!previousDay || previousDay !== currentDay) height += 34;
+  }
+
+  if (msg.is_system_message) return Math.max(52, height + 36);
+
+  const text = (msg.text || "").trim();
+  const hasImage = !!(msg.image_url || msg.imageUrl);
+  const hasReply = !!(msg.reply_to || msg.reply_to_id);
+  const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
+
+  height += 22; // author/header line or reserved name row
+  if (hasReply) height += 38;
+  if (hasImage) height += 208; // fixed 240x180 media frame + bubble padding
+
+  if (text) {
+    const visibleText = text
+      .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\[(event|poll|board|vault|vaultfolder|gallery):[^\]]+\]/gi, "")
+      .trim();
+    const lineCount = Math.max(1, Math.ceil((visibleText.length || text.length) / 28));
+    height += Math.min(10, lineCount) * 20 + 18;
+  } else if (!hasImage) {
+    height += 42;
+  }
+
+  const previewMatches = text.match(/https?:\/\/|www\.|\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):/gi)?.length ?? 0;
+  if (previewMatches) height += Math.min(2, previewMatches) * 116;
+  if (reactions) height += 24;
+  height += 20; // timestamp / read receipt row
+
+  return Math.max(64, Math.min(560, height));
+}
+
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
   ({ context: _context, style, ...props }, scrollerRef) => (
     <div
@@ -229,6 +285,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
+  // Fast flicks through image-heavy history used to expose rows after
+  // Virtuoso had estimated them as tiny text bubbles, then jump once the real
+  // image rows measured. Supplying per-row estimates keeps the scroll range
+  // close before mount, so stopping a fast scroll does not re-anchor visibly.
+  const heightEstimates = useMemo(
+    () => messages.map((message, index) => estimateChatRowHeight(message, index, messages)),
+    [messages],
+  );
+
   // Use layout height instead of getBoundingClientRect height. The default
   // measurement can include transient transforms/paint-state changes in rich
   // bubbles; offsetHeight stays tied to actual layout, reducing scroll-time
@@ -266,7 +331,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Estimate so off-screen rows reserve realistic space; otherwise
       // virtuoso uses tiny placeholders that grow on mount and shift the
       // scrollbar/scrollTop while the user is scrolling.
-      defaultItemHeight={88}
+      defaultItemHeight={112}
+      heightEstimates={heightEstimates}
       // Keep a generous upward viewport for smooth back-scrolling. Don't
       // also set `overscan` — virtuoso applies both and the interaction
       // produces visible re-anchor jumps on slow devices.
