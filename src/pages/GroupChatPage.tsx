@@ -1558,10 +1558,13 @@ export default function GroupChatPage() {
   };
 
   const handleSearchResult = (messageId: string) => {
-    setHighlightedMessageId(messageId);
-    const element = document.getElementById(`message-${messageId}`);
-    element?.scrollIntoView({ behavior: /Android/i.test(navigator.userAgent) ? "auto" : "smooth", block: "center" });
-    setTimeout(() => setHighlightedMessageId(null), 2000);
+    jumpToMessageInVirtualizedChat(
+      messageId,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
   };
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<GroupMessage>({
