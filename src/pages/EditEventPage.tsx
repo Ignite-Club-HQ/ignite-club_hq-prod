@@ -524,6 +524,8 @@ export default function EditEventPage() {
           .update({
             ...updateData,
             event_date: parsedDateTime.toISOString(),
+            start_time: newStartIso,
+            end_time: newEndIso,
             is_recurring: true,
             recurrence_end_date: recurrenceEndDate,
           })
@@ -536,9 +538,14 @@ export default function EditEventPage() {
           const childEvents = dates.slice(1).map((date) => {
             const childDateTime = new Date(date);
             childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
+            const childEnd = newEndIso
+              ? new Date(childDateTime.getTime() + (new Date(newEndIso).getTime() - parsedDateTime.getTime())).toISOString()
+              : null;
             return {
               ...updateData,
               event_date: childDateTime.toISOString(),
+              start_time: childDateTime.toISOString(),
+              end_time: childEnd,
               parent_event_id: id,
               club_id: event!.club_id,
               team_id: event!.team_id,
@@ -560,10 +567,15 @@ export default function EditEventPage() {
           description: `Created ${dates.length} event${dates.length > 1 ? 's' : ''} in the series.`,
         });
       } else if (updateSeries) {
-        // Update this event
+        // Update this event (with new date/time)
         await supabase
           .from("events")
-          .update({ ...updateData, event_date: parsedDateTime.toISOString() })
+          .update({
+            ...updateData,
+            event_date: parsedDateTime.toISOString(),
+            start_time: newStartIso,
+            end_time: newEndIso,
+          })
           .eq("id", id!);
 
         // If this is a child event, update parent and siblings (except date/time)
@@ -586,10 +598,15 @@ export default function EditEventPage() {
             .eq("parent_event_id", id!);
         }
       } else {
-        // Just update this single event
+        // Just update this single event — keep start_time/end_time aligned with the new event_date
         const { error } = await supabase
           .from("events")
-          .update({ ...updateData, event_date: parsedDateTime.toISOString() })
+          .update({
+            ...updateData,
+            event_date: parsedDateTime.toISOString(),
+            start_time: newStartIso,
+            end_time: newEndIso,
+          })
           .eq("id", id!);
         if (error) throw error;
       }
