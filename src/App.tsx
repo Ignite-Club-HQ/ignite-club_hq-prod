@@ -103,6 +103,7 @@ const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage
 const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const AdminDmAttachmentsPage = lazy(() => import("./pages/AdminDmAttachmentsPage"));
 const AdminChatPhotoRemindersPage = lazy(() => import("./pages/AdminChatPhotoRemindersPage"));
+const PublishChatPhotosPage = lazy(() => import("./pages/PublishChatPhotosPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
 const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
