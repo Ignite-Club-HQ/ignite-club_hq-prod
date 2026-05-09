@@ -365,7 +365,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       ref={virtuosoRef}
       className={className}
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
-      data={messages}
+      data={uniqueMessages}
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
       alignToBottom
@@ -374,7 +374,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
-      itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
       // Conservative overscan for image-heavy threads on Android. Larger
