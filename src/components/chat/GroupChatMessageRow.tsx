@@ -345,7 +345,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (msg.is_system_message || isMembershipSystemText(msg.text)) {
     return (
-      <div id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
+      <div ref={rowRef} id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
           {msg.text}
         </div>
@@ -355,6 +355,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   return (
     <div
+      ref={rowRef}
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
@@ -470,9 +471,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </div>
           </div>
           {/* Inline "Add to gallery" chip — only on own image messages */}
-          {canPublishToGallery && isOwnMessage && msg.image_url && onPublishToGallery && !msg.id.startsWith("queued-") && (
-            <div className={`mt-1 flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-              <button
+          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && (
+            <div className={`mt-1 flex h-7 items-center ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+              {canPublishToGallery && onPublishToGallery ? <button
                 type="button"
                 disabled={isPublishingToGallery || isPublishedToGallery}
                 aria-busy={isPublishingToGallery || undefined}
@@ -511,7 +512,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       ? "In gallery"
                       : "Add to gallery"}
                 </span>
-              </button>
+              </button> : null}
             </div>
           )}
           {/* Link previews rendered outside the message bubble */}
