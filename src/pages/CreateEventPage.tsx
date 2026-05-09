@@ -794,6 +794,13 @@ export default function CreateEventPage() {
       
       if (error?.message?.includes("row-level security")) {
         errorDescription += "You don't have permission to create events for this club/team.";
+      } else if (
+        error?.code === "23505" ||
+        error?.message?.includes("events_unique_occurrence_idx") ||
+        error?.message?.includes("duplicate key")
+      ) {
+        errorDescription =
+          "An event with the same title, type, team and date already exists. Open your Schedule to find it — recurring series you previously created may already cover this date.";
       } else if (error?.message?.includes("violates check constraint")) {
         errorDescription += "Please check that all fields have valid values.";
       } else if (error?.code === "23502") {
