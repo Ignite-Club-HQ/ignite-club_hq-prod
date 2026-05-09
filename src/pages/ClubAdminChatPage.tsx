@@ -354,19 +354,10 @@ export default function ClubAdminChatPage() {
     );
   }, [conversationId, messages]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: conversationId,
-  });
+  const isPinned = true;
 
-  // Scroll to bottom when replying, editing, or sending a new message
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
