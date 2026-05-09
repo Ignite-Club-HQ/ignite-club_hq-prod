@@ -264,6 +264,23 @@ export default function DirectMessagePage() {
     return cancel;
   }, [targetMessageId]);
 
+  // Pinned messages (DM)
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("dm", conversationId);
+  const handleJumpToPinned = (mid: string) =>
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
+
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
     queryKey: ["dm-conversation", conversationId],
