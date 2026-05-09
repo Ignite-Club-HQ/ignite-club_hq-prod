@@ -71,7 +71,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 
 const MESSAGES_PER_PAGE = 30;
-import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
+
 interface Message {
   id: string;
   team_id: string;
