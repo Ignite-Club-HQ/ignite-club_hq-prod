@@ -723,7 +723,7 @@ function ChatMessageInner({
           <button
             type="button"
             onClick={() => {
-              window.location.assign(`/teams/${publishMatch[1]}/publish-chat-photos`);
+              navigate(`/teams/${publishMatch[1]}/publish-chat-photos`);
             }}
             className="rounded-full bg-primary text-primary-foreground text-xs font-medium px-4 py-1.5 shadow-sm hover:opacity-90 transition touch-manipulation"
           >
