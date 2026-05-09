@@ -115,25 +115,46 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     const isReplyOrEditResize = composerHeight > 64;
     const wasAtBottom = handle.isAtBottom();
     if (!isReplyOrEditResize && !wasAtBottom) return;
-    handle.scrollToBottom("auto");
-    // Re-check before each delayed jump — if the user has started scrolling
-    // up in the intervening frames, do NOT yank them back to the bottom.
-    // Without this guard, a composer height change (or keyboard event) that
-    // fires while the user is reading history pulls the viewport down mid-
-    // scroll, which reads as "shaky glitches".
-    const t1 = window.setTimeout(() => {
-      if (handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom)) {
-        handle.scrollToBottom("auto");
-      }
-    }, 80);
-    const t2 = window.setTimeout(() => {
-      if (handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom)) {
-        handle.scrollToBottom("auto");
-      }
-    }, 280);
+
+    // Re-pin guard: when the user starts a reply/edit (composer grows) we
+    // ALWAYS want the latest message visible above the composer + keyboard,
+    // even if the timing of `isAtBottom` flips false mid-resize. Otherwise
+    // honour the user's scroll position.
+    const shouldRepin = () =>
+      handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom);
+
+    const pin = () => handle.scrollToBottom("auto");
+    pin();
+
+    // Schedule multiple re-pins to cover:
+    //  - immediate composer height change (DOM commit)
+    //  - keyboard animation start (~80ms)
+    //  - keyboard mid-animation (~280ms)
+    //  - keyboard fully settled on Android (~550ms — longest observed)
+    //  - very-late visualViewport reflow on some Android keyboards (~900ms)
+    // Each later jump still re-checks user intent so we never yank a finger
+    // that has started scrolling history mid-animation.
+    const delays = [80, 280, 550, 900];
+    const timeouts = delays.map((ms) =>
+      window.setTimeout(() => {
+        if (shouldRepin()) pin();
+      }, ms),
+    );
+
+    // Belt-and-braces: also re-pin on every visualViewport resize while this
+    // effect is alive. Android Chrome resizes visualViewport multiple times
+    // as the keyboard settles, and on some devices the LAST resize lands
+    // after our 550ms timeout but before 900ms — without listening for it
+    // the latest message can end up partially clipped behind the composer.
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const onViewportResize = () => {
+      if (shouldRepin()) pin();
+    };
+    vv?.addEventListener("resize", onViewportResize);
+
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      timeouts.forEach((id) => window.clearTimeout(id));
+      vv?.removeEventListener("resize", onViewportResize);
     };
   }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId]);
 
