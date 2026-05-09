@@ -1209,7 +1209,7 @@ export default function TeamChatPage() {
     }
     setReplyingTo(m);
     // Scroll to bottom after reply banner renders so latest message stays visible
-    setTimeout(() => scrollToBottom(), 100);
+    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
   }, [scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);

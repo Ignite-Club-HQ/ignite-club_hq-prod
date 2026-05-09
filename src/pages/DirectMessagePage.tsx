@@ -1276,7 +1276,7 @@ export default function DirectMessagePage() {
                             ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
                             : null
                         }
-                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollToBottom(), 100); }}
+                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100); }}
                         onEdit={handleEdit}
                       />
                     </div>

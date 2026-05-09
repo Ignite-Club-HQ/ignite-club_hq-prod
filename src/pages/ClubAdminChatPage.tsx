@@ -810,7 +810,7 @@ export default function ClubAdminChatPage() {
                         }
                         onReply={() => {
                           setReplyTo(msg);
-                          setTimeout(() => scrollToBottom(), 100);
+                          setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
                         }}
                         onEdit={handleEdit}
                       />
