@@ -29,20 +29,38 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   searchOpen: boolean;
   composerHeight: number;
 
-  // Refs the legacy hooks attach to.
-  scrollAreaRef: RefObject<HTMLDivElement>;
-  loadTriggerRef: RefObject<HTMLDivElement>;
-  messagesEndRef: RefObject<HTMLDivElement>;
+  // Refs the legacy hooks attach to. Optional now: pages migrated to
+  // Virtuoso-owned scroll (see `keepVirtualizedInSearch`) no longer pass them.
+  scrollAreaRef?: RefObject<HTMLDivElement>;
+  loadTriggerRef?: RefObject<HTMLDivElement>;
+  messagesEndRef?: RefObject<HTMLDivElement>;
   endElementId?: string;
 
   /** Forwarded to the load-trigger sentinel for parity with existing code. */
   loadTriggerStyle?: CSSProperties;
+
+  /**
+   * Pages that have rewired their search jump-to-message to Virtuoso's
+   * `scrollToIndex` (via the exposed handle) pass `true` so the legacy
+   * fallback DOM is skipped during search and Virtuoso owns scroll
+   * end-to-end. Default false preserves the legacy fallback for un-migrated
+   * pages.
+   */
+  keepVirtualizedInSearch?: boolean;
+
+  /**
+   * Optional handle ref. When provided, the parent owns the
+   * VirtualizedChatMessageList handle and can imperatively call
+   * `scrollToBottom`, `scrollToIndex`, `isAtBottom`, `isNearBottom`. The
+   * internal keyboard/composer re-pin effect uses the same ref.
+   */
+  virtualHandleRef?: RefObject<VirtualizedChatMessageListHandle>;
 }
 
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
-  const useVirtualized = !props.searchQuery;
+  const useVirtualized = !!props.keepVirtualizedInSearch || !props.searchQuery;
   const {
     messages,
     hasOlderMessages,
@@ -60,6 +78,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     messagesEndRef,
     endElementId,
     loadTriggerStyle,
+    virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
   // CRITICAL: the composer is `position: fixed` (NOT a flex sibling) and the
@@ -79,7 +98,8 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     ? safeComposer + COMPOSER_GAP
     : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`;
 
-  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
+  const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
+  const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
   // CRITICAL: Do NOT hand Virtuoso's internal scroller to the legacy
   // `scrollAreaRef`. Legacy chat hooks (auto-scroll, bottom-pin, older-message
   // anchor) imperatively mutate `scrollTop` on whatever element this ref
@@ -92,18 +112,18 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   }, []);
 
   useEffect(() => {
-    if (useVirtualized && !searchQuery) {
+    if (useVirtualized && scrollAreaRef) {
       // Make sure no stale legacy ref points at a now-unmounted Virtuoso
       // scroller from a previous render of this component.
       (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = null;
     }
-  }, [scrollAreaRef, searchQuery, useVirtualized]);
+  }, [scrollAreaRef, useVirtualized]);
 
   // The legacy initial-pin hook is intentionally disabled in virtualized mode,
   // so it never flips `isPinned` / enables top pagination there. Do that once
   // the list has real data; otherwise the wrapper can stay opacity:0 (blank)
   // and `startReached` can be called before the first bottom pin completes.
-  const virtualReady = !useVirtualized || !!searchQuery || messages.length > 0;
+  const virtualReady = !useVirtualized || messages.length > 0;
   const lastMessageId = messages[messages.length - 1]?.id;
 
   // When the keyboard opens/closes or the composer grows, the viewport
