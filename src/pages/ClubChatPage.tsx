@@ -6,6 +6,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
+import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -155,6 +156,8 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
+  const chatVirtualizationEnabled = useChatVirtualizationFlag();
+  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
   const { isOnline } = useOnlineStatus();
 
   // Mark club message notifications as read when opening this thread
@@ -191,7 +194,7 @@ export default function ClubChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
@@ -505,16 +508,18 @@ export default function ClubChatPage() {
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: clubId,
+    enabled: !useVirtualizedChat,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -673,7 +678,7 @@ export default function ClubChatPage() {
     loadTriggerRef,
     hasOlderMessages,
     isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery,
+    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
     onTrigger: () => loadOlderMessagesRef.current?.(),
   });
 
