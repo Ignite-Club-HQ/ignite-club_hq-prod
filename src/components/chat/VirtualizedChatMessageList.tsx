@@ -484,22 +484,22 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
-      // Fire the older-fetch BEFORE the user hard-stops at scrollTop=0. When
-      // the fetch lands inside the same gesture (rather than after the user
-      // already stopped and waited), the anchored prepend reads as "kept
-      // scrolling smoothly" instead of "teleported to older messages".
-      startReachedThreshold={1200}
       atBottomStateChange={handleAtBottomChange}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
-      // Conservative overscan for image-heavy threads on Android. Larger
-      // values mount/unmount too many heavy rows per scroll tick and blow
-      // the per-frame budget, leaving a "ghost" partial paint that looks
-      // like rows stacking on top of each other.
-      increaseViewportBy={{ top: 600, bottom: 200 }}
+      // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
+      // fires `startReached` when the first data item mounts, so a larger top
+      // window means we kick off the older-page fetch BEFORE the user
+      // hard-stops at scrollTop=0. With the previous 600px the fetch only
+      // started after the gesture stopped, so the prepend landed 1–2s later
+      // and the anchored shift read as the viewport "teleporting" to older
+      // messages it never scrolled through. 1400px gives the fetch enough
+      // runway to land while the finger is still moving. Bottom kept tight
+      // so we don't mount heavy image rows the user is scrolling away from.
+      increaseViewportBy={{ top: 1400, bottom: 200 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
