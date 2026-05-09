@@ -112,7 +112,6 @@ export function MessageActionSheet({
 
   if (hasImage && onViewImage) {
     actions.push({
-      id: "publish-gallery",
       id: "view-image",
       label: "View Image",
       icon: <ImageIcon className="h-5 w-5" />,
@@ -130,7 +129,7 @@ export function MessageActionSheet({
         ? "Published to Gallery"
         : "Publish to Media Gallery";
     actions.push({
-      id: "reply",
+      id: "publish-gallery",
       label,
       icon: isPublishingToGallery
         ? <Loader2 className="h-5 w-5 animate-spin" />
@@ -146,7 +145,7 @@ export function MessageActionSheet({
 
   if (canReply) {
     actions.push({
-      id: "edit",
+      id: "reply",
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
       onClick: onReply,
@@ -155,7 +154,7 @@ export function MessageActionSheet({
 
   if (canEdit) {
     actions.push({
-      id: "copy-message",
+      id: "edit",
       label: "Edit",
       icon: <Pencil className="h-5 w-5" />,
       onClick: onEdit,
@@ -166,7 +165,7 @@ export function MessageActionSheet({
   if (messageText) {
     const isMessageCopied = copiedText === messageText;
     actions.push({
-      id: "open-link",
+      id: "copy-message",
       label: isMessageCopied ? "Copied!" : "Copy Message",
       icon: isMessageCopied ? <Check className="h-5 w-5 text-primary" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
@@ -183,10 +182,10 @@ export function MessageActionSheet({
     if (urls.length > 0) {
       const firstUrl = urls[0];
       const isLinkCopied = copiedText === firstUrl;
-      
+
       // Open Link action
       actions.push({
-        id: "copy-link",
+        id: "open-link",
         label: urls.length > 1 ? "Open Link" : "Open Link",
         icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
@@ -197,8 +196,7 @@ export function MessageActionSheet({
 
       // Copy Link action
       actions.push({
-        id: "pin",
-        id: "unpin",
+        id: "copy-link",
         label: isLinkCopied ? "Link Copied!" : "Copy Link",
         icon: isLinkCopied ? <Check className="h-5 w-5 text-primary" /> : <Link className="h-5 w-5" />,
         onClick: () => {
@@ -216,13 +214,14 @@ export function MessageActionSheet({
   if (canPin) {
     if (isPinned && onUnpin) {
       actions.push({
+        id: "unpin",
         label: "Unpin Message",
         icon: <PinOff className="h-5 w-5" />,
         onClick: onUnpin,
       });
     } else if (!isPinned && onPin) {
       actions.push({
-        id: "delete",
+        id: "pin",
         label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
         icon: <Pin className="h-5 w-5" />,
         onClick: onPin,
@@ -232,6 +231,7 @@ export function MessageActionSheet({
 
   if (canDelete) {
     actions.push({
+      id: "delete",
       label: "Delete",
       icon: <Trash2 className="h-5 w-5" />,
       onClick: onDelete,
