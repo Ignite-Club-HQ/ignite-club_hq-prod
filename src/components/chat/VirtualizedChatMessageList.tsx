@@ -197,6 +197,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // baseFirstId is no longer in the data) is moved into a layout effect below
   // so StrictMode / concurrent re-renders cannot double-fire it mid-scroll
   // and snap the viewport while the user is reading history.
+  // NOTE: anchor math is computed against the raw `messages` array (not the
+  // de-duped one) because the parent's pagination merges land here first; if
+  // a duplicate ever slips in we still want the FIRST occurrence (index 0)
+  // to be the anchor, which matches `uniqueMessages[0]`.
   const baseFirstId = anchorRef.current.baseFirstId;
   const baseOffset =
     messages.length === 0
