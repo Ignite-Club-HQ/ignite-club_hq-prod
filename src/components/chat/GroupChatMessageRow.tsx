@@ -398,6 +398,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
           <ReplyIndicator
             replyToMessage={replyPreview ? { text: replyPreview.text, authorName: replyPreview.author?.display_name || null } : null}
+            hasReply={!!msg.reply_to_id}
             isOwn={isOwnMessage}
           />
 
