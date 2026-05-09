@@ -761,7 +761,7 @@ export default function GroupChatPage() {
   // Forward ref so the anchor hook can call the loader defined below.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  const { anchoredPrepend } = useChatOlderMessagesAnchor({
+  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
     scrollContainerRef: scrollAreaRef,
     loadTriggerRef,
     hasOlderMessages,
@@ -823,7 +823,7 @@ export default function GroupChatPage() {
       })) as GroupMessage[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
-      anchoredPrepend(() => {
+      queueAnchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
           if (!old) return { messages: initialOlderMessages, reactions: [], hasOlderMessages: hasMore };
           const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
@@ -900,7 +900,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, anchoredPrepend]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
