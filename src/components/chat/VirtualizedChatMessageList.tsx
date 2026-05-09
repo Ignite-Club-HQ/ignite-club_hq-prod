@@ -303,22 +303,31 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [],
   );
 
-  // O(1) id → index map so itemContent doesn't run an O(n) scan per row on
-  // every render (which on a 500-message thread is 250k comparisons per
-  // re-render and shows up as scroll jank / row flicker).
-  const indexById = useMemo(() => {
-    const m = new Map<string, number>();
-    for (let i = 0; i < messages.length; i++) m.set(messages[i].id, i);
-    return m;
+  // O(1) id → index map AND defensive de-duplication. Pagination races (two
+  // `startReached` events firing before React flushes `isLoadingOlder=true`)
+  // can land the same older page twice, producing duplicate IDs in the array.
+  // Virtuoso would then render a "ghost" duplicate row whose key collides
+  // with a sibling. Filter out any second occurrence here so the list the
+  // virtualiser sees is always strictly unique.
+  const { uniqueMessages, indexById } = useMemo(() => {
+    const map = new Map<string, number>();
+    const unique: TMessage[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      const id = messages[i].id;
+      if (map.has(id)) continue;
+      map.set(id, unique.length);
+      unique.push(messages[i]);
+    }
+    return { uniqueMessages: unique, indexById: map };
   }, [messages]);
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
       const idx = indexById.get(message.id);
       if (idx === undefined) return null;
-      return renderItem(message, idx, messages);
+      return renderItem(message, idx, uniqueMessages);
     },
-    [messages, renderItem, indexById],
+    [uniqueMessages, renderItem, indexById],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
@@ -328,16 +337,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // image rows measured. Supplying per-row estimates keeps the scroll range
   // close before mount, so stopping a fast scroll does not re-anchor visibly.
   const heightEstimates = useMemo(
-    () => messages.map((message, index) => estimateChatRowHeight(message, index, messages)),
-    [messages],
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
+    [uniqueMessages],
   );
 
-  // Use sub-pixel-accurate height. offsetHeight is integer-truncated so a
-  // 0.5px discrepancy on every measure→paint cycle re-applies paddingTop and
-  // shows up as scroll "shake" on fast flicks.
-  const itemSize = useCallback((el: HTMLElement) => {
-    return el.getBoundingClientRect().height;
-  }, []);
+  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
+  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
+  // with fractional device-pixel ratios (most Android phones) the bounding
+  // rect oscillates by ~0.5px between paints during momentum scrolling.
+  // Virtuoso re-applies paddingTop on every change, which is exactly the
+  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
 
   const components = useMemo(
     () => ({
