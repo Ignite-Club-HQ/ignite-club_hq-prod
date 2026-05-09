@@ -222,7 +222,11 @@ export function useChatOlderMessagesAnchor({
         requestAnimationFrame(() => {
           const c = scrollContainerRef.current;
           if (!c) return;
-          c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
+          if (previousScrollTop <= 4) {
+            c.scrollTop = 0;
+          } else {
+            c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
+          }
           c.style.scrollBehavior = previousBehavior;
         });
         return;
@@ -231,7 +235,18 @@ export function useChatOlderMessagesAnchor({
       void container.offsetHeight;
       const nextScrollHeight = container.scrollHeight;
       const delta = nextScrollHeight - previousScrollHeight;
-      container.scrollTop = previousScrollTop + delta;
+      // If the user was already pinned to the very top when the prepend
+      // arrived, anchoring to `previousScrollTop + delta` would keep the
+      // same message in view and hide the freshly-prepended older ones
+      // above the fold — the user then has to flick again and the older
+      // messages appear "suddenly higher up the thread without having
+      // scrolled through them". Instead, scroll to the top of the new
+      // content so the older messages are immediately visible.
+      if (previousScrollTop <= 4) {
+        container.scrollTop = 0;
+      } else {
+        container.scrollTop = previousScrollTop + delta;
+      }
 
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
