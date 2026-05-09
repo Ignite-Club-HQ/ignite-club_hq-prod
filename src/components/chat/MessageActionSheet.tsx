@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/sheet";
 
 interface MessageAction {
+  /** Stable identifier independent of localised/transient label text — used as
+   *  React key so swapping "Copy Message" → "Copied!" doesn't unmount the row. */
+  id: string;
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
