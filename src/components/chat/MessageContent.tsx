@@ -75,9 +75,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const effectiveImageUrl = signedUrl || imageUrl;
 
   // Initialise from the decoded-cache so a remounted row that has already
-  // loaded this image once does NOT flash the skeleton again.
+  // loaded this image once does NOT flash the skeleton again. We check BOTH
+  // the original and the (synchronously-cached) signed URL because the image
+  // <img src> is the signed one but the original is what the parent passes.
+  const isAlreadyDecoded = (url: string | null | undefined) =>
+    !!url && decodedImageUrls.has(url);
   const [imageLoaded, setImageLoaded] = useState(
-    () => !!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl),
+    () => isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl),
   );
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -86,7 +90,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   // don't blank a row that's already been seen.
   useEffect(() => {
     setImageError(false);
-    setImageLoaded(!!effectiveImageUrl && decodedImageUrls.has(effectiveImageUrl));
+    setImageLoaded(isAlreadyDecoded(effectiveImageUrl) || isAlreadyDecoded(imageUrl));
   }, [imageUrl, effectiveImageUrl]);
 
   // Check if image is already cached/loaded (for browser-cached images)
@@ -94,8 +98,9 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     if (imgRef.current?.complete && imgRef.current?.naturalHeight > 0) {
       setImageLoaded(true);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
+      if (imageUrl) decodedImageUrls.add(imageUrl);
     }
-  }, [effectiveImageUrl]);
+  }, [effectiveImageUrl, imageUrl]);
   
   const parts = useMemo(() => {
     if (!text) return [];
