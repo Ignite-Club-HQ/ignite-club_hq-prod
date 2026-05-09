@@ -635,10 +635,27 @@ serve(async (req) => {
       }
     }
     
+    // Helper: finalize the pre-claimed placeholder row when we early-exit.
+    // Without this, the placeholder stays as endpoint='pending', status='sent'
+    // forever — misleading data and blocks retry-missed from re-dispatching.
+    const finalizePlaceholder = async (status: 'sent' | 'failed' | 'expired' | 'invalid' | 'skipped', endpointLabel: string, errorMsg: string | null) => {
+      if (!notificationId) return;
+      try {
+        await supabase
+          .from('push_notification_logs')
+          .update({ endpoint: endpointLabel, status, error_message: errorMsg })
+          .eq('notification_id', notificationId)
+          .eq('endpoint', 'pending');
+      } catch (e) {
+        console.error('[PUSH] Failed to finalize placeholder', e);
+      }
+    };
+
     // Check user preferences before sending
     const shouldSend = await checkUserPreference(supabase, userId, notificationType);
     if (!shouldSend) {
       console.log(`[PUSH] User ${userId} has disabled ${notificationType} notifications, skipping`);
+      await finalizePlaceholder('skipped', 'preference-disabled', `User has disabled ${notificationType} notifications`);
       return new Response(
         JSON.stringify({ 
           message: 'Notification skipped - user preference',
