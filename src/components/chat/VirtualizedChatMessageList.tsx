@@ -160,11 +160,26 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const firstIndexRef = useRef(START_INDEX - messages.length);
   const lastSeenLengthRef = useRef(messages.length);
   const lastFirstIdRef = useRef<string | null>(messages[0]?.id ?? null);
+  const lastLastIdRef = useRef<string | null>(messages[messages.length - 1]?.id ?? null);
+  // Signature guard: render-time mutation of firstIndexRef is dangerous in
+  // StrictMode / concurrent rendering because the same logical update can
+  // re-run render and double-shift the anchor, which makes Virtuoso project
+  // the same data row at multiple absolute indices (visible as duplicate
+  // messages stacked on top of each other after scroll). We only re-evaluate
+  // when the data signature actually changes.
+  const lastSigRef = useRef<string>(
+    `${messages.length}|${messages[0]?.id ?? ""}|${messages[messages.length - 1]?.id ?? ""}`,
+  );
 
   const newFirstId = messages[0]?.id ?? null;
+  const newLastId = messages[messages.length - 1]?.id ?? null;
+  const currentSig = `${messages.length}|${newFirstId ?? ""}|${newLastId ?? ""}`;
+  const sigChanged = currentSig !== lastSigRef.current;
   const justInitiallyPopulated =
-    lastSeenLengthRef.current === 0 && messages.length > 0;
-  if (justInitiallyPopulated) {
+    sigChanged && lastSeenLengthRef.current === 0 && messages.length > 0;
+  if (!sigChanged) {
+    // No-op: keep refs as-is so re-renders with identical data don't shift the anchor.
+  } else if (justInitiallyPopulated) {
     // First real data after an empty mount (notification cold-open, thread
     // switch, etc.) — re-anchor so `initialTopMostItemIndex` lands us on
     // the latest message instead of treating the load as a tail-append.
@@ -194,8 +209,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // Whole list replaced (e.g. reload) at the same length — re-anchor.
     firstIndexRef.current = START_INDEX - messages.length;
   }
-  lastSeenLengthRef.current = messages.length;
-  lastFirstIdRef.current = newFirstId;
+  if (sigChanged) {
+    lastSeenLengthRef.current = messages.length;
+    lastFirstIdRef.current = newFirstId;
+    lastLastIdRef.current = newLastId;
+    lastSigRef.current = currentSig;
+  }
   const firstItemIndex = firstIndexRef.current;
 
   // Belt-and-braces: when messages first populate, force a scroll-to-bottom
