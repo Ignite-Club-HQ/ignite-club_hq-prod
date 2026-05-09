@@ -1565,11 +1565,9 @@ export default function TeamChatPage() {
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
-            scrollAreaRef={scrollAreaRef}
-            loadTriggerRef={loadTriggerRef}
-            messagesEndRef={messagesEndRef}
+            virtualHandleRef={virtualHandleRef}
+            keepVirtualizedInSearch
             endElementId="team-chat-end"
-            loadTriggerStyle={{ overflowAnchor: "none" }}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
