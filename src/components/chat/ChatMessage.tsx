@@ -1006,9 +1006,13 @@ function ChatMessageInner({
           )}
           {timestamp}
           {!isPending && !isLastMessage && isOwn && readCount > 0 && (
-            <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+            messageType === "dm" ? (
               <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-            </span>
+            ) : (
+              <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+              </span>
+            )
           )}
           {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
             <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
@@ -1016,12 +1020,15 @@ function ChatMessageInner({
         </p>
         {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
           readFrontierReaders.length > 0
-            ? <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
-                <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
-              </div>
+            ? (messageType === "dm"
+                ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+                : <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                    <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+                  </div>
+              )
             : <p className={`text-[10px] text-muted-foreground/70 mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
-        {isOwn && (
+        {isOwn && messageType !== "dm" && (
           <ReadReceiptSheet
             open={showReadReceipts}
             onOpenChange={setShowReadReceipts}
