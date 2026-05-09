@@ -78,16 +78,14 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyToMessage?.text, replyToMessage?.authorName]);
 
-  if (!committed && !replyToMessage) return null;
-  const visible = committed ?? replyToMessage;
-  if (!visible) return null;
+  if (!committed) return null;
 
   return (
     <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${isOwn ? 'ml-auto' : ''}`}>
       <p className="text-muted-foreground font-medium truncate">
-        {visible.authorName || ""}
+        {committed.authorName || ""}
       </p>
-      <p className="text-muted-foreground/70 truncate">{visible.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
+      <p className="text-muted-foreground/70 truncate">{committed.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
     </div>
   );
 });
