@@ -455,7 +455,10 @@ export default function EventsPage() {
       return finalEvents;
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 3 * 60 * 1000, // Cache for 3 minutes to reduce refetches
+    staleTime: 30 * 1000, // 30s — keep payload fresh on iOS where app stays resumed
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
     placeholderData: (prev) => prev,
   });
 
