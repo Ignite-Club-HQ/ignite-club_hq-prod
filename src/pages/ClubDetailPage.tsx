@@ -1420,6 +1420,20 @@ export default function ClubDetailPage() {
                     )}
                   </div>
                 </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleBroadcastTeamSchedule(e, team.id, team.name || "this team")}
+                    disabled={broadcastingTeamId === team.id}
+                    className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    aria-label="Refresh schedule for everyone in this team"
+                    title="Refresh schedule for everyone"
+                  >
+                    {broadcastingTeamId === team.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <RefreshCw className="h-4 w-4" />}
+                  </button>
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </Link>
             );
