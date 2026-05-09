@@ -759,6 +759,13 @@ export function ChatMembersSheet({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Self push notifications enable dialog */}
+      <NotificationNudgeDialog
+        open={selfNudgeOpen}
+        userId={user?.id}
+        onDismiss={() => setSelfNudgeOpen(false)}
+      />
     </>
   );
 }
