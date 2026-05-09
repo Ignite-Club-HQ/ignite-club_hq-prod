@@ -51,6 +51,7 @@ export function useChatOlderMessagesAnchor({
   const pendingPrependTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
+    if (pendingPrependRef.current) return;
     const now = performance.now();
     if (now - lastTriggerAtRef.current < MIN_TRIGGER_INTERVAL_MS) return;
     lastTriggerAtRef.current = now;
