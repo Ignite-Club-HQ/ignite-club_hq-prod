@@ -114,10 +114,13 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   height += authorChars > 24 ? 44 : 22;
 
   if (hasReply) height += 38;
-  // Image bubble: 240×180 frame + ~16 bubble padding + ~24 spacing. Has to
-  // match the rendered DOM almost exactly or Virtuoso re-anchors as rows
-  // mount on scroll-up, which is the "jitter with images" symptom.
-  if (hasImage) height += 224;
+  // Image bubble: ~240-260px frame + padding + spacing. Slightly over-
+  // reserving (vs the previous 224) is intentional — under-estimating made
+  // Virtuoso shrink paddingTop after image decode, which read as a sudden
+  // upward "jump" mid-scroll. Over-reserving causes the row to settle
+  // *down* by a few px on hydrate (visually invisible above the fold)
+  // instead of the viewport content shifting up.
+  if (hasImage) height += 268;
 
   if (text) {
     const visibleText = text
