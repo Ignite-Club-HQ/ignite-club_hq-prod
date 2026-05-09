@@ -30,6 +30,37 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
     body.style.overscrollBehaviorY = "none";
 
     const isAndroid = /Android/i.test(navigator.userAgent);
+    const scheduledScrollResets = new Set<number>();
+
+    // CRITICAL: Android/iOS browsers may auto-scroll the outer app container
+    // when focusing the fixed chat composer, even though chat itself owns the
+    // only valid scroll area. That pans AppHeader + ChatHeaderShell off the
+    // top while the message list remains visible. Keep the outer viewport at
+    // origin; only the inner `[data-chat-scroll-lock]` element may scroll.
+    const resetOuterViewport = () => {
+      if (root.scrollTop !== 0 || root.scrollLeft !== 0) {
+        root.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+      if (html.scrollTop !== 0) html.scrollTop = 0;
+      if (body.scrollTop !== 0) body.scrollTop = 0;
+    };
+
+    const scheduleOuterViewportReset = () => {
+      resetOuterViewport();
+      requestAnimationFrame(resetOuterViewport);
+      [50, 150, 350, 700].forEach((delay) => {
+        const id = window.setTimeout(() => {
+          scheduledScrollResets.delete(id);
+          resetOuterViewport();
+        }, delay);
+        scheduledScrollResets.add(id);
+      });
+    };
+
+    scheduleOuterViewportReset();
 
     const handleTouchStart = (event: TouchEvent) => {
       touchStartYRef.current = event.touches[0]?.clientY ?? 0;
@@ -77,10 +108,23 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
 
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    document.addEventListener("focusin", scheduleOuterViewportReset, true);
+    window.addEventListener("resize", scheduleOuterViewportReset);
+    window.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
+    root.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
+    window.visualViewport?.addEventListener("resize", scheduleOuterViewportReset);
+    window.visualViewport?.addEventListener("scroll", scheduleOuterViewportReset);
 
     return () => {
+      scheduledScrollResets.forEach((id) => window.clearTimeout(id));
       document.removeEventListener("touchstart", handleTouchStart);
       document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("focusin", scheduleOuterViewportReset, true);
+      window.removeEventListener("resize", scheduleOuterViewportReset);
+      window.removeEventListener("scroll", scheduleOuterViewportReset);
+      root.removeEventListener("scroll", scheduleOuterViewportReset);
+      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportReset);
+      window.visualViewport?.removeEventListener("scroll", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
       root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;

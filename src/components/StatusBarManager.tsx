@@ -106,12 +106,19 @@ export function StatusBarManager() {
       lockedIOSStableVh = stableHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
+    const setVisualVh = () => {
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight ?? 0;
+      if (!visualHeight) return;
+      document.documentElement.style.setProperty('--visual-vh', `${visualHeight}px`);
+    };
     setStableVh({ resetLock: true });
+    setVisualVh();
     setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
         setStableVh({ resetLock: true });
+        setVisualVh();
         setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };
@@ -120,6 +127,7 @@ export function StatusBarManager() {
     const visualViewport = window.visualViewport;
     const handleViewportInsetChange = () => {
       setStableVh();
+      setVisualVh();
       setSafeAreaInsets();
     };
 
