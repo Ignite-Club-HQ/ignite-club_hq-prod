@@ -257,6 +257,7 @@ export default function DirectMessagePage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
     return cancel;
   }, [targetMessageId]);
