@@ -69,7 +69,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     ? 32
     : isKeyboardOpen
     ? Math.max(128, composerHeight + 40)
-    : Math.max(160, composerHeight + 48);
+    : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)`;
 
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const setVirtualScrollerRef = useCallback((element: HTMLElement | Window | null) => {
@@ -143,7 +143,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
         scrollbarGutter: "stable",
       }}
     >
-      <div className="p-4" style={{ paddingBottom: `${bottomPad}px`, overflowAnchor: "none" }}>
+      <div className="p-4" style={{ paddingBottom: typeof bottomPad === "number" ? `${bottomPad}px` : bottomPad, overflowAnchor: "none" }}>
         {hasOlderMessages && !searchQuery && (
           <div ref={loadTriggerRef} className="h-1" style={loadTriggerStyle} />
         )}
