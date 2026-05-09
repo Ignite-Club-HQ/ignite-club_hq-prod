@@ -686,6 +686,7 @@ serve(async (req) => {
       // Still try FCM
       const fcmResult = await fcmPromise;
       if (fcmResult.sent > 0) {
+        await finalizePlaceholder('sent', 'fcm-only', 'VAPID not configured; FCM delivered');
         return new Response(
           JSON.stringify({ 
             message: 'FCM notifications sent',
@@ -696,6 +697,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      await finalizePlaceholder('failed', 'config-error', 'VAPID not configured and FCM delivered nothing');
       return new Response(
         JSON.stringify({ error: 'Push notification configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -709,6 +711,7 @@ serve(async (req) => {
     
     if (subError) {
       console.error('[PUSH] Error fetching subscriptions');
+      await finalizePlaceholder('failed', 'subs-fetch-error', 'Failed to fetch push_subscriptions');
       return new Response(
         JSON.stringify({ error: 'An error occurred. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
