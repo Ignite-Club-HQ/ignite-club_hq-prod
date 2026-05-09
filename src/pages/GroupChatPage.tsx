@@ -6,7 +6,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
-import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -219,8 +219,7 @@ export default function GroupChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const chatVirtualizationEnabled = useChatVirtualizationFlag();
-  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
+  const useVirtualizedChat = !searchQuery;
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 

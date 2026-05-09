@@ -6,7 +6,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
 import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
-import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -156,8 +156,7 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const chatVirtualizationEnabled = useChatVirtualizationFlag();
-  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
+  const useVirtualizedChat = !searchQuery;
   const { isOnline } = useOnlineStatus();
 
   // Mark club message notifications as read when opening this thread
