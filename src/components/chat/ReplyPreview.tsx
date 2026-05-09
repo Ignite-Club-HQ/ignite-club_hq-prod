@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 
 interface ReplyPreviewProps {
   replyingTo: {
@@ -40,14 +41,45 @@ interface ReplyIndicatorProps {
 }
 
 export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isOwn }: ReplyIndicatorProps) {
-  if (!replyToMessage) return null;
+  // Track the LAST committed value separately from the prop. If the prop
+  // changes from null → object (or vice versa) while the chat is being
+  // scrolled, defer the visible commit until scroll has been idle for
+  // 250ms. Without this, late `reply_to` hydration during a fast upward
+  // flick adds a ~32px pill above the user's bubble and visibly drops the
+  // message they're reading.
+  const [committed, setCommitted] = useState(replyToMessage ?? null);
+  const firstRenderRef = useRef(true);
+
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    const next = replyToMessage ?? null;
+    // Cheap structural compare — only height-affecting changes need to
+    // wait for idle. Same identity ⇒ no commit.
+    const prev = committed;
+    const same =
+      (prev === null && next === null) ||
+      (prev !== null &&
+        next !== null &&
+        prev.text === next.text &&
+        prev.authorName === next.authorName);
+    if (same) return;
+
+    const cancel = runWhenChatScrollIdle(() => setCommitted(next), 250);
+    return cancel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyToMessage?.text, replyToMessage?.authorName]);
+
+  if (!committed) return null;
 
   return (
     <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${isOwn ? 'ml-auto' : ''}`}>
       <p className="text-muted-foreground font-medium truncate">
-        {replyToMessage.authorName || ""}
+        {committed.authorName || ""}
       </p>
-      <p className="text-muted-foreground/70 truncate">{replyToMessage.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
+      <p className="text-muted-foreground/70 truncate">{committed.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
     </div>
   );
 });
