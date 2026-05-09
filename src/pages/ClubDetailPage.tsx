@@ -123,7 +123,8 @@ export default function ClubDetailPage() {
     if (res.ok) {
       toast({ title: "Schedule refreshed", description: `Pushed a refresh to all ${teamName} members.` });
     } else {
-      toast({ title: "Couldn't refresh", description: res.ok ? undefined : res.error, variant: "destructive" });
+      const errMsg = res.ok ? undefined : res.error;
+      toast({ title: "Couldn't refresh", description: errMsg, variant: "destructive" });
     }
   };
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
