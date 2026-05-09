@@ -7,18 +7,23 @@ const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
 const isNativeAndroid = isNative && Capacitor.getPlatform() === "android";
 
 /**
- * Returns the chat shell height.
+ * Returns the chat shell height relative to AppLayout's `<main>` area.
  *
- * Subtracts headerOffset (top) and bottomNavOffset (bottom nav) from the
- * viewport. On native platforms, the bottom nav is hidden when the keyboard
- * is open, so the offset is only applied when the keyboard is closed.
+ * AppHeader is already outside `<main>` in the flex layout, so chat pages must
+ * NOT subtract the header from the viewport again. Doing so with an approximate
+ * `4rem` header value was fragile once safe-area padding and mobile keyboard
+ * viewport panning entered the picture: the explicit chat height could exceed
+ * its real parent and let the outer app scroll/pan, hiding both AppHeader and
+ * ChatHeaderShell. Keep this parent-relative and only subtract bottom chrome
+ * that overlays `<main>`: the fixed bottom nav when closed, and the native
+ * keyboard when it overlays instead of resizing the viewport.
  *
  * - Web: rely on 100dvh
  * - Native Android: use stable viewport height minus native keyboard height
  *   (Capacitor Keyboard.resize is set to 'none' so 100vh does NOT shrink)
  * - Native iOS: use stable viewport height minus native keyboard height
  */
-export function useChatViewportHeight(headerOffset = "4rem") {
+export function useChatViewportHeight() {
   const nativeKeyboardHeight = useNativeKeyboardHeight();
   const isKeyboardOpen = useKeyboardOpen();
 
@@ -30,22 +35,22 @@ export function useChatViewportHeight(headerOffset = "4rem") {
     : "var(--bottom-nav-offset, 4rem)";
 
   if (!isNative) {
-    return `calc(100dvh - ${headerOffset} - ${bottomNavOffset})`;
+    return `calc(100% - ${bottomNavOffset})`;
   }
 
   if (isNativeAndroid) {
     if (nativeKeyboardHeight > 0) {
-      return `calc(100vh - ${nativeKeyboardHeight}px - ${headerOffset})`;
+      return `calc(100% - ${nativeKeyboardHeight}px)`;
     }
-    return `calc(100vh - ${headerOffset} - ${bottomNavOffset})`;
+    return `calc(100% - ${bottomNavOffset})`;
   }
 
   if (isNativeIOS) {
     if (nativeKeyboardHeight > 0) {
-      return `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px - ${headerOffset})`;
+      return `calc(100% - ${nativeKeyboardHeight}px)`;
     }
-    return `calc(var(--stable-vh, 100dvh) - ${headerOffset} - ${bottomNavOffset})`;
+    return `calc(100% - ${bottomNavOffset})`;
   }
 
-  return `calc(var(--stable-vh, 100vh) - ${headerOffset} - ${bottomNavOffset})`;
+  return `calc(100% - ${bottomNavOffset})`;
 }
