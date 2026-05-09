@@ -360,6 +360,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
       } ${isInteracting ? "relative z-[100000]" : ""}`}
+      style={{ overflowAnchor: 'none' }}
     >
       {isInteracting && createPortal(
         <div
@@ -440,7 +441,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden ${
+                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {

@@ -108,10 +108,14 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
 
-    // Only compensate growth/shrink above the viewport. If the changing card
-    // is visible, the user should see that row settle naturally rather than the
-    // scroll container fighting their focal point.
-    if (elementRect.top >= viewportRect.top - 1) return;
+    // Compensate growth/shrink above the user's visual anchor, not only fully
+    // off-screen rows. The remaining Android/iOS jolt happens when a deferred
+    // card/reaction in the upper part of the viewport commits just after
+    // momentum stops; without this, everything below visibly drops down.
+    // Keep lower-half changes natural so the row the user is actively reading
+    // doesn't get fought by scrollTop corrections.
+    const anchorLine = viewportRect.top + viewportRect.height * 0.38;
+    if (elementRect.top >= anchorLine) return;
 
     const previousBehavior = viewport.style.scrollBehavior;
     adjusting = true;

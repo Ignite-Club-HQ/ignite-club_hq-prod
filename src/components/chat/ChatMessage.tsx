@@ -718,7 +718,7 @@ function ChatMessageInner({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
@@ -837,9 +837,9 @@ function ChatMessageInner({
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
-            <div
-              ref={bubbleRef}
-              className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden ${
+              <div
+                ref={bubbleRef}
+                className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
