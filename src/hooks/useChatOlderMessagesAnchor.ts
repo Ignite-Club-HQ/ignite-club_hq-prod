@@ -138,30 +138,10 @@ export function useChatOlderMessagesAnchor({
 
         const sinceScroll = performance.now() - lastScrollAtRef.current;
         if (sinceScroll < IDLE_GATE_MS) {
-          // User is mid-flick — re-check very shortly so older pages begin
-          // loading while momentum is still carrying the user into history.
-          window.setTimeout(() => {
-            const stillIntersecting =
-              trigger.getBoundingClientRect().top <
-              scrollRoot.getBoundingClientRect().bottom + PREFETCH_ROOT_MARGIN_PX;
-            // Re-apply ALL guards inside the deferred path. Without these,
-            // a programmatic scrollTop set by the initial bottom-pin (which
-            // fires a real "scroll" event and stamps lastScrollAtRef) lands
-            // us in this branch on first open and then unconditionally calls
-            // onTrigger — causing the first-load older-messages fetch and
-            // the visible upward jolt the user reports after a fresh install.
-            const distance =
-              scrollRoot.scrollHeight - scrollRoot.clientHeight - scrollRoot.scrollTop;
-            if (
-              stillIntersecting &&
-              hasOlderMessages &&
-              !isLoadingOlder &&
-              !document.hidden &&
-              distance >= 200
-            ) {
-              triggerOlder();
-            }
-          }, IDLE_GATE_MS);
+          // Fast upward flicks can keep moving for hundreds of ms after the
+          // IO sentinel intersects. Do not prepend/re-anchor during that
+          // momentum; queue one load and run it only once scrolling settles.
+          scheduleTriggerWhenIdle(scrollRoot, trigger);
           return;
         }
 
@@ -184,6 +164,7 @@ export function useChatOlderMessagesAnchor({
     enabled,
     hasOlderMessages,
     isLoadingOlder,
+    scheduleTriggerWhenIdle,
     triggerOlder,
   ]);
 
