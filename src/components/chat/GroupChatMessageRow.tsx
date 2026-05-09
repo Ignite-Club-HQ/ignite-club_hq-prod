@@ -32,6 +32,7 @@ import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
+import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -132,6 +133,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const {
     armDismissGuard,
@@ -285,6 +287,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
   }, [clearDismissGuard, showReactionPicker]);
+
+  useEffect(() => observeChatElementHeight(rowRef.current), []);
 
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
