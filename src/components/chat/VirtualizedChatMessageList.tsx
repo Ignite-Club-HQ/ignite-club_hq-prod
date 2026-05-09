@@ -265,6 +265,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) return;
     if (!hasOlder || isLoadingOlder) return;
+    if (loadingOlderInFlightRef.current) return;
+    loadingOlderInFlightRef.current = true;
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
