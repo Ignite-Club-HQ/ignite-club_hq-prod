@@ -313,6 +313,10 @@ export default function HomePage() {
   const userMemberships = membershipAndEvents?.memberships;
   const allEvents = membershipAndEvents?.events;
 
+  // Listen for server-side schedule refresh broadcasts so the home dashboard
+  // re-fetches events automatically when an admin pushes a refresh.
+  useScheduleBroadcastListener(userMemberships?.clubIds);
+
   // Filter events by active club theme
   const events = useMemo(() => {
     if (!allEvents) return [];
