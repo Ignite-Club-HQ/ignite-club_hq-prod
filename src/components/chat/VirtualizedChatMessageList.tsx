@@ -69,6 +69,16 @@ type EstimableChatMessage = {
   is_system_message?: boolean | null;
 };
 
+function getMessageDay(value?: string | null) {
+  return value ? new Date(value).toDateString() : "";
+}
+
+function previousDayIso(value: string) {
+  const date = new Date(value);
+  date.setDate(date.getDate() - 1);
+  return date.toISOString();
+}
+
 function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
@@ -79,8 +89,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   let height = 16; // row wrapper top padding
 
   if (msg.created_at) {
-    const currentDay = new Date(msg.created_at).toDateString();
-    const previousDay = prev?.created_at ? new Date(prev.created_at).toDateString() : null;
+    const currentDay = getMessageDay(msg.created_at);
+    const previousDay = getMessageDay(prev?.created_at);
     if (!previousDay || previousDay !== currentDay) height += 34;
   }
 
