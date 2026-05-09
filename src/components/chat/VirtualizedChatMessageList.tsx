@@ -235,14 +235,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       return;
     }
     if (needsAnchorReset) {
+      const prev = anchorRef.current;
       anchorRef.current = {
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
       };
       bottomPinReadyRef.current = false;
       bottomPinRevisionRef.current += 1;
+      debugLogAnchor("reset", {
+        previousBaseFirstId: prev.baseFirstId,
+        newBaseFirstId: newFirstId,
+        messagesLen: messages.length,
+        newBaseFirstIndex: START_INDEX - messages.length,
+      });
     }
   }, [needsAnchorReset, newFirstId, messages.length]);
+
+  // Trace firstItemIndex movement (the dominant signal for "the viewport
+  // jumped under me"). Cheap when debug is off.
+  useEffect(() => {
+    debugLogFirstItemIndex(firstItemIndex, messages.length);
+  }, [firstItemIndex, messages.length]);
 
   // Belt-and-braces: when messages first populate OR the mounted list is
   // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
