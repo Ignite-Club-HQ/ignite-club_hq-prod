@@ -869,3 +869,32 @@ export default function PushAnalyticsPage() {
       </div>
   );
 }
+
+interface HealthTileProps {
+  label: string;
+  value: number;
+  hint?: string;
+  tone?: "ok" | "warn" | "danger";
+  icon?: React.ReactNode;
+}
+
+function HealthTile({ label, value, hint, tone = "ok", icon }: HealthTileProps) {
+  const toneClass =
+    tone === "danger"
+      ? "border-destructive/50 bg-destructive/5"
+      : tone === "warn"
+      ? "border-yellow-500/40 bg-yellow-500/5"
+      : "border-border";
+  const valueClass =
+    tone === "danger" ? "text-destructive" : tone === "warn" ? "text-yellow-600 dark:text-yellow-400" : "";
+  return (
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {icon}
+      </div>
+      <div className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{value.toLocaleString()}</div>
+      {hint && <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
+    </div>
+  );
+}
