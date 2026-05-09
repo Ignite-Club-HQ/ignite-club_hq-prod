@@ -631,7 +631,9 @@ export default function GroupChatPage() {
     });
 
     setLocalMessages((prev) => {
-      const mergedMessages = messages.map((message) => {
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = messages.map((message) => {
         const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
         const previousMessage = prev?.find((item) => item.id === message.id);
         const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
@@ -658,6 +660,9 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
