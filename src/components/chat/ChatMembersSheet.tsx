@@ -77,6 +77,32 @@ export function ChatMembersSheet({
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
 
+  // Self push-enable dialog
+  const [selfNudgeOpen, setSelfNudgeOpen] = useState(false);
+
+  // Track members that we've already nudged in this session (to disable button)
+  const [nudgedMemberIds, setNudgedMemberIds] = useState<Set<string>>(new Set());
+
+  // Send a one-tap nudge notification to a specific member
+  const nudgeMutation = useMutation({
+    mutationFn: async (member: { id: string; name: string }) => {
+      const { error } = await supabase.from("notifications").insert({
+        user_id: member.id,
+        type: "admin_nudge",
+        message: `Turn on notifications so you don't miss messages in ${chatName}.`,
+      });
+      if (error) throw error;
+      return member;
+    },
+    onSuccess: (member) => {
+      setNudgedMemberIds((prev) => new Set(prev).add(member.id));
+      toast.success(`Reminder sent to ${member.name}`);
+    },
+    onError: (err: any) => {
+      toast.error("Could not send reminder: " + (err?.message || "unknown error"));
+    },
+  });
+
   // Is this a personal group (no team/club/league binding)?
   const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
 
