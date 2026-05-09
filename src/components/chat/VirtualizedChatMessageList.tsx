@@ -264,23 +264,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
-    const jump = () =>
+    const jump = (phase: string) => {
+      debugLogBottomPin(bottomPinRevision, phase);
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
         align: "end",
         behavior: "auto",
       });
-    jump();
+    };
+    jump("immediate");
     let r2 = 0;
     const r1 = requestAnimationFrame(() => {
-      jump();
+      jump("raf1");
       r2 = requestAnimationFrame(() => {
-        jump();
+        jump("raf2");
         bottomPinReadyRef.current = true;
       });
     });
     const t = window.setTimeout(() => {
-      jump();
+      jump("timeout-200");
       bottomPinReadyRef.current = true;
     }, 200);
     return () => {
@@ -292,10 +294,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [bottomPinRevision]);
 
   const handleStartReached = useCallback(() => {
-    if (!bottomPinReadyRef.current) return;
-    if (!hasOlder || isLoadingOlder) return;
-    if (loadingOlderInFlightRef.current) return;
+    if (!bottomPinReadyRef.current) {
+      debugLogStartReached(false, "bottom-pin-not-ready");
+      return;
+    }
+    if (!hasOlder) {
+      debugLogStartReached(false, "no-older");
+      return;
+    }
+    if (isLoadingOlder) {
+      debugLogStartReached(false, "already-loading");
+      return;
+    }
+    if (loadingOlderInFlightRef.current) {
+      debugLogStartReached(false, "in-flight-guard");
+      return;
+    }
     loadingOlderInFlightRef.current = true;
+    debugLogStartReached(true, "fetch");
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
