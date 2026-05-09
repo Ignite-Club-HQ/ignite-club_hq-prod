@@ -509,19 +509,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
       if (uncappedDrift <= 30) return; // Normal tick would have handled this
 
-      // Safeguard: don't silently fast-forward if app was closed >5 min.
-      // Pause at the saved position so the coach decides what to do.
-      const SAFE_DRIFT_SECS = 5 * 60;
-      if (uncappedDrift > SAFE_DRIFT_SECS) {
-        console.log(`[Timer] Resume drift ${uncappedDrift}s exceeds safe window; pausing.`);
-        setIsRunning(false);
-        setElapsedSeconds(saved.elapsedSeconds);
-        toast({
-          title: "Timer paused",
-          description: `Pitch board was closed for ${Math.round(uncappedDrift / 60)} min. Tap play to resume.`,
-        });
-        return;
-      }
+      // Keep the clock advancing across long backgrounding (screen lock,
+      // app switch). halfDurationSeconds caps it below; end-of-half handling
+      // runs the same as a normal foreground tick.
 
       const reconciledElapsed = Math.min(saved.elapsedSeconds + uncappedDrift, halfDurationSeconds);
       console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, elapsed ${saved.elapsedSeconds} -> ${reconciledElapsed}`);
