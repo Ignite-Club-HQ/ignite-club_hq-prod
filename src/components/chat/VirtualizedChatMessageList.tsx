@@ -357,34 +357,52 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const { uniqueMessages, indexById } = useMemo(() => {
     const map = new Map<string, number>();
     const unique: TMessage[] = [];
+    const dupCounts = new Map<string, number>();
     for (let i = 0; i < messages.length; i++) {
       const id = messages[i].id;
-      if (map.has(id)) continue;
+      if (map.has(id)) {
+        dupCounts.set(id, (dupCounts.get(id) ?? 1) + 1);
+        continue;
+      }
       map.set(id, unique.length);
       unique.push(messages[i]);
     }
+    if (dupCounts.size > 0 && isChatVirtDebugEnabled()) {
+      for (const [id, count] of dupCounts) debugLogDuplicate(id, count);
+    }
     return { uniqueMessages: unique, indexById: map };
   }, [messages]);
+
+  const heightEstimates = useMemo(
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
+    [uniqueMessages],
+  );
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
       const idx = indexById.get(message.id);
       if (idx === undefined) return null;
-      return renderItem(message, idx, uniqueMessages);
+      const child = renderItem(message, idx, uniqueMessages);
+      if (!isChatVirtDebugEnabled()) return child;
+      const estimated = idx >= 0 ? heightEstimates[idx] : undefined;
+      return (
+        <DebugRowProbe messageId={message.id} estimated={estimated}>
+          {child}
+        </DebugRowProbe>
+      );
     },
-    [uniqueMessages, renderItem, indexById],
+    [uniqueMessages, renderItem, indexById, heightEstimates],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
-  // Fast flicks through image-heavy history used to expose rows after
-  // Virtuoso had estimated them as tiny text bubbles, then jump once the real
-  // image rows measured. Supplying per-row estimates keeps the scroll range
-  // close before mount, so stopping a fast scroll does not re-anchor visibly.
-  const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
-    [uniqueMessages],
-  );
+  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
+  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
+  // with fractional device-pixel ratios (most Android phones) the bounding
+  // rect oscillates by ~0.5px between paints during momentum scrolling.
+  // Virtuoso re-applies paddingTop on every change, which is exactly the
+  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
+
 
   // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
   // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
