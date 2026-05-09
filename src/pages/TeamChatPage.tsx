@@ -3,11 +3,7 @@ import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
-import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
-import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
-import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
