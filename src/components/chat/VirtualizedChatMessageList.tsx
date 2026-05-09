@@ -69,6 +69,10 @@ type EstimableChatMessage = {
   is_system_message?: boolean | null;
 };
 
+function getMessageDay(value?: string | null) {
+  return value ? new Date(value).toDateString() : "";
+}
+
 function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
@@ -79,8 +83,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   let height = 16; // row wrapper top padding
 
   if (msg.created_at) {
-    const currentDay = new Date(msg.created_at).toDateString();
-    const previousDay = prev?.created_at ? new Date(prev.created_at).toDateString() : null;
+    const currentDay = getMessageDay(msg.created_at);
+    const previousDay = getMessageDay(prev?.created_at);
     if (!previousDay || previousDay !== currentDay) height += 34;
   }
 
@@ -149,73 +153,43 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
+  const messagesLengthRef = useRef(messages.length);
+  messagesLengthRef.current = messages.length;
 
-  // Virtuoso's anchored-prepend trick: keep a sliding `firstItemIndex` that
-  // decreases by the count of items prepended. CRITICAL: this MUST be
-  // computed during render (not in useEffect), otherwise virtuoso renders
-  // one frame with new data + stale index, snapping the viewport when the
-  // effect catches up. We use refs to track the previous snapshot and
-  // adjust during render.
+  // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
+  // message that was first visible when this data set was established. This
+  // is deterministic for a given `messages` array: prepends move the base
+  // message to a larger data index, so we subtract that offset; appends do not
+  // move it, so the first item index stays unchanged. The previous incremental
+  // ref-diff approach could still double-shift under aborted/concurrent renders
+  // and produced duplicate rows / shake after fast scrolls.
   const START_INDEX = 1_000_000;
-  const firstIndexRef = useRef(START_INDEX - messages.length);
-  const lastSeenLengthRef = useRef(messages.length);
-  const lastFirstIdRef = useRef<string | null>(messages[0]?.id ?? null);
-  const lastLastIdRef = useRef<string | null>(messages[messages.length - 1]?.id ?? null);
-  // Signature guard: render-time mutation of firstIndexRef is dangerous in
-  // StrictMode / concurrent rendering because the same logical update can
-  // re-run render and double-shift the anchor, which makes Virtuoso project
-  // the same data row at multiple absolute indices (visible as duplicate
-  // messages stacked on top of each other after scroll). We only re-evaluate
-  // when the data signature actually changes.
-  const lastSigRef = useRef<string>(
-    `${messages.length}|${messages[0]?.id ?? ""}|${messages[messages.length - 1]?.id ?? ""}`,
-  );
-
   const newFirstId = messages[0]?.id ?? null;
-  const newLastId = messages[messages.length - 1]?.id ?? null;
-  const currentSig = `${messages.length}|${newFirstId ?? ""}|${newLastId ?? ""}`;
-  const sigChanged = currentSig !== lastSigRef.current;
-  const justInitiallyPopulated =
-    sigChanged && lastSeenLengthRef.current === 0 && messages.length > 0;
-  if (!sigChanged) {
-    // No-op: keep refs as-is so re-renders with identical data don't shift the anchor.
-  } else if (justInitiallyPopulated) {
-    // First real data after an empty mount (notification cold-open, thread
-    // switch, etc.) — re-anchor so `initialTopMostItemIndex` lands us on
-    // the latest message instead of treating the load as a tail-append.
-    firstIndexRef.current = START_INDEX - messages.length;
-  } else if (
-    messages.length > lastSeenLengthRef.current &&
-    lastFirstIdRef.current &&
-    newFirstId &&
-    lastFirstIdRef.current !== newFirstId
-  ) {
-    // Older messages prepended — slide by the actual number of rows inserted
-    // before the previous first row. Do NOT use total length delta: a query
-    // refresh/realtime append can land in the same render as the prepend and
-    // would over-shift the anchor, which is the visible stop-scroll jolt.
-    const previousFirstIndex = messages.findIndex((message) => message.id === lastFirstIdRef.current);
-    firstIndexRef.current -= previousFirstIndex > 0
-      ? previousFirstIndex
-      : messages.length - lastSeenLengthRef.current;
-  } else if (messages.length < lastSeenLengthRef.current) {
-    // Reset (thread switch / clear).
-    firstIndexRef.current = START_INDEX - messages.length;
-  } else if (
-    messages.length === lastSeenLengthRef.current &&
-    lastFirstIdRef.current !== newFirstId &&
-    newFirstId !== null
-  ) {
-    // Whole list replaced (e.g. reload) at the same length — re-anchor.
-    firstIndexRef.current = START_INDEX - messages.length;
+  const wasEmptyRef = useRef(messages.length === 0);
+  const anchorRef = useRef<{ baseFirstId: string | null; baseFirstIndex: number }>({
+    baseFirstId: newFirstId,
+    baseFirstIndex: START_INDEX - messages.length,
+  });
+
+  let justInitiallyPopulated = false;
+  if (messages.length === 0) {
+    anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
+  } else {
+    const baseFirstId = anchorRef.current.baseFirstId;
+    const baseOffset = baseFirstId ? messages.findIndex((message) => message.id === baseFirstId) : -1;
+    if (!baseFirstId || baseOffset === -1) {
+      justInitiallyPopulated = wasEmptyRef.current;
+      anchorRef.current = {
+        baseFirstId: newFirstId,
+        baseFirstIndex: START_INDEX - messages.length,
+      };
+    }
   }
-  if (sigChanged) {
-    lastSeenLengthRef.current = messages.length;
-    lastFirstIdRef.current = newFirstId;
-    lastLastIdRef.current = newLastId;
-    lastSigRef.current = currentSig;
-  }
-  const firstItemIndex = firstIndexRef.current;
+  const anchorOffset = anchorRef.current.baseFirstId
+    ? messages.findIndex((message) => message.id === anchorRef.current.baseFirstId)
+    : 0;
+  const firstItemIndex = anchorRef.current.baseFirstIndex - Math.max(0, anchorOffset);
+  wasEmptyRef.current = messages.length === 0;
 
   // Belt-and-braces: when messages first populate, force a scroll-to-bottom
   // on the next two frames. `initialTopMostItemIndex` is only honoured on
@@ -268,7 +242,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     ref,
     () => ({
       scrollToBottom: (behavior = "auto") => {
-        const last = lastSeenLengthRef.current - 1;
+        const last = messagesLengthRef.current - 1;
         if (last < 0) return;
         virtuosoRef.current?.scrollToIndex({
           index: last,
