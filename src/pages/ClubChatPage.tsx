@@ -179,9 +179,12 @@ export default function ClubChatPage() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   
+  // Legacy DOM refs are no longer attached (Virtuoso owns scroll). Kept as
+  // null refs for any non-scroll code paths that still pass them around.
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [replyingTo?.id, editingMessage?.id],
     56,
@@ -189,22 +192,20 @@ export default function ClubChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
-  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
-    if (isUserActive()) return;
-    scrollChatToBottom(scrollAreaRef.current);
-  }, [isUserActive]);
+    virtualHandleRef.current?.scrollToBottom("auto");
+  }, []);
 
   const targetMessageId = searchParams.get("message");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
@@ -220,7 +221,13 @@ export default function ClubChatPage() {
     canPinMore,
   } = usePinnedMessages("club", clubId);
   const handleJumpToMessage = (mid: string) =>
-    jumpToMessageInChat(mid, setHighlightedMessageId);
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   // Get club info
   const { data: club } = useQuery({
