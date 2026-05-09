@@ -250,7 +250,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={Math.max(0, messages.length - 1)}
       startReached={handleStartReached}
-      isScrolling={handleIsScrollingChange}
       atBottomStateChange={handleAtBottomChange}
       followOutput={followOutput}
       computeItemKey={computeItemKey}
@@ -266,7 +265,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       increaseViewportBy={{ top: 1200, bottom: 600 }}
       minOverscanItemCount={{ top: 12, bottom: 8 }}
       atBottomThreshold={120}
-      skipAnimationFrameInResizeObserver
+      scrollerRef={scrollerRef}
       components={components}
     />
   );
