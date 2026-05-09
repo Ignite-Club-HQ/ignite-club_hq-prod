@@ -497,27 +497,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Virtuoso re-applies paddingTop on every change, which is exactly the
   // "shake on fast scroll" symptom. Integer offsetHeight is stable.
 
-  // Stable Header/Footer identities. Recreating these on every
-  // `bottomPadding` change (which churns whenever the composer remeasures —
-  // e.g. ResizeObserver fires while the user is scrolling history) makes
-  // Virtuoso unmount/remount its Footer and re-apply paddingBottom, which
-  // can cascade into a row-level repaint flash. We reference the live
-  // padding values via refs so the footer reads the latest value without
-  // changing component identity.
-  const topPaddingRef = useRef(topPadding);
-  const bottomPaddingRef = useRef(bottomPadding);
-  topPaddingRef.current = topPadding;
-  bottomPaddingRef.current = bottomPadding;
   const components = useMemo(
     () => ({
       Scroller: ChatVirtuosoScroller,
       // Keep the list header purely structural and independent of loading
       // state. Rendering the spinner here makes Virtuoso re-measure header
       // content exactly while it is trying to preserve a top anchor.
-      Header: () => <div style={{ height: topPaddingRef.current, overflowAnchor: "none" }} />,
-      Footer: () => <div style={{ height: bottomPaddingRef.current }} />,
+      Header: () => <div style={{ height: topPadding, overflowAnchor: "none" }} />,
+      Footer: () => <div style={{ height: bottomPadding }} />,
     }),
-    [],
+    [topPadding, bottomPadding],
   );
 
   // Attach a debug watcher to Virtuoso's real scroll element so we can flag
