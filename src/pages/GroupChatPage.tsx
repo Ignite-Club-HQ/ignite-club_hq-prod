@@ -1553,7 +1553,7 @@ export default function GroupChatPage() {
       return;
     }
     setReplyTo(msg);
-    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
+    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
     inputRef.current?.focus();
   };
 
