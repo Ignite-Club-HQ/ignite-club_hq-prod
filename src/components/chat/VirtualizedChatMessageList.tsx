@@ -486,7 +486,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // like rows stacking on top of each other.
       increaseViewportBy={{ top: 600, bottom: 200 }}
       atBottomThreshold={120}
-      scrollerRef={scrollerRef}
+      scrollerRef={wrappedScrollerRef}
       components={components}
     />
   );
