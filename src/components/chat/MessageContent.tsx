@@ -466,7 +466,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Markdown link: show linkText, href to content (URL)
                 return (
                   <a
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     href={part.content}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -485,28 +485,28 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                }
               if (part.type === "event-link") {
                 // Event links are rendered as empty spans inline; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "board-link") {
                 // Board links render inline as empty; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "poll-link") {
                 // Poll tokens render as empty spans; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "vault-file" || part.type === "vault-folder" || part.type === "vault-root") {
                 // Vault tokens render as empty spans; the card is shown below
-                return <span key={index} />;
+                return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
               }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
-                  return <span key={index} />;
+                  return <span key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`} />;
                 }
                 return (
                   <a
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     href={ensureProtocol(part.content)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -526,7 +526,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               if (part.type === "mention" && part.content) {
                 return (
                   <span
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     className="font-semibold"
                     style={{
                       userSelect: 'none',
@@ -542,7 +542,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               if (part.type === "text" && part.content) {
                 return (
                   <span
-                    key={index}
+                    key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                     style={{
                       userSelect: 'none',
                       WebkitUserSelect: 'none',
@@ -557,7 +557,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               // Safety fallback for any part with content
               return part.content ? (
                 <span
-                  key={index}
+                  key={`${part.type}:${index}:${((part as any).content ?? (part as any).linkText ?? "").slice(0, 24)}`}
                   style={{
                     userSelect: 'none',
                     WebkitUserSelect: 'none',

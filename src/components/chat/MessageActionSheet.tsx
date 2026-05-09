@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/sheet";
 
 interface MessageAction {
+  /** Stable identifier independent of localised/transient label text — used as
+   *  React key so swapping "Copy Message" → "Copied!" doesn't unmount the row. */
+  id: string;
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
@@ -109,6 +112,7 @@ export function MessageActionSheet({
 
   if (hasImage && onViewImage) {
     actions.push({
+      id: "view-image",
       label: "View Image",
       icon: <ImageIcon className="h-5 w-5" />,
       onClick: onViewImage,
@@ -125,6 +129,7 @@ export function MessageActionSheet({
         ? "Published to Gallery"
         : "Publish to Media Gallery";
     actions.push({
+      id: "publish-gallery",
       label,
       icon: isPublishingToGallery
         ? <Loader2 className="h-5 w-5 animate-spin" />
@@ -140,6 +145,7 @@ export function MessageActionSheet({
 
   if (canReply) {
     actions.push({
+      id: "reply",
       label: "Reply",
       icon: <Reply className="h-5 w-5" />,
       onClick: onReply,
@@ -148,6 +154,7 @@ export function MessageActionSheet({
 
   if (canEdit) {
     actions.push({
+      id: "edit",
       label: "Edit",
       icon: <Pencil className="h-5 w-5" />,
       onClick: onEdit,
@@ -158,6 +165,7 @@ export function MessageActionSheet({
   if (messageText) {
     const isMessageCopied = copiedText === messageText;
     actions.push({
+      id: "copy-message",
       label: isMessageCopied ? "Copied!" : "Copy Message",
       icon: isMessageCopied ? <Check className="h-5 w-5 text-primary" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
@@ -174,9 +182,10 @@ export function MessageActionSheet({
     if (urls.length > 0) {
       const firstUrl = urls[0];
       const isLinkCopied = copiedText === firstUrl;
-      
+
       // Open Link action
       actions.push({
+        id: "open-link",
         label: urls.length > 1 ? "Open Link" : "Open Link",
         icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
@@ -187,6 +196,7 @@ export function MessageActionSheet({
 
       // Copy Link action
       actions.push({
+        id: "copy-link",
         label: isLinkCopied ? "Link Copied!" : "Copy Link",
         icon: isLinkCopied ? <Check className="h-5 w-5 text-primary" /> : <Link className="h-5 w-5" />,
         onClick: () => {
@@ -204,12 +214,14 @@ export function MessageActionSheet({
   if (canPin) {
     if (isPinned && onUnpin) {
       actions.push({
+        id: "unpin",
         label: "Unpin Message",
         icon: <PinOff className="h-5 w-5" />,
         onClick: onUnpin,
       });
     } else if (!isPinned && onPin) {
       actions.push({
+        id: "pin",
         label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
         icon: <Pin className="h-5 w-5" />,
         onClick: onPin,
@@ -219,6 +231,7 @@ export function MessageActionSheet({
 
   if (canDelete) {
     actions.push({
+      id: "delete",
       label: "Delete",
       icon: <Trash2 className="h-5 w-5" />,
       onClick: onDelete,
@@ -235,9 +248,9 @@ export function MessageActionSheet({
     onOpenChange(isOpen);
   };
 
-  const renderAction = (action: MessageAction, i: number) => (
+  const renderAction = (action: MessageAction) => (
     <button
-      key={i}
+      key={action.id}
       className={`w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
         action.destructive
           ? "text-destructive"
