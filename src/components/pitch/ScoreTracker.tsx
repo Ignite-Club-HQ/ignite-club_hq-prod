@@ -100,15 +100,9 @@ export default function ScoreTracker({
       setSelectedGoalType("teamB");
       setShowGoalSheet(true);
     } else {
-      const newGoal: Goal = {
-        id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        time: elapsedSeconds,
-        half: currentHalf,
-        isOpponentGoal: true,
-      };
-      setShowGoalSheet(false);
-      setSelectedGoalType(null);
-      setPendingGoal({ goal: newGoal, label: `${opponentName} goal` });
+      // Open sheet so the user can pick "Unknown" or "Own Goal by ..."
+      setSelectedGoalType("opponent");
+      setShowGoalSheet(true);
     }
   };
 
@@ -125,8 +119,27 @@ export default function ScoreTracker({
     };
     const scorerLabel = player?.name
       ? `${player.number ? `#${player.number} ` : ''}${player.name}`
-      : "Unknown / Own Goal";
+      : selectedGoalType === "opponent"
+        ? `${opponentName} goal`
+        : "Unknown / Own Goal";
     setPendingGoal({ goal: newGoal, label: scorerLabel });
+    setShowGoalSheet(false);
+    setSelectedGoalType(null);
+  };
+
+  // Own goal: scored by one of OUR players, credited to the opposing side.
+  const handleSelectOwnGoal = (player: Player) => {
+    const newGoal: Goal = {
+      id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      scorerId: player.id,
+      scorerName: player.name,
+      time: elapsedSeconds,
+      half: currentHalf,
+      isOpponentGoal: true,
+      isOwnGoal: true,
+    };
+    const label = `Own Goal — ${player.number ? `#${player.number} ` : ''}${player.name}`;
+    setPendingGoal({ goal: newGoal, label });
     setShowGoalSheet(false);
     setSelectedGoalType(null);
   };
