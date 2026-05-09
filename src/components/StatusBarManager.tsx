@@ -47,6 +47,23 @@ export function StatusBarManager() {
       return aspectRatio >= 2 ? 44 : 20;
     };
 
+    // Android floor for the status-bar inset. In edge-to-edge mode (and inside
+    // the Lovable web preview running on a real Android device) the WebView
+    // can report `env(safe-area-inset-top) = 0`, which collapses every
+    // `pt-safe` to nothing and lets the system status bar paint OVER the app
+    // header and the topmost chat message — exactly the "text going over the
+    // status bar" symptom. 24px matches the historical Android status-bar
+    // height and is a safe minimum across all current devices; if the WebView
+    // does report a real (larger) inset we still honour it via Math.max below.
+    const getAndroidSafeAreaTopFloor = () => {
+      if (typeof window === 'undefined') return 0;
+      // Skip the floor on tablets / desktop-class viewports where the device
+      // status bar is not overlaying the WebView.
+      const shortestSide = Math.min(window.screen?.width ?? 0, window.screen?.height ?? 0);
+      if (shortestSide >= 768) return 0;
+      return 24;
+    };
+
     const setSafeAreaInsets = (options?: { resetTopLock?: boolean }) => {
       if (typeof document === 'undefined') return;
 
@@ -57,7 +74,7 @@ export function StatusBarManager() {
       );
       const safeTopBase = isIOSLike
         ? Math.max(measuredTop, getNativeSafeAreaTopFloor())
-        : measuredTop;
+        : Math.max(measuredTop, getAndroidSafeAreaTopFloor());
       const preservedTop = isIOSLike && !options?.resetTopLock
         ? Math.max(
             lockedIOSSafeAreaTop,
