@@ -33,6 +33,7 @@ import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
+import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 
 interface Reaction {
   id: string;
@@ -137,6 +138,7 @@ function ChatMessageInner({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const optimisticReactionsRef = useRef<Reaction[]>(reactions);
@@ -165,6 +167,8 @@ function ChatMessageInner({
     optimisticReactionsRef.current = reactions;
     setOptimisticReactions(reactions);
   }, [reactions]);
+
+  useEffect(() => observeChatElementHeight(rowRef.current), []);
 
 
   const getMessageIdField = () => {
@@ -693,7 +697,7 @@ function ChatMessageInner({
   const galleryCardMatch = isSystemMessage ? text.match(/^\s*\[gallery:([0-9a-f-]{36})\]\s*$/i) : null;
   if (galleryCardMatch) {
     return (
-      <div className="flex justify-center my-2 px-3">
+      <div ref={rowRef} className="flex justify-center my-2 px-3">
         <MessageContent text={text} previewsOnly />
       </div>
     );
@@ -703,7 +707,7 @@ function ChatMessageInner({
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (isSystemMessage || isMembershipSystemText(text)) {
     return (
-      <div className="flex justify-center my-2 px-4">
+      <div ref={rowRef} className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
           {text}
         </div>
@@ -714,7 +718,7 @@ function ChatMessageInner({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
