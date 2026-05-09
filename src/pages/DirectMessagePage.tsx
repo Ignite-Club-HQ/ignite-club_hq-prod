@@ -549,12 +549,8 @@ export default function DirectMessagePage() {
     });
   }, [conversationId, user?.id, showLoading, localMessages, messagesData]);
 
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && isUserActive()) return;
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -586,13 +582,10 @@ export default function DirectMessagePage() {
     setInfiniteScrollEnabled(false);
   }, [conversationId, messagesData]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: conversationId,
-    onPinned: () => setInfiniteScrollEnabled(true),
-  });
+  const isPinned = true;
+  useEffect(() => {
+    setInfiniteScrollEnabled(true);
+  }, [conversationId]);
  
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
@@ -626,7 +619,7 @@ export default function DirectMessagePage() {
 
       // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
       if (mergedMessages.length > prevLen) {
-        requestAnimationFrame(() => scrollChatToBottom(scrollAreaRef.current));
+        requestAnimationFrame(() => virtualHandleRef.current?.scrollToBottom("auto"));
       }
 
       return mergedMessages;
