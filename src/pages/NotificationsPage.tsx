@@ -296,6 +296,26 @@ export default function NotificationsPage() {
 
   type AppRole = Database["public"]["Enums"]["app_role"];
 
+  // Translate raw RPC / network errors into a friendly, actionable toast message.
+  const friendlyRequestError = (error: unknown, action: "approve" | "deny"): string => {
+    const raw = (error instanceof Error ? error.message : String(error ?? "")).toLowerCase();
+    const verb = action === "approve" ? "approve" : "deny";
+
+    if (raw.includes("not authorized")) {
+      return `You don't have permission to ${verb} this request. Only team admins, coaches, and club admins can manage join requests.`;
+    }
+    if (raw.includes("already processed")) {
+      return "This request has already been handled by another admin. Pull to refresh to see the latest list.";
+    }
+    if (raw.includes("request not found")) {
+      return "This request no longer exists — it may have been withdrawn or already actioned.";
+    }
+    if (raw.includes("network") || raw.includes("failed to fetch") || raw.includes("timeout")) {
+      return `We couldn't reach the server. Check your connection and try ${verb}ing again.`;
+    }
+    return `Couldn't ${verb} this request right now. Please try again in a moment — if it keeps failing, contact support.`;
+  };
+
   const approveRequest = useMutation({
     mutationFn: async (requestId: string) => {
       // Get the request details for email sending
@@ -317,45 +337,51 @@ export default function NotificationsPage() {
       const { error } = await supabase.rpc("approve_role_request", { p_request_id: requestId });
       if (error) throw error;
 
-      // Send email notification (best-effort, after RPC succeeded)
-      const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
-      const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-      const teamName = teamData?.name;
-      const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-      const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
-      const entityName = teamName || clubName;
-      const roleName = request.role.replace("_", " ");
+      // ── Side-effects below: best-effort only. Failures here MUST NOT surface as
+      // a "Failed to approve" toast because the approval itself already succeeded.
+      try {
+        const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
+        const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
+        const teamName = teamData?.name;
+        const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+        const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
+        const entityName = teamName || clubName;
+        const roleName = request.role.replace("_", " ");
 
-      const { data: requesterProfile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", request.user_id)
-        .single();
+        const { data: requesterProfile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", request.user_id)
+          .maybeSingle();
 
-      const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
-      const userEmail = emailData?.[0]?.email;
-      
-      if (userEmail) {
-        const teamLink = request.team_id 
-          ? `/teams/${request.team_id}` 
-          : `/clubs/${request.club_id}`;
-        
-        await supabase.functions.invoke("send-email", {
-          body: {
-            to: userEmail,
-            subject: `Welcome to ${entityName}! 🎉`,
-            template: "join-request-response",
-            templateData: {
-              recipientName: requesterProfile?.display_name || "Member",
-              teamName: teamName,
-              clubName: clubName,
-              roleName: roleName,
-              approved: true,
-              teamLink: teamLink,
-              clubLogoUrl: clubLogoUrl,
+        const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
+        const userEmail = emailData?.[0]?.email;
+
+        if (userEmail) {
+          const teamLink = request.team_id
+            ? `/teams/${request.team_id}`
+            : `/clubs/${request.club_id}`;
+
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: userEmail,
+              subject: `Welcome to ${entityName}! 🎉`,
+              template: "join-request-response",
+              templateData: {
+                recipientName: requesterProfile?.display_name || "Member",
+                teamName: teamName,
+                clubName: clubName,
+                roleName: roleName,
+                approved: true,
+                teamLink: teamLink,
+                clubLogoUrl: clubLogoUrl,
+              },
             },
-          },
-        });
+          });
+        }
+      } catch (sideEffectError) {
+        // Approval succeeded; only the welcome email pipeline failed.
+        console.warn("[approveRequest] Welcome email side-effect failed:", sideEffectError);
       }
     },
     onSuccess: () => {
@@ -363,12 +389,7 @@ export default function NotificationsPage() {
       toast.success("Request approved");
     },
     onError: (error: Error) => {
-      const msg = error.message?.toLowerCase() || "";
-      if (msg.includes("not authorized")) {
-        toast.error("You don't have permission to approve this request. Only team admins, coaches, and club admins can approve join requests.");
-      } else {
-        toast.error("Failed to approve request. Please try again.");
-      }
+      toast.error(friendlyRequestError(error, "approve"));
     },
   });
 
@@ -393,40 +414,44 @@ export default function NotificationsPage() {
       const { error } = await supabase.rpc("deny_role_request", { p_request_id: requestId });
       if (error) throw error;
 
-      // Send email notification (best-effort)
-      const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
-      const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-      const teamName = teamData?.name;
-      const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-      const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
-      const entityName = teamName || clubName;
-      const roleName = request.role.replace("_", " ");
+      // Best-effort email — never let a failure here masquerade as "Failed to deny".
+      try {
+        const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
+        const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
+        const teamName = teamData?.name;
+        const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+        const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
+        const entityName = teamName || clubName;
+        const roleName = request.role.replace("_", " ");
 
-      const { data: requesterProfile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", request.user_id)
-        .single();
+        const { data: requesterProfile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", request.user_id)
+          .maybeSingle();
 
-      const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
-      const userEmail = emailData?.[0]?.email;
-      
-      if (userEmail) {
-        await supabase.functions.invoke("send-email", {
-          body: {
-            to: userEmail,
-            subject: `Update on your request to join ${entityName}`,
-            template: "join-request-response",
-            templateData: {
-              recipientName: requesterProfile?.display_name || "Member",
-              teamName: teamName,
-              clubName: clubName,
-              roleName: roleName,
-              approved: false,
-              clubLogoUrl: clubLogoUrl,
+        const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
+        const userEmail = emailData?.[0]?.email;
+
+        if (userEmail) {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: userEmail,
+              subject: `Update on your request to join ${entityName}`,
+              template: "join-request-response",
+              templateData: {
+                recipientName: requesterProfile?.display_name || "Member",
+                teamName: teamName,
+                clubName: clubName,
+                roleName: roleName,
+                approved: false,
+                clubLogoUrl: clubLogoUrl,
+              },
             },
-          },
-        });
+          });
+        }
+      } catch (sideEffectError) {
+        console.warn("[denyRequest] Notification email side-effect failed:", sideEffectError);
       }
     },
     onSuccess: () => {
@@ -434,12 +459,7 @@ export default function NotificationsPage() {
       toast.success("Request denied");
     },
     onError: (error: Error) => {
-      const msg = error.message?.toLowerCase() || "";
-      if (msg.includes("not authorized")) {
-        toast.error("You don't have permission to deny this request. Only team admins, coaches, and club admins can manage join requests.");
-      } else {
-        toast.error("Failed to deny request. Please try again.");
-      }
+      toast.error(friendlyRequestError(error, "deny"));
     },
   });
 
