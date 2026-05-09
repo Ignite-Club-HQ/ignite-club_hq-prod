@@ -306,7 +306,7 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
         </div>
       </PopoverTrigger>
       <AllReactionsContent
-        reactions={reactions}
+        reactions={committed}
         allUserIds={allUserIds}
         currentUserId={currentUserId}
         onReactionClick={onReactionClick}
