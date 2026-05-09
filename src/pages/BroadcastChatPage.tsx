@@ -765,7 +765,7 @@ export default function BroadcastChatPage() {
       return;
     }
     setReplyingTo(m);
-    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
+    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
   }, [toast, scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);
