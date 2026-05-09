@@ -236,7 +236,22 @@ export function useChatOlderMessagesAnchor({
     [scrollContainerRef],
   );
 
-  return { anchoredPrepend };
+  const queueAnchoredPrepend = useCallback((applyPrepend: () => void) => {
+    const run = () => {
+      const apply = pendingPrependRef.current;
+      pendingPrependRef.current = null;
+      pendingPrependTimerRef.current = null;
+      if (apply) anchoredPrepend(apply);
+    };
+
+    pendingPrependRef.current = applyPrepend;
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+    }
+    pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS);
+  }, [anchoredPrepend]);
+
+  return { anchoredPrepend, queueAnchoredPrepend };
 }
 
 function watchPrependedMediaAndReanchor(
