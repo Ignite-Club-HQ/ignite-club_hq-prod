@@ -581,6 +581,62 @@ export default function PushAnalyticsPage() {
           </Card>
         </div>
 
+        {/* 24-Hour Health Dashboard */}
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                24-Hour Health
+              </CardTitle>
+              <CardDescription>
+                Real-time delivery integrity. Stuck or missed counts above zero indicate a backend issue.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="icon" onClick={() => refetchHealth()}>
+              <RefreshCw className={`h-4 w-4 ${healthLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {healthLoading && !health ? (
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
+              </div>
+            ) : health ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <HealthTile label="Sent (real)" value={health.sent_real} icon={<CheckCircle className="h-4 w-4 text-green-500" />} />
+                  <HealthTile label="Failed" value={health.failed_24h} tone={health.failed_24h > 0 ? "warn" : "ok"} icon={<XCircle className="h-4 w-4 text-destructive" />} />
+                  <HealthTile label="Expired" value={health.expired_24h} icon={<AlertCircle className="h-4 w-4 text-yellow-500" />} />
+                  <HealthTile label="Skipped (preferences)" value={health.skipped_24h} icon={<Clock className="h-4 w-4 text-muted-foreground" />} />
+                  <HealthTile label="Stuck placeholders (>5m)" value={health.stuck_placeholders} tone={health.stuck_placeholders > 0 ? "danger" : "ok"} hint="Pre-claim rows that never finalised" />
+                  <HealthTile label="Pending in-flight (<5m)" value={health.pending_inflight} hint="Currently being processed — should clear within seconds" />
+                  <HealthTile label="Legacy retry placeholders" value={health.legacy_retry_placeholders} tone={health.legacy_retry_placeholders > 50 ? "warn" : "ok"} hint="Old rows from the broken retry path. Safe to clean up." />
+                  <HealthTile label="Notifications with retries" value={health.notifications_with_retries} hint={health.total_24h > 0 ? `${((health.notifications_with_retries / Math.max(health.total_24h, 1)) * 100).toFixed(1)}% of 24h volume` : "—"} />
+                </div>
+                {health.missed_notifications > 0 && (
+                  <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                    <div className="font-semibold text-destructive">
+                      {health.missed_notifications} notification(s) had no push log in the last 24h
+                    </div>
+                    <p className="text-muted-foreground mt-1">
+                      Created &gt;2 minutes ago with skip_push=false but never reached send-push-notification. Check pg_net deliveries and the retry-missed-push-notifications cron.
+                    </p>
+                  </div>
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Updated {new Date(health.generated_at).toLocaleTimeString()} · auto-refresh every 60s
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No health data available.</p>
+            )}
+          </CardContent>
+        </Card>
+
+
         {/* Platform Breakdown */}
         {subscriptionStats && Object.keys(subscriptionStats.byPlatform).length > 0 && (
           <Card>
