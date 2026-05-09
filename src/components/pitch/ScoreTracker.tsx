@@ -435,6 +435,7 @@ export default function ScoreTracker({
                             </Badge>
                             <span className="font-medium text-sm truncate">
                               {goal.scorerName || (isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : "Unknown")}
+                              {goal.isOwnGoal && <span className="ml-1 text-[10px] text-destructive">(OG)</span>}
                             </span>
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
