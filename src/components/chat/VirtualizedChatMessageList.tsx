@@ -163,7 +163,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const messagesLengthRef = useRef(messages.length);
-  messagesLengthRef.current = messages.length;
+  // Synchronous in-flight guard for `startReached`. The parent's
+  // `isLoadingOlder` state flips via setState, so two `startReached` events
+  // fired in the same frame on a fast upward flick both see `false` and
+  // double-fetch — the prepended page is then merged twice into the data
+  // array, producing duplicate IDs and "ghost" rows in Virtuoso.
+  const loadingOlderInFlightRef = useRef(false);
+  // Once messages.length grows, the prepend has landed — release the guard.
+  useEffect(() => {
+    if (messages.length > messagesLengthRef.current) {
+      loadingOlderInFlightRef.current = false;
+    }
+    messagesLengthRef.current = messages.length;
+  }, [messages.length]);
 
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
