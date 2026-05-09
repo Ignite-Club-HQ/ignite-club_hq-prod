@@ -683,7 +683,9 @@ export default function TeamChatPage() {
     if (!messages || !teamId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
-      const mergedMessages = !prev
+      const incomingIds = new Set(messages.map((message) => message.id));
+      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const mergedIncomingMessages = !prev
         ? messages
         : messages.map((message) => {
             const previousMessage = prev.find((item) => item.id === message.id);
@@ -720,6 +722,9 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
+      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
