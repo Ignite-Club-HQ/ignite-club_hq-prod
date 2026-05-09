@@ -300,6 +300,7 @@ export default function ClubAdminChatPage() {
   // arrives after the initial query settles. ClubAdmin has no
   // older-message pagination, so no tryLoadOlder is wired.
   const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
   useEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
@@ -307,9 +308,10 @@ export default function ClubAdminChatPage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
+      { parentMessageId: targetParentId ?? undefined },
     );
     return cancel;
-  }, [targetMessageId]);
+  }, [targetMessageId, targetParentId]);
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));

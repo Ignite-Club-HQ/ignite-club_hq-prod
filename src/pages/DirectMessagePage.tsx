@@ -251,6 +251,7 @@ export default function DirectMessagePage() {
   }, []);
 
   const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
     if (!targetMessageId) return;
@@ -259,10 +260,13 @@ export default function DirectMessagePage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
-      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+      {
+        tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        parentMessageId: targetParentId ?? undefined,
+      },
     );
     return cancel;
-  }, [targetMessageId]);
+  }, [targetMessageId, targetParentId]);
 
   // Pinned messages (DM)
   const {

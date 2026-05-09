@@ -198,8 +198,10 @@ export default function ClubChatPage() {
   }, []);
 
   const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
+  // Optional ?parent=… provides a thread fallback if the target reply hasn't loaded yet.
   useEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
@@ -207,10 +209,13 @@ export default function ClubChatPage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
-      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+      {
+        tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        parentMessageId: targetParentId ?? undefined,
+      },
     );
     return cancel;
-  }, [targetMessageId]);
+  }, [targetMessageId, targetParentId]);
 
   // Pinned messages
   const {
