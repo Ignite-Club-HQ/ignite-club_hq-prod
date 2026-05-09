@@ -161,6 +161,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
+  const bottomPinReadyRef = useRef(false);
   const messagesLengthRef = useRef(messages.length);
   messagesLengthRef.current = messages.length;
 
@@ -174,19 +175,22 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const START_INDEX = 1_000_000;
   const newFirstId = messages[0]?.id ?? null;
   const wasEmptyRef = useRef(messages.length === 0);
+  const bottomPinRevisionRef = useRef(0);
   const anchorRef = useRef<{ baseFirstId: string | null; baseFirstIndex: number }>({
     baseFirstId: newFirstId,
     baseFirstIndex: START_INDEX - messages.length,
   });
 
-  let justInitiallyPopulated = false;
+  let bottomPinRevision = bottomPinRevisionRef.current;
   if (messages.length === 0) {
     anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
   } else {
     const baseFirstId = anchorRef.current.baseFirstId;
     const baseOffset = baseFirstId ? messages.findIndex((message) => message.id === baseFirstId) : -1;
     if (!baseFirstId || baseOffset === -1) {
-      justInitiallyPopulated = wasEmptyRef.current;
+      bottomPinRevisionRef.current += 1;
+      bottomPinRevision = bottomPinRevisionRef.current;
+      bottomPinReadyRef.current = false;
       anchorRef.current = {
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
@@ -199,35 +203,42 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const firstItemIndex = anchorRef.current.baseFirstIndex - Math.max(0, anchorOffset);
   wasEmptyRef.current = messages.length === 0;
 
-  // Belt-and-braces: when messages first populate, force a scroll-to-bottom
-  // on the next two frames. `initialTopMostItemIndex` is only honoured on
-  // the very first render; if data arrives a tick later (the common case
-  // for notification-launched threads), we have to drive it ourselves.
+  // Belt-and-braces: when messages first populate OR the mounted list is
+  // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
+  // is only honoured on the first mount; thread-to-thread data replacement
+  // otherwise preserves the old scrollTop and can render a blank viewport.
   useEffect(() => {
-    if (!justInitiallyPopulated) return;
     const last = messages.length - 1;
     if (last < 0) return;
     const jump = () =>
       virtuosoRef.current?.scrollToIndex({
-        index: last,
+        index: "LAST",
         align: "end",
         behavior: "auto",
       });
     jump();
+    let r2 = 0;
     const r1 = requestAnimationFrame(() => {
       jump();
-      const r2 = requestAnimationFrame(jump);
-      (jump as unknown as { _r2?: number })._r2 = r2;
+      r2 = requestAnimationFrame(() => {
+        jump();
+        bottomPinReadyRef.current = true;
+      });
     });
-    const t = window.setTimeout(jump, 200);
+    const t = window.setTimeout(() => {
+      jump();
+      bottomPinReadyRef.current = true;
+    }, 200);
     return () => {
       cancelAnimationFrame(r1);
+      if (r2) cancelAnimationFrame(r2);
       window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [justInitiallyPopulated]);
+  }, [bottomPinRevision]);
 
   const handleStartReached = useCallback(() => {
+    if (!bottomPinReadyRef.current) return;
     if (!hasOlder || isLoadingOlder) return;
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
@@ -250,10 +261,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     ref,
     () => ({
       scrollToBottom: (behavior = "auto") => {
-        const last = messagesLengthRef.current - 1;
-        if (last < 0) return;
+        if (messagesLengthRef.current <= 0) return;
         virtuosoRef.current?.scrollToIndex({
-          index: last,
+          index: "LAST",
           align: "end",
           behavior,
         });
@@ -322,7 +332,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       style={{ height: "100%", ...style, overflowAnchor: "none" }}
       data={messages}
       firstItemIndex={firstItemIndex}
-      initialTopMostItemIndex={Math.max(0, messages.length - 1)}
+      initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
+      alignToBottom
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomChange}
       followOutput={initialBottomPinned ? followOutput : false}
