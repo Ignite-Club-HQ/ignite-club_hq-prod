@@ -6132,6 +6132,52 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_broadcasts: {
+        Row: {
+          bumped_at: string
+          bumped_by: string
+          club_id: string
+          id: string
+          team_id: string | null
+        }
+        Insert: {
+          bumped_at?: string
+          bumped_by: string
+          club_id: string
+          id?: string
+          team_id?: string | null
+        }
+        Update: {
+          bumped_at?: string
+          bumped_by?: string
+          club_id?: string
+          id?: string
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_broadcasts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_broadcasts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_broadcasts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_messages: {
         Row: {
           attempted_at: string | null

@@ -3,9 +3,9 @@ import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
-import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
-import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
-import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
+import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
+import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -57,7 +57,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
+
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -213,19 +213,18 @@ export default function DirectMessagePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
-  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
   const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !conversationId) return;
-    
+
     const markNotificationsAsRead = async () => {
       await supabase
         .from("notifications")
@@ -234,27 +233,27 @@ export default function DirectMessagePage() {
         .eq("type", "direct_message")
         .eq("related_id", conversationId)
         .eq("is_read", false);
-      
+
       // Refresh unread counts
       refreshUnreadCount();
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
     };
-    
+
     markNotificationsAsRead();
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
-    if (isUserActive()) return;
-    scrollChatToBottom(scrollAreaRef.current);
-  }, [isUserActive]);
+    virtualHandleRef.current?.scrollToBottom("auto");
+  }, []);
 
   const targetMessageId = searchParams.get("message");
 
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
     );
     return cancel;
@@ -550,12 +549,8 @@ export default function DirectMessagePage() {
     });
   }, [conversationId, user?.id, showLoading, localMessages, messagesData]);
 
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && isUserActive()) return;
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -587,13 +582,10 @@ export default function DirectMessagePage() {
     setInfiniteScrollEnabled(false);
   }, [conversationId, messagesData]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: conversationId,
-    onPinned: () => setInfiniteScrollEnabled(true),
-  });
+  const isPinned = true;
+  useEffect(() => {
+    setInfiniteScrollEnabled(true);
+  }, [conversationId]);
  
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
@@ -627,7 +619,7 @@ export default function DirectMessagePage() {
 
       // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
       if (mergedMessages.length > prevLen) {
-        requestAnimationFrame(() => scrollChatToBottom(scrollAreaRef.current));
+        requestAnimationFrame(() => virtualHandleRef.current?.scrollToBottom("auto"));
       }
 
       return mergedMessages;
@@ -1116,7 +1108,9 @@ export default function DirectMessagePage() {
     if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
-    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatch.id);
+    if (idx < 0) return;
+    requestAnimationFrame(() => virtualHandleRef.current?.scrollToIndex(idx, "center"));
   }, [filteredMessages, isSearchFetching, searchQuery]);
 
   if (conversationLoading || checkingCanDM) {
@@ -1218,75 +1212,73 @@ export default function DirectMessagePage() {
       )}
 
       {/* Messages area */}
-      <div
-        ref={scrollAreaRef}
-        data-chat-scroll-lock="true"
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', opacity: isPinned ? 1 : 0, transition: 'opacity 120ms ease-out', pointerEvents: isPinned ? 'auto' : 'none', touchAction: 'pan-y' }}
-      >
-        <div className="p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-          <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
-            {showLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
-              <ChatSearchLoadingState />
-            ) : filteredMessages?.length === 0 ? (
-              <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
-            ) : (
-              filteredMessages
-                .map((msg, index, filteredMessages) => {
-                const showDateSeparator = index === 0 || 
-                  !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
-
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
-                        timestamp={format(new Date(msg.created_at), "h:mm a")}
-                        isOwn={msg.author_id === user?.id}
-                        isAdmin={false}
-                        reactions={msg.reactions || []}
-                        currentUserId={user?.id}
-                        messageType="dm"
-                        searchQuery={searchQuery}
-                        readFrontierReaders={readFrontier[msg.id] || []}
-                        readCount={readCounts[msg.id] || 0}
-                        readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
-                        isLastMessage={index === filteredMessages.length - 1}
-                        queryKey={dmQueryKey}
-                        contextId={conversationId || ""}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
-                            : null
-                        }
-                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100); }}
-                        onEdit={handleEdit}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
+        {showLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        </div>
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+          <ChatSearchLoadingState />
+        ) : filteredMessages?.length === 0 ? (
+          <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
+        ) : (
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={false}
+            isLoadingOlder={false}
+            onLoadOlder={() => {}}
+            isPinned={isPinned}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            virtualHandleRef={virtualHandleRef}
+            renderRow={(msg, index, arr) => {
+              const showDateSeparator = index === 0 ||
+                !isSameDay(new Date(msg.created_at), new Date(arr[index - 1]?.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
+                      timestamp={format(new Date(msg.created_at), "h:mm a")}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={false}
+                      reactions={msg.reactions || []}
+                      currentUserId={user?.id}
+                      messageType="dm"
+                      searchQuery={searchQuery}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
+                      isLastMessage={index === arr.length - 1}
+                      queryKey={dmQueryKey}
+                      contextId={conversationId || ""}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                          : null
+                      }
+                      hasReply={!!msg.reply_to_id}
+                      onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
+                      onEdit={handleEdit}
+                    />
+                  </div>
+                </>
+              );
+            }}
+          />
+        )}
       </div>
 
       {/* Input area - Fixed at bottom above nav bar */}

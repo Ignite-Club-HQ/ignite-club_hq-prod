@@ -18,7 +18,7 @@ export function filterRecurringEvents<
     is_recurring: boolean;
     event_date: string;
   }
->(events: T[], maxPerSeries: number = 3): T[] {
+>(events: T[], maxPerSeries: number = 4): T[] {
   const now = Date.now();
   // Track counts per series, per direction (past vs upcoming).
   const pastCounts = new Map<string, number>();

@@ -900,6 +900,23 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) || cachedThemeData
     : null;
 
+  // Pre-warm the club logo decode cache the instant we know the URL.
+  // The header consults the same module-level cache, so when AppHeader
+  // mounts after login the logo paints synchronously instead of flashing
+  // in after a network round-trip + decode.
+  useEffect(() => {
+    const url = activeThemeData?.logoUrl;
+    if (url) {
+      void import("@/components/ui/logo-image").then(({ preloadLogo }) => preloadLogo(url));
+    }
+    // Also warm any other available club logos so switching clubs is instant.
+    availableClubThemes.forEach((t) => {
+      if (t.logoUrl) {
+        void import("@/components/ui/logo-image").then(({ preloadLogo }) => preloadLogo(t.logoUrl!));
+      }
+    });
+  }, [activeThemeData?.logoUrl, availableClubThemes]);
+
   // Fetch teams belonging to the active club (for content filtering)
   const { data: activeClubTeamIds = [] } = useQuery({
     queryKey: ["active-club-teams", activeClubTheme],

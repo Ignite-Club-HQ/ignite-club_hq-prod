@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -312,6 +313,10 @@ export default function HomePage() {
   // Derive memberships and events from consolidated query
   const userMemberships = membershipAndEvents?.memberships;
   const allEvents = membershipAndEvents?.events;
+
+  // Listen for server-side schedule refresh broadcasts so the home dashboard
+  // re-fetches events automatically when an admin pushes a refresh.
+  useScheduleBroadcastListener(userMemberships?.clubIds);
 
   // Filter events by active club theme
   const events = useMemo(() => {

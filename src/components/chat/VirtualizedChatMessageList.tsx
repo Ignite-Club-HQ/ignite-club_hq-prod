@@ -48,6 +48,13 @@ export interface VirtualizedChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
+  /**
+   * True when the scroller is within `thresholdPx` of the bottom. Used by
+   * chat pages to decide whether composer/keyboard reflow should re-pin to
+   * the latest message. Returns true if the scroller has not mounted yet
+   * (matches the "default to pinning" semantics of the legacy helper).
+   */
+  isNearBottom: (thresholdPx: number) => boolean;
 }
 
 interface Props<TMessage extends { id: string }> {
@@ -114,10 +121,13 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   height += authorChars > 24 ? 44 : 22;
 
   if (hasReply) height += 38;
-  // Image bubble: 240×180 frame + ~16 bubble padding + ~24 spacing. Has to
-  // match the rendered DOM almost exactly or Virtuoso re-anchors as rows
-  // mount on scroll-up, which is the "jitter with images" symptom.
-  if (hasImage) height += 224;
+  // Image bubble: ~240-260px frame + padding + spacing. Slightly over-
+  // reserving (vs the previous 224) is intentional — under-estimating made
+  // Virtuoso shrink paddingTop after image decode, which read as a sudden
+  // upward "jump" mid-scroll. Over-reserving causes the row to settle
+  // *down* by a few px on hydrate (visually invisible above the fold)
+  // instead of the viewport content shifting up.
+  if (hasImage) height += 268;
 
   if (text) {
     const visibleText = text
@@ -201,8 +211,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  // Timestamp of when the initial bottom-pin completed. Used to enforce a
+  // "trust window" before any upward pagination fires, so the very first
+  // upward gesture never triggers a prepend that visually teleports the
+  // viewport to messages the user hasn't scrolled through yet (the
+  // "scroll up, stop, then jump higher" symptom on cold open).
+  const bottomPinReadyAtRef = useRef(0);
+  // Trust window in ms: until this elapses past the bottom-pin completion,
+  // `startReached` is suppressed. After expiry, normal upward prefetch
+  // resumes.
+  const PREPEND_TRUST_WINDOW_MS = 800;
   const messagesLengthRef = useRef(messages.length);
   // Synchronous in-flight guard for `startReached`. The parent's
   // `isLoadingOlder` state flips via setState, so two `startReached` events
@@ -270,6 +291,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         baseFirstIndex: START_INDEX - messages.length,
       };
       bottomPinReadyRef.current = false;
+      bottomPinReadyAtRef.current = 0;
       bottomPinRevisionRef.current += 1;
       debugLogAnchor("reset", {
         previousBaseFirstId: prev.baseFirstId,
@@ -307,11 +329,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       jump("raf1");
       r2 = requestAnimationFrame(() => {
         jump("raf2");
+        if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
         bottomPinReadyRef.current = true;
       });
     });
     const t = window.setTimeout(() => {
       jump("timeout-200");
+      if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
     }, 200);
     return () => {
@@ -325,6 +349,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
+      return;
+    }
+    // Trust window: suppress the very first upward fetch right after the
+    // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
+    // that visually teleports the viewport to older messages the user
+    // hasn't scrolled through yet.
+    const sincePin = performance.now() - bottomPinReadyAtRef.current;
+    if (sincePin < PREPEND_TRUST_WINDOW_MS) {
+      debugLogStartReached(false, "trust-window");
       return;
     }
     if (!hasOlder) {
@@ -373,6 +406,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         virtuosoRef.current?.scrollToIndex({ index, align, behavior: "auto" });
       },
       isAtBottom: () => atBottomRef.current,
+      isNearBottom: (thresholdPx: number) => {
+        const el = scrollerElRef.current;
+        if (!el) return true;
+        const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+        return distance <= Math.max(0, thresholdPx);
+      },
     }),
     [],
   );
@@ -458,6 +497,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // on top of each other" on fast scroll).
   const wrappedScrollerRef = useCallback(
     (element: HTMLElement | Window | null) => {
+      // Track the scroll element for the imperative `isNearBottom` API.
+      // Window targets don't apply for the inline Virtuoso scroller, so we
+      // only retain HTMLElement instances.
+      scrollerElRef.current = element instanceof HTMLElement ? element : null;
       debugAttachScrollerWatcher(element);
       scrollerRef?.(element);
     },

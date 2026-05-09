@@ -256,16 +256,28 @@ export function useInitialChatBottomPin({
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return;
 
-      // Track whether the user has touched the viewport since reveal. Once
-      // they touch the chat, ALL automatic snaps from this guard go silent
-      // unless they're still pinned within 1px of bottom. Without this, the
-      // ResizeObserver / image-load / delayed-snap chain fights every finger
-      // drag for 6s after open — that's the "I scroll up and it jumps back
-      // down" jolt the user sees mid-flick.
-      let userTouched = false;
-      const onTouch = () => { userTouched = true; };
-      viewport.addEventListener("touchstart", onTouch, { passive: true, once: true });
-      viewport.addEventListener("wheel", onTouch, { passive: true, once: true });
+      // Local handles so onUserIntent can tear everything down synchronously
+      // the moment the user touches the chat. Without this, MutationObserver,
+      // ResizeObserver, image-load handlers and 8 setTimeout snaps keep
+      // calling getBoundingClientRect() / scrollChatToBottom mid-flick and
+      // the first fast upward scroll after login jolts.
+      let localPostPinRO: ResizeObserver | null = null;
+      let localImageMountObserver: MutationObserver | null = null;
+      const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
+      const delayedSnapTimers: Array<ReturnType<typeof setTimeout>> = [];
+      let teardown: () => void = () => {};
+
+      const onUserIntent = () => {
+        // First user-driven movement: hand the viewport over to the user
+        // for the rest of this thread session. Disable every auto-snap
+        // pathway immediately so nothing fights the scroll.
+        userScrolledAwayRef.current = true;
+        teardown();
+      };
+
+      viewport.addEventListener("touchstart", onUserIntent, { passive: true, once: true });
+      viewport.addEventListener("wheel", onUserIntent, { passive: true, once: true });
+      viewport.addEventListener("pointerdown", onUserIntent, { passive: true, once: true });
 
       const safeGuardSnap = () => {
         if (cancelled || userScrolledAwayRef.current) return;
@@ -274,37 +286,33 @@ export function useInitialChatBottomPin({
         // Tight gate: only correct genuine drift from the bottom. Any
         // non-trivial distance means the viewport is no longer pinned and
         // a forced snap would visibly yank the user mid-scroll.
-        const allowedDrift = userTouched ? 8 : 24;
-        if (m.distanceFromBottom > allowedDrift) return;
+        if (m.distanceFromBottom > 24) return;
         scrollChatToBottom(scrollContainerRef.current);
       };
 
       // Watch for size changes on BOTH the viewport (e.g. keyboard opens) and
       // the inner content (composer height changes, images, late messages).
-      postPinResizeObserver?.disconnect();
       if (typeof ResizeObserver !== "undefined") {
-        postPinResizeObserver = new ResizeObserver(() => safeGuardSnap());
-        postPinResizeObserver.observe(viewport);
+        localPostPinRO = new ResizeObserver(() => safeGuardSnap());
+        localPostPinRO.observe(viewport);
 
         const innerContent = viewport.firstElementChild;
         if (innerContent instanceof HTMLElement) {
-          postPinResizeObserver.observe(innerContent);
+          localPostPinRO.observe(innerContent);
         }
       }
+      postPinResizeObserver = localPostPinRO;
 
-      // Re-snap whenever an image inside the viewport finishes loading —
-      // but only for images whose bounding rect is at or below the current
-      // visible region. A late-loading avatar 50 messages above shouldn't
-      // trigger a snap that yanks the user back to bottom.
-      const imageListeners: Array<{ img: HTMLImageElement; handler: () => void }> = [];
-      const attachImageListeners = () => {
+      // Cache the in-viewport image set ONCE at reveal. Re-querying via a
+      // MutationObserver on every reaction/read-receipt/signed-URL hydration
+      // forces layout (getBoundingClientRect per <img>) on the main thread
+      // exactly when the user is trying to flick upward.
+      const attachInitialImageListeners = () => {
         const images = viewport.querySelectorAll<HTMLImageElement>("img");
         const vpRect = viewport.getBoundingClientRect();
         images.forEach((img) => {
           if (img.complete && img.naturalHeight > 0) return;
-          if (imageListeners.some((entry) => entry.img === img)) return;
           const r = img.getBoundingClientRect();
-          // Skip images well above the visible viewport.
           if (r.bottom < vpRect.top - 100) return;
           const handler = () => safeGuardSnap();
           img.addEventListener("load", handler, { once: true });
@@ -312,42 +320,43 @@ export function useInitialChatBottomPin({
           imageListeners.push({ img, handler });
         });
       };
-      attachImageListeners();
-
-      const imageMountObserver = new MutationObserver(() => {
-        if (cancelled || userScrolledAwayRef.current) return;
-        attachImageListeners();
-      });
-      imageMountObserver.observe(viewport, { childList: true, subtree: true });
+      attachInitialImageListeners();
 
       safeGuardSnap();
-      // Belt-and-braces delayed snaps — also gated by safeGuardSnap so they
-      // never override an in-progress user drag.
-      const delayedSnapTimers = [80, 240, 500, 900, 1500, 2400, 3500, 5000].map((delay) =>
-        setTimeout(() => {
-          if (cancelled || userScrolledAwayRef.current) return;
-          const m = getChatScrollMetrics(scrollContainerRef.current);
-          if (!m) return;
-          if (m.distanceFromBottom <= 1) return;
-          // After user touch, only correct very small drift — never yank
-          // them back from a real scroll.
-          if (userTouched && m.distanceFromBottom > 8) return;
-          scrollChatToBottom(scrollContainerRef.current);
-        }, delay),
-      );
-      postPinTimer = setTimeout(() => {
-        postPinResizeObserver?.disconnect();
-        postPinResizeObserver = null;
-        imageMountObserver.disconnect();
+      // Trimmed snap ladder — covers signed-URL hydration without the long
+      // tail of late snaps that previously kept firing during scroll.
+      [80, 240, 600].forEach((delay) => {
+        delayedSnapTimers.push(
+          setTimeout(() => {
+            if (cancelled || userScrolledAwayRef.current) return;
+            const m = getChatScrollMetrics(scrollContainerRef.current);
+            if (!m) return;
+            if (m.distanceFromBottom <= 1) return;
+            if (m.distanceFromBottom > 24) return;
+            scrollChatToBottom(scrollContainerRef.current);
+          }, delay),
+        );
+      });
+
+      teardown = () => {
+        localPostPinRO?.disconnect();
+        localPostPinRO = null;
+        if (postPinResizeObserver === localPostPinRO) postPinResizeObserver = null;
+        localImageMountObserver?.disconnect();
+        localImageMountObserver = null;
         imageListeners.forEach(({ img, handler }) => {
           img.removeEventListener("load", handler);
           img.removeEventListener("error", handler);
         });
         imageListeners.length = 0;
         delayedSnapTimers.forEach(clearTimeout);
-        viewport.removeEventListener("touchstart", onTouch);
-        viewport.removeEventListener("wheel", onTouch);
-      }, POST_PIN_GUARD_MS);
+        delayedSnapTimers.length = 0;
+        viewport.removeEventListener("touchstart", onUserIntent);
+        viewport.removeEventListener("wheel", onUserIntent);
+        viewport.removeEventListener("pointerdown", onUserIntent);
+      };
+
+      postPinTimer = setTimeout(teardown, POST_PIN_GUARD_MS);
     };
 
     const reveal = () => {

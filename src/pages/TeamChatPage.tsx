@@ -3,13 +3,10 @@ import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
-import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
-import { useChatUserScrollIntent } from "@/hooks/useChatUserScrollIntent";
-import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { useChatOlderMessagesAnchor } from "@/hooks/useChatOlderMessagesAnchor";
-import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
+
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -45,7 +42,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
-import { jumpToMessageInChat, scrollToTargetMessageWhenReady } from "@/lib/jumpToMessage";
+import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -71,7 +68,7 @@ import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTe
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
+
 
 const MESSAGES_PER_PAGE = 30;
 
@@ -184,8 +181,7 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const chatVirtualizationEnabled = useChatVirtualizationFlag();
-  const useVirtualizedChat = chatVirtualizationEnabled && !searchQuery;
+  const useVirtualizedChat = true;
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
@@ -211,9 +207,13 @@ export default function TeamChatPage() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   
+  // Legacy DOM refs are no longer required (Virtuoso owns scroll), but keep
+  // the declarations so any non-scroll code paths that still touch the names
+  // continue to compile. The refs are never attached to anything live.
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [replyingTo?.id, editingMessage?.id],
     56,
@@ -222,13 +222,10 @@ export default function TeamChatPage() {
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
-  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
 
   const scrollToBottom = useCallback(() => {
-    if (isUserActive()) return;
-    scrollChatToBottom(scrollAreaRef.current);
-  }, [isUserActive]);
+    virtualHandleRef.current?.scrollToBottom("auto");
+  }, []);
 
   const targetMessageId = searchParams.get("message");
 
@@ -237,9 +234,10 @@ export default function TeamChatPage() {
   // works even if messages load async or live below the initial page.
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
@@ -255,7 +253,13 @@ export default function TeamChatPage() {
     canPinMore,
   } = usePinnedMessages("team", teamId);
   const handleJumpToMessage = (mid: string) =>
-    jumpToMessageInChat(mid, setHighlightedMessageId);
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   const { data: teamData, isLoading: loadingTeam } = useQuery({
     queryKey: ["team", teamId],
@@ -645,23 +649,15 @@ export default function TeamChatPage() {
     setInfiniteScrollEnabled(false);
   }, [teamId, queryClient]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: teamId,
-    enabled: !useVirtualizedChat,
-    onPinned: () => setInfiniteScrollEnabled(true),
-  });
+  // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
+  // gate on as soon as we have any messages so older-page loads can begin.
+  const isPinned = true;
+  useEffect(() => {
+    if ((localMessages?.length ?? 0) > 0) setInfiniteScrollEnabled(true);
+  }, [localMessages?.length]);
 
-  // Scroll to bottom when replying, editing, or sending a new message
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
-    if (useVirtualizedChat) return;
-    if (!isReplyOrEdit && isUserActive()) return;
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -829,15 +825,10 @@ export default function TeamChatPage() {
   // Forward ref so the anchor hook can call the (yet-to-be-defined) loader.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
-  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
-    scrollContainerRef: scrollAreaRef,
-    loadTriggerRef,
-    hasOlderMessages,
-    isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
-    onTrigger: () => loadOlderMessagesRef.current?.(),
-  });
+  // Virtuoso owns scroll-anchoring on prepend natively (firstItemIndex +
+  // followOutput). No DOM scrollTop math required — just commit the cache
+  // mutation and let Virtuoso preserve the visible window.
+  const queueAnchoredPrepend = useCallback((commit: () => void) => commit(), []);
 
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
@@ -1209,7 +1200,7 @@ export default function TeamChatPage() {
     }
     setReplyingTo(m);
     // Scroll to bottom after reply banner renders so latest message stays visible
-    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
+    setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
   }, [scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
@@ -1418,7 +1409,9 @@ export default function TeamChatPage() {
     if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
-    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatch.id);
+    if (idx < 0) return;
+    requestAnimationFrame(() => virtualHandleRef.current?.scrollToIndex(idx, "center"));
   }, [filteredMessages, isSearchFetching, searchQuery]);
 
   // Message IDs for read tracking
@@ -1569,17 +1562,11 @@ export default function TeamChatPage() {
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
             onLoadOlder={loadOlderMessages}
-            searchQuery={searchQuery}
             isPinned={isPinned}
-            isNativeIOS={isNativeIOS}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
-            scrollAreaRef={scrollAreaRef}
-            loadTriggerRef={loadTriggerRef}
-            messagesEndRef={messagesEndRef}
-            endElementId="team-chat-end"
-            loadTriggerStyle={{ overflowAnchor: "none" }}
+            virtualHandleRef={virtualHandleRef}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
@@ -1612,6 +1599,7 @@ export default function TeamChatPage() {
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
                           : null
                       }
+                      hasReply={!!msg.reply_to_id}
                       onReply={handleReply}
                       onEdit={handleEdit}
                       onAuthorClick={

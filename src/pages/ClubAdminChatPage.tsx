@@ -4,9 +4,10 @@ import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useParams, useNavigate } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
-import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
-import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
+import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
+import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
+import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +42,7 @@ import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSea
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { Capacitor } from "@capacitor/core";
-import { isNearBottom, scrollChatElementIntoView, scrollChatToBottom } from "@/lib/chatScroll";
+
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 
@@ -120,23 +121,25 @@ export default function ClubAdminChatPage() {
   profileRef.current = profile;
   const replyToRef = useRef(replyTo);
   replyToRef.current = replyTo;
+  // Legacy DOM refs kept declared so non-scroll code paths still compile.
+  // Virtuoso owns scroll end-to-end via virtualHandleRef.
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [replyTo?.id, editingMessage?.id],
     56,
   );
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const swipeBack = useSwipeBack();
-  
+
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
-    scrollChatToBottom(scrollAreaRef.current);
+    virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
   // Fetch conversation details
@@ -351,19 +354,10 @@ export default function ClubAdminChatPage() {
     );
   }, [conversationId, messages]);
 
-  const { isPinned } = useInitialChatBottomPin({
-    scrollContainerRef: scrollAreaRef,
-    bottomAnchorRef: messagesEndRef,
-    itemCount: localMessages?.length ?? 0,
-    resetKey: conversationId,
-  });
+  const isPinned = true;
 
-  // Scroll to bottom when replying, editing, or sending a new message
-  useLayoutEffect(() => {
-    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
+  // Reply/edit composer growth re-pin is handled inside ChatMessagesScroller
+  // via the Virtuoso handle (see virtualHandleRef path). No-op here.
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
@@ -514,7 +508,9 @@ export default function ClubAdminChatPage() {
     if (isSearchFetching) return;
     const firstMatch = searchQuery.trim() ? filteredMessages?.[0] : null;
     if (!firstMatch) return;
-    requestAnimationFrame(() => scrollChatElementIntoView(scrollAreaRef.current, document.getElementById(`message-${firstMatch.id}`)));
+    const idx = (filteredMessages ?? []).findIndex((m) => m.id === firstMatch.id);
+    if (idx < 0) return;
+    requestAnimationFrame(() => virtualHandleRef.current?.scrollToIndex(idx, "center"));
   }, [filteredMessages, isSearchFetching, searchQuery]);
 
   const updateMessageMutation = useMutation({
@@ -755,73 +751,74 @@ export default function ClubAdminChatPage() {
       </div>
 
       {/* Messages area */}
-      <div
-        ref={scrollAreaRef}
-        data-chat-scroll-lock="true"
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', opacity: isPinned ? 1 : 0, transition: 'opacity 120ms ease-out', pointerEvents: isPinned ? 'auto' : 'none', touchAction: 'pan-y' }}
-      >
-        <div className="p-4 space-y-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-          {showLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
-            <ChatSearchLoadingState />
-          ) : filteredMessages?.length === 0 ? (
-            <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${memberProfile?.display_name || "this member"}`} />
-          ) : (
-            filteredMessages
-              .map((msg, index, filteredMessages) => {
-                const showDateSeparator = index === 0 ||
-                  !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
-
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName={getProfile(msg.author_id)?.display_name || msg.author?.display_name || null}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
-                        timestamp={format(new Date(msg.created_at), "h:mm a")}
-                        isOwn={msg.author_id === user?.id}
-                        isAdmin={false}
-                        reactions={msg.reactions || []}
-                        currentUserId={user?.id}
-                        messageType="club_admin"
-                        searchQuery={searchQuery}
-                        queryKey={queryKey}
-                        contextId={conversationId || ""}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
-                            : null
-                        }
-                        onReply={() => {
-                          setReplyTo(msg);
-                          setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
-                        }}
-                        onEdit={handleEdit}
-                      />
-                    </div>
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
+        {showLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+          <ChatSearchLoadingState />
+        ) : filteredMessages?.length === 0 ? (
+          <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${memberProfile?.display_name || "this member"}`} />
+        ) : (
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={false}
+            isLoadingOlder={false}
+            onLoadOlder={() => {}}
+            isPinned={isPinned}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            virtualHandleRef={virtualHandleRef}
+            renderRow={(msg, index, arr) => {
+              const showDateSeparator = index === 0 ||
+                !isSameDay(new Date(msg.created_at), new Date(arr[index - 1]?.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={getProfile(msg.author_id)?.display_name || msg.author?.display_name || null}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
+                      timestamp={format(new Date(msg.created_at), "h:mm a")}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={false}
+                      reactions={msg.reactions || []}
+                      currentUserId={user?.id}
+                      messageType="club_admin"
+                      searchQuery={searchQuery}
+                      queryKey={queryKey}
+                      contextId={conversationId || ""}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                          : null
+                      }
+                      hasReply={!!msg.reply_to_id}
+                      onReply={() => {
+                        setReplyTo(msg);
+                        setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
+                      }}
+                      onEdit={handleEdit}
+                    />
                   </div>
-                );
-              })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                </>
+              );
+            }}
+          />
+        )}
       </div>
+
 
       {/* Input area */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />

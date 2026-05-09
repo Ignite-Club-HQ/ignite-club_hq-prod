@@ -31,6 +31,8 @@ import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
+import { ReplyIndicator } from "./ReplyPreview";
+import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -131,6 +133,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const {
     armDismissGuard,
@@ -285,6 +288,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [clearDismissGuard, showReactionPicker]);
 
+  useEffect(() => observeChatElementHeight(rowRef.current), []);
+
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
@@ -340,7 +345,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (msg.is_system_message || isMembershipSystemText(msg.text)) {
     return (
-      <div id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
+      <div ref={rowRef} id={`message-${msg.id}`} className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
           {msg.text}
         </div>
@@ -350,10 +355,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   return (
     <div
+      ref={rowRef}
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
       } ${isInteracting ? "relative z-[100000]" : ""}`}
+      style={{ overflowAnchor: 'none' }}
     >
       {isInteracting && createPortal(
         <div
@@ -395,12 +402,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </span>
           </div>
 
-          {replyPreview && (
-            <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
-              <span className="font-medium">{replyPreview.author?.display_name || "..."}: </span>
-              <span className="line-clamp-1">{replyPreview.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
-            </div>
-          )}
+          <ReplyIndicator
+            replyToMessage={replyPreview ? { text: replyPreview.text, authorName: replyPreview.author?.display_name || null } : null}
+            hasReply={!!msg.reply_to_id}
+            isOwn={isOwnMessage}
+          />
 
           <div className="relative min-w-0 max-w-full group/msg">
             {/* Swipe indicator - text only, shown when past threshold */}
@@ -435,7 +441,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden ${
+                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
@@ -466,9 +472,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </div>
           </div>
           {/* Inline "Add to gallery" chip — only on own image messages */}
-          {canPublishToGallery && isOwnMessage && msg.image_url && onPublishToGallery && !msg.id.startsWith("queued-") && (
-            <div className={`mt-1 flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-              <button
+          {isOwnMessage && msg.image_url && !msg.id.startsWith("queued-") && (
+            <div className={`mt-1 flex h-7 items-center ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+              {canPublishToGallery && onPublishToGallery ? <button
                 type="button"
                 disabled={isPublishingToGallery || isPublishedToGallery}
                 aria-busy={isPublishingToGallery || undefined}
@@ -507,7 +513,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       ? "In gallery"
                       : "Add to gallery"}
                 </span>
-              </button>
+              </button> : null}
             </div>
           )}
           {/* Link previews rendered outside the message bubble */}

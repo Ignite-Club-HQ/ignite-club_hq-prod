@@ -33,6 +33,7 @@ import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
+import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 
 interface Reaction {
   id: string;
@@ -60,6 +61,7 @@ export interface ChatMessageProps {
   messageType: "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
+  hasReply?: boolean;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   onEdit?: (message: { id: string; text: string }) => void;
   onAuthorClick?: () => void;
@@ -100,6 +102,7 @@ function ChatMessageInner({
   messageType,
   queryKey,
   replyToMessage,
+  hasReply = false,
   onReply,
   onEdit,
   onAuthorClick,
@@ -135,6 +138,7 @@ function ChatMessageInner({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const optimisticReactionsRef = useRef<Reaction[]>(reactions);
@@ -163,6 +167,8 @@ function ChatMessageInner({
     optimisticReactionsRef.current = reactions;
     setOptimisticReactions(reactions);
   }, [reactions]);
+
+  useEffect(() => observeChatElementHeight(rowRef.current), []);
 
 
   const getMessageIdField = () => {
@@ -691,7 +697,7 @@ function ChatMessageInner({
   const galleryCardMatch = isSystemMessage ? text.match(/^\s*\[gallery:([0-9a-f-]{36})\]\s*$/i) : null;
   if (galleryCardMatch) {
     return (
-      <div className="flex justify-center my-2 px-3">
+      <div ref={rowRef} className="flex justify-center my-2 px-3">
         <MessageContent text={text} previewsOnly />
       </div>
     );
@@ -701,7 +707,7 @@ function ChatMessageInner({
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (isSystemMessage || isMembershipSystemText(text)) {
     return (
-      <div className="flex justify-center my-2 px-4">
+      <div ref={rowRef} className="flex justify-center my-2 px-4">
         <div className="max-w-[85%] rounded-full bg-muted/70 px-3 py-1 text-center text-[11px] text-muted-foreground">
           {text}
         </div>
@@ -712,7 +718,7 @@ function ChatMessageInner({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
@@ -796,7 +802,7 @@ function ChatMessageInner({
             {displayName || "\u00A0"}
           </button>
         ) : null}
-        <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
+        <ReplyIndicator replyToMessage={replyToMessage} hasReply={hasReply || !!replyToMessage} isOwn={isOwn} />
         <div className="relative min-w-0 max-w-full group/msg">
           {/* Swipe indicator - text only, shown when past threshold */}
           {canReply && swipeState.pastThreshold && (
@@ -831,9 +837,9 @@ function ChatMessageInner({
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
-            <div
-              ref={bubbleRef}
-              className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden ${
+              <div
+                ref={bubbleRef}
+                className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
@@ -883,9 +889,15 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
-            {/* Inline "Add to gallery" chip — only on own image messages */}
-            {canPublishToGallery && isOwn && imageUrl && onPublishToGallery && !id.startsWith("queued-") && (
-              <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+            {/* Inline "Add to gallery" chip — only on own image messages.
+                Reserve a fixed-height slot whenever this is an own image
+                message that isn't queued, so that the chip appearing once
+                permissions hydrate (canPublishToGallery / onPublishToGallery)
+                never grows the row mid-scroll and pushes everything below
+                it downward during a fast upward flick. */}
+            {isOwn && imageUrl && !id.startsWith("queued-") && (
+              <div className={`mt-1 flex h-7 items-center ${isOwn ? "justify-end" : "justify-start"}`}>
+                {canPublishToGallery && onPublishToGallery ? (
                 <button
                   type="button"
                   disabled={isPublishingToGallery || isPublishedToGallery}
@@ -926,6 +938,7 @@ function ChatMessageInner({
                         : "Add to gallery"}
                   </span>
                 </button>
+                ) : null}
               </div>
             )}
           </div>
@@ -985,7 +998,7 @@ function ChatMessageInner({
           onReactionClick={handleReactionClick}
         />
         
-        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 ${isOwn ? "justify-end" : ""}`}>
+        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
           {isPending && (
             <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
               <Clock className="h-3 w-3" />
@@ -1098,6 +1111,7 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.isAdmin !== next.isAdmin ||
     prev.currentUserId !== next.currentUserId ||
     prev.messageType !== next.messageType ||
+    prev.hasReply !== next.hasReply ||
     prev.searchQuery !== next.searchQuery ||
     prev.readCount !== next.readCount ||
     prev.readerName !== next.readerName ||

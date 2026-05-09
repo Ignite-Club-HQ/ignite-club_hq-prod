@@ -239,6 +239,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, []);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const reservePreviewSpace = previewsOnly;
 
   const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -332,7 +333,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         {otherUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
             {otherUrls.map((url) => (
-              <LinkPreview key={url} url={url} compact />
+              <LinkPreview key={url} url={url} compact reserveSpace={reservePreviewSpace} />
             ))}
           </div>
         )}
@@ -637,7 +638,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       {showPreviews && otherUrls.length > 0 && (
         <div className="space-y-2 mt-2 min-w-0 max-w-full">
           {otherUrls.map((url) => (
-            <LinkPreview key={url} url={url} compact />
+            <LinkPreview key={url} url={url} compact reserveSpace={reservePreviewSpace} />
           ))}
         </div>
       )}

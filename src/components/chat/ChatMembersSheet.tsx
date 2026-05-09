@@ -6,12 +6,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Loader2, ChevronRight, UserPlus, X } from "lucide-react";
+import { Users, Loader2, ChevronRight, UserPlus, X, Bell, BellRing } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import { NotificationNudgeDialog } from "@/components/NotificationNudgeDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,32 @@ export function ChatMembersSheet({
   // Personal group management state
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
+
+  // Self push-enable dialog
+  const [selfNudgeOpen, setSelfNudgeOpen] = useState(false);
+
+  // Track members that we've already nudged in this session (to disable button)
+  const [nudgedMemberIds, setNudgedMemberIds] = useState<Set<string>>(new Set());
+
+  // Send a one-tap nudge notification to a specific member
+  const nudgeMutation = useMutation({
+    mutationFn: async (member: { id: string; name: string }) => {
+      const { error } = await supabase.from("notifications").insert({
+        user_id: member.id,
+        type: "admin_nudge",
+        message: `Turn on notifications so you don't miss messages in ${chatName}.`,
+      });
+      if (error) throw error;
+      return member;
+    },
+    onSuccess: (member) => {
+      setNudgedMemberIds((prev) => new Set(prev).add(member.id));
+      toast.success(`Reminder sent to ${member.name}`);
+    },
+    onError: (err: any) => {
+      toast.error("Could not send reminder: " + (err?.message || "unknown error"));
+    },
+  });
 
   // Is this a personal group (no team/club/league binding)?
   const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
@@ -544,6 +571,27 @@ export function ChatMembersSheet({
                   </Button>
                 )}
               </div>
+
+              {/* Self push notifications status */}
+              {user && pushReachable && (notifPrefs?.[user.id] === false || pushReachable[user.id] === false) && (
+                <div className="mb-3 rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Bell className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Notifications are off</p>
+                      <p className="text-xs text-muted-foreground">
+                        Turn them on so you never miss messages.
+                      </p>
+                    </div>
+                    <Button size="sm" className="h-8" onClick={() => setSelfNudgeOpen(true)}>
+                      Enable
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <ScrollArea className="h-[calc(100vh-180px)]">
                 {membersLoading ? (
                   <div className="flex justify-center py-8">
@@ -591,6 +639,22 @@ export function ChatMembersSheet({
                             )}
                             {chatMuted && (
                               <svg style={{ marginLeft: 2, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A.7.7 0 0 1 5.9 7.8H4a1 1 0 0 0-1 1v6.4a1 1 0 0 0 1 1h1.9a.7.7 0 0 1 .513.213l3.384 3.383A.705.705 0 0 0 11 19.298z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+                            )}
+                            {isCurrentUserAdmin && (pushDisabled || noPushSetup) && member.id !== user?.id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 shrink-0 gap-1"
+                                disabled={nudgeMutation.isPending || nudgedMemberIds.has(member.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  nudgeMutation.mutate({ id: member.id, name: member.display_name || "member" });
+                                }}
+                                aria-label="Send notification reminder"
+                              >
+                                <BellRing className="h-3.5 w-3.5" />
+                                <span className="text-xs">{nudgedMemberIds.has(member.id) ? "Sent" : "Nudge"}</span>
+                              </Button>
                             )}
                             {isPersonalGroupChat && isGroupCreator && member.id !== user?.id && (
                               <Button
@@ -695,6 +759,13 @@ export function ChatMembersSheet({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Self push notifications enable dialog */}
+      <NotificationNudgeDialog
+        open={selfNudgeOpen}
+        userId={user?.id}
+        onDismiss={() => setSelfNudgeOpen(false)}
+      />
     </>
   );
 }
