@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
+import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -110,6 +111,21 @@ export default function ClubDetailPage() {
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [broadcastingTeamId, setBroadcastingTeamId] = useState<string | null>(null);
+
+  const handleBroadcastTeamSchedule = async (e: React.MouseEvent, teamId: string, teamName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!id || broadcastingTeamId) return;
+    setBroadcastingTeamId(teamId);
+    const res: { ok: true } | { ok: false; error: string } = await sendScheduleBroadcast(id, teamId);
+    setBroadcastingTeamId(null);
+    if (res.ok === true) {
+      toast({ title: "Schedule refreshed", description: `Pushed a refresh to all ${teamName} members.` });
+    } else {
+      toast({ title: "Couldn't refresh", description: res.error, variant: "destructive" });
+    }
+  };
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
   const [yearLevelFilter, setYearLevelFilter] = useState<string>("all");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -1404,6 +1420,20 @@ export default function ClubDetailPage() {
                     )}
                   </div>
                 </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleBroadcastTeamSchedule(e, team.id, team.name || "this team")}
+                    disabled={broadcastingTeamId === team.id}
+                    className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                    aria-label="Refresh schedule for everyone in this team"
+                    title="Refresh schedule for everyone"
+                  >
+                    {broadcastingTeamId === team.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <RefreshCw className="h-4 w-4" />}
+                  </button>
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </Link>
             );
