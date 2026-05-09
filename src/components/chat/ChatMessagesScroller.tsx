@@ -65,16 +65,22 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     loadTriggerStyle,
   } = props;
 
-  // The composer is a flex sibling that sits below the scroller, so it never
-  // overlaps the message list. `bottomPadding` only needs to clear the bottom
-  // safe-area / nav bar when the keyboard is closed; when the keyboard is
-  // open the OS pushes the composer up and we just want a small gap so the
-  // newest message sits flush above the composer (not floating 128px above).
+  // CRITICAL: the composer is `position: fixed` (NOT a flex sibling) and the
+  // chat container's `height` only subtracts the bottom-nav offset / native
+  // keyboard height — it does NOT subtract the composer's own height. That
+  // means the bottom `composerHeight` pixels of the scroller always sit
+  // behind the fixed composer. We must reserve that space inside the
+  // scroller, otherwise the latest messages (and replies, where the
+  // composer grows to ~100-140px with the reply pill) render off-screen
+  // behind the input. Add a small breathing gap so the newest bubble
+  // doesn't kiss the composer border.
+  const COMPOSER_GAP = 16;
+  const safeComposer = Math.max(composerHeight, 56); // floor for first paint before measure
   const bottomPad = searchOpen
     ? 16
     : isKeyboardOpen
-    ? 12
-    : `calc(var(--bottom-nav-offset, 0px) + 24px)`;
+    ? safeComposer + COMPOSER_GAP
+    : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`;
 
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   // CRITICAL: Do NOT hand Virtuoso's internal scroller to the legacy
