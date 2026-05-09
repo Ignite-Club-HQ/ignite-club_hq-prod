@@ -34,6 +34,7 @@ const IDLE_GATE_MS = 260;
 const PREFETCH_ROOT_MARGIN_PX = 360;
 const POST_RESTORE_IMAGE_WATCH_MS = 1500;
 const MIN_TRIGGER_INTERVAL_MS = 900;
+const PREPEND_IDLE_GRACE_MS = 220;
 
 export function useChatOlderMessagesAnchor({
   scrollContainerRef,
@@ -46,6 +47,8 @@ export function useChatOlderMessagesAnchor({
   const lastScrollAtRef = useRef(0);
   const lastTriggerAtRef = useRef(0);
   const pendingTriggerTimerRef = useRef<number | null>(null);
+  const pendingPrependRef = useRef<(() => void) | null>(null);
+  const pendingPrependTimerRef = useRef<number | null>(null);
 
   const triggerOlder = useCallback(() => {
     const now = performance.now();
@@ -103,6 +106,16 @@ export function useChatOlderMessagesAnchor({
         container.scrollHeight - container.clientHeight - container.scrollTop;
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
+
+      if (pendingPrependRef.current && pendingPrependTimerRef.current !== null) {
+        window.clearTimeout(pendingPrependTimerRef.current);
+        pendingPrependTimerRef.current = window.setTimeout(() => {
+          const apply = pendingPrependRef.current;
+          pendingPrependRef.current = null;
+          pendingPrependTimerRef.current = null;
+          if (apply) anchoredPrepend(apply);
+        }, PREPEND_IDLE_GRACE_MS);
+      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
