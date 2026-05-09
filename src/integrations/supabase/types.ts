@@ -8564,6 +8564,7 @@ export type Database = {
           welcome_message: string
         }[]
       }
+      get_push_notification_health: { Args: never; Returns: Json }
       get_push_subscription_health: {
         Args: { p_user_id: string }
         Returns: {
