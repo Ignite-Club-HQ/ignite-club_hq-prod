@@ -28,7 +28,10 @@ export function useSaveGameResult() {
   const [saved, setSaved] = useState(false);
 
   const save = useCallback(
-    async (input: SaveGameResultInput, opts?: { silent?: boolean; force?: boolean }) => {
+    async (
+      input: SaveGameResultInput,
+      opts?: { silent?: boolean; force?: boolean; onlyIfMissing?: boolean }
+    ) => {
       // Include scores/opponent/MVP in the dedupe key (audit fix B11) so
       // post-game edits (rename opponent, set MVP, late score correction)
       // re-save instead of being silently swallowed.
@@ -49,6 +52,20 @@ export function useSaveGameResult() {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData.user?.id;
         if (!uid) return;
+
+        // Respect manual overrides: if a row already exists for this event,
+        // skip the auto-write so user-edited scores/scorers aren't clobbered.
+        if (opts?.onlyIfMissing && input.eventId) {
+          const { data: existing } = await supabase
+            .from("game_results")
+            .select("id")
+            .eq("event_id", input.eventId)
+            .maybeSingle();
+          if (existing?.id) {
+            savedKeyRef.current = key;
+            return;
+          }
+        }
 
         const mvp = input.mvpPlayerId
           ? input.players.find((p) => p.id === input.mvpPlayerId)
