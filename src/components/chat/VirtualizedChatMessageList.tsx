@@ -203,6 +203,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  // Timestamp of when the initial bottom-pin completed. Used to enforce a
+  // "trust window" before any upward pagination fires, so the very first
+  // upward gesture never triggers a prepend that visually teleports the
+  // viewport to messages the user hasn't scrolled through yet (the
+  // "scroll up, stop, then jump higher" symptom on cold open).
+  const bottomPinReadyAtRef = useRef(0);
+  // Trust window in ms: until this elapses past the bottom-pin completion,
+  // `startReached` is suppressed. After expiry, normal upward prefetch
+  // resumes.
+  const PREPEND_TRUST_WINDOW_MS = 800;
   const messagesLengthRef = useRef(messages.length);
   // Synchronous in-flight guard for `startReached`. The parent's
   // `isLoadingOlder` state flips via setState, so two `startReached` events
