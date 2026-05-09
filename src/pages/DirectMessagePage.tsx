@@ -18,6 +18,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
