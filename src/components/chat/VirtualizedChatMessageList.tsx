@@ -3,11 +3,23 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import {
+  debugAttachScrollerWatcher,
+  debugLogAnchor,
+  debugLogBottomPin,
+  debugLogDuplicate,
+  debugLogFirstItemIndex,
+  debugLogMeasure,
+  debugLogStartReached,
+  debugTrackRender,
+  isChatVirtDebugEnabled,
+} from "./chatVirtDebug";
 
 /**
  * Virtualised chat message list.
@@ -142,6 +154,35 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
 
+/**
+ * Wraps a virtualised row to record render churn (key stability signal) and
+ * the first-paint measured height vs the static estimate. Only mounted when
+ * `isChatVirtDebugEnabled()` is true, so it has zero cost in production.
+ */
+function DebugRowProbe({
+  messageId,
+  estimated,
+  children,
+}: {
+  messageId: string;
+  estimated: number | undefined;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  debugTrackRender(messageId);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    debugLogMeasure(messageId, estimated, el.offsetHeight);
+  }, [messageId, estimated]);
+  return (
+    <div ref={ref} data-debug-probe={messageId}>
+      {children}
+    </div>
+  );
+}
+
+
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
     messages,
@@ -223,14 +264,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       return;
     }
     if (needsAnchorReset) {
+      const prev = anchorRef.current;
       anchorRef.current = {
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
       };
       bottomPinReadyRef.current = false;
       bottomPinRevisionRef.current += 1;
+      debugLogAnchor("reset", {
+        previousBaseFirstId: prev.baseFirstId,
+        newBaseFirstId: newFirstId,
+        messagesLen: messages.length,
+        newBaseFirstIndex: START_INDEX - messages.length,
+      });
     }
   }, [needsAnchorReset, newFirstId, messages.length]);
+
+  // Trace firstItemIndex movement (the dominant signal for "the viewport
+  // jumped under me"). Cheap when debug is off.
+  useEffect(() => {
+    debugLogFirstItemIndex(firstItemIndex, messages.length);
+  }, [firstItemIndex, messages.length]);
 
   // Belt-and-braces: when messages first populate OR the mounted list is
   // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
@@ -239,23 +293,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
-    const jump = () =>
+    const jump = (phase: string) => {
+      debugLogBottomPin(bottomPinRevision, phase);
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
         align: "end",
         behavior: "auto",
       });
-    jump();
+    };
+    jump("immediate");
     let r2 = 0;
     const r1 = requestAnimationFrame(() => {
-      jump();
+      jump("raf1");
       r2 = requestAnimationFrame(() => {
-        jump();
+        jump("raf2");
         bottomPinReadyRef.current = true;
       });
     });
     const t = window.setTimeout(() => {
-      jump();
+      jump("timeout-200");
       bottomPinReadyRef.current = true;
     }, 200);
     return () => {
@@ -267,10 +323,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [bottomPinRevision]);
 
   const handleStartReached = useCallback(() => {
-    if (!bottomPinReadyRef.current) return;
-    if (!hasOlder || isLoadingOlder) return;
-    if (loadingOlderInFlightRef.current) return;
+    if (!bottomPinReadyRef.current) {
+      debugLogStartReached(false, "bottom-pin-not-ready");
+      return;
+    }
+    if (!hasOlder) {
+      debugLogStartReached(false, "no-older");
+      return;
+    }
+    if (isLoadingOlder) {
+      debugLogStartReached(false, "already-loading");
+      return;
+    }
+    if (loadingOlderInFlightRef.current) {
+      debugLogStartReached(false, "in-flight-guard");
+      return;
+    }
     loadingOlderInFlightRef.current = true;
+    debugLogStartReached(true, "fetch");
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
@@ -316,34 +386,52 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const { uniqueMessages, indexById } = useMemo(() => {
     const map = new Map<string, number>();
     const unique: TMessage[] = [];
+    const dupCounts = new Map<string, number>();
     for (let i = 0; i < messages.length; i++) {
       const id = messages[i].id;
-      if (map.has(id)) continue;
+      if (map.has(id)) {
+        dupCounts.set(id, (dupCounts.get(id) ?? 1) + 1);
+        continue;
+      }
       map.set(id, unique.length);
       unique.push(messages[i]);
     }
+    if (dupCounts.size > 0 && isChatVirtDebugEnabled()) {
+      for (const [id, count] of dupCounts) debugLogDuplicate(id, count);
+    }
     return { uniqueMessages: unique, indexById: map };
   }, [messages]);
+
+  const heightEstimates = useMemo(
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
+    [uniqueMessages],
+  );
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
       const idx = indexById.get(message.id);
       if (idx === undefined) return null;
-      return renderItem(message, idx, uniqueMessages);
+      const child = renderItem(message, idx, uniqueMessages);
+      if (!isChatVirtDebugEnabled()) return child;
+      const estimated = idx >= 0 ? heightEstimates[idx] : undefined;
+      return (
+        <DebugRowProbe messageId={message.id} estimated={estimated}>
+          {child}
+        </DebugRowProbe>
+      );
     },
-    [uniqueMessages, renderItem, indexById],
+    [uniqueMessages, renderItem, indexById, heightEstimates],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
 
-  // Fast flicks through image-heavy history used to expose rows after
-  // Virtuoso had estimated them as tiny text bubbles, then jump once the real
-  // image rows measured. Supplying per-row estimates keeps the scroll range
-  // close before mount, so stopping a fast scroll does not re-anchor visibly.
-  const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
-    [uniqueMessages],
-  );
+  // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
+  // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
+  // with fractional device-pixel ratios (most Android phones) the bounding
+  // rect oscillates by ~0.5px between paints during momentum scrolling.
+  // Virtuoso re-applies paddingTop on every change, which is exactly the
+  // "shake on fast scroll" symptom. Integer offsetHeight is stable.
+
 
   // Use Virtuoso's default measurement (offsetHeight). Earlier we tried
   // `getBoundingClientRect().height` for "sub-pixel accuracy", but on devices
@@ -362,6 +450,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       Footer: () => <div style={{ height: bottomPadding }} />,
     }),
     [topPadding, bottomPadding],
+  );
+
+  // Attach a debug watcher to Virtuoso's real scroll element so we can flag
+  // foreign `scrollTop` writes (legacy chat hooks fighting Virtuoso for
+  // ownership of the same scroller — the canonical cause of "rows stacking
+  // on top of each other" on fast scroll).
+  const wrappedScrollerRef = useCallback(
+    (element: HTMLElement | Window | null) => {
+      debugAttachScrollerWatcher(element);
+      scrollerRef?.(element);
+    },
+    [scrollerRef],
   );
 
   return (
@@ -386,7 +486,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // like rows stacking on top of each other.
       increaseViewportBy={{ top: 600, bottom: 200 }}
       atBottomThreshold={120}
-      scrollerRef={scrollerRef}
+      scrollerRef={wrappedScrollerRef}
       components={components}
     />
   );
