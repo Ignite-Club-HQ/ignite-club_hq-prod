@@ -130,6 +130,39 @@ serve(async (req) => {
       });
     }
 
+    // 24h cooldown — only enforced for bulk sends (more than 1 recipient).
+    // Per-row "remind this one person" actions bypass the cooldown.
+    const isBulkSend = userIds.length > 1;
+    if (isBulkSend) {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentLog } = await supabase
+        .from("event_reminder_log")
+        .select("id, sent_at, sent_by, recipients_count")
+        .eq("event_id", eventId)
+        .gte("sent_at", cutoff)
+        .order("sent_at", { ascending: false })
+        .limit(1);
+
+      if (recentLog && recentLog.length > 0) {
+        const lastSentAt = recentLog[0].sent_at;
+        const nextAvailableAt = new Date(
+          new Date(lastSentAt).getTime() + 24 * 60 * 60 * 1000
+        ).toISOString();
+        return new Response(
+          JSON.stringify({
+            error: "cooldown",
+            message: "A reminder for this event was sent in the last 24 hours.",
+            lastSentAt,
+            nextAvailableAt,
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
     // Fetch profiles AND emails in parallel — emails come from a single batched
     // RPC call instead of N parallel auth.admin.getUserById() calls (which exhaust
     // the auth admin connection pool when userIds is large).
