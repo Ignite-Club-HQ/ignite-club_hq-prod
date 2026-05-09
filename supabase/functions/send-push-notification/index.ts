@@ -635,10 +635,27 @@ serve(async (req) => {
       }
     }
     
+    // Helper: finalize the pre-claimed placeholder row when we early-exit.
+    // Without this, the placeholder stays as endpoint='pending', status='sent'
+    // forever — misleading data and blocks retry-missed from re-dispatching.
+    const finalizePlaceholder = async (status: 'sent' | 'failed' | 'expired' | 'invalid' | 'skipped', endpointLabel: string, errorMsg: string | null) => {
+      if (!notificationId) return;
+      try {
+        await supabase
+          .from('push_notification_logs')
+          .update({ endpoint: endpointLabel, status, error_message: errorMsg })
+          .eq('notification_id', notificationId)
+          .eq('endpoint', 'pending');
+      } catch (e) {
+        console.error('[PUSH] Failed to finalize placeholder', e);
+      }
+    };
+
     // Check user preferences before sending
     const shouldSend = await checkUserPreference(supabase, userId, notificationType);
     if (!shouldSend) {
       console.log(`[PUSH] User ${userId} has disabled ${notificationType} notifications, skipping`);
+      await finalizePlaceholder('skipped', 'preference-disabled', `User has disabled ${notificationType} notifications`);
       return new Response(
         JSON.stringify({ 
           message: 'Notification skipped - user preference',
@@ -669,6 +686,7 @@ serve(async (req) => {
       // Still try FCM
       const fcmResult = await fcmPromise;
       if (fcmResult.sent > 0) {
+        await finalizePlaceholder('sent', 'fcm-only', 'VAPID not configured; FCM delivered');
         return new Response(
           JSON.stringify({ 
             message: 'FCM notifications sent',
@@ -679,6 +697,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      await finalizePlaceholder('failed', 'config-error', 'VAPID not configured and FCM delivered nothing');
       return new Response(
         JSON.stringify({ error: 'Push notification configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -692,6 +711,7 @@ serve(async (req) => {
     
     if (subError) {
       console.error('[PUSH] Error fetching subscriptions');
+      await finalizePlaceholder('failed', 'subs-fetch-error', 'Failed to fetch push_subscriptions');
       return new Response(
         JSON.stringify({ error: 'An error occurred. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

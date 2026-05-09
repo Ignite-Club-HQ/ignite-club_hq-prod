@@ -228,10 +228,13 @@ export default function TeamChatPage() {
   }, []);
 
   const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (push /
   // in-app notification deep links). Polls until the message renders so it
   // works even if messages load async or live below the initial page.
+  // Optional ?parent=… provides a thread fallback so the user lands in the
+  // correct context if the target reply is still off-window.
   useEffect(() => {
     if (!targetMessageId) return;
     const cancel = jumpToMessageInVirtualizedChat(
@@ -239,10 +242,13 @@ export default function TeamChatPage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
-      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+      {
+        tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        parentMessageId: targetParentId ?? undefined,
+      },
     );
     return cancel;
-  }, [targetMessageId]);
+  }, [targetMessageId, targetParentId]);
 
   // Pinned messages
   const {

@@ -174,6 +174,33 @@ export default function PushAnalyticsPage() {
     enabled: isAdmin === true,
   });
 
+  // 24-hour push health snapshot — stuck placeholders, retry rate, missed
+  // dispatches. Backed by the get_push_notification_health() SECURITY DEFINER
+  // RPC so we can join across notifications + logs without loosening RLS.
+  const { data: health, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
+    queryKey: ["push-notification-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_push_notification_health");
+      if (error) throw error;
+      return data as {
+        window_hours: number;
+        generated_at: string;
+        total_24h: number;
+        sent_real: number;
+        failed_24h: number;
+        expired_24h: number;
+        skipped_24h: number;
+        stuck_placeholders: number;
+        pending_inflight: number;
+        legacy_retry_placeholders: number;
+        notifications_with_retries: number;
+        missed_notifications: number;
+      };
+    },
+    enabled: isAdmin === true,
+    refetchInterval: 60_000,
+  });
+
   // Update settings mutation
   const updateSettings = useMutation({
     mutationFn: async (settings: Partial<AlertSettings>) => {
@@ -554,6 +581,62 @@ export default function PushAnalyticsPage() {
           </Card>
         </div>
 
+        {/* 24-Hour Health Dashboard */}
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                24-Hour Health
+              </CardTitle>
+              <CardDescription>
+                Real-time delivery integrity. Stuck or missed counts above zero indicate a backend issue.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="icon" onClick={() => refetchHealth()}>
+              <RefreshCw className={`h-4 w-4 ${healthLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {healthLoading && !health ? (
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
+              </div>
+            ) : health ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <HealthTile label="Sent (real)" value={health.sent_real} icon={<CheckCircle className="h-4 w-4 text-green-500" />} />
+                  <HealthTile label="Failed" value={health.failed_24h} tone={health.failed_24h > 0 ? "warn" : "ok"} icon={<XCircle className="h-4 w-4 text-destructive" />} />
+                  <HealthTile label="Expired" value={health.expired_24h} icon={<AlertCircle className="h-4 w-4 text-yellow-500" />} />
+                  <HealthTile label="Skipped (preferences)" value={health.skipped_24h} icon={<Clock className="h-4 w-4 text-muted-foreground" />} />
+                  <HealthTile label="Stuck placeholders (>5m)" value={health.stuck_placeholders} tone={health.stuck_placeholders > 0 ? "danger" : "ok"} hint="Pre-claim rows that never finalised" />
+                  <HealthTile label="Pending in-flight (<5m)" value={health.pending_inflight} hint="Currently being processed — should clear within seconds" />
+                  <HealthTile label="Legacy retry placeholders" value={health.legacy_retry_placeholders} tone={health.legacy_retry_placeholders > 50 ? "warn" : "ok"} hint="Old rows from the broken retry path. Safe to clean up." />
+                  <HealthTile label="Notifications with retries" value={health.notifications_with_retries} hint={health.total_24h > 0 ? `${((health.notifications_with_retries / Math.max(health.total_24h, 1)) * 100).toFixed(1)}% of 24h volume` : "—"} />
+                </div>
+                {health.missed_notifications > 0 && (
+                  <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                    <div className="font-semibold text-destructive">
+                      {health.missed_notifications} notification(s) had no push log in the last 24h
+                    </div>
+                    <p className="text-muted-foreground mt-1">
+                      Created &gt;2 minutes ago with skip_push=false but never reached send-push-notification. Check pg_net deliveries and the retry-missed-push-notifications cron.
+                    </p>
+                  </div>
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Updated {new Date(health.generated_at).toLocaleTimeString()} · auto-refresh every 60s
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No health data available.</p>
+            )}
+          </CardContent>
+        </Card>
+
+
         {/* Platform Breakdown */}
         {subscriptionStats && Object.keys(subscriptionStats.byPlatform).length > 0 && (
           <Card>
@@ -784,5 +867,34 @@ export default function PushAnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+  );
+}
+
+interface HealthTileProps {
+  label: string;
+  value: number;
+  hint?: string;
+  tone?: "ok" | "warn" | "danger";
+  icon?: React.ReactNode;
+}
+
+function HealthTile({ label, value, hint, tone = "ok", icon }: HealthTileProps) {
+  const toneClass =
+    tone === "danger"
+      ? "border-destructive/50 bg-destructive/5"
+      : tone === "warn"
+      ? "border-yellow-500/40 bg-yellow-500/5"
+      : "border-border";
+  const valueClass =
+    tone === "danger" ? "text-destructive" : tone === "warn" ? "text-yellow-600 dark:text-yellow-400" : "";
+  return (
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {icon}
+      </div>
+      <div className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{value.toLocaleString()}</div>
+      {hint && <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
+    </div>
   );
 }

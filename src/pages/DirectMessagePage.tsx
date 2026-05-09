@@ -18,6 +18,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
@@ -198,6 +200,8 @@ export default function DirectMessagePage() {
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -247,6 +251,7 @@ export default function DirectMessagePage() {
   }, []);
 
   const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
     if (!targetMessageId) return;
@@ -255,9 +260,30 @@ export default function DirectMessagePage() {
       () => localMessagesRef.current ?? [],
       () => virtualHandleRef.current,
       setHighlightedMessageId,
+      {
+        tryLoadOlder: () => loadOlderMessagesRef.current?.(),
+        parentMessageId: targetParentId ?? undefined,
+      },
     );
     return cancel;
-  }, [targetMessageId]);
+  }, [targetMessageId, targetParentId]);
+
+  // Pinned messages (DM)
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("dm", conversationId);
+  const handleJumpToPinned = (mid: string) =>
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
@@ -631,6 +657,123 @@ export default function DirectMessagePage() {
       setHasOlderMessages((messagesData as any).hasOlderMessages ?? false);
     }
   }, [messagesData]);
+
+  // Load older DM messages — mirrors the Team/Club pattern so deep-linked
+  // search jumps and scroll-to-top can page beyond the initial 15-message
+  // window. Virtuoso owns scroll-anchoring on prepend (firstItemIndex +
+  // followOutput); we just commit the cache mutation.
+  const loadOlderMessages = useCallback(async () => {
+    const currentMessages = localMessagesRef.current;
+    if (!currentMessages?.length || isLoadingOlder || !hasOlderMessages || !conversationId) return;
+
+    setIsLoadingOlder(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const oldestMessage = currentMessages[0];
+
+      const { data: olderRaw, error } = await supabase
+        .from("direct_messages")
+        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
+        .eq("conversation_id", conversationId)
+        .is("deleted_at", null)
+        .lt("created_at", oldestMessage.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PER_PAGE + 1)
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
+      if (error) throw error;
+      if (!olderRaw?.length) {
+        setHasOlderMessages(false);
+        return;
+      }
+
+      const hasMore = olderRaw.length > MESSAGES_PER_PAGE;
+      setHasOlderMessages(hasMore);
+      const dataToUse = hasMore ? olderRaw.slice(0, MESSAGES_PER_PAGE) : olderRaw;
+      const reversedOlder = [...dataToUse].reverse();
+      const messageIds = reversedOlder.map((m) => m.id);
+      const replyToIds = reversedOlder.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
+      const authorIds = [...new Set(reversedOlder.map((m) => m.author_id))];
+
+      let reactionsData: any[] = [];
+      let replyToData: any[] = [];
+      let profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+
+      try {
+        const secondaryController = new AbortController();
+        const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
+        const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
+          supabase
+            .from("message_reactions")
+            .select("id, user_id, reaction_type, direct_message_id")
+            .in("direct_message_id", messageIds)
+            .abortSignal(secondaryController.signal),
+          replyToIds.length > 0
+            ? supabase
+                .from("direct_messages")
+                .select("id, text, author_id")
+                .in("id", replyToIds)
+                .abortSignal(secondaryController.signal)
+            : Promise.resolve({ data: [] as any[], error: null }),
+          fetchProfilesWithCache(authorIds),
+        ]);
+        clearTimeout(secondaryTimeout);
+        reactionsData = reactionsResult.data || [];
+        replyToData = replyToResult.data || [];
+        cachedProfiles.forEach((p, id) => {
+          profilesMap.set(id, { display_name: p.display_name, avatar_url: p.avatar_url });
+        });
+      } catch {
+        // Continue without reactions/replies/profiles if they timeout
+      }
+
+      const replyToMap = new Map(
+        replyToData.map((r: any) => [r.id, {
+          ...r,
+          author: profilesMap.get(r.author_id)
+            ? { display_name: profilesMap.get(r.author_id)?.display_name }
+            : null,
+        }]),
+      );
+
+      const olderMessages: DirectMessage[] = reversedOlder.map((msg: any) => {
+        const profile = profilesMap.get(msg.author_id);
+        return {
+          ...msg,
+          author: profile
+            ? { display_name: profile.display_name, avatar_url: profile.avatar_url }
+            : null,
+          reply_to: msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null,
+          reactions: reactionsData
+            .filter((r) => r.direct_message_id === msg.id)
+            .map((r) => ({ id: r.id, user_id: r.user_id, reaction_type: r.reaction_type })),
+        };
+      });
+
+      queryClient.setQueryData(
+        dmQueryKey,
+        (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+          const existing = old?.messages || [];
+          const merged = [...olderMessages, ...existing];
+          cacheDirectMessages(conversationId, merged);
+          return { ...(old || {}), messages: merged, hasOlderMessages: hasMore };
+        },
+      );
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.error("[DM] Failed to load older messages:", err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [conversationId, isLoadingOlder, hasOlderMessages, queryClient, dmQueryKey]);
+
+  useEffect(() => {
+    loadOlderMessagesRef.current = loadOlderMessages;
+  }, [loadOlderMessages]);
+
 
   useEffect(() => {
     if (!conversationId || !authReady || messagesLoading) return;
@@ -1211,6 +1354,15 @@ export default function DirectMessagePage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      {!isIgniteSupportConversation && (
+        <PinnedMessagesBanner
+          pins={pinnedMessages}
+          onJumpToMessage={handleJumpToPinned}
+          onUnpin={unpinMessage}
+        />
+      )}
+
       {/* Messages area */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
@@ -1224,9 +1376,9 @@ export default function DirectMessagePage() {
         ) : (
           <ChatMessagesScroller
             messages={filteredMessages || []}
-            hasOlderMessages={false}
-            isLoadingOlder={false}
-            onLoadOlder={() => {}}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlder={loadOlderMessages}
             isPinned={isPinned}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
@@ -1272,6 +1424,11 @@ export default function DirectMessagePage() {
                       hasReply={!!msg.reply_to_id}
                       onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
                       onEdit={handleEdit}
+                      isPinned={pinnedMessageIds.has(msg.id)}
+                      canPin={!isIgniteSupportConversation && !msg.id.startsWith("queued-")}
+                      pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                      onPin={isIgniteSupportConversation ? undefined : pinMessage}
+                      onUnpin={isIgniteSupportConversation ? undefined : unpinMessage}
                     />
                   </div>
                 </>

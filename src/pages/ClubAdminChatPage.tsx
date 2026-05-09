@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } fr
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -101,6 +101,7 @@ const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] 
 export default function ClubAdminChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
@@ -293,6 +294,24 @@ export default function ClubAdminChatPage() {
   );
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
+
+  // Deep-link / push-notification jump: ?message=<id>
+  // Polls until the target renders so it works even if the message
+  // arrives after the initial query settles. ClubAdmin has no
+  // older-message pagination, so no tryLoadOlder is wired.
+  const targetMessageId = searchParams.get("message");
+  const targetParentId = searchParams.get("parent");
+  useEffect(() => {
+    if (!targetMessageId) return;
+    const cancel = jumpToMessageInVirtualizedChat(
+      targetMessageId,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { parentMessageId: targetParentId ?? undefined },
+    );
+    return cancel;
+  }, [targetMessageId, targetParentId]);
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
