@@ -113,7 +113,6 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
             src={preview.image}
             alt={preview.title || "Link preview"}
             className="w-full h-full object-cover"
-            loading="lazy"
             decoding="async"
             onError={(e) => (e.currentTarget.style.display = "none")}
           />

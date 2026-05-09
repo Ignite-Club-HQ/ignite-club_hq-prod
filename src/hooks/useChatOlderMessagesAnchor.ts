@@ -102,19 +102,29 @@ export function useChatOlderMessagesAnchor({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    // rAF-throttle: a fast flick fires dozens of "scroll" events per frame.
+    // Reading scrollHeight/clientHeight/scrollTop on every one of them
+    // forces the browser to flush pending layout, stuttering the flick.
+    // Coalesce to a single read per frame.
+    let scheduled = false;
     const onScroll = () => {
-      const distance =
-        container.scrollHeight - container.clientHeight - container.scrollTop;
-      if (distance < 200) return;
-      lastScrollAtRef.current = performance.now();
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        const distance =
+          container.scrollHeight - container.clientHeight - container.scrollTop;
+        if (distance < 200) return;
+        lastScrollAtRef.current = performance.now();
 
-      // Fallback for real devices where the top IntersectionObserver can miss
-      // after browser UI/address-bar resize: if the user is physically at the
-      // top, queue one older-page load after momentum settles.
-      if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
-        const trigger = loadTriggerRef.current;
-        if (trigger) scheduleTriggerWhenIdle(container, trigger);
-      }
+        // Fallback for real devices where the top IntersectionObserver can miss
+        // after browser UI/address-bar resize: if the user is physically at the
+        // top, queue one older-page load after momentum settles.
+        if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
+          const trigger = loadTriggerRef.current;
+          if (trigger) scheduleTriggerWhenIdle(container, trigger);
+        }
+      });
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
@@ -208,16 +218,14 @@ export function useChatOlderMessagesAnchor({
       // Disable any inherited smooth-scroll while we hard-set scrollTop.
       container.style.scrollBehavior = "auto";
 
-      // flushSync forces React to commit (and the browser to lay out) the
-      // new DOM synchronously, so we can read the new scrollHeight and
-      // restore scrollTop before any paint occurs.
-      try {
-        flushSync(() => {
-          applyPrepend();
-        });
-      } catch {
-        // flushSync throws if called from inside a render — fall back to
-        // a normal update + rAF restore.
+      // If the user is mid-flick (a real scroll event landed within the
+      // last 80ms), DO NOT flushSync. The synchronous commit + layout
+      // happens on the input frame and the user feels the stutter. Fall
+      // back to the rAF-restore path: paint may briefly show the unshifted
+      // top, but the scroll itself stays smooth.
+      const scrollHot = performance.now() - lastScrollAtRef.current < 80;
+
+      const rafRestore = () => {
         applyPrepend();
         requestAnimationFrame(() => {
           const c = scrollContainerRef.current;
@@ -228,7 +236,26 @@ export function useChatOlderMessagesAnchor({
             c.scrollTop = previousScrollTop + (c.scrollHeight - previousScrollHeight);
           }
           c.style.scrollBehavior = previousBehavior;
+          watchPrependedMediaAndReanchor(c, previousScrollTop, previousScrollHeight);
         });
+      };
+
+      if (scrollHot) {
+        rafRestore();
+        return;
+      }
+
+      // flushSync forces React to commit (and the browser to lay out) the
+      // new DOM synchronously, so we can read the new scrollHeight and
+      // restore scrollTop before any paint occurs.
+      try {
+        flushSync(() => {
+          applyPrepend();
+        });
+      } catch {
+        // flushSync throws if called from inside a render — fall back to
+        // a normal update + rAF restore.
+        rafRestore();
         return;
       }
 
