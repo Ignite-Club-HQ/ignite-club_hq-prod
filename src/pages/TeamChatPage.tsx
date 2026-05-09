@@ -231,9 +231,10 @@ export default function TeamChatPage() {
   // works even if messages load async or live below the initial page.
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
@@ -249,7 +250,13 @@ export default function TeamChatPage() {
     canPinMore,
   } = usePinnedMessages("team", teamId);
   const handleJumpToMessage = (mid: string) =>
-    jumpToMessageInChat(mid, setHighlightedMessageId);
+    jumpToMessageInVirtualizedChat(
+      mid,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
+      setHighlightedMessageId,
+      { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
+    );
 
   const { data: teamData, isLoading: loadingTeam } = useQuery({
     queryKey: ["team", teamId],
