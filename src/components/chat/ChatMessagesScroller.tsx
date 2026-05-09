@@ -65,11 +65,16 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     loadTriggerStyle,
   } = props;
 
+  // The composer is a flex sibling that sits below the scroller, so it never
+  // overlaps the message list. `bottomPadding` only needs to clear the bottom
+  // safe-area / nav bar when the keyboard is closed; when the keyboard is
+  // open the OS pushes the composer up and we just want a small gap so the
+  // newest message sits flush above the composer (not floating 128px above).
   const bottomPad = searchOpen
-    ? 32
+    ? 16
     : isKeyboardOpen
-    ? Math.max(128, composerHeight + 40)
-    : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)`;
+    ? 12
+    : `calc(var(--bottom-nav-offset, 0px) + 24px)`;
 
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const setVirtualScrollerRef = useCallback((element: HTMLElement | Window | null) => {
