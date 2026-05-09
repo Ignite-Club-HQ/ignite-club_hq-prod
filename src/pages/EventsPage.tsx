@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useQuery } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw } from "lucide-react";
 import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
