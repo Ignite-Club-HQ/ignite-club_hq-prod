@@ -822,15 +822,10 @@ export default function TeamChatPage() {
   // Forward ref so the anchor hook can call the (yet-to-be-defined) loader.
   const loadOlderMessagesRef = useRef<(() => void) | null>(null);
 
-  // Hook for jolt-free anchoring + idle-gated infinite-scroll observer.
-  const { queueAnchoredPrepend } = useChatOlderMessagesAnchor({
-    scrollContainerRef: scrollAreaRef,
-    loadTriggerRef,
-    hasOlderMessages,
-    isLoadingOlder,
-    enabled: infiniteScrollEnabled && !searchQuery && !useVirtualizedChat,
-    onTrigger: () => loadOlderMessagesRef.current?.(),
-  });
+  // Virtuoso owns scroll-anchoring on prepend natively (firstItemIndex +
+  // followOutput). No DOM scrollTop math required — just commit the cache
+  // mutation and let Virtuoso preserve the visible window.
+  const queueAnchoredPrepend = useCallback((commit: () => void) => commit(), []);
 
   // Load older messages function with timeout protection
   const loadOlderMessages = useCallback(async () => {
