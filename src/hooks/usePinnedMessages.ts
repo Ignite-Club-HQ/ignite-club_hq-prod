@@ -20,10 +20,11 @@ export interface PinnedMessageWithContent extends PinnedMessageRecord {
   author_avatar: string | null;
 }
 
-const MESSAGE_TABLE: Record<PinnedChatType, "team_messages" | "club_messages" | "group_messages"> = {
+const MESSAGE_TABLE: Record<PinnedChatType, "team_messages" | "club_messages" | "group_messages" | "direct_messages"> = {
   team: "team_messages",
   club: "club_messages",
   group: "group_messages",
+  dm: "direct_messages",
 };
 
 export const PIN_LIMIT = 3;
