@@ -13,6 +13,8 @@ import type { VirtualizedChatMessageListHandle } from "@/components/chat/Virtual
  * No `document.getElementById('message-${id}')` lookup is used anywhere:
  * rows outside Virtuoso's render window are not in the DOM.
  */
+let activeCancel: (() => void) | null = null;
+
 export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   messageId: string,
   getMessages: () => TMessage[],
@@ -32,9 +34,17 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     tryLoadOlder,
   } = options;
 
+  // Auto-cancel any in-flight jump so rapid search-result navigation
+  // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
+  // or let a stale 2.5s highlight-clear wipe the newest target.
+  if (activeCancel) activeCancel();
+
   let attempts = 0;
   let cancelled = false;
   let lastLoadOlderAttempt = -1;
+  let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
+  let nextTickTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   const tick = () => {
     if (cancelled) return;
@@ -54,13 +64,16 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
         const idx2 = getMessages().findIndex((m) => m.id === messageId);
         if (h2 && idx2 >= 0) h2.scrollToIndex(idx2, "center");
       });
-      setTimeout(() => {
+      settleTimer = setTimeout(() => {
         if (cancelled) return;
         const h3 = getHandle();
         const idx3 = getMessages().findIndex((m) => m.id === messageId);
         if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
       }, 350);
-      setTimeout(() => setHighlightedMessageId(null), highlightDurationMs);
+      highlightClearTimer = setTimeout(() => {
+        if (cancelled) return;
+        setHighlightedMessageId(null);
+      }, highlightDurationMs);
       return;
     }
 
@@ -78,14 +91,20 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     }
 
     if (attempts < maxAttempts) {
-      setTimeout(tick, intervalMs);
+      nextTickTimer = setTimeout(tick, intervalMs);
     }
   };
 
   // Defer first attempt so the messages list has a chance to mount.
-  setTimeout(tick, 50);
+  nextTickTimer = setTimeout(tick, 50);
 
-  return () => {
+  const cancel = () => {
     cancelled = true;
+    if (nextTickTimer) clearTimeout(nextTickTimer);
+    if (settleTimer) clearTimeout(settleTimer);
+    if (highlightClearTimer) clearTimeout(highlightClearTimer);
+    if (activeCancel === cancel) activeCancel = null;
   };
+  activeCancel = cancel;
+  return cancel;
 }
