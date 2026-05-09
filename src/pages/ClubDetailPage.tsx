@@ -111,6 +111,21 @@ export default function ClubDetailPage() {
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [broadcastingTeamId, setBroadcastingTeamId] = useState<string | null>(null);
+
+  const handleBroadcastTeamSchedule = async (e: React.MouseEvent, teamId: string, teamName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!id || broadcastingTeamId) return;
+    setBroadcastingTeamId(teamId);
+    const res = await sendScheduleBroadcast(id, teamId);
+    setBroadcastingTeamId(null);
+    if (res.ok) {
+      toast({ title: "Schedule refreshed", description: `Pushed a refresh to all ${teamName} members.` });
+    } else {
+      toast({ title: "Couldn't refresh", description: res.error, variant: "destructive" });
+    }
+  };
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
   const [yearLevelFilter, setYearLevelFilter] = useState<string>("all");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
