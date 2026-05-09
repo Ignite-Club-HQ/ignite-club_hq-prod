@@ -352,15 +352,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
       };
-      bottomPinReadyRef.current = false;
-      bottomPinReadyAtRef.current = 0;
-      bottomPinRevisionRef.current += 1;
+      // CRITICAL: only re-arm the bottom-pin revision when the user is at /
+      // near the bottom (or hasn't pinned yet). Otherwise an in-flight
+      // refetch / cache replacement that drops the previous baseline id
+      // would teleport a user who is reading history straight back to LAST.
+      // We still update the anchor itself so subsequent prepends shift
+      // `firstItemIndex` correctly from the new baseline.
+      const userIsReadingHistory = bottomPinReadyRef.current && !atBottomRef.current;
+      if (!userIsReadingHistory) {
+        bottomPinReadyRef.current = false;
+        bottomPinReadyAtRef.current = 0;
+        bottomPinRevisionRef.current += 1;
+      }
       debugLogAnchor("reset", {
         previousBaseFirstId: prev.baseFirstId,
         newBaseFirstId: newFirstId,
         messagesLen: messages.length,
         newBaseFirstIndex: START_INDEX - messages.length,
-      });
+        suppressedRePin: userIsReadingHistory,
+      } as Record<string, unknown>);
     }
   }, [needsAnchorReset, newFirstId, messages.length]);
 
@@ -378,6 +388,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const last = messages.length - 1;
     if (last < 0) return;
     const jump = (phase: string) => {
+      // Defensive guard: if the user has already scrolled away from the
+      // bottom by the time a deferred jump fires (e.g. a refetch landed and
+      // bumped the revision, then the user flicked up before raf2/200ms
+      // expired), abort the jump rather than yanking them back.
+      if (bottomPinReadyRef.current && !atBottomRef.current && phase !== "immediate") {
+        debugLogBottomPin(bottomPinRevision, `${phase}-skipped-not-at-bottom`);
+        return;
+      }
       debugLogBottomPin(bottomPinRevision, phase);
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
@@ -386,24 +404,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     jump("immediate");
-    let r2 = 0;
     const r1 = requestAnimationFrame(() => {
       jump("raf1");
-      r2 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
         jump("raf2");
         if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
         bottomPinReadyRef.current = true;
       });
     });
-    const t = window.setTimeout(() => {
-      jump("timeout-200");
-      if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-      bottomPinReadyRef.current = true;
-    }, 200);
     return () => {
       cancelAnimationFrame(r1);
-      if (r2) cancelAnimationFrame(r2);
-      window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomPinRevision]);
