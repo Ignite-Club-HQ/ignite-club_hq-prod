@@ -1,61 +1,84 @@
-## Goal
+## RSVP Quick-Wins Sprint
 
-Remove the legacy non-virtualised chat scroller everywhere. `VirtualizedChatMessageList` becomes the only message list. Manual `scrollTop` anchoring, `ResizeObserver` height compensation, and the `ff:chat-virtualization` flag all go away.
+Three improvements to lift RSVP response rates from ~58% toward 70%+, built in dependency order. All three reuse existing infrastructure (push pipeline, RSVP table, event detail page).
 
-This lifts the existing Core memory rule that says "Legacy mapped scroller path and its refs must remain intact." Memory will be updated at the end.
+---
 
-## Scope (files affected)
+### 1. Nudge Non-Responders (Coach action)
 
-Delete:
-- `src/components/chat/ChatMessagesScroller.tsx` legacy branch (lines 219–244) — keep only the Virtuoso branch
-- `src/lib/chatScrollActivity.ts` — `observeChatElementHeight`, `runWhenChatScrollIdle`, scroll-activity tracking
-- `src/lib/featureFlags/chatVirtualization.ts`
-- `src/hooks/useChatVirtualizationFlag.ts`
-- `src/hooks/useChatOlderMessagesAnchor.ts`
-- `src/hooks/useInitialChatBottomPin.ts` and its regression test
-- `src/hooks/useChatAutoScrollToLatest.ts`
-- The chat-virtualisation toggle row in `src/pages/AppSettingsPage.tsx`
+A one-tap button on the event detail page (visible only to coaches/team admins/club admins) that sends a push notification + in-app notification to every rostered child's parent and every staff member who has not yet RSVP'd.
 
-Modify:
-- `src/components/chat/ChatMessagesScroller.tsx` — single Virtuoso path, drop `scrollAreaRef` / `loadTriggerRef` / `messagesEndRef` / `endElementId` / `loadTriggerStyle` / `isPinned` props (Virtuoso owns scroll state)
-- `src/components/chat/ChatMessage.tsx` — remove `observeChatElementHeight` call; keep `overflowAnchor: 'none'` and `chat-bubble-stable` class
-- `src/components/chat/GroupChatMessageRow.tsx` — same as above
-- `src/components/chat/LinkPreview.tsx`, `MessageReactions.tsx`, `ReplyPreview.tsx` — replace `runWhenChatScrollIdle(cb)` with `requestIdleCallback`/`setTimeout` fallback (preview/reactions just need to defer expensive work after first paint, not after a custom scroll-idle signal)
-- All chat pages (`TeamChatPage`, `ClubChatPage`, `GroupChatPage`, `BroadcastChatPage`, `DirectMessagePage`, `ClubAdminChatPage`) — remove `useChatVirtualizationFlag`, the three legacy hooks, and the refs/props they fed into the scroller. Keep `composerHeight`, `searchOpen`, `isKeyboardOpen`, `isNativeIOS` — Virtuoso still needs those.
-- `src/lib/chatScrollIntent.ts` — audit; remove if unused after page edits, keep if Virtuoso still needs the intent signal.
-- `src/components/MediaCommentSheet.tsx` — only references `messagesEndRef` for its own internal list, unrelated to chat scroller; leave alone unless it imports a removed hook (verify).
-- `src/index.css` — drop CSS targeting legacy refs (`[data-chat-scroll-lock]` rules) if any are scroller-specific.
+**UX**
+- Button appears in the event admin actions area: "Nudge non-responders (N)" where N = count of unresponded.
+- Disabled when N = 0.
+- Confirmation sheet: "Send a reminder to N people?" → Send.
+- 24-hour cooldown per event (prevents spam). Button shows "Nudged 2h ago" when on cooldown.
+- Toast on success: "Nudged 12 people".
 
-## Search behaviour
+**Backend**
+- New edge function `send-rsvp-nudge` (mirrors structure of existing `send-event-view-reminder`).
+- Computes unresponded set server-side: roster (children) + staff (coaches/team_admins) minus rsvps where `child_id` or staff `user_id` already responded.
+- Sends through existing `send-push-notification` with deep link `/events/:id`.
+- Writes a row to a new `rsvp_nudge_log` table for cooldown enforcement and analytics.
 
-Search mode currently falls back to the legacy DOM so jump-to-message works. After this change, search uses Virtuoso's `scrollToIndex({ index, align: 'center' })` via the existing `VirtualizedChatMessageListHandle`. The handle already exposes the imperative API; pages only need to call it from their search-result tap handler instead of relying on the message node being in the DOM.
+---
 
-## Memory updates
+### 2. Parent Red-Dots on Unresponded Kids
 
-- Remove the Core line about legacy scroller being preserved.
-- Replace the `Chat Virtualisation Flag` memory with a `Chat Scroller` memory: "Virtuoso is the only chat list. No manual scrollTop anchoring. No feature flag."
-- Remove the index entry for the old flag memory and add the new one.
+Visual accountability indicator on the event detail page: each of the parent's own children that hasn't been RSVP'd shows a red dot + "Awaiting your response" label next to the child's name in the RSVP section.
 
-## Verification
+**UX**
+- Red 8px dot beside child name, with subtle pulse animation.
+- Tapping the dot scrolls to / opens the RSVP control for that child.
+- Disappears the instant the parent submits a status.
+- Also surfaces a single summary chip at the top of the event page: "2 of your kids haven't RSVP'd".
 
-1. Type-check passes (harness runs the build automatically).
-2. Manual smoke on Team/Group/Club/Broadcast/DM/ClubAdmin chats:
-   - Open thread → starts pinned to bottom.
-   - Send a message → auto-scrolls to bottom.
-   - Fast-scroll up → no downward settle, no bubble flicker.
-   - Open keyboard → bottom message stays visible above composer.
-   - Reply / edit → composer grows, latest message stays visible.
-   - Search → tap result → jumps to that message.
-   - Load older → fetches and prepends without scroll jump.
-3. Run the existing chat e2e/regression specs; delete the iOS bottom-pin regression test (its subject is removed) and add no replacement unless an equivalent assertion is missing for the Virtuoso path.
+**Frontend only** — uses data already loaded by `useEventGoingAttendees` plus the user's children list.
 
-## Technical notes
+---
 
-- Removing `useInitialChatBottomPin` is safe because `VirtualizedChatMessageList` already accepts `initialBottomPinned` and Virtuoso's `followOutput` handles bottom-stickiness.
-- Removing `useChatOlderMessagesAnchor` is safe because Virtuoso's `startReached` + `firstItemIndex` model preserves scroll anchoring during prepend natively.
-- Removing `useChatAutoScrollToLatest` is safe because the existing keyboard/composer re-pin effect inside `ChatMessagesScroller` (lines 117–165) already covers send/keyboard/reply scenarios via the Virtuoso handle.
-- `chatScrollActivity` exists purely to coordinate with the legacy mutable `scrollTop`. With Virtuoso in charge, deferred work can use `requestIdleCallback` (with a `setTimeout(…, 200)` fallback for Safari) — no custom scroll-idle bus needed.
+### 3. One-Tap RSVP from Push
 
-## Risk
+Action buttons on push notifications so a parent can answer Going / Maybe / Out without opening the app.
 
-High blast radius: 6 chat pages, 3 hooks, 1 lib, 1 flag, 1 toggle UI, 1 regression test, plus row component cleanups. Estimated ~15 files. Most edits are mechanical deletions; the only judgment call is the search jump-to-message wiring on each page (Virtuoso `scrollToIndex` from search-result handler).
+**Backend**
+- Push payload (FCM + APNs + Web Push) gains `actions: [Going, Maybe, Out]` and `data: { eventId, childId, action: "rsvp_quick" }`.
+- New edge function `quick-rsvp` accepts `{ eventId, childId|null, status }` with auth, validates the user has rights to RSVP for that child, and upserts the row.
+- iOS APNs requires a custom notification category (`RSVP_QUICK`) registered at app launch — handled in `AppDelegate.swift` + Capacitor push registration.
+- Android FCM uses notification action buttons via the existing FCM service worker (`public/sw.js`) and the native push plugin.
+
+**Frontend**
+- `sw.js` notification click handler routes the action ID → `quick-rsvp` edge function call → silent toast on next app open.
+- Native: `PushNotifications.addListener('pushNotificationActionPerformed')` handles the same.
+- Where the push targets multiple kids of one parent, only the "Going for all" / "Open app to choose" actions are shown (avoids overflowing the 3-action limit).
+
+---
+
+### Database Changes
+
+- **`rsvp_nudge_log`** — records every nudge: event_id, sent_by, sent_at, recipients_count. Enforces 24h-per-event cooldown and powers a future "nudge effectiveness" metric.
+- No changes to `rsvps`, `events`, or push tables.
+
+### Security
+
+- `send-rsvp-nudge` validates JWT, confirms requester has coach/team_admin/club_admin role for the event's team or club (mirrors `send-event-view-reminder`'s authorization block).
+- `quick-rsvp` validates JWT and confirms the requester is the parent of `childId` (or the staff user themselves).
+- `rsvp_nudge_log` RLS: insert via edge function only (service role), select limited to admins of the same team/club.
+
+### Build Order
+
+1. **Migration** — create `rsvp_nudge_log` table + RLS.
+2. **Backend** — `send-rsvp-nudge` edge function + `quick-rsvp` edge function.
+3. **Frontend** — Nudge button on event page, red-dots UI, summary chip.
+4. **Push payload** — extend `send-push-notification` to attach RSVP action buttons when `data.kind === "rsvp_reminder"`; update `sw.js` and native push listeners to handle action clicks.
+5. **iOS only** — register `RSVP_QUICK` category in `AppDelegate.swift`.
+
+### Out of Scope (deferred from the 12-lever list)
+
+- Auto-reminder cadence cron (T-72h/T-24h/T-3h)
+- Default-to-Going for regulars
+- SMS fallback
+- Squad availability live view
+- Streaks/badges, smart silence detection
+
+These can come in the next sprint once we have nudge + quick-RSVP telemetry to measure lift.
