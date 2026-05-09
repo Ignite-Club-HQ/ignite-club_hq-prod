@@ -57,7 +57,7 @@ export function scrollChatToBottom(
   setTimeout(() => {
     if (options.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
     const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-    if (distance > 80) return;
+    if (!options.force && distance > 80) return;
     snap();
   }, 150);
 
@@ -70,7 +70,7 @@ export function scrollChatToBottom(
         if (options.force ? isViewportTouching(viewport) : isViewportUserActive(viewport)) return;
         const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
         // Allow a wider tolerance here since keyboard can shift layout abruptly
-        if (distance > 400) return;
+        if (!options.force && distance > 400) return;
         snap();
       }, delay);
     });
