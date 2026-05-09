@@ -173,9 +173,6 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
         {!compact && preview?.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">{preview.description}</p>
         )}
-        {!preview?.title && preview !== null && (
-          <p className="text-sm font-medium truncate">{preview.title}</p>
-        )}
         <p className="text-xs text-muted-foreground truncate mt-0.5 text-left max-w-full">
           {url.length > 50 ? url.slice(0, 47) + '…' : url}
         </p>
