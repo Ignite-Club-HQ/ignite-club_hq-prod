@@ -1811,9 +1811,8 @@ export default function GroupChatPage() {
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
-            scrollAreaRef={scrollAreaRef}
-            loadTriggerRef={loadTriggerRef}
-            messagesEndRef={messagesEndRef}
+            virtualHandleRef={virtualHandleRef}
+            keepVirtualizedInSearch
             renderRow={(msg, index, arr) => {
               const isOwnMessage = msg.author_id === user?.id;
               const messageReactions = messageReactionsMap.get(msg.id) || [];
