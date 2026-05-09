@@ -161,6 +161,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const atBottomRef = useRef(true);
+  const bottomPinReadyRef = useRef(false);
   const messagesLengthRef = useRef(messages.length);
   messagesLengthRef.current = messages.length;
 
@@ -189,6 +190,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (!baseFirstId || baseOffset === -1) {
       bottomPinRevisionRef.current += 1;
       bottomPinRevision = bottomPinRevisionRef.current;
+      bottomPinReadyRef.current = false;
       anchorRef.current = {
         baseFirstId: newFirstId,
         baseFirstIndex: START_INDEX - messages.length,
@@ -218,9 +220,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let r2 = 0;
     const r1 = requestAnimationFrame(() => {
       jump();
-      r2 = requestAnimationFrame(jump);
+      r2 = requestAnimationFrame(() => {
+        jump();
+        bottomPinReadyRef.current = true;
+      });
     });
-    const t = window.setTimeout(jump, 200);
+    const t = window.setTimeout(() => {
+      jump();
+      bottomPinReadyRef.current = true;
+    }, 200);
     return () => {
       cancelAnimationFrame(r1);
       if (r2) cancelAnimationFrame(r2);
@@ -230,6 +238,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [bottomPinRevision]);
 
   const handleStartReached = useCallback(() => {
+    if (!bottomPinReadyRef.current) return;
     if (!hasOlder || isLoadingOlder) return;
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
