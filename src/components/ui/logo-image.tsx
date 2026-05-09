@@ -53,6 +53,31 @@ export function preloadLogo(src: string | null | undefined) {
   });
 }
 
+// Synchronous module-init warm-up: as soon as this module is parsed (well before
+// React mounts the AppHeader / ClubThemeProvider), scan localStorage for any
+// cached club theme and start fetching+decoding its logo. This eliminates the
+// "logo loads in after a beat" flash on cold home-page loads — by the time the
+// header renders, the bytes are already in the HTTP cache (and usually decoded).
+if (typeof window !== "undefined") {
+  try {
+    const PREFIX = "ignite-club-theme-data-";
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(PREFIX)) continue;
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw) as { logoUrl?: string | null };
+        if (parsed?.logoUrl) preloadLogo(parsed.logoUrl);
+      } catch {
+        /* ignore malformed entry */
+      }
+    }
+  } catch {
+    /* localStorage unavailable — ignore */
+  }
+}
+
 /**
  * Image component with built-in error fallback. Eager-loaded so the club
  * logo never appears as a "loading later" element in the top nav after
