@@ -571,6 +571,27 @@ export function ChatMembersSheet({
                   </Button>
                 )}
               </div>
+
+              {/* Self push notifications status */}
+              {user && pushReachable && (notifPrefs?.[user.id] === false || pushReachable[user.id] === false) && (
+                <div className="mb-3 rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Bell className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">Notifications are off</p>
+                      <p className="text-xs text-muted-foreground">
+                        Turn them on so you never miss messages.
+                      </p>
+                    </div>
+                    <Button size="sm" className="h-8" onClick={() => setSelfNudgeOpen(true)}>
+                      Enable
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <ScrollArea className="h-[calc(100vh-180px)]">
                 {membersLoading ? (
                   <div className="flex justify-center py-8">
