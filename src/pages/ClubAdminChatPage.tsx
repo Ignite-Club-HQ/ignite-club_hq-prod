@@ -285,7 +285,7 @@ export default function ClubAdminChatPage() {
       ? messagesData
       : (messagesData as any).messages || [];
     return [...msgList].sort((a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [messagesData]);
 
@@ -519,7 +519,7 @@ export default function ClubAdminChatPage() {
           fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [localMessages, searchQuery]);
 
@@ -605,7 +605,7 @@ export default function ClubAdminChatPage() {
               return {
                 ...old,
                 messages: [...filtered, { ...newMsg, author: null, reactions: [], reply_to: null }].sort(
-                  (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                  (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
                 ),
               };
             }
