@@ -934,6 +934,7 @@ function ChatMessageInner({
                         : "Add to gallery"}
                   </span>
                 </button>
+                ) : null}
               </div>
             )}
           </div>
