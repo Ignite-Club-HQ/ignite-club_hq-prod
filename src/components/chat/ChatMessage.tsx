@@ -126,6 +126,7 @@ function ChatMessageInner({
   isPublishingToGallery = false,
   onPublishToGallery,
 }: ChatMessageProps) {
+  const navigate = useNavigate();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
