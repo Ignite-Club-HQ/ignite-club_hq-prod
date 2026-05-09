@@ -11,18 +11,43 @@ interface LogoImageProps {
 // Warmed by `preloadLogo()` so that when the AppHeader mounts after login,
 // the club logo paints synchronously instead of flashing in after a
 // network round-trip + decode. Survives unmounts within the same tab.
+// Cap so long sessions (multi-club admins switching repeatedly) don't
+// accumulate unbounded decoded HTMLImageElements. Map insertion order
+// gives us LRU semantics — touching an entry re-inserts it at the tail.
+const MAX_PRELOADED_LOGOS = 24;
 const decodedLogoUrls = new Set<string>();
 const preloadedImages = new Map<string, HTMLImageElement>();
 
+function touchPreloadedLogo(src: string) {
+  const existing = preloadedImages.get(src);
+  if (!existing) return;
+  preloadedImages.delete(src);
+  preloadedImages.set(src, existing);
+}
+
+function evictPreloadedLogos() {
+  while (preloadedImages.size > MAX_PRELOADED_LOGOS) {
+    const oldest = preloadedImages.keys().next().value as string | undefined;
+    if (!oldest) break;
+    preloadedImages.delete(oldest);
+    decodedLogoUrls.delete(oldest);
+  }
+}
+
 export function preloadLogo(src: string | null | undefined) {
-  if (!src || preloadedImages.has(src)) return;
+  if (!src) return;
+  if (preloadedImages.has(src)) {
+    touchPreloadedLogo(src);
+    return;
+  }
   const img = new Image();
   img.decoding = "sync";
   img.fetchPriority = "high" as HTMLImageElement["fetchPriority"];
   img.src = src;
   preloadedImages.set(src, img);
+  evictPreloadedLogos();
   img.decode?.().then(() => {
-    decodedLogoUrls.add(src);
+    if (preloadedImages.has(src)) decodedLogoUrls.add(src);
   }).catch(() => {
     /* ignore — onError on the visible <img> handles the fallback */
   });
