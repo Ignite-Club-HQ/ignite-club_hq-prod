@@ -101,6 +101,7 @@ const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] 
 export default function ClubAdminChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
