@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { useChatVirtualizationFlag } from "@/hooks/useChatVirtualizationFlag";
 import {
   VirtualizedChatMessageList,
@@ -72,6 +72,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     : Math.max(160, composerHeight + 48);
 
   const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
+  const setVirtualScrollerRef = useCallback((element: HTMLElement | Window | null) => {
+    const next = element instanceof HTMLElement ? element : null;
+    (scrollAreaRef as MutableRefObject<HTMLDivElement | null>).current = next as HTMLDivElement | null;
+  }, [scrollAreaRef]);
 
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
@@ -118,6 +122,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           renderItem={renderVirtualRow}
           topPadding={0}
           bottomPadding={bottomPad}
+          scrollerRef={setVirtualScrollerRef}
         />
       </div>
     );
