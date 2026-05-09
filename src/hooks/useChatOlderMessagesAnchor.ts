@@ -157,7 +157,13 @@ export function useChatOlderMessagesAnchor({
     );
 
     observer.observe(trigger);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (pendingTriggerTimerRef.current !== null) {
+        window.clearTimeout(pendingTriggerTimerRef.current);
+        pendingTriggerTimerRef.current = null;
+      }
+    };
   }, [
     scrollContainerRef,
     loadTriggerRef,
