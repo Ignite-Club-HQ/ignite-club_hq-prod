@@ -17,6 +17,7 @@ interface LinkPreviewProps {
   url: string;
   onRemove?: () => void;
   compact?: boolean;
+  reserveSpace?: boolean;
 }
 
 // Module-level cache so the same URL never refetches across remounts AND
@@ -71,7 +72,7 @@ async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
   return p;
 }
 
-export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps) {
+export function LinkPreview({ url, onRemove, compact = false, reserveSpace = false }: LinkPreviewProps) {
   const skipPreview = isAppDomain(url);
   // Synchronous cache hit → render the final card on the very first commit,
   // which is what makes repeat-mount (re-render during scroll) jolt-free.
@@ -118,9 +119,14 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, skipPreview]);
 
-  // Render NOTHING until we have a definitive answer. Previously this
-  // returned a "Loading preview..." spinner row that reserved ~24px and
-  // then collapsed/grew, contributing to the same scroll jolt.
+  // In chat history, reserve the final card height immediately so a fetched
+  // preview does not insert ~80px above/inside the viewport during a fast
+  // upward flick. Composer previews opt out, so typing a URL doesn't create
+  // a blank card before the fetch returns.
+  if (!skipPreview && reserveSpace && preview === undefined) {
+    return <div className="h-20 w-full max-w-full min-w-0" aria-hidden="true" />;
+  }
+
   if (skipPreview || preview === undefined || preview === null) {
     return null;
   }
@@ -134,7 +140,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
 
   return (
     <div
-      className="flex w-full max-w-full min-w-0 box-border items-start gap-3 overflow-hidden rounded-lg border border-border/40 bg-muted/80 px-3 py-2 transition-opacity cursor-pointer active:opacity-80 dark:bg-muted/60"
+      className="flex min-h-20 w-full max-w-full min-w-0 box-border items-start gap-3 overflow-hidden rounded-lg border border-border/40 bg-muted/80 px-3 py-2 transition-opacity cursor-pointer active:opacity-80 dark:bg-muted/60"
       onClick={handleCardClick}
       onTouchEnd={(e) => e.stopPropagation()}
       role="link"
