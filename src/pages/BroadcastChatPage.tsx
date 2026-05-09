@@ -1033,14 +1033,11 @@ export default function BroadcastChatPage() {
             hasOlderMessages={hasOlderMessages}
             isLoadingOlder={isLoadingOlder}
             onLoadOlder={loadOlderMessages}
-            searchQuery={searchQuery}
             isPinned={isPinned}
-            isNativeIOS={isNativeIOS}
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
             virtualHandleRef={virtualHandleRef}
-            keepVirtualizedInSearch
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
