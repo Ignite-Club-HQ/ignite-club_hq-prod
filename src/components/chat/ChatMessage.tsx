@@ -885,9 +885,15 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
-            {/* Inline "Add to gallery" chip — only on own image messages */}
-            {canPublishToGallery && isOwn && imageUrl && onPublishToGallery && !id.startsWith("queued-") && (
-              <div className={`mt-1 flex ${isOwn ? "justify-end" : "justify-start"}`}>
+            {/* Inline "Add to gallery" chip — only on own image messages.
+                Reserve a fixed-height slot whenever this is an own image
+                message that isn't queued, so that the chip appearing once
+                permissions hydrate (canPublishToGallery / onPublishToGallery)
+                never grows the row mid-scroll and pushes everything below
+                it downward during a fast upward flick. */}
+            {isOwn && imageUrl && !id.startsWith("queued-") && (
+              <div className={`mt-1 flex h-7 items-center ${isOwn ? "justify-end" : "justify-start"}`}>
+                {canPublishToGallery && onPublishToGallery ? (
                 <button
                   type="button"
                   disabled={isPublishingToGallery || isPublishedToGallery}
