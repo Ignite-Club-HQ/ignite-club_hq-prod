@@ -332,7 +332,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         {otherUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
             {otherUrls.map((url) => (
-              <LinkPreview key={url} url={url} compact />
+              <LinkPreview key={url} url={url} compact reserveSpace />
             ))}
           </div>
         )}
