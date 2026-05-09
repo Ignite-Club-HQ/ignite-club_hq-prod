@@ -117,15 +117,17 @@ export default function BroadcastChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const useVirtualizedChat = !searchQuery;
+  const useVirtualizedChat = true;
+  // Legacy DOM refs are no longer attached (Virtuoso owns scroll). Kept as
+  // null refs for any non-scroll code paths that still pass them around.
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
-  
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
+
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef, enabled: !useVirtualizedChat });
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -150,7 +152,7 @@ export default function BroadcastChatPage() {
   }, [user, refreshUnreadCount, queryClient]);
   
   const scrollToBottom = useCallback(() => {
-    scrollChatToBottom(scrollAreaRef.current);
+    virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
   const targetMessageId = searchParams.get("message");
@@ -158,9 +160,10 @@ export default function BroadcastChatPage() {
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).
   useEffect(() => {
     if (!targetMessageId) return;
-    const cancel = scrollToTargetMessageWhenReady(
+    const cancel = jumpToMessageInVirtualizedChat(
       targetMessageId,
-      scrollAreaRef.current,
+      () => localMessagesRef.current ?? [],
+      () => virtualHandleRef.current,
       setHighlightedMessageId,
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
