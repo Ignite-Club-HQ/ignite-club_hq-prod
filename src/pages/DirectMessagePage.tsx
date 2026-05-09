@@ -198,6 +198,8 @@ export default function DirectMessagePage() {
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const loadOlderMessagesRef = useRef<(() => void) | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
