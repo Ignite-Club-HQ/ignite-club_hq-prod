@@ -452,6 +452,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [topPadding, bottomPadding],
   );
 
+  // Attach a debug watcher to Virtuoso's real scroll element so we can flag
+  // foreign `scrollTop` writes (legacy chat hooks fighting Virtuoso for
+  // ownership of the same scroller — the canonical cause of "rows stacking
+  // on top of each other" on fast scroll).
+  const wrappedScrollerRef = useCallback(
+    (element: HTMLElement | Window | null) => {
+      debugAttachScrollerWatcher(element);
+      scrollerRef?.(element);
+    },
+    [scrollerRef],
+  );
+
   return (
     <Virtuoso
       ref={virtuosoRef}
