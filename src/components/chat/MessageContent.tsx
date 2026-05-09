@@ -352,6 +352,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           // and momentum-scrolling halts the moment the user's finger
           // crosses an image while flicking through history.
           style={{ width: 240, maxWidth: '100%', touchAction: 'pan-y' }}
+          onTouchStart={stopMediaGesture}
+          onPointerDown={stopMediaGesture}
         >
           {/* Fixed-aspect frame so the bubble reserves its final height
               BEFORE the image decodes. Skeleton + image share the same box
@@ -361,7 +363,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               while images above the viewport hydrate. */}
           <div className="relative w-full aspect-[4/3] bg-muted/40">
             {(!imageLoaded || isLoadingSignedUrl) && (
-              <Skeleton className="absolute inset-0 w-full h-full" />
+              <Skeleton className="absolute inset-0 w-full h-full pointer-events-none" />
             )}
             {!isLoadingSignedUrl && effectiveImageUrl && (
               isVideoUrl(effectiveImageUrl) ? (
