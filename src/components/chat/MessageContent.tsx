@@ -408,10 +408,14 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   width={240}
                   height={180}
                   decoding="async"
-                  loading="lazy"
+                  // Eager loading prevents virtuoso row remounts from
+                  // re-triggering the lazy intersection observer, which is
+                  // what causes images to "shake" / flash when scrolling
+                  // through history at speed.
+                  loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
