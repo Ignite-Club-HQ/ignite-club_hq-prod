@@ -332,7 +332,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // Estimate so off-screen rows reserve realistic space; otherwise
       // virtuoso uses tiny placeholders that grow on mount and shift the
       // scrollbar/scrollTop while the user is scrolling.
-      defaultItemHeight={112}
+      defaultItemHeight={140}
       heightEstimates={heightEstimates}
       // Keep a generous upward viewport for smooth back-scrolling. Don't
       // also set `overscan` — virtuoso applies both and the interaction
