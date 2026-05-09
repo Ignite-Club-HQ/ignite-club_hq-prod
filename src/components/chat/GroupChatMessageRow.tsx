@@ -31,6 +31,7 @@ import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { MessageReactionsPopover } from "./MessageReactions";
+import { ReplyIndicator } from "./ReplyPreview";
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -395,12 +396,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </span>
           </div>
 
-          {replyPreview && (
-            <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
-              <span className="font-medium">{replyPreview.author?.display_name || "..."}: </span>
-              <span className="line-clamp-1">{replyPreview.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
-            </div>
-          )}
+          <ReplyIndicator
+            replyToMessage={replyPreview ? { text: replyPreview.text, authorName: replyPreview.author?.display_name || null } : null}
+            isOwn={isOwnMessage}
+          />
 
           <div className="relative min-w-0 max-w-full group/msg">
             {/* Swipe indicator - text only, shown when past threshold */}

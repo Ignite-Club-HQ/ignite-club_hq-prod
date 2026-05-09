@@ -48,7 +48,13 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
   // flick adds a ~32px pill above the user's bubble and visibly drops the
   // message they're reading.
   const [committed, setCommitted] = useState(replyToMessage ?? null);
+  const committedRef = useRef(committed);
   const firstRenderRef = useRef(true);
+
+  const commit = (next: typeof committed) => {
+    committedRef.current = next;
+    setCommitted(next);
+  };
 
   useEffect(() => {
     if (firstRenderRef.current) {
@@ -58,7 +64,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
     const next = replyToMessage ?? null;
     // Cheap structural compare — only height-affecting changes need to
     // wait for idle. Same identity ⇒ no commit.
-    const prev = committed;
+    const prev = committedRef.current;
     const same =
       (prev === null && next === null) ||
       (prev !== null &&
@@ -67,7 +73,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
         prev.authorName === next.authorName);
     if (same) return;
 
-    const cancel = runWhenChatScrollIdle(() => setCommitted(next), 250);
+    const cancel = runWhenChatScrollIdle(() => commit(next), 250);
     return cancel;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyToMessage?.text, replyToMessage?.authorName]);
