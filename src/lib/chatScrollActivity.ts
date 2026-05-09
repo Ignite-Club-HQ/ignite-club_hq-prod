@@ -103,6 +103,7 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
 
     const viewport = findChatViewport(element);
     if (!viewport) return;
+    if (viewport.closest('[data-chat-virtualized="true"]')) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
