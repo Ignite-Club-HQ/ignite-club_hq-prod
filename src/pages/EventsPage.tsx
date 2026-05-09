@@ -442,24 +442,12 @@ export default function EventsPage() {
       });
 
       // In calendar view we render a specific day, so showing every recurring
-      // occurrence is desirable.
-      // In list view we cap recurring SERIES to avoid flooding with months of
-      // future occurrences — but we exclude trainings from the cap so parents
-      // always see every upcoming training in the fetch window. Without this,
-      // edge cases (parent series rows landing earlier in the sort, multiple
-      // overlapping series, or duplicate seriesKeys) could silently hide
-      // trainings even though they exist and notifications fire correctly.
-      let finalEvents: Event[];
-      if (viewMode === "calendar") {
-        finalEvents = filteredData as Event[];
-      } else {
-        const trainings = (filteredData as Event[]).filter((e) => e.type === "training");
-        const nonTrainings = filteredData.filter((e) => e.type !== "training");
-        const capped = filterRecurringEvents(nonTrainings) as Event[];
-        finalEvents = [...capped, ...trainings].sort(
-          (a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime(),
-        );
-      }
+      // occurrence is desirable. In list view we cap recurring SERIES to
+      // avoid flooding with months of future occurrences.
+      const finalEvents: Event[] =
+        viewMode === "calendar"
+          ? (filteredData as Event[])
+          : (filterRecurringEvents(filteredData) as Event[]);
 
       // Cache for offline use
       cacheEventsList(eventsScopeKey, finalEvents);
