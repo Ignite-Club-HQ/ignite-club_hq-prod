@@ -49,6 +49,11 @@ export function usePhotoViewCounts(photoIds: string[]) {
     },
     enabled: photoIds.length > 0,
     staleTime: 60 * 1000,
+    // Keep previously-fetched counts visible while a new id set (e.g. next
+    // infinite-scroll page) is loading. Without this, the query key change
+    // briefly returns `undefined` and every view badge flickers to hidden
+    // before reappearing once the refetch resolves.
+    placeholderData: (prev) => prev,
   });
 }
 
