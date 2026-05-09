@@ -2798,6 +2798,47 @@ export type Database = {
           },
         ]
       }
+      event_reminder_log: {
+        Row: {
+          channels: string
+          emails_sent: number
+          event_id: string
+          id: string
+          pushes_sent: number
+          recipients_count: number
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          channels?: string
+          emails_sent?: number
+          event_id: string
+          id?: string
+          pushes_sent?: number
+          recipients_count?: number
+          sent_at?: string
+          sent_by: string
+        }
+        Update: {
+          channels?: string
+          emails_sent?: number
+          event_id?: string
+          id?: string
+          pushes_sent?: number
+          recipients_count?: number
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminder_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_session_drills: {
         Row: {
           added_at: string
