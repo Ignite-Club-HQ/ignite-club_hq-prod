@@ -97,6 +97,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // the list has real data; otherwise the wrapper can stay opacity:0 (blank)
   // and `startReached` can be called before the first bottom pin completes.
   const virtualReady = !useVirtualized || !!searchQuery || messages.length > 0;
+  const lastMessageId = messages[messages.length - 1]?.id;
 
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
@@ -116,7 +117,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad]);
+  }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId]);
 
   if (useVirtualized && !searchQuery) {
     // CRITICAL: keep per-row wrapper *identical* for every index. Any
