@@ -472,8 +472,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       data={uniqueMessages}
       firstItemIndex={firstItemIndex}
       initialTopMostItemIndex={{ index: "LAST", align: "end", behavior: "auto" }}
-      alignToBottom
+      // NOTE: `alignToBottom` was removed. With anchored prepends
+      // (`firstItemIndex` shifting backwards by the page size), `alignToBottom`
+      // pins the BOTTOM of the viewport when content grows above the current
+      // scroll position. The visible result is exactly the reported symptom:
+      // user scrolls up, hits the top of the loaded set, the older page lands
+      // ~1–2s later, and the viewport "jumps higher" to messages they never
+      // scrolled through — because the bottom-anchor lets the topmost visible
+      // row swap to a much older one. The initial-mount bottom pin is already
+      // handled by `initialTopMostItemIndex={LAST, end}` and the belt-and-
+      // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
+      // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
+      // Fire the older-fetch BEFORE the user hard-stops at scrollTop=0. When
+      // the fetch lands inside the same gesture (rather than after the user
+      // already stopped and waited), the anchored prepend reads as "kept
+      // scrolling smoothly" instead of "teleported to older messages".
+      startReachedThreshold={1200}
       atBottomStateChange={handleAtBottomChange}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
