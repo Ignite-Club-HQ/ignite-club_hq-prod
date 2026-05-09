@@ -102,19 +102,29 @@ export function useChatOlderMessagesAnchor({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    // rAF-throttle: a fast flick fires dozens of "scroll" events per frame.
+    // Reading scrollHeight/clientHeight/scrollTop on every one of them
+    // forces the browser to flush pending layout, stuttering the flick.
+    // Coalesce to a single read per frame.
+    let scheduled = false;
     const onScroll = () => {
-      const distance =
-        container.scrollHeight - container.clientHeight - container.scrollTop;
-      if (distance < 200) return;
-      lastScrollAtRef.current = performance.now();
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        const distance =
+          container.scrollHeight - container.clientHeight - container.scrollTop;
+        if (distance < 200) return;
+        lastScrollAtRef.current = performance.now();
 
-      // Fallback for real devices where the top IntersectionObserver can miss
-      // after browser UI/address-bar resize: if the user is physically at the
-      // top, queue one older-page load after momentum settles.
-      if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
-        const trigger = loadTriggerRef.current;
-        if (trigger) scheduleTriggerWhenIdle(container, trigger);
-      }
+        // Fallback for real devices where the top IntersectionObserver can miss
+        // after browser UI/address-bar resize: if the user is physically at the
+        // top, queue one older-page load after momentum settles.
+        if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
+          const trigger = loadTriggerRef.current;
+          if (trigger) scheduleTriggerWhenIdle(container, trigger);
+        }
+      });
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
