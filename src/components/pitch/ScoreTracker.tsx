@@ -897,6 +897,44 @@ export default function ScoreTracker({
                     </button>
                   ))}
                 </>
+              ) : selectedGoalType === "opponent" ? (
+                <>
+                  {/* Opponent goal: unknown opponent scorer */}
+                  <button
+                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                    onClick={() => handleSelectScorer(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{opponentName} goal (unknown scorer)</span>
+                    </div>
+                  </button>
+
+                  <p className="text-[11px] text-muted-foreground pt-1">Own goal by one of our players:</p>
+                  {playersOnPitch.map((player) => (
+                    <button
+                      key={`og-${player.id}`}
+                      className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                      onClick={() => handleSelectOwnGoal(player)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-destructive" />
+                        {player.number && (
+                          <Badge variant="outline" className="text-xs">
+                            #{player.number}
+                          </Badge>
+                        )}
+                        <span className="font-medium text-sm">{player.name}</span>
+                        {player.currentPitchPosition && (
+                          <span className="text-xs text-muted-foreground">
+                            ({player.currentPitchPosition})
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground ml-auto">OG</span>
+                      </div>
+                    </button>
+                  ))}
+                </>
               ) : (
                 <>
                   {/* Regular mode: Unknown scorer option */}
