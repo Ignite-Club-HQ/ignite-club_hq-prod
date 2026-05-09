@@ -136,6 +136,7 @@ export interface Goal {
   time: number; // Game seconds when scored
   half: 1 | 2;
   isOpponentGoal: boolean;
+  isOwnGoal?: boolean; // Goal credited to opposing side but scored by one of our players
   teamSide?: "a" | "b"; // For mini-league mode: which team scored
 }
 

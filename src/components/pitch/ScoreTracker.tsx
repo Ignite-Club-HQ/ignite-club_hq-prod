@@ -100,15 +100,9 @@ export default function ScoreTracker({
       setSelectedGoalType("teamB");
       setShowGoalSheet(true);
     } else {
-      const newGoal: Goal = {
-        id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        time: elapsedSeconds,
-        half: currentHalf,
-        isOpponentGoal: true,
-      };
-      setShowGoalSheet(false);
-      setSelectedGoalType(null);
-      setPendingGoal({ goal: newGoal, label: `${opponentName} goal` });
+      // Open sheet so the user can pick "Unknown" or "Own Goal by ..."
+      setSelectedGoalType("opponent");
+      setShowGoalSheet(true);
     }
   };
 
@@ -125,8 +119,27 @@ export default function ScoreTracker({
     };
     const scorerLabel = player?.name
       ? `${player.number ? `#${player.number} ` : ''}${player.name}`
-      : "Unknown / Own Goal";
+      : selectedGoalType === "opponent"
+        ? `${opponentName} goal`
+        : "Unknown / Own Goal";
     setPendingGoal({ goal: newGoal, label: scorerLabel });
+    setShowGoalSheet(false);
+    setSelectedGoalType(null);
+  };
+
+  // Own goal: scored by one of OUR players, credited to the opposing side.
+  const handleSelectOwnGoal = (player: Player) => {
+    const newGoal: Goal = {
+      id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      scorerId: player.id,
+      scorerName: player.name,
+      time: elapsedSeconds,
+      half: currentHalf,
+      isOpponentGoal: true,
+      isOwnGoal: true,
+    };
+    const label = `Own Goal — ${player.number ? `#${player.number} ` : ''}${player.name}`;
+    setPendingGoal({ goal: newGoal, label });
     setShowGoalSheet(false);
     setSelectedGoalType(null);
   };
@@ -331,13 +344,42 @@ export default function ScoreTracker({
                       <p className="text-sm font-medium text-muted-foreground">{opponentName} Goal</p>
                       <button
                         className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
-                        onClick={handleAddOpponentGoal}
+                        onClick={() => {
+                          const newGoal: Goal = {
+                            id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            time: elapsedSeconds,
+                            half: currentHalf,
+                            isOpponentGoal: true,
+                          };
+                          setShowGoalSheet(false);
+                          setSelectedGoalType(null);
+                          setPendingGoal({ goal: newGoal, label: `${opponentName} goal` });
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <Target className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium text-sm">Add {opponentName} Goal</span>
                         </div>
                       </button>
+                      <p className="text-[11px] text-muted-foreground pt-1">Own goal by one of our players:</p>
+                      {playersOnPitch.map((player) => (
+                        <button
+                          key={`og-${player.id}`}
+                          className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                          onClick={() => handleSelectOwnGoal(player)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Target className="h-4 w-4 text-destructive" />
+                            {player.number && (
+                              <Badge variant="outline" className="text-xs">
+                                #{player.number}
+                              </Badge>
+                            )}
+                            <span className="font-medium text-sm">{player.name}</span>
+                            <span className="text-[10px] text-muted-foreground ml-auto">OG</span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </>
                 )}
@@ -393,6 +435,7 @@ export default function ScoreTracker({
                             </Badge>
                             <span className="font-medium text-sm truncate">
                               {goal.scorerName || (isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : "Unknown")}
+                              {goal.isOwnGoal && <span className="ml-1 text-[10px] text-destructive">(OG)</span>}
                             </span>
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -791,7 +834,7 @@ export default function ScoreTracker({
                         {goal.scorerName}
                       </span>
                     )}
-                    {!isMiniLeague && goal.isOpponentGoal && <span>Opp</span>}
+                    {!isMiniLeague && goal.isOpponentGoal && <span>{goal.isOwnGoal ? "OG" : "Opp"}</span>}
                     {isMiniLeague && !goal.scorerName && (
                       <span>{goal.teamSide === "a" ? teamAName : teamBName}</span>
                     )}
@@ -851,6 +894,44 @@ export default function ScoreTracker({
                             ({player.currentPitchPosition})
                           </span>
                         )}
+                      </div>
+                    </button>
+                  ))}
+                </>
+              ) : selectedGoalType === "opponent" ? (
+                <>
+                  {/* Opponent goal: unknown opponent scorer */}
+                  <button
+                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                    onClick={() => handleSelectScorer(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{opponentName} goal (unknown scorer)</span>
+                    </div>
+                  </button>
+
+                  <p className="text-[11px] text-muted-foreground pt-1">Own goal by one of our players:</p>
+                  {playersOnPitch.map((player) => (
+                    <button
+                      key={`og-${player.id}`}
+                      className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                      onClick={() => handleSelectOwnGoal(player)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-destructive" />
+                        {player.number && (
+                          <Badge variant="outline" className="text-xs">
+                            #{player.number}
+                          </Badge>
+                        )}
+                        <span className="font-medium text-sm">{player.name}</span>
+                        {player.currentPitchPosition && (
+                          <span className="text-xs text-muted-foreground">
+                            ({player.currentPitchPosition})
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground ml-auto">OG</span>
                       </div>
                     </button>
                   ))}
@@ -947,6 +1028,7 @@ export default function ScoreTracker({
                           </Badge>
                           <span className="font-medium text-sm truncate">
                             {goal.scorerName || (isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : "Unknown")}
+                            {goal.isOwnGoal && <span className="ml-1 text-[10px] text-destructive">(OG)</span>}
                           </span>
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
