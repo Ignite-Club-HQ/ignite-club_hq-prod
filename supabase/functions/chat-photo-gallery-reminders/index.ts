@@ -25,9 +25,38 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
+    // Load admin-tunable settings (enabled flag + scan window).
+    let enabled = true;
+    let windowStartHours = 24;
+    let windowEndHours = 48;
+    try {
+      const { data: settingRow } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "chat_photo_gallery_reminders")
+        .maybeSingle();
+      const v = (settingRow?.value ?? {}) as Record<string, unknown>;
+      if (typeof v.enabled === "boolean") enabled = v.enabled;
+      if (typeof v.window_start_hours === "number") windowStartHours = v.window_start_hours;
+      if (typeof v.window_end_hours === "number") windowEndHours = v.window_end_hours;
+    } catch (e) {
+      console.warn("[chat-photo-reminders] settings lookup failed, using defaults", e);
+    }
+
+    if (!enabled) {
+      return new Response(
+        JSON.stringify({ ok: true, disabled: true, scanned: 0, posted: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Normalize window so start < end.
+    const startH = Math.max(1, Math.min(windowStartHours, windowEndHours));
+    const endH = Math.max(startH + 1, Math.max(windowStartHours, windowEndHours));
+
     const now = Date.now();
-    const lower = new Date(now - 48 * 60 * 60 * 1000).toISOString();
-    const upper = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const lower = new Date(now - endH * 60 * 60 * 1000).toISOString();
+    const upper = new Date(now - startH * 60 * 60 * 1000).toISOString();
 
     // Pull candidate chat-image messages in the window.
     const { data: msgs, error: msgsError } = await supabase
