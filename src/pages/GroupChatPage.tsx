@@ -599,8 +599,8 @@ export default function GroupChatPage() {
     if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -1563,7 +1563,7 @@ export default function GroupChatPage() {
       return;
     }
     setReplyTo(msg);
-    setTimeout(() => scrollToBottom(), 100);
+    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
     inputRef.current?.focus();
   };
 

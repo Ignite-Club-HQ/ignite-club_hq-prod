@@ -554,8 +554,8 @@ export default function DirectMessagePage() {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -1276,7 +1276,7 @@ export default function DirectMessagePage() {
                             ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
                             : null
                         }
-                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollToBottom(), 100); }}
+                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100); }}
                         onEdit={handleEdit}
                       />
                     </div>

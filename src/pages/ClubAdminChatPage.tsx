@@ -362,8 +362,8 @@ export default function ClubAdminChatPage() {
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length, isKeyboardOpen, nativeKbHeight]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
@@ -810,7 +810,7 @@ export default function ClubAdminChatPage() {
                         }
                         onReply={() => {
                           setReplyTo(msg);
-                          setTimeout(() => scrollToBottom(), 100);
+                          setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
                         }}
                         onEdit={handleEdit}
                       />

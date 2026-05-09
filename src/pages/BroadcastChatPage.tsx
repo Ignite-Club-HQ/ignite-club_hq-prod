@@ -351,8 +351,8 @@ export default function BroadcastChatPage() {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
     if (useVirtualizedChat) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -777,7 +777,7 @@ export default function BroadcastChatPage() {
       return;
     }
     setReplyingTo(m);
-    setTimeout(() => scrollToBottom(), 100);
+    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
   }, [toast, scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);

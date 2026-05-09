@@ -660,8 +660,8 @@ export default function TeamChatPage() {
     if (useVirtualizedChat) return;
     if (!isReplyOrEdit && isUserActive()) return;
     if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
-    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit });
-  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat]);
+    scrollChatToBottom(scrollAreaRef.current, { persistent: isReplyOrEdit, force: isReplyOrEdit });
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length, useVirtualizedChat, isKeyboardOpen, nativeKbHeight]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -1209,7 +1209,7 @@ export default function TeamChatPage() {
     }
     setReplyingTo(m);
     // Scroll to bottom after reply banner renders so latest message stays visible
-    setTimeout(() => scrollToBottom(), 100);
+    setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100);
   }, [scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
