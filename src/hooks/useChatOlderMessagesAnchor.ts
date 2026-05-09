@@ -107,10 +107,17 @@ export function useChatOlderMessagesAnchor({
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
 
+      // Fallback for real devices where the top IntersectionObserver can miss
+      // after browser UI/address-bar resize: if the user is physically at the
+      // top, queue one older-page load after momentum settles.
+      if (enabled && hasOlderMessages && !isLoadingOlder && container.scrollTop <= 160) {
+        const trigger = loadTriggerRef.current;
+        if (trigger) scheduleTriggerWhenIdle(container, trigger);
+      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, loadTriggerRef, enabled, hasOlderMessages, isLoadingOlder, scheduleTriggerWhenIdle]);
 
   // IntersectionObserver — pre-fetch BEFORE user reaches the top, but
   // refuse to fire while the user is actively scrolling.
@@ -238,6 +245,12 @@ export function useChatOlderMessagesAnchor({
 
   const queueAnchoredPrepend = useCallback((applyPrepend: () => void) => {
     const run = () => {
+      const sinceScroll = performance.now() - lastScrollAtRef.current;
+      if (sinceScroll < PREPEND_IDLE_GRACE_MS) {
+        pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS - sinceScroll + 40);
+        return;
+      }
+
       const apply = pendingPrependRef.current;
       pendingPrependRef.current = null;
       pendingPrependTimerRef.current = null;
@@ -250,6 +263,14 @@ export function useChatOlderMessagesAnchor({
     }
     pendingPrependTimerRef.current = window.setTimeout(run, PREPEND_IDLE_GRACE_MS);
   }, [anchoredPrepend]);
+
+  useEffect(() => () => {
+    if (pendingPrependTimerRef.current !== null) {
+      window.clearTimeout(pendingPrependTimerRef.current);
+      pendingPrependTimerRef.current = null;
+    }
+    pendingPrependRef.current = null;
+  }, []);
 
   return { anchoredPrepend, queueAnchoredPrepend };
 }
