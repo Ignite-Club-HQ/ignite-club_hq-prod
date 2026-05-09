@@ -213,19 +213,18 @@ export default function DirectMessagePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const virtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
-  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
-  const { isUserActive } = useChatUserScrollIntent(scrollAreaRef);
   const [composerHeight, setComposerHeight] = useState(112);
 
   // Mark direct message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !conversationId) return;
-    
+
     const markNotificationsAsRead = async () => {
       await supabase
         .from("notifications")
@@ -234,19 +233,18 @@ export default function DirectMessagePage() {
         .eq("type", "direct_message")
         .eq("related_id", conversationId)
         .eq("is_read", false);
-      
+
       // Refresh unread counts
       refreshUnreadCount();
       queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
     };
-    
+
     markNotificationsAsRead();
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
-    if (isUserActive()) return;
-    scrollChatToBottom(scrollAreaRef.current);
-  }, [isUserActive]);
+    virtualHandleRef.current?.scrollToBottom("auto");
+  }, []);
 
   const targetMessageId = searchParams.get("message");
 
