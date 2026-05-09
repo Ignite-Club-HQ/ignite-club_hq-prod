@@ -755,6 +755,33 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_photo_gallery_reminders: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          message_id: string | null
+          photo_count: number
+          team_id: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          photo_count?: number
+          team_id: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          photo_count?: number
+          team_id?: string
+        }
+        Relationships: []
+      }
       child_club_points: {
         Row: {
           child_id: string
@@ -8857,6 +8884,15 @@ export type Database = {
           _type: string
         }
         Returns: undefined
+      }
+      post_chat_photo_gallery_reminder: {
+        Args: {
+          _author_id: string
+          _photo_count: number
+          _system_user_id: string
+          _team_id: string
+        }
+        Returns: string
       }
       post_or_update_team_gallery_card: {
         Args: {
