@@ -3,11 +3,23 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import {
+  debugAttachScrollerWatcher,
+  debugLogAnchor,
+  debugLogBottomPin,
+  debugLogDuplicate,
+  debugLogFirstItemIndex,
+  debugLogMeasure,
+  debugLogStartReached,
+  debugTrackRender,
+  isChatVirtDebugEnabled,
+} from "./chatVirtDebug";
 
 /**
  * Virtualised chat message list.
