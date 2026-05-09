@@ -245,6 +245,16 @@ export function useChatOlderMessagesAnchor({
   );
 
   const queueAnchoredPrepend = useCallback((applyPrepend: () => void) => {
+    const container = scrollContainerRef.current;
+    // In virtualized mode, Virtuoso owns prepend anchoring through
+    // `firstItemIndex`. The legacy scrollHeight/scrollTop correction below
+    // double-anchors the same prepend and visibly moves rows when momentum
+    // stops, especially in image-heavy chats.
+    if (container?.closest?.('[data-chat-virtualized="true"]')) {
+      applyPrepend();
+      return;
+    }
+
     const run = () => {
       const sinceScroll = performance.now() - lastScrollAtRef.current;
       if (sinceScroll < PREPEND_IDLE_GRACE_MS) {
