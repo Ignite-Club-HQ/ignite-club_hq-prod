@@ -1212,76 +1212,76 @@ export default function DirectMessagePage() {
       )}
 
       {/* Messages area */}
-      <div
-        ref={scrollAreaRef}
-        data-chat-scroll-lock="true"
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', opacity: isPinned ? 1 : 0, transition: 'opacity 120ms ease-out', pointerEvents: isPinned ? 'auto' : 'none', touchAction: 'pan-y' }}
-      >
-        <div className="p-4" style={{ paddingBottom: searchOpen ? "2rem" : isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
-          <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
-            {showLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
-              <ChatSearchLoadingState />
-            ) : filteredMessages?.length === 0 ? (
-              <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
-            ) : (
-              filteredMessages
-                .map((msg, index, filteredMessages) => {
-                const showDateSeparator = index === 0 || 
-                  !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
-
-                return (
-                  <div key={msg.id}>
-                    {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
-                    <div
-                      id={`message-${msg.id}`}
-                      className={`transition-colors duration-500 ${
-                        highlightedMessageId === msg.id
-                          ? "bg-primary/10 rounded-lg"
-                          : ""
-                      }`}
-                    >
-                      <ChatMessage
-                        id={msg.id}
-                        text={msg.text}
-                        imageUrl={msg.image_url}
-                        authorId={msg.author_id}
-                        authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
-                        timestamp={format(new Date(msg.created_at), "h:mm a")}
-                        isOwn={msg.author_id === user?.id}
-                        isAdmin={false}
-                        reactions={msg.reactions || []}
-                        currentUserId={user?.id}
-                        messageType="dm"
-                        searchQuery={searchQuery}
-                        readFrontierReaders={readFrontier[msg.id] || []}
-                        readCount={readCounts[msg.id] || 0}
-                        readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
-                        isLastMessage={index === filteredMessages.length - 1}
-                        queryKey={dmQueryKey}
-                        contextId={conversationId || ""}
-                        replyToMessage={
-                          msg.reply_to
-                            ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
-                            : null
-                        }
-                        hasReply={!!msg.reply_to_id}
-                        onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => scrollChatToBottom(scrollAreaRef.current, { persistent: true, force: true }), 100); }}
-                        onEdit={handleEdit}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
+      <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
+        {showLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        </div>
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+          <ChatSearchLoadingState />
+        ) : filteredMessages?.length === 0 ? (
+          <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
+        ) : (
+          <ChatMessagesScroller
+            messages={filteredMessages || []}
+            hasOlderMessages={false}
+            isLoadingOlder={false}
+            onLoadOlder={() => {}}
+            searchQuery={searchQuery}
+            isPinned={isPinned}
+            isNativeIOS={isNativeIOS}
+            isKeyboardOpen={isKeyboardOpen}
+            searchOpen={searchOpen}
+            composerHeight={composerHeight}
+            virtualHandleRef={virtualHandleRef}
+            keepVirtualizedInSearch
+            renderRow={(msg, index, arr) => {
+              const showDateSeparator = index === 0 ||
+                !isSameDay(new Date(msg.created_at), new Date(arr[index - 1]?.created_at));
+              return (
+                <>
+                  {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
+                      timestamp={format(new Date(msg.created_at), "h:mm a")}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={false}
+                      reactions={msg.reactions || []}
+                      currentUserId={user?.id}
+                      messageType="dm"
+                      searchQuery={searchQuery}
+                      readFrontierReaders={readFrontier[msg.id] || []}
+                      readCount={readCounts[msg.id] || 0}
+                      readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
+                      isLastMessage={index === arr.length - 1}
+                      queryKey={dmQueryKey}
+                      contextId={conversationId || ""}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                          : null
+                      }
+                      hasReply={!!msg.reply_to_id}
+                      onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
+                      onEdit={handleEdit}
+                    />
+                  </div>
+                </>
+              );
+            }}
+          />
+        )}
       </div>
 
       {/* Input area - Fixed at bottom above nav bar */}
