@@ -118,13 +118,12 @@ export default function ClubDetailPage() {
     e.stopPropagation();
     if (!id || broadcastingTeamId) return;
     setBroadcastingTeamId(teamId);
-    const res = await sendScheduleBroadcast(id, teamId);
+    const res: { ok: true } | { ok: false; error: string } = await sendScheduleBroadcast(id, teamId);
     setBroadcastingTeamId(null);
-    if (res.ok) {
+    if (res.ok === true) {
       toast({ title: "Schedule refreshed", description: `Pushed a refresh to all ${teamName} members.` });
     } else {
-      const errMsg = res.ok ? undefined : res.error;
-      toast({ title: "Couldn't refresh", description: errMsg, variant: "destructive" });
+      toast({ title: "Couldn't refresh", description: res.error, variant: "destructive" });
     }
   };
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
