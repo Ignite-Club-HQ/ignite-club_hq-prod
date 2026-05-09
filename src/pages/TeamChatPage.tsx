@@ -181,7 +181,7 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const useVirtualizedChat = !searchQuery;
+  const useVirtualizedChat = true;
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
