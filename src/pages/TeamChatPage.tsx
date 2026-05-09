@@ -593,7 +593,7 @@ export default function TeamChatPage() {
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
     return [...msgList].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [messagesData]);
 
@@ -649,7 +649,7 @@ export default function TeamChatPage() {
       Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || []
-    ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    ).sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
 
     setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
     setInfiniteScrollEnabled(false);
@@ -730,7 +730,7 @@ export default function TeamChatPage() {
             };
           });
       const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
@@ -1007,7 +1007,7 @@ export default function TeamChatPage() {
             
             // Add new message (from other user)
             const updatedMessages = [...existingMessages, messageToAdd].sort(
-              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
             );
             return { ...old, messages: updatedMessages };
           });
@@ -1407,7 +1407,7 @@ export default function TeamChatPage() {
           fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [localMessages, searchQuery]);
 

@@ -525,7 +525,7 @@ export default function GroupChatPage() {
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
     return [...msgList].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [messagesData]);
 
@@ -665,7 +665,7 @@ export default function GroupChatPage() {
         };
       });
       const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
@@ -976,7 +976,7 @@ export default function GroupChatPage() {
             
             // Add new message (from other user)
             const updatedMessages = [...old.messages, messageToAdd].sort(
-              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
             );
             return { ...old, messages: updatedMessages };
           });
@@ -1596,7 +1596,7 @@ export default function GroupChatPage() {
           fuzzyMatchesQuery(m.text, searchQuery)
         );
     return [...base].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [localMessages, searchQuery]);
 
