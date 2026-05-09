@@ -132,7 +132,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // messages get hidden behind the keyboard and they "can't see what they
   // just sent". Fires immediately and again after the keyboard animation.
   useEffect(() => {
-    if (!useVirtualized || searchQuery || !virtualReady) return;
+    if (!useVirtualized || !virtualReady) return;
     const handle = virtualHandleRef.current;
     if (!handle) return;
     const isReplyOrEditResize = composerHeight > 64;
@@ -179,7 +179,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       timeouts.forEach((id) => window.clearTimeout(id));
       vv?.removeEventListener("resize", onViewportResize);
     };
-  }, [useVirtualized, searchQuery, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId]);
+  }, [useVirtualized, virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId, virtualHandleRef]);
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
@@ -210,7 +210,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     [],
   );
 
-  if (useVirtualized && !searchQuery) {
+  if (useVirtualized) {
     return (
       <div
         className="flex-1 min-h-0 overflow-hidden"
