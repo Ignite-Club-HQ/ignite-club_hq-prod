@@ -1,4 +1,5 @@
-import { memo, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 
