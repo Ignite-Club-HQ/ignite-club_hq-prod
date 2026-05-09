@@ -61,6 +61,8 @@ interface Event {
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   usePageTitle("Schedule");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
