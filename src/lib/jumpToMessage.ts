@@ -1,4 +1,5 @@
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
+import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 
 const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
@@ -124,6 +125,89 @@ export function scrollToTargetMessageWhenReady(
   };
 
   // Defer first attempt so the messages list has a chance to mount.
+  setTimeout(tick, 50);
+
+  return () => {
+    cancelled = true;
+  };
+}
+
+/**
+ * Virtuoso-aware variant of `scrollToTargetMessageWhenReady`. Polls the
+ * caller-provided `messages` array until the target id appears, then drives
+ * the virtualised list via its imperative handle. If the message isn't in
+ * the loaded set, calls `tryLoadOlder` to page backwards and retries.
+ *
+ * Designed for chat pages migrated to `VirtualizedChatMessageList` where the
+ * legacy `document.getElementById('message-${id}')` lookup no longer works
+ * (rows outside Virtuoso's render window are not in the DOM).
+ */
+export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
+  messageId: string,
+  getMessages: () => TMessage[],
+  getHandle: () => VirtualizedChatMessageListHandle | null,
+  setHighlightedMessageId: (id: string | null) => void,
+  options: {
+    highlightDurationMs?: number;
+    maxAttempts?: number;
+    intervalMs?: number;
+    tryLoadOlder?: () => void;
+  } = {},
+) {
+  const {
+    highlightDurationMs = 2500,
+    maxAttempts = 40,
+    intervalMs = 150,
+    tryLoadOlder,
+  } = options;
+
+  let attempts = 0;
+  let cancelled = false;
+  let lastLoadOlderAttempt = -1;
+
+  const tick = () => {
+    if (cancelled) return;
+    attempts += 1;
+    const messages = getMessages();
+    const handle = getHandle();
+    const idx = messages.findIndex((m) => m.id === messageId);
+
+    if (idx >= 0 && handle) {
+      setHighlightedMessageId(messageId);
+      handle.scrollToIndex(idx, "center");
+      // Two follow-up settles (RAF + 350ms) compensate for image decode /
+      // late row measurement so the centred target stays centred.
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        const h2 = getHandle();
+        const idx2 = getMessages().findIndex((m) => m.id === messageId);
+        if (h2 && idx2 >= 0) h2.scrollToIndex(idx2, "center");
+      });
+      setTimeout(() => {
+        if (cancelled) return;
+        const h3 = getHandle();
+        const idx3 = getMessages().findIndex((m) => m.id === messageId);
+        if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
+      }, 350);
+      setTimeout(() => setHighlightedMessageId(null), highlightDurationMs);
+      return;
+    }
+
+    if (
+      idx < 0 &&
+      tryLoadOlder &&
+      attempts > 6 &&
+      attempts - lastLoadOlderAttempt >= 8
+    ) {
+      lastLoadOlderAttempt = attempts;
+      tryLoadOlder();
+    }
+
+    if (attempts < maxAttempts) {
+      setTimeout(tick, intervalMs);
+    }
+  };
+
   setTimeout(tick, 50);
 
   return () => {

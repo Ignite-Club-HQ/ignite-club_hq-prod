@@ -48,6 +48,13 @@ export interface VirtualizedChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
   scrollToIndex: (index: number, align?: "start" | "center" | "end") => void;
   isAtBottom: () => boolean;
+  /**
+   * True when the scroller is within `thresholdPx` of the bottom. Used by
+   * chat pages to decide whether composer/keyboard reflow should re-pin to
+   * the latest message. Returns true if the scroller has not mounted yet
+   * (matches the "default to pinning" semantics of the legacy helper).
+   */
+  isNearBottom: (thresholdPx: number) => boolean;
 }
 
 interface Props<TMessage extends { id: string }> {
@@ -204,6 +211,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
@@ -398,6 +406,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         virtuosoRef.current?.scrollToIndex({ index, align, behavior: "auto" });
       },
       isAtBottom: () => atBottomRef.current,
+      isNearBottom: (thresholdPx: number) => {
+        const el = scrollerElRef.current;
+        if (!el) return true;
+        const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+        return distance <= Math.max(0, thresholdPx);
+      },
     }),
     [],
   );
@@ -483,6 +497,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // on top of each other" on fast scroll).
   const wrappedScrollerRef = useCallback(
     (element: HTMLElement | Window | null) => {
+      // Track the scroll element for the imperative `isNearBottom` API.
+      // Window targets don't apply for the inline Virtuoso scroller, so we
+      // only retain HTMLElement instances.
+      scrollerElRef.current = element instanceof HTMLElement ? element : null;
       debugAttachScrollerWatcher(element);
       scrollerRef?.(element);
     },
