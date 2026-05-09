@@ -107,7 +107,17 @@ export function StatusBarManager() {
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
     const setVisualVh = () => {
-      const visualHeight = window.visualViewport?.height ?? window.innerHeight ?? 0;
+      // On native Android, Capacitor's Keyboard.resize='none' keeps the
+      // WebView at full screen size when the keyboard opens. The visualViewport
+      // API still reports the smaller visible area, but using that here would
+      // shrink AppLayout — and useChatViewportHeight already subtracts the
+      // native keyboard height for chat shells. Subtracting in both places
+      // collapses the chat shell and pushes AppHeader / ChatHeaderShell off
+      // the top of the screen. Always use innerHeight on native Android so
+      // useChatViewportHeight remains the single source of truth.
+      const visualHeight = isNativeAndroid
+        ? (window.innerHeight ?? window.visualViewport?.height ?? 0)
+        : (window.visualViewport?.height ?? window.innerHeight ?? 0);
       if (!visualHeight) return;
       document.documentElement.style.setProperty('--visual-vh', `${visualHeight}px`);
     };
