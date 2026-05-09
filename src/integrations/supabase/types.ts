@@ -2579,6 +2579,41 @@ export type Database = {
           },
         ]
       }
+      event_auto_dm_log: {
+        Row: {
+          cadence: string
+          dm_message_id: string | null
+          event_id: string
+          id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence: string
+          dm_message_id?: string | null
+          event_id: string
+          id?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence?: string
+          dm_message_id?: string | null
+          event_id?: string
+          id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_auto_dm_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
@@ -7195,6 +7230,7 @@ export type Database = {
       teams: {
         Row: {
           archived_at: string | null
+          auto_rsvp_dm_enabled: boolean
           class_capacity: number | null
           class_day: string | null
           class_duration_minutes: number | null
@@ -7229,6 +7265,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -7263,6 +7300,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -8485,6 +8523,12 @@ export type Database = {
           total: number
           views: number
           withdrawn: number
+        }[]
+      }
+      get_event_non_responders: {
+        Args: { _event_id: string }
+        Returns: {
+          user_id: string
         }[]
       }
       get_members_events_enabled: {
