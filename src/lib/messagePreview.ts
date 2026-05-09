@@ -119,6 +119,7 @@ export function formatMessagePreview(
   });
   out = out.replace(POLL_TOKEN_RE, " 📊 Poll ");
   out = out.replace(BOARD_TOKEN_RE, " 🏟️ Live board ");
+  out = out.replace(GALLERY_PROMPT_TOKEN_RE, " 📸 Reminder: add team photos ");
   out = out.replace(GALLERY_TOKEN_RE, " 📸 New team photos ");
   out = out.replace(PUBLISH_TOKEN_RE, " ");
   out = out.replace(VAULT_ROOT_TOKEN_RE, (_m, scope: string) =>
