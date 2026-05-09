@@ -339,6 +339,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "bottom-pin-not-ready");
       return;
     }
+    // Trust window: suppress the very first upward fetch right after the
+    // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
+    // that visually teleports the viewport to older messages the user
+    // hasn't scrolled through yet.
+    const sincePin = performance.now() - bottomPinReadyAtRef.current;
+    if (sincePin < PREPEND_TRUST_WINDOW_MS) {
+      debugLogStartReached(false, "trust-window");
+      return;
+    }
     if (!hasOlder) {
       debugLogStartReached(false, "no-older");
       return;
