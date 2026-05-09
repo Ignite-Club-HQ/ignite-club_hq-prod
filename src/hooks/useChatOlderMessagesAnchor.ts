@@ -107,15 +107,6 @@ export function useChatOlderMessagesAnchor({
       if (distance < 200) return;
       lastScrollAtRef.current = performance.now();
 
-      if (pendingPrependRef.current && pendingPrependTimerRef.current !== null) {
-        window.clearTimeout(pendingPrependTimerRef.current);
-        pendingPrependTimerRef.current = window.setTimeout(() => {
-          const apply = pendingPrependRef.current;
-          pendingPrependRef.current = null;
-          pendingPrependTimerRef.current = null;
-          if (apply) anchoredPrepend(apply);
-        }, PREPEND_IDLE_GRACE_MS);
-      }
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
