@@ -591,6 +591,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const components = useMemo(
     () => ({
       Scroller: ChatVirtuosoScroller,
+      Item: ChatVirtuosoItem,
       // Keep the list header purely structural and independent of loading
       // state. Rendering the spinner here makes Virtuoso re-measure header
       // content exactly while it is trying to preserve a top anchor.
