@@ -339,6 +339,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
