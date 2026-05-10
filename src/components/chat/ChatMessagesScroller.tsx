@@ -200,6 +200,10 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
 
   useEffect(() => {
+    if (messages.length === 0) {
+      setInitialViewportReleased(false);
+      return;
+    }
     if (messages.length > 0 && initialMountReady) {
       setInitialViewportReleased(true);
     }
