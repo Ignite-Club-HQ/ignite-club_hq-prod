@@ -595,7 +595,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
-          captureViewportAnchor();
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
@@ -615,11 +614,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "in-flight-guard");
       return;
     }
-    captureViewportAnchor();
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
+  }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
   // Belt-and-braces upward pagination trigger. With a large
   // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
@@ -642,26 +640,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (bottomPinReadyRef.current) {
       userHasScrolledAfterPinRef.current = true;
     }
-    scheduleAnchorCapture();
-  }, [scheduleAnchorCapture]);
-
-  const handleIsScrolling = useCallback(
-    (scrolling: boolean) => {
-      if (scrolling) {
-        scheduleAnchorCapture();
-        return;
-      }
-      // When the user stops scrolling, only refresh the anchor reference so
-      // the next prepend has an accurate target. Do NOT run the stabilize
-      // loop here — re-pinning to a captured anchor while Virtuoso settles
-      // its own height estimates produces a visible "keeps scrolling" jolt
-      // after the finger lifts. The stabilize loop is reserved for events
-      // that actually shift layout (prepends via handleStartReached and the
-      // messages.length grow effect below).
-      captureViewportAnchor();
-    },
-    [captureViewportAnchor, scheduleAnchorCapture],
-  );
+  }, []);
 
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
   // shift (see anchorRef math above). We deliberately do NOT run a manual
