@@ -453,6 +453,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
+    setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and
@@ -474,13 +475,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       jump("raf1");
       requestAnimationFrame(() => {
         jump("raf2");
-        if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-        bottomPinReadyRef.current = true;
-        userHasScrolledAfterPinRef.current = false;
+        const settle = window.setTimeout(() => {
+          if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
+          bottomPinReadyRef.current = true;
+          userHasScrolledAfterPinRef.current = false;
+          setInitialRevealReady(true);
+        }, 80);
+        bottomPinSettleTimerRef.current = settle;
       });
     });
     return () => {
       cancelAnimationFrame(r1);
+      if (bottomPinSettleTimerRef.current !== null) {
+        window.clearTimeout(bottomPinSettleTimerRef.current);
+        bottomPinSettleTimerRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomPinRevision]);
