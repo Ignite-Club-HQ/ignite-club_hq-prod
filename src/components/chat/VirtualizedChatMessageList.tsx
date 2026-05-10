@@ -583,48 +583,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
   });
 
-  const handleStartReached = useCallback(() => {
-    if (!bottomPinReadyRef.current) {
-      debugLogStartReached(false, "bottom-pin-not-ready");
-      return;
-    }
-    // Trust window: suppress the very first upward fetch right after the
-    // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
-    // that visually teleports the viewport to older messages the user
-    // hasn't scrolled through yet.
-    const sincePin = performance.now() - bottomPinReadyAtRef.current;
-    if (sincePin < PREPEND_TRUST_WINDOW_MS) {
-      debugLogStartReached(false, "trust-window-deferred");
-      if (startReachedRetryTimerRef.current === null) {
-        startReachedRetryTimerRef.current = window.setTimeout(() => {
-          startReachedRetryTimerRef.current = null;
-          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
-          captureViewportAnchor();
-          loadingOlderInFlightRef.current = true;
-          debugLogStartReached(true, "deferred-fetch");
-          onLoadOlderRef.current();
-        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
-      }
-      return;
-    }
-    if (!hasOlder) {
-      debugLogStartReached(false, "no-older");
-      return;
-    }
-    if (isLoadingOlder) {
-      debugLogStartReached(false, "already-loading");
-      return;
-    }
-    if (loadingOlderInFlightRef.current) {
-      debugLogStartReached(false, "in-flight-guard");
-      return;
-    }
-    captureViewportAnchor();
-    loadingOlderInFlightRef.current = true;
-    debugLogStartReached(true, "fetch");
-    onLoadOlder();
-  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
-
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
       atBottomRef.current = atBottom;
@@ -702,6 +660,48 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     tick();
   }, [restoreViewportAnchor]);
+
+  const handleStartReached = useCallback(() => {
+    if (!bottomPinReadyRef.current) {
+      debugLogStartReached(false, "bottom-pin-not-ready");
+      return;
+    }
+    // Trust window: suppress the very first upward fetch right after the
+    // initial bottom pin so a cold-open scroll-up cannot trigger a prepend
+    // that visually teleports the viewport to older messages the user
+    // hasn't scrolled through yet.
+    const sincePin = performance.now() - bottomPinReadyAtRef.current;
+    if (sincePin < PREPEND_TRUST_WINDOW_MS) {
+      debugLogStartReached(false, "trust-window-deferred");
+      if (startReachedRetryTimerRef.current === null) {
+        startReachedRetryTimerRef.current = window.setTimeout(() => {
+          startReachedRetryTimerRef.current = null;
+          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          captureViewportAnchor();
+          loadingOlderInFlightRef.current = true;
+          debugLogStartReached(true, "deferred-fetch");
+          onLoadOlderRef.current();
+        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
+      }
+      return;
+    }
+    if (!hasOlder) {
+      debugLogStartReached(false, "no-older");
+      return;
+    }
+    if (isLoadingOlder) {
+      debugLogStartReached(false, "already-loading");
+      return;
+    }
+    if (loadingOlderInFlightRef.current) {
+      debugLogStartReached(false, "in-flight-guard");
+      return;
+    }
+    captureViewportAnchor();
+    loadingOlderInFlightRef.current = true;
+    debugLogStartReached(true, "fetch");
+    onLoadOlder();
+  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
 
   // Belt-and-braces upward pagination trigger. With a large
   // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
