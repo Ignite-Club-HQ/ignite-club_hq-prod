@@ -149,6 +149,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 
     if (attempts < maxAttempts) {
       nextTickTimer = setTimeout(tick, intervalMs);
+    } else {
+      // Polling exhausted without landing — drop the skeleton so the user
+      // isn't stuck staring at it.
+      endHydration();
     }
   };
 
@@ -160,6 +164,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     if (nextTickTimer) clearTimeout(nextTickTimer);
     if (settleTimer) clearTimeout(settleTimer);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
+    endHydration();
     if (activeCancel === cancel) activeCancel = null;
   };
   activeCancel = cancel;
