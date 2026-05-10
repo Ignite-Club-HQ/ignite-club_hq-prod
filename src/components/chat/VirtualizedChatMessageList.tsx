@@ -791,17 +791,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // layout turn as the row resize.
       skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
-      // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
-      // fires `startReached` when the first data item mounts, so a larger top
-      // window means we kick off the older-page fetch BEFORE the user
-      // hard-stops at scrollTop=0. With the previous 600px the fetch only
-      // started after the gesture stopped, so the prepend landed 1–2s later
-      // and the anchored shift read as the viewport "teleporting" to older
-      // messages it never scrolled through. 1400px gives the fetch enough
-      // runway to land while the finger is still moving. Bottom kept tight
-      // so we don't mount heavy image rows the user is scrolling away from.
-      increaseViewportBy={{ top: 900, bottom: 200 }}
-      minOverscanItemCount={{ top: 8, bottom: 2 }}
+      // Warm a deep slice above the bottom before reveal. The cold-open jolt
+      // was caused by the first upward fling mounting unmeasured history rows;
+      // Virtuoso then corrected their real heights as momentum stopped. A
+      // ~page-sized top overscan measures those rows while hidden/idle, so the
+      // first user scroll uses the same settled size map as later scrolls.
+      increaseViewportBy={{ top: 3600, bottom: 200 }}
+      minOverscanItemCount={{ top: 24, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
