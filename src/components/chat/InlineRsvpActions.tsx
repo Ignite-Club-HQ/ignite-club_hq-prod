@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { haptics } from "@/lib/haptics";
+import { hapticImpactLight } from "@/lib/haptics";
 
 type Status = "going" | "maybe" | "not_going";
 
