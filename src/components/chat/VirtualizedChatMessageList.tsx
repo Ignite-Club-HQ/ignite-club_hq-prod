@@ -368,10 +368,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const isLoadingOlderRef = useRef(isLoadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
   const startReachedRetryTimerRef = useRef<number | null>(null);
-  const viewportAnchorRef = useRef<{ id: string; top: number } | null>(null);
-  const anchorCaptureRafRef = useRef<number | null>(null);
-  const anchorStabilizeFrameRef = useRef<number | null>(null);
-  const restoringAnchorRef = useRef(false);
   hasOlderRef.current = hasOlder;
   isLoadingOlderRef.current = isLoadingOlder;
   onLoadOlderRef.current = onLoadOlder;
@@ -420,14 +416,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (startReachedRetryTimerRef.current !== null) {
         window.clearTimeout(startReachedRetryTimerRef.current);
         startReachedRetryTimerRef.current = null;
-      }
-      if (anchorCaptureRafRef.current !== null) {
-        window.cancelAnimationFrame(anchorCaptureRafRef.current);
-        anchorCaptureRafRef.current = null;
-      }
-      if (anchorStabilizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
-        anchorStabilizeFrameRef.current = null;
       }
     };
   }, []);
@@ -591,77 +579,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
-  const findAnchorRow = useCallback(() => {
-    const viewport = scrollerElRef.current;
-    if (!viewport || atBottomRef.current) return null;
-    const viewportRect = viewport.getBoundingClientRect();
-    const anchorLine = viewportRect.top + Math.min(120, viewportRect.height * 0.25);
-    const rows = viewport.querySelectorAll<HTMLElement>('[data-chat-row="true"][data-message-id]');
-    let best: { id: string; top: number; distance: number } | null = null;
-
-    rows.forEach((row) => {
-      const rect = row.getBoundingClientRect();
-      if (rect.bottom < viewportRect.top || rect.top > viewportRect.bottom) return;
-      const id = row.dataset.messageId;
-      if (!id) return;
-      const distance = Math.abs(rect.top - anchorLine);
-      if (!best || distance < best.distance) best = { id, top: rect.top, distance };
-    });
-
-    if (!best) return null;
-    return { id: best.id, top: best.top };
-  }, []);
-
-  const captureViewportAnchor = useCallback(() => {
-    const anchor = findAnchorRow();
-    if (anchor) viewportAnchorRef.current = anchor;
-  }, [findAnchorRow]);
-
-  const scheduleAnchorCapture = useCallback(() => {
-    if (restoringAnchorRef.current || anchorCaptureRafRef.current !== null) return;
-    anchorCaptureRafRef.current = window.requestAnimationFrame(() => {
-      anchorCaptureRafRef.current = null;
-      captureViewportAnchor();
-    });
-  }, [captureViewportAnchor]);
-
-  const restoreViewportAnchor = useCallback(() => {
-    const viewport = scrollerElRef.current;
-    const anchor = viewportAnchorRef.current;
-    if (!viewport || !anchor || atBottomRef.current) return;
-
-    const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
-      ? CSS.escape(anchor.id)
-      : anchor.id.replace(/["\\]/g, "\\$&");
-    const row = viewport.querySelector<HTMLElement>(`[data-chat-row="true"][data-message-id="${escapedId}"]`);
-    if (!row) return;
-
-    const delta = row.getBoundingClientRect().top - anchor.top;
-    if (Math.abs(delta) < 0.75) return;
-    restoringAnchorRef.current = true;
-    viewport.scrollTop += delta;
-    window.requestAnimationFrame(() => {
-      restoringAnchorRef.current = false;
-    });
-  }, []);
-
-  const stabilizeViewportAnchor = useCallback((durationMs = 320) => {
-    if (anchorStabilizeFrameRef.current !== null) {
-      window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
-      anchorStabilizeFrameRef.current = null;
-    }
-    const startedAt = performance.now();
-    const tick = () => {
-      restoreViewportAnchor();
-      if (performance.now() - startedAt < durationMs) {
-        anchorStabilizeFrameRef.current = window.requestAnimationFrame(tick);
-      } else {
-        anchorStabilizeFrameRef.current = null;
-      }
-    };
-    tick();
-  }, [restoreViewportAnchor]);
-
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
@@ -678,7 +595,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
-          captureViewportAnchor();
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
@@ -698,14 +614,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "in-flight-guard");
       return;
     }
-    captureViewportAnchor();
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
+  }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
-  // Belt-and-braces upward pagination trigger. With a large
-  // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
+  // Belt-and-braces upward pagination trigger. With top overscan,
   // `startReached` can fail to refire after a successful prepend because the
   // rendered range still spans data index 0 — the user scrolls up but
   // Virtuoso never sees a transition INTO the start. `atTopStateChange`
@@ -725,26 +639,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (bottomPinReadyRef.current) {
       userHasScrolledAfterPinRef.current = true;
     }
-    scheduleAnchorCapture();
-  }, [scheduleAnchorCapture]);
-
-  const handleIsScrolling = useCallback(
-    (scrolling: boolean) => {
-      if (scrolling) {
-        scheduleAnchorCapture();
-        return;
-      }
-      // When the user stops scrolling, only refresh the anchor reference so
-      // the next prepend has an accurate target. Do NOT run the stabilize
-      // loop here — re-pinning to a captured anchor while Virtuoso settles
-      // its own height estimates produces a visible "keeps scrolling" jolt
-      // after the finger lifts. The stabilize loop is reserved for events
-      // that actually shift layout (prepends via handleStartReached and the
-      // messages.length grow effect below).
-      captureViewportAnchor();
-    },
-    [captureViewportAnchor, scheduleAnchorCapture],
-  );
+  }, []);
 
   // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
   // shift (see anchorRef math above). We deliberately do NOT run a manual
@@ -866,11 +761,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     return { uniqueMessages: unique, indexById: map };
   }, [messages]);
 
-  const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages, currentUserId)),
-    [uniqueMessages, currentUserId],
-  );
-
   // CRITICAL flicker fix: keep `itemContent` identity stable across messages
   // mutations. If this callback's identity changes when an older page lands,
   // Virtuoso re-invokes it for every visible row, defeating React.memo on
@@ -880,13 +770,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const renderItemRef = useRef(renderItem);
   const uniqueMessagesRef = useRef(uniqueMessages);
   const indexByIdRef = useRef(indexById);
-  const heightEstimatesRef = useRef(heightEstimates);
+  const currentUserIdRef = useRef(currentUserId);
   useLayoutEffect(() => {
     renderItemRef.current = renderItem;
     uniqueMessagesRef.current = uniqueMessages;
     indexByIdRef.current = indexById;
-    heightEstimatesRef.current = heightEstimates;
-  }, [renderItem, uniqueMessages, indexById, heightEstimates]);
+    currentUserIdRef.current = currentUserId;
+  }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
@@ -894,7 +784,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (idx === undefined) return null;
       const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
       if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0 ? heightEstimatesRef.current[idx] : undefined;
+      const estimated = idx >= 0
+        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        : undefined;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
           {child}
@@ -1007,27 +899,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
-      isScrolling={handleIsScrolling}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
       defaultItemHeight={140}
-      heightEstimates={heightEstimates}
-      // Report item resize measurements synchronously. On native WebViews the
-      // default rAF-delayed ResizeObserver path can apply Virtuoso's anchor
-      // correction one frame after a fast upward fling stops, which reads as a
-      // small jolt. Synchronous reporting keeps the correction in the same
-      // layout turn as the row resize.
-      skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
-      // Warm a deep slice above the bottom before reveal. The cold-open jolt
-      // was caused by the first upward fling mounting unmeasured history rows;
-      // Virtuoso then corrected their real heights as momentum stopped. A
-      // ~page-sized top overscan measures those rows while hidden/idle, so the
-      // first user scroll uses the same settled size map as later scrolls.
-      increaseViewportBy={{ top: 3600, bottom: 200 }}
-      minOverscanItemCount={{ top: 24, bottom: 2 }}
+      // Keep overscan moderate. Over-mounting thousands of pixels above the
+      // viewport causes a burst of row measurements after a fast fling stops;
+      // Virtuoso then applies compensating scrollTop corrections that read as
+      // jagged up/down motion. Let Virtuoso measure only the next screenful.
+      increaseViewportBy={{ top: 1200, bottom: 200 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
