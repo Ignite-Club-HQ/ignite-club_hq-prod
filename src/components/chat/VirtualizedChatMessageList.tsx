@@ -599,6 +599,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          captureViewportAnchor();
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
@@ -618,10 +619,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "in-flight-guard");
       return;
     }
+    captureViewportAnchor();
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [hasOlder, isLoadingOlder, onLoadOlder]);
+  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -722,7 +724,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (bottomPinReadyRef.current) {
       userHasScrolledAfterPinRef.current = true;
     }
-  }, []);
+    scheduleAnchorCapture();
+  }, [scheduleAnchorCapture]);
+
+  useLayoutEffect(() => {
+    if (messages.length > messagesLengthRef.current && viewportAnchorRef.current) {
+      stabilizeViewportAnchor(360);
+    }
+  }, [messages.length, stabilizeViewportAnchor]);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
