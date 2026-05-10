@@ -619,6 +619,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
+  // Belt-and-braces upward pagination trigger. With a large
+  // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
+  // `startReached` can fail to refire after a successful prepend because the
+  // rendered range still spans data index 0 — the user scrolls up but
+  // Virtuoso never sees a transition INTO the start. `atTopStateChange`
+  // fires on every transition into/out of the top edge, so we use it to
+  // re-invoke the same load logic. The `handleStartReached` body is fully
+  // idempotent (trust window + in-flight guard + `hasOlder` check), so
+  // calling it from both paths is safe.
+  const handleAtTopStateChange = useCallback(
+    (atTop: boolean) => {
+      if (!atTop) return;
+      handleStartReached();
+    },
+    [handleStartReached],
+  );
+
   const handleScroll = useCallback(() => {
     if (bottomPinReadyRef.current) {
       userHasScrolledAfterPinRef.current = true;
@@ -818,6 +835,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
+      atTopStateChange={handleAtTopStateChange}
+      atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
       followOutput={initialBottomPinned ? followOutput : false}
