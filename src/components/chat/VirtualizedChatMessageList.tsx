@@ -345,6 +345,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // viewport to messages the user hasn't scrolled through yet (the
   // "scroll up, stop, then jump higher" symptom on cold open).
   const bottomPinReadyAtRef = useRef(0);
+  const userHasScrolledAfterPinRef = useRef(false);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
@@ -425,6 +426,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!userIsReadingHistory) {
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
+        userHasScrolledAfterPinRef.current = false;
         bottomPinRevisionRef.current += 1;
       }
       debugLogAnchor("reset", {
@@ -473,6 +475,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         jump("raf2");
         if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
         bottomPinReadyRef.current = true;
+        userHasScrolledAfterPinRef.current = false;
       });
     });
     return () => {
@@ -511,6 +514,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const tryPrefetch = () => {
       if (preemptivePrefetchedRef.current) return;
       if (!bottomPinReadyRef.current) return;
+      if (userHasScrolledAfterPinRef.current) return;
       if (!hasOlder || isLoadingOlder || loadingOlderInFlightRef.current) return;
       preemptivePrefetchedRef.current = true;
       loadingOlderInFlightRef.current = true;
@@ -519,7 +523,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // Schedule shortly after the raf2 bottom pin lands. 250ms is comfortably
     // after pin completion but well inside the 800ms trust window, so the
     // prepend has time to round-trip and land before the user starts scrolling.
-    const t = window.setTimeout(tryPrefetch, 250);
+    const t = window.setTimeout(tryPrefetch, 80);
     return () => window.clearTimeout(t);
   }, [bottomPinRevision, hasOlder, isLoadingOlder, messages.length, onLoadOlder]);
 
@@ -561,6 +565,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     },
     [onAtBottomChange],
   );
+
+  const handleScroll = useCallback(() => {
+    if (bottomPinReadyRef.current) {
+      userHasScrolledAfterPinRef.current = true;
+    }
+  }, []);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
@@ -748,6 +758,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomChange}
+      onScroll={handleScroll}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
