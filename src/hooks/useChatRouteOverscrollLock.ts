@@ -74,12 +74,6 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       });
     };
 
-    scheduleOuterViewportReset();
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchStartYRef.current = event.touches[0]?.clientY ?? 0;
-    };
-
     scheduleOuterViewportResetWithTail();
 
     const handleTouchStart = (event: TouchEvent) => {
