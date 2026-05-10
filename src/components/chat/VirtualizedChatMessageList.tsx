@@ -243,6 +243,7 @@ const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { co
     <div
       {...props}
       ref={itemRef}
+      data-chat-virtuoso-item="true"
       style={{
         ...style,
         contain: "content",
@@ -644,6 +645,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
+      scrollSeekConfiguration={false}
       // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
       // fires `startReached` when the first data item mounts, so a larger top
       // window means we kick off the older-page fetch BEFORE the user
