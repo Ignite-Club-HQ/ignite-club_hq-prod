@@ -534,7 +534,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // Schedule shortly after the raf2 bottom pin lands. 250ms is comfortably
     // after pin completion but well inside the 800ms trust window, so the
     // prepend has time to round-trip and land before the user starts scrolling.
-    const t = window.setTimeout(tryPrefetch, 80);
+    const t = window.setTimeout(tryPrefetch, 160);
     return () => window.clearTimeout(t);
   }, [bottomPinRevision, hasOlder, isLoadingOlder, messages.length, onLoadOlder]);
 
