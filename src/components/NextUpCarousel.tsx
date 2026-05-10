@@ -489,9 +489,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   const isMatchDay = !!(event as any).mini_league_id;
 
+  // "Needs RSVP" — neither the parent nor any of their children on this event
+  // have responded yet. Drives a subtle tint + pill so un-actioned cards stand
+  // out without competing with cancelled / today states.
+  const needsRsvp =
+    heroDataReady &&
+    !event.is_cancelled &&
+    currentStatus === null &&
+    (childRsvps?.length ?? 0) === 0;
+
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
