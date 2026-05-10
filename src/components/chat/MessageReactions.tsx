@@ -22,6 +22,12 @@ interface Reaction {
   reaction_type: string;
 }
 
+const getReactionSignature = (reactions: Reaction[] = []) =>
+  reactions
+    .map((reaction) => `${reaction.id}:${reaction.user_id}:${reaction.reaction_type}`)
+    .sort()
+    .join("|");
+
 interface MessageReactionsProps {
   reactions: Reaction[];
   currentUserId?: string;
@@ -252,14 +258,15 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
   // then route subsequent changes through `runWhenChatScrollIdle` so
   // pop-ins always happen between flicks.
   const [committed, setCommitted] = useState<Reaction[]>(reactions);
-  const firstCommitRef = useRef(true);
+  const committedSignatureRef = useRef(getReactionSignature(reactions));
   useEffect(() => {
-    if (firstCommitRef.current) {
-      firstCommitRef.current = false;
+    const nextSignature = getReactionSignature(reactions);
+    if (nextSignature === committedSignatureRef.current) return;
+
+    return runWhenChatScrollIdle(() => {
+      committedSignatureRef.current = nextSignature;
       setCommitted(reactions);
-      return;
-    }
-    return runWhenChatScrollIdle(() => setCommitted(reactions), 250);
+    }, 250);
   }, [reactions]);
 
   if (!committed || committed.length === 0) return null;

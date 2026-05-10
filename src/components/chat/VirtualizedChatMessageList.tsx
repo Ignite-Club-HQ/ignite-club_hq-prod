@@ -76,9 +76,12 @@ interface Props<TMessage extends { id: string }> {
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
   initialBottomPinned?: boolean;
+  /** Current user id, used only for row-height estimates (own messages have no author label). */
+  currentUserId?: string | null;
 }
 
 type EstimableChatMessage = {
+  author_id?: string | null;
   text?: string | null;
   image_url?: string | null;
   imageUrl?: string | null;
@@ -127,6 +130,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
   messages: TMessage[],
+  currentUserId?: string | null,
 ) {
   const msg = message as TMessage & {
     author_name?: string | null;
@@ -139,7 +143,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (msg.created_at) {
     const currentDay = getMessageDay(msg.created_at);
     const previousDay = getMessageDay(prev?.created_at);
-    if (!previousDay || previousDay !== currentDay) height += 34;
+    // ChatDateSeparator is `my-4` (32px) plus a small pill (~24px).
+    // Under-estimating separator rows is a common cause of Virtuoso applying
+    // a late upward correction when an upward fling settles.
+    if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
   if (msg.is_system_message) return Math.max(52, height + 36);
@@ -152,8 +159,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Author / header line. Long author names ("Sam Bond mum of Harry and
   // Otto") wrap to 2 lines on phones — under-counting this is what makes
   // the viewport jolt as older messages mount during back-scroll.
-  const authorChars = (msg.author_name ?? "").length;
-  height += authorChars > 24 ? 44 : 22;
+  const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
+  if (!isOwnMessage) {
+    const authorChars = (msg.author_name ?? "").length;
+    height += authorChars > 24 ? 44 : 22;
+  }
 
   if (hasReply) height += 38;
   // Image bubble: aspect-[4/3] frame at width=240 → 180px image + caption
@@ -332,6 +342,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
@@ -339,17 +350,27 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  const pinnedRevisionRef = useRef<number | null>(null);
+  const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
   // viewport to messages the user hasn't scrolled through yet (the
   // "scroll up, stop, then jump higher" symptom on cold open).
   const bottomPinReadyAtRef = useRef(0);
+  const userHasScrolledAfterPinRef = useRef(false);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
   const PREPEND_TRUST_WINDOW_MS = 800;
   const messagesLengthRef = useRef(messages.length);
+  const hasOlderRef = useRef(hasOlder);
+  const isLoadingOlderRef = useRef(isLoadingOlder);
+  const onLoadOlderRef = useRef(onLoadOlder);
+  const startReachedRetryTimerRef = useRef<number | null>(null);
+  hasOlderRef.current = hasOlder;
+  isLoadingOlderRef.current = isLoadingOlder;
+  onLoadOlderRef.current = onLoadOlder;
   // Synchronous in-flight guard for `startReached`. The parent's
   // `isLoadingOlder` state flips via setState, so two `startReached` events
   // fired in the same frame on a fast upward flick both see `false` and
@@ -363,6 +384,41 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
+
+  // Also release the guard whenever the parent's `isLoadingOlder` flag
+  // transitions back to `false`. The length-grew effect above ONLY fires on
+  // a successful prepend; if an older-page fetch errors, returns zero rows,
+  // or hits the 25s abort timeout, `messages.length` never grows and the
+  // synchronous guard would otherwise stay `true` forever — silently blocking
+  // every subsequent `startReached` with "in-flight-guard" and making the
+  // chat appear to stop scrolling at whatever boundary it last reached.
+  // This was the root cause of "team admins/coaches can only scroll back to
+  // <date>" — one transient older-page failure permanently disabled upward
+  // pagination for the rest of the session.
+  const prevIsLoadingOlderRef = useRef(isLoadingOlder);
+  useEffect(() => {
+    if (prevIsLoadingOlderRef.current && !isLoadingOlder) {
+      loadingOlderInFlightRef.current = false;
+    }
+    prevIsLoadingOlderRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
+
+  useEffect(() => {
+    if (hasOlder) return;
+    if (startReachedRetryTimerRef.current !== null) {
+      window.clearTimeout(startReachedRetryTimerRef.current);
+      startReachedRetryTimerRef.current = null;
+    }
+  }, [hasOlder]);
+
+  useEffect(() => {
+    return () => {
+      if (startReachedRetryTimerRef.current !== null) {
+        window.clearTimeout(startReachedRetryTimerRef.current);
+        startReachedRetryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
@@ -425,6 +481,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!userIsReadingHistory) {
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
+        userHasScrolledAfterPinRef.current = false;
         bottomPinRevisionRef.current += 1;
       }
       debugLogAnchor("reset", {
@@ -443,13 +500,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
-  // Belt-and-braces: when messages first populate OR the mounted list is
-  // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
-  // is only honoured on the first mount; thread-to-thread data replacement
-  // otherwise preserves the old scrollTop and can render a blank viewport.
-  useEffect(() => {
+  // Initial bottom pin happens while the wrapper is invisible. Reveal is held
+  // until the actual scroll metrics are quiet, not just until a fixed timeout,
+  // so first paint cannot show Virtuoso correcting an interim bottom anchor.
+  useLayoutEffect(() => {
     const last = messages.length - 1;
-    if (last < 0) return;
+    if (last < 0) {
+      bottomPinReadyRef.current = false;
+      pinnedRevisionRef.current = null;
+      setInitialRevealReady(false);
+      return;
+    }
+    if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and
@@ -467,19 +530,54 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     jump("immediate");
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let frame: number | null = null;
+    let cancelled = false;
+    let lastMetrics = "";
+    const armRevealWhenStable = () => {
+      const el = scrollerElRef.current;
+      if (!el || cancelled) return;
+      const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
+      if (metrics !== lastMetrics) {
+        lastMetrics = metrics;
+        if (revealTimer !== null) clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => {
+          cancelled = true;
+          if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
+          bottomPinReadyRef.current = true;
+          pinnedRevisionRef.current = bottomPinRevision;
+          userHasScrolledAfterPinRef.current = false;
+          setInitialRevealReady(true);
+        }, 180);
+      }
+      frame = requestAnimationFrame(armRevealWhenStable);
+    };
+    let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
+      if (cancelled) return;
       jump("raf1");
-      requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        if (cancelled) return;
         jump("raf2");
-        if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-        bottomPinReadyRef.current = true;
+        armRevealWhenStable();
       });
     });
     return () => {
+      cancelled = true;
       cancelAnimationFrame(r1);
+      if (r2 !== null) cancelAnimationFrame(r2);
+      if (revealTimer !== null) clearTimeout(revealTimer);
+      if (frame !== null) cancelAnimationFrame(frame);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision]);
+  });
+
+  const handleAtBottomChange = useCallback(
+    (atBottom: boolean) => {
+      atBottomRef.current = atBottom;
+      onAtBottomChange?.(atBottom);
+    },
+    [onAtBottomChange],
+  );
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
@@ -492,7 +590,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // hasn't scrolled through yet.
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
-      debugLogStartReached(false, "trust-window");
+      debugLogStartReached(false, "trust-window-deferred");
+      if (startReachedRetryTimerRef.current === null) {
+        startReachedRetryTimerRef.current = window.setTimeout(() => {
+          startReachedRetryTimerRef.current = null;
+          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          loadingOlderInFlightRef.current = true;
+          debugLogStartReached(true, "deferred-fetch");
+          onLoadOlderRef.current();
+        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
+      }
       return;
     }
     if (!hasOlder) {
@@ -512,13 +619,91 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
-  const handleAtBottomChange = useCallback(
-    (atBottom: boolean) => {
-      atBottomRef.current = atBottom;
-      onAtBottomChange?.(atBottom);
+  // Belt-and-braces upward pagination trigger. With top overscan,
+  // `startReached` can fail to refire after a successful prepend because the
+  // rendered range still spans data index 0 — the user scrolls up but
+  // Virtuoso never sees a transition INTO the start. `atTopStateChange`
+  // fires on every transition into/out of the top edge, so we use it to
+  // re-invoke the same load logic. The `handleStartReached` body is fully
+  // idempotent (trust window + in-flight guard + `hasOlder` check), so
+  // calling it from both paths is safe.
+  const handleAtTopStateChange = useCallback(
+    (atTop: boolean) => {
+      if (!atTop) return;
+      handleStartReached();
     },
-    [onAtBottomChange],
+    [handleStartReached],
   );
+
+  const handleScroll = useCallback(() => {
+    if (bottomPinReadyRef.current) {
+      userHasScrolledAfterPinRef.current = true;
+    }
+  }, []);
+
+  // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
+  // shift (see anchorRef math above). We deliberately do NOT run a manual
+  // scrollTop-restore loop here: writing scrollTop frame-after-frame while
+  // Virtuoso is settling its own row-height estimates produces a visible
+  // up/down wobble after an upward fling stops ("jitters then lands").
+
+  // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
+  // late-hydrating content (images decoding, link previews mounting, reply
+  // quotes inflating, reactions arriving) grows the heights of rows already
+  // on screen. Virtuoso's `followOutput` only re-pins when NEW items are
+  // appended, not when existing rows resize, so without this the last
+  // message visibly drifts downward (or the viewport scrolls up away from
+  // it) over the first ~1.2s after open. We watch scrollHeight via a
+  // ResizeObserver on the inner content and forcibly re-pin to LAST as long
+  // as the user is still at the bottom and hasn't scrolled away.
+  useEffect(() => {
+    if (!initialRevealReady) return;
+    const viewport = scrollerElRef.current;
+    if (!viewport) return;
+    const inner = viewport.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+
+    let cancelled = false;
+    const startedAt = performance.now();
+    const STAY_PINNED_MS = 1500;
+    let lastScrollHeight = viewport.scrollHeight;
+
+    const repinIfAtBottom = () => {
+      if (cancelled) return;
+      // Stop once the user has actively scrolled away from the bottom.
+      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      if (!atBottomRef.current) return;
+      const sh = viewport.scrollHeight;
+      if (sh === lastScrollHeight) return;
+      lastScrollHeight = sh;
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
+    };
+
+    const ro = new ResizeObserver(() => {
+      if (cancelled) return;
+      repinIfAtBottom();
+      if (performance.now() - startedAt > STAY_PINNED_MS) {
+        cancelled = true;
+        ro.disconnect();
+      }
+    });
+    ro.observe(inner);
+
+    const stopTimer = window.setTimeout(() => {
+      cancelled = true;
+      ro.disconnect();
+    }, STAY_PINNED_MS + 50);
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      window.clearTimeout(stopTimer);
+    };
+  }, [initialRevealReady, bottomPinRevision]);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
@@ -576,11 +761,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     return { uniqueMessages: unique, indexById: map };
   }, [messages]);
 
-  const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
-    [uniqueMessages],
-  );
-
   // CRITICAL flicker fix: keep `itemContent` identity stable across messages
   // mutations. If this callback's identity changes when an older page lands,
   // Virtuoso re-invokes it for every visible row, defeating React.memo on
@@ -590,13 +770,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const renderItemRef = useRef(renderItem);
   const uniqueMessagesRef = useRef(uniqueMessages);
   const indexByIdRef = useRef(indexById);
-  const heightEstimatesRef = useRef(heightEstimates);
+  const currentUserIdRef = useRef(currentUserId);
   useLayoutEffect(() => {
     renderItemRef.current = renderItem;
     uniqueMessagesRef.current = uniqueMessages;
     indexByIdRef.current = indexById;
-    heightEstimatesRef.current = heightEstimates;
-  }, [renderItem, uniqueMessages, indexById, heightEstimates]);
+    currentUserIdRef.current = currentUserId;
+  }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
@@ -604,7 +784,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (idx === undefined) return null;
       const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
       if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0 ? heightEstimatesRef.current[idx] : undefined;
+      const estimated = idx >= 0
+        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        : undefined;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
           {child}
@@ -685,7 +867,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, []);
 
   return (
-    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
+        opacity: initialRevealReady ? 1 : 0,
+        transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
+      }}
+    >
     <Virtuoso
       ref={virtuosoRef}
       className={className}
@@ -705,30 +895,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
+      atTopStateChange={handleAtTopStateChange}
+      atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
+      onScroll={handleScroll}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
       defaultItemHeight={140}
-      heightEstimates={heightEstimates}
-      // Report item resize measurements synchronously. On native WebViews the
-      // default rAF-delayed ResizeObserver path can apply Virtuoso's anchor
-      // correction one frame after a fast upward fling stops, which reads as a
-      // small jolt. Synchronous reporting keeps the correction in the same
-      // layout turn as the row resize.
-      skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
-      // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
-      // fires `startReached` when the first data item mounts, so a larger top
-      // window means we kick off the older-page fetch BEFORE the user
-      // hard-stops at scrollTop=0. With the previous 600px the fetch only
-      // started after the gesture stopped, so the prepend landed 1–2s later
-      // and the anchored shift read as the viewport "teleporting" to older
-      // messages it never scrolled through. 1400px gives the fetch enough
-      // runway to land while the finger is still moving. Bottom kept tight
-      // so we don't mount heavy image rows the user is scrolling away from.
-      increaseViewportBy={{ top: 900, bottom: 200 }}
+      // Keep overscan moderate. Over-mounting thousands of pixels above the
+      // viewport causes a burst of row measurements after a fast fling stops;
+      // Virtuoso then applies compensating scrollTop corrections that read as
+      // jagged up/down motion. Let Virtuoso measure only the next screenful.
+      increaseViewportBy={{ top: 1200, bottom: 200 }}
       minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
