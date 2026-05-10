@@ -124,14 +124,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // opacity:0 for ~120ms of viewport quiet eliminates the visible shift.
   const viewportSettled = useViewportHeightSettled(180);
   const [initialViewportReleased, setInitialViewportReleased] = useState(false);
-  const virtualReady = messages.length > 0 && (viewportSettled || initialViewportReleased);
+  const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
+  const virtualReady = messages.length > 0 && ((viewportSettled && initialComposerSettled) || initialViewportReleased);
   const lastMessageId = messages[messages.length - 1]?.id;
 
   useEffect(() => {
-    if (messages.length > 0 && viewportSettled) {
+    if (messages.length > 0 && viewportSettled && initialComposerSettled) {
       setInitialViewportReleased(true);
     }
-  }, [messages.length, viewportSettled]);
+  }, [initialComposerSettled, messages.length, viewportSettled]);
 
   // Suppress the re-pin loop during the initial mount window. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + immediate/raf1/raf2 pin already lands
