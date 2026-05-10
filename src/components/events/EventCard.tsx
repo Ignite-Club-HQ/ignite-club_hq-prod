@@ -179,7 +179,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   });
 
   // Fetch child RSVPs
-  const { data: childRsvps, isPending: childRsvpsPending } = useQuery({
+  const { data: childRsvps, isLoading: childRsvpsLoading } = useQuery({
     queryKey: ["card-child-rsvps", event.id, user?.id],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
