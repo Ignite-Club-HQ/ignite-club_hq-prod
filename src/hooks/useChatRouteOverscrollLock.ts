@@ -125,7 +125,7 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("focusin", scheduleOuterViewportResetWithTail, true);
       window.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportResetWithTail);
+      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
       root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;
