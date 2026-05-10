@@ -552,16 +552,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             totalGoing: attendanceCounts?.going || 0,
           });
 
-          if (!summary) {
-            return (
-              <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
-                  <AlertCircle className="h-3 w-3" />
-                  RSVP Required
-                </span>
-              </div>
-            );
-          }
+          if (!summary) return null;
 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
