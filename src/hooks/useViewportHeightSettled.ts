@@ -12,11 +12,12 @@ export function useViewportHeightSettled(quietMs: number = 120): boolean {
   const [settled, setSettled] = useState(false);
   const lastHeightRef = useRef<number>(0);
   const timerRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const getHeight = () => {
       if (typeof window === "undefined") return 0;
-      return window.visualViewport?.height ?? window.innerHeight;
+      return Math.round(window.visualViewport?.height ?? window.innerHeight);
     };
 
     const arm = () => {
@@ -26,13 +27,22 @@ export function useViewportHeightSettled(quietMs: number = 120): boolean {
       }, quietMs);
     };
 
-    const onChange = () => {
+    const processChange = () => {
+      rafRef.current = null;
       const h = getHeight();
-      if (h !== lastHeightRef.current) {
+      // Ignore sub-pixel / 1px oscillation from mobile browser chrome; those
+      // tiny deltas are enough to make Virtuoso recalculate anchors without
+      // meaningfully changing the usable chat viewport.
+      if (Math.abs(h - lastHeightRef.current) > 1) {
         lastHeightRef.current = h;
         setSettled(false);
         arm();
       }
+    };
+
+    const onChange = () => {
+      if (rafRef.current !== null) return;
+      rafRef.current = window.requestAnimationFrame(processChange);
     };
 
     lastHeightRef.current = getHeight();
@@ -44,6 +54,7 @@ export function useViewportHeightSettled(quietMs: number = 120): boolean {
 
     return () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
       vv?.removeEventListener("resize", onChange);
       window.removeEventListener("resize", onChange);
     };
