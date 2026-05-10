@@ -699,6 +699,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollerRef={wrappedScrollerRef}
       components={components}
     />
+    {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    </div>
   );
 }
 
