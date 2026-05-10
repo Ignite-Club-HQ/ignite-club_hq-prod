@@ -350,6 +350,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  const pinnedRevisionRef = useRef<number | null>(null);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
@@ -480,7 +481,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // so first paint cannot show Virtuoso correcting an interim bottom anchor.
   useLayoutEffect(() => {
     const last = messages.length - 1;
-    if (last < 0) return;
+    if (last < 0) {
+      bottomPinReadyRef.current = false;
+      pinnedRevisionRef.current = null;
+      setInitialRevealReady(false);
+      return;
+    }
+    if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
@@ -514,6 +521,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           cancelled = true;
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
+          pinnedRevisionRef.current = bottomPinRevision;
           userHasScrolledAfterPinRef.current = false;
           setInitialRevealReady(true);
         }, 180);
@@ -537,8 +545,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision]);
+  });
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
