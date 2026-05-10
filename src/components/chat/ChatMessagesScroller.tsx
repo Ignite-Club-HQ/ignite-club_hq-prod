@@ -86,6 +86,18 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const virtualReady = messages.length > 0;
   const lastMessageId = messages[messages.length - 1]?.id;
 
+  // Suppress the re-pin loop during the initial mount window. Virtuoso's own
+  // `initialTopMostItemIndex={LAST}` + immediate/raf1/raf2 pin already lands
+  // the chat at the bottom on open. The parent effect below would otherwise
+  // also fire when `composerHeight` transitions from the 56px floor to its
+  // measured value (~80–140px) right after mount via a ResizeObserver, and
+  // schedule snap-to-bottom calls at 80/280/550/900ms. Those late snaps are
+  // visible as content shifting after the chat opens. We arm the effect only
+  // after the first ~600ms of mount, by which time the composer height has
+  // settled and any further changes are real (keyboard / reply / edit).
+  const mountedAtRef = useRef<number>(performance.now());
+  const INITIAL_MOUNT_QUIET_MS = 600;
+
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
   // we must re-pin to the latest message — otherwise the most recent
@@ -95,6 +107,9 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     if (!virtualReady) return;
     const handle = virtualHandleRef.current;
     if (!handle) return;
+    // Initial-mount quiet window: let Virtuoso's own bottom pin own first
+    // paint without parent-driven re-snaps.
+    if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) return;
     const isReplyOrEditResize = composerHeight > 64;
     const wasAtBottom = handle.isAtBottom();
     if (!isReplyOrEditResize && !wasAtBottom) return;
