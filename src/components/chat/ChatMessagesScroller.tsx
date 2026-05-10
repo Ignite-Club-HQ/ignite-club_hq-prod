@@ -87,10 +87,14 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Wait for real data before revealing the list, otherwise the wrapper can
-  // stay opacity:0 (blank) and `startReached` can fire before the first
-  // bottom pin completes.
-  const virtualReady = messages.length > 0;
+  // Wait for real data AND for the visual viewport height to stop changing
+  // before revealing the list. If we mount Virtuoso while the URL bar /
+  // status bar / keyboard are still settling, its initial bottom-pin lands
+  // against an interim height and then re-pins when the height settles —
+  // visible as a "land then jolt up/down" flicker. Holding the wrapper at
+  // opacity:0 for ~120ms of viewport quiet eliminates the visible shift.
+  const viewportSettled = useViewportHeightSettled(120);
+  const virtualReady = messages.length > 0 && viewportSettled;
   const lastMessageId = messages[messages.length - 1]?.id;
 
   // Suppress the re-pin loop during the initial mount window. Virtuoso's own
