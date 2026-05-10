@@ -353,11 +353,12 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
   switch (template) {
     case "team-invite":
     case "invite-reminder": {
-      // Check if the invited email belongs to an existing user
-      // If so, send the shorter "child added" email instead of full onboarding
+      // Check if the invited email belongs to an existing user.
+      // Existing users get an "already on the app" template variant — no
+      // download-the-app step, just a deep link into the new team/role.
       let isExistingUser = false;
       const emailToCheck = data.invitedEmail || (Array.isArray(data.to) ? data.to[0] : data.to);
-      if (supabaseAdmin && emailToCheck && data.childrenNames?.length > 0) {
+      if (supabaseAdmin && emailToCheck) {
         try {
           // Query profiles via email_hash since auth.admin.getUserByEmail isn't available
           const { data: hashResult } = await supabaseAdmin.rpc('generate_email_hash', { email: emailToCheck });
@@ -375,7 +376,8 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         }
       }
 
-      if (isExistingUser) {
+      // Existing user + children → ChildAddedEmail (no download prompts).
+      if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
           React.createElement(ChildAddedEmail, {
             recipientName: data.recipientName,
@@ -402,6 +404,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
           customMessage: data.customMessage,
+          isExistingUser,
         })
       );
     }
