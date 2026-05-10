@@ -475,6 +475,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         jump("raf2");
         if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
         bottomPinReadyRef.current = true;
+        userHasScrolledAfterPinRef.current = false;
       });
     });
     return () => {
