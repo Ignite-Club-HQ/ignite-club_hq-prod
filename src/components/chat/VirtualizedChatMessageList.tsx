@@ -758,6 +758,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
       atBottomStateChange={handleAtBottomChange}
+      onScroll={handleScroll}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
