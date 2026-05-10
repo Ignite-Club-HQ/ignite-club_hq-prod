@@ -368,6 +368,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const isLoadingOlderRef = useRef(isLoadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
   const startReachedRetryTimerRef = useRef<number | null>(null);
+  const viewportAnchorRef = useRef<{ id: string; top: number } | null>(null);
+  const anchorCaptureRafRef = useRef<number | null>(null);
+  const anchorStabilizeFrameRef = useRef<number | null>(null);
+  const restoringAnchorRef = useRef(false);
   hasOlderRef.current = hasOlder;
   isLoadingOlderRef.current = isLoadingOlder;
   onLoadOlderRef.current = onLoadOlder;
@@ -416,6 +420,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (startReachedRetryTimerRef.current !== null) {
         window.clearTimeout(startReachedRetryTimerRef.current);
         startReachedRetryTimerRef.current = null;
+      }
+      if (anchorCaptureRafRef.current !== null) {
+        window.cancelAnimationFrame(anchorCaptureRafRef.current);
+        anchorCaptureRafRef.current = null;
+      }
+      if (anchorStabilizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
+        anchorStabilizeFrameRef.current = null;
       }
     };
   }, []);
