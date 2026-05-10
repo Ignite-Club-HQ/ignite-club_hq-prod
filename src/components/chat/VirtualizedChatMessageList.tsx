@@ -631,6 +631,76 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [onAtBottomChange],
   );
 
+  const findAnchorRow = useCallback(() => {
+    const viewport = scrollerElRef.current;
+    if (!viewport || atBottomRef.current) return null;
+    const viewportRect = viewport.getBoundingClientRect();
+    const anchorLine = viewportRect.top + Math.min(120, viewportRect.height * 0.25);
+    const rows = viewport.querySelectorAll<HTMLElement>('[data-chat-row="true"][data-message-id]');
+    let best: { id: string; top: number; distance: number } | null = null;
+
+    rows.forEach((row) => {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom < viewportRect.top || rect.top > viewportRect.bottom) return;
+      const id = row.dataset.messageId;
+      if (!id) return;
+      const distance = Math.abs(rect.top - anchorLine);
+      if (!best || distance < best.distance) best = { id, top: rect.top, distance };
+    });
+
+    return best ? { id: best.id, top: best.top } : null;
+  }, []);
+
+  const captureViewportAnchor = useCallback(() => {
+    const anchor = findAnchorRow();
+    if (anchor) viewportAnchorRef.current = anchor;
+  }, [findAnchorRow]);
+
+  const scheduleAnchorCapture = useCallback(() => {
+    if (restoringAnchorRef.current || anchorCaptureRafRef.current !== null) return;
+    anchorCaptureRafRef.current = window.requestAnimationFrame(() => {
+      anchorCaptureRafRef.current = null;
+      captureViewportAnchor();
+    });
+  }, [captureViewportAnchor]);
+
+  const restoreViewportAnchor = useCallback(() => {
+    const viewport = scrollerElRef.current;
+    const anchor = viewportAnchorRef.current;
+    if (!viewport || !anchor || atBottomRef.current) return;
+
+    const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(anchor.id)
+      : anchor.id.replace(/["\\]/g, "\\$&");
+    const row = viewport.querySelector<HTMLElement>(`[data-chat-row="true"][data-message-id="${escapedId}"]`);
+    if (!row) return;
+
+    const delta = row.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(delta) < 0.75) return;
+    restoringAnchorRef.current = true;
+    viewport.scrollTop += delta;
+    window.requestAnimationFrame(() => {
+      restoringAnchorRef.current = false;
+    });
+  }, []);
+
+  const stabilizeViewportAnchor = useCallback((durationMs = 320) => {
+    if (anchorStabilizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
+      anchorStabilizeFrameRef.current = null;
+    }
+    const startedAt = performance.now();
+    const tick = () => {
+      restoreViewportAnchor();
+      if (performance.now() - startedAt < durationMs) {
+        anchorStabilizeFrameRef.current = window.requestAnimationFrame(tick);
+      } else {
+        anchorStabilizeFrameRef.current = null;
+      }
+    };
+    tick();
+  }, [restoreViewportAnchor]);
+
   // Belt-and-braces upward pagination trigger. With a large
   // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
   // `startReached` can fail to refire after a successful prepend because the
