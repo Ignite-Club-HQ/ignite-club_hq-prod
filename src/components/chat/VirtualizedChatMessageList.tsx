@@ -835,6 +835,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // braces `scrollToIndex` effect, so `alignToBottom` is not needed for
       // first-paint and actively breaks anchored pagination.
       startReached={handleStartReached}
+      atTopStateChange={handleAtTopStateChange}
+      atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
       followOutput={initialBottomPinned ? followOutput : false}
