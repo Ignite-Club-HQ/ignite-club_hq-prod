@@ -367,6 +367,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
 
+  // Also release the guard whenever the parent's `isLoadingOlder` flag
+  // transitions back to `false`. The length-grew effect above ONLY fires on
+  // a successful prepend; if an older-page fetch errors, returns zero rows,
+  // or hits the 25s abort timeout, `messages.length` never grows and the
+  // synchronous guard would otherwise stay `true` forever — silently blocking
+  // every subsequent `startReached` with "in-flight-guard" and making the
+  // chat appear to stop scrolling at whatever boundary it last reached.
+  // This was the root cause of "team admins/coaches can only scroll back to
+  // <date>" — one transient older-page failure permanently disabled upward
+  // pagination for the rest of the session.
+  const prevIsLoadingOlderRef = useRef(isLoadingOlder);
+  useEffect(() => {
+    if (prevIsLoadingOlderRef.current && !isLoadingOlder) {
+      loadingOlderInFlightRef.current = false;
+    }
+    prevIsLoadingOlderRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
+
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
   // is deterministic for a given `messages` array: prepends move the base
