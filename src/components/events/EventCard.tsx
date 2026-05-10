@@ -64,6 +64,7 @@ export interface EventCardEvent {
 interface EventCardProps {
   event: EventCardEvent;
   isAdmin: boolean;
+  hasViewed?: boolean;
   /** Index in stacked list — used for subtle zebra tinting to break the wall-of-cards effect. */
   stackIndex?: number;
 }
