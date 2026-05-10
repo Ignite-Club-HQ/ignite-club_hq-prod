@@ -636,7 +636,19 @@ export default function GroupChatPage() {
 
     setLocalMessages((prev) => {
       const incomingIds = new Set(messages.map((message) => message.id));
-      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      const realByAuthorText = new Set(
+        messages
+          .filter((m: any) => !m.id.startsWith("temp-") && !m.id.startsWith("queued-"))
+          .map((m: any) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
+      );
+      const previousOnly = (prev || []).filter((message: any) => {
+        if (incomingIds.has(message.id)) return false;
+        if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
+          const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
+          if (realByAuthorText.has(key)) return false;
+        }
+        return true;
+      });
       const mergedIncomingMessages = messages.map((message) => {
         const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
         const previousMessage = prev?.find((item) => item.id === message.id);
