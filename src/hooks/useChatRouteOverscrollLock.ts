@@ -80,14 +80,14 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       touchStartYRef.current = event.touches[0]?.clientY ?? 0;
     };
 
-    // Android-only: prevent pull-to-refresh when dragging DOWN from chat
-    // chrome (header/composer). The chat scroll viewport itself uses
-    // `overscroll-behavior-y: contain`, so we no longer need to inspect it
-    // here on every touchmove — doing so was forcing Android to wait on a
-    // passive:false JS handler before continuing inertia, which made
-    // upward scroll feel slow and chunky.
+    // Prevent pull-to-refresh / rubber-band bounce when dragging DOWN from
+    // chat chrome (header/composer) on Android AND iOS. The chat scroll
+    // viewport itself uses `overscroll-behavior-y: contain`, so we no longer
+    // need to inspect it here on every touchmove — doing so was forcing the
+    // browser to wait on a passive:false JS handler before continuing
+    // inertia, which made upward scroll feel slow and chunky and produced a
+    // jolt when the fling stopped.
     const handleTouchMove = (event: TouchEvent) => {
-      if (!isAndroid) return;
       const target = event.target as HTMLElement | null;
       if (!target) return;
       // Fast path: only chat-chrome elements need preventDefault. Everything
