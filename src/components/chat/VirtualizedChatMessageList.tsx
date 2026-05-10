@@ -645,6 +645,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
+      // Report item resize measurements synchronously. On native WebViews the
+      // default rAF-delayed ResizeObserver path can apply Virtuoso's anchor
+      // correction one frame after a fast upward fling stops, which reads as a
+      // small jolt. Synchronous reporting keeps the correction in the same
+      // layout turn as the row resize.
+      skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
       // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
       // fires `startReached` when the first data item mounts, so a larger top
@@ -655,7 +661,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // messages it never scrolled through. 1400px gives the fetch enough
       // runway to land while the finger is still moving. Bottom kept tight
       // so we don't mount heavy image rows the user is scrolling away from.
-      increaseViewportBy={{ top: 1400, bottom: 200 }}
+      increaseViewportBy={{ top: 900, bottom: 200 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
