@@ -339,6 +339,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  const [initialRevealReady, setInitialRevealReady] = useState(false);
+  const bottomPinSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
@@ -452,6 +454,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
+    setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and
@@ -473,13 +476,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       jump("raf1");
       requestAnimationFrame(() => {
         jump("raf2");
-        if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-        bottomPinReadyRef.current = true;
-        userHasScrolledAfterPinRef.current = false;
+        const settle = setTimeout(() => {
+          if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
+          bottomPinReadyRef.current = true;
+          userHasScrolledAfterPinRef.current = false;
+          setInitialRevealReady(true);
+        }, 80);
+        bottomPinSettleTimerRef.current = settle;
       });
     });
     return () => {
       cancelAnimationFrame(r1);
+      if (bottomPinSettleTimerRef.current !== null) {
+        clearTimeout(bottomPinSettleTimerRef.current);
+        bottomPinSettleTimerRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomPinRevision]);
@@ -523,7 +534,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // Schedule shortly after the raf2 bottom pin lands. 250ms is comfortably
     // after pin completion but well inside the 800ms trust window, so the
     // prepend has time to round-trip and land before the user starts scrolling.
-    const t = window.setTimeout(tryPrefetch, 80);
+    const t = window.setTimeout(tryPrefetch, 160);
     return () => window.clearTimeout(t);
   }, [bottomPinRevision, hasOlder, isLoadingOlder, messages.length, onLoadOlder]);
 
@@ -737,7 +748,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, []);
 
   return (
-    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
+        opacity: initialRevealReady ? 1 : 0,
+        transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
+      }}
+    >
     <Virtuoso
       ref={virtuosoRef}
       className={className}
@@ -772,17 +791,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // layout turn as the row resize.
       skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
-      // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
-      // fires `startReached` when the first data item mounts, so a larger top
-      // window means we kick off the older-page fetch BEFORE the user
-      // hard-stops at scrollTop=0. With the previous 600px the fetch only
-      // started after the gesture stopped, so the prepend landed 1–2s later
-      // and the anchored shift read as the viewport "teleporting" to older
-      // messages it never scrolled through. 1400px gives the fetch enough
-      // runway to land while the finger is still moving. Bottom kept tight
-      // so we don't mount heavy image rows the user is scrolling away from.
-      increaseViewportBy={{ top: 900, bottom: 200 }}
-      minOverscanItemCount={{ top: 8, bottom: 2 }}
+      // Warm a deep slice above the bottom before reveal. The cold-open jolt
+      // was caused by the first upward fling mounting unmeasured history rows;
+      // Virtuoso then corrected their real heights as momentum stopped. A
+      // ~page-sized top overscan measures those rows while hidden/idle, so the
+      // first user scroll uses the same settled size map as later scrolls.
+      increaseViewportBy={{ top: 3600, bottom: 200 }}
+      minOverscanItemCount={{ top: 24, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
