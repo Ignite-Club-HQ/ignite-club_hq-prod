@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
@@ -281,6 +282,40 @@ function DebugRowProbe({
   );
 }
 
+/**
+ * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
+ * message is hydrating. Uses semantic tokens so it follows the active theme,
+ * and `pointer-events-none` so the user can still scroll/tap underneath if
+ * they want to abort.
+ */
+function JumpHydrationSkeleton() {
+  const rows = [82, 64, 96, 72, 88, 60, 78];
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
+      style={{
+        background:
+          "linear-gradient(to bottom, hsl(var(--background) / 0.92), hsl(var(--background) / 0.98))",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+      }}
+    >
+      {rows.map((width, i) => (
+        <div
+          key={i}
+          className="flex"
+          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
+        >
+          <div
+            className="h-10 rounded-2xl bg-muted animate-pulse"
+            style={{ width: `${width}%`, maxWidth: "75%" }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
@@ -618,7 +653,38 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [scrollerRef],
   );
 
+  // Brief skeleton overlay while a deep-link/jump-to-message is hydrating.
+  // Driven by window CustomEvents from `jumpToMessageInVirtualizedChat` so
+  // every chat surface (Team/Group/Club/Broadcast/ClubAdmin/DM) gets the
+  // mask without prop-drilling. Masks the visible re-anchor as deferred row
+  // sub-content (link previews, replies, reactions) hydrates after scroll.
+  const [isJumpHydrating, setIsJumpHydrating] = useState(false);
+  useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onStart = () => {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      setIsJumpHydrating(true);
+    };
+    const onEnd = () => {
+      // Slight delay before hiding so the cross-fade reads as intentional
+      // rather than a flash if hydration finishes in <100ms.
+      if (fadeTimer) clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(() => setIsJumpHydrating(false), 120);
+    };
+    window.addEventListener("chat:jump-hydration-start", onStart);
+    window.addEventListener("chat:jump-hydration-end", onEnd);
+    return () => {
+      window.removeEventListener("chat:jump-hydration-start", onStart);
+      window.removeEventListener("chat:jump-hydration-end", onEnd);
+      if (fadeTimer) clearTimeout(fadeTimer);
+    };
+  }, []);
+
   return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
     <Virtuoso
       ref={virtuosoRef}
       className={className}
@@ -667,6 +733,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       scrollerRef={wrappedScrollerRef}
       components={components}
     />
+    {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    </div>
   );
 }
 

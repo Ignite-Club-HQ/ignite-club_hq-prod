@@ -52,6 +52,23 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   // or let a stale 2.5s highlight-clear wipe the newest target.
   if (activeCancel) activeCancel();
 
+  // Notify the virtualised chat list to render a brief skeleton overlay
+  // while we poll + scroll + settle. This masks the visible re-anchor that
+  // happens as deferred row sub-content (link previews, replies, reactions)
+  // hydrates AFTER the initial scrollToIndex lands. The list listens for
+  // these CustomEvents and fades the overlay out once "end" fires.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("chat:jump-hydration-start"));
+  }
+  let hydrationEnded = false;
+  const endHydration = () => {
+    if (hydrationEnded) return;
+    hydrationEnded = true;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
+    }
+  };
+
   let attempts = 0;
   let cancelled = false;
   let lastLoadOlderAttempt = -1;
@@ -76,6 +93,8 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       const h3 = getHandle();
       const idx3 = getMessages().findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
+      // Sub-content has had a chance to hydrate by now; lift the skeleton.
+      endHydration();
     }, 450);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
@@ -130,6 +149,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 
     if (attempts < maxAttempts) {
       nextTickTimer = setTimeout(tick, intervalMs);
+    } else {
+      // Polling exhausted without landing — drop the skeleton so the user
+      // isn't stuck staring at it.
+      endHydration();
     }
   };
 
@@ -141,6 +164,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     if (nextTickTimer) clearTimeout(nextTickTimer);
     if (settleTimer) clearTimeout(settleTimer);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
+    endHydration();
     if (activeCancel === cancel) activeCancel = null;
   };
   activeCancel = cancel;
