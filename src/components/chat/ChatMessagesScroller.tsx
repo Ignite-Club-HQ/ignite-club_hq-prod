@@ -93,7 +93,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // against an interim height and then re-pins when the height settles —
   // visible as a "land then jolt up/down" flicker. Holding the wrapper at
   // opacity:0 for ~120ms of viewport quiet eliminates the visible shift.
-  const viewportSettled = useViewportHeightSettled(120);
+  const viewportSettled = useViewportHeightSettled(180);
   const virtualReady = messages.length > 0 && viewportSettled;
   const lastMessageId = messages[messages.length - 1]?.id;
 
