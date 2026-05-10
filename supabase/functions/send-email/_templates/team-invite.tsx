@@ -62,6 +62,7 @@ export const TeamInviteEmail = ({
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
   customMessage,
+  isExistingUser = false,
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
