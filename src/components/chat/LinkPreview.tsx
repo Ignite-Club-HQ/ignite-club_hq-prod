@@ -57,13 +57,20 @@ async function fetchPreviewOnce(url: string): Promise<CacheEntry> {
       });
       if (error) throw error;
       const hasContent = data && (data.title || data.description || data.image);
-      const value = hasContent ? (data as LinkPreviewData) : null;
+      // In chat history we reserve a fixed h-20 slot for URL previews before
+      // metadata returns. If the edge function succeeds but finds no title / image,
+      // still render a simple host card instead of removing the reserved slot at
+      // scroll-idle — that removal is perceived as a downward jolt when upward
+      // momentum stops.
+      const value = hasContent ? (data as LinkPreviewData) : ({ url: fetchUrl } as LinkPreviewData);
       previewCache.set(url, value);
       return value;
     } catch (err) {
       console.error("Failed to fetch link preview:", err);
-      previewCache.set(url, null);
-      return null;
+      const fallbackUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+      const fallback = { url: fallbackUrl } as LinkPreviewData;
+      previewCache.set(url, fallback);
+      return fallback;
     } finally {
       inflight.delete(url);
     }
