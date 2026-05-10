@@ -108,12 +108,13 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
     const viewport = findChatViewport(element);
     if (!viewport) return;
 
-    // In virtualized chat, react-virtuoso owns row measurements and scroll
-    // anchoring. A second manual `scrollTop += delta` here fights Virtuoso's
-    // own correction during native momentum scrolling, which shows up as the
-    // remaining upward jitter. Keep this compensator for legacy/non-virtual
-    // chat scroll containers only.
-    if (isVirtualizedChatViewport(viewport)) return;
+    // In virtualized chat, react-virtuoso owns row measurements while native
+    // momentum is active; manual scrollTop writes during that phase fight its
+    // anchoring. Once scrolling is genuinely idle, however, deferred row
+    // commits (link previews / replies / reactions) can still resize rows
+    // above the anchor and create the reported stop-scroll downward jolt. Only
+    // absorb those idle resizes after momentum has settled.
+    if (isVirtualizedChatViewport(viewport) && performance.now() - lastScrollAt < 180) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
