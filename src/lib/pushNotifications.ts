@@ -387,11 +387,31 @@ function detectPlatform(): string {
 /**
  * Subscribe to push notifications
  */
+/**
+ * Web push is intentionally disabled. Push notifications are only delivered
+ * through the Capacitor native app (FCM/APNs via @/lib/nativePush). Calling
+ * this from a browser is a no-op so we never create web push_subscriptions
+ * rows for Chrome / Safari / Edge etc.
+ */
+function isNativeCapacitor(): boolean {
+  try {
+    return !!(window as any).Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
+}
+
 export async function subscribeToPushNotifications(userId: string, silent = false): Promise<{ success: boolean; error?: string }> {
   console.log('[Push] === Starting subscription ===');
   console.log('[Push] User ID:', userId);
   console.log('[Push] Silent mode:', silent);
   console.log('[Push] URL:', window.location.href);
+
+  // Web push is disabled — only the native app subscribes (via nativePush.ts).
+  if (!isNativeCapacitor()) {
+    console.log('[Push] Web push disabled: not running in Capacitor native app. Skipping subscribe.');
+    return { success: false, error: 'Push notifications are only available in the Ignite mobile app.' };
+  }
 
   // Check for concurrent subscription using sessionStorage-based lock (survives page refresh)
   const existingLock = getLock();
