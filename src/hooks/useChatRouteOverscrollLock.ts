@@ -80,64 +80,52 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       touchStartYRef.current = event.touches[0]?.clientY ?? 0;
     };
 
+    scheduleOuterViewportResetWithTail();
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? 0;
+    };
+
+    // Android-only: prevent pull-to-refresh when dragging DOWN from chat
+    // chrome (header/composer). The chat scroll viewport itself uses
+    // `overscroll-behavior-y: contain`, so we no longer need to inspect it
+    // here on every touchmove — doing so was forcing Android to wait on a
+    // passive:false JS handler before continuing inertia, which made
+    // upward scroll feel slow and chunky.
     const handleTouchMove = (event: TouchEvent) => {
       if (!isAndroid) return;
-
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      // Fast path: only chat-chrome elements need preventDefault. Everything
+      // else (message list, overlays, inputs) is handled by overscroll-behavior
+      // or by the overlay's own scroll container.
+      if (!target.closest('[data-chat-chrome="true"]')) return;
       const currentY = event.touches[0]?.clientY;
       if (currentY == null) return;
-
-      const target = event.target as HTMLElement | null;
-      if (!target || target.closest(INPUT_SELECTOR)) return;
-
-      const deltaY = currentY - touchStartYRef.current;
-      if (deltaY === 0) return;
-
-      // If the touch is happening inside an overlay (e.g. the GIF picker
-      // portaled to <body>), let the overlay's own scroll container handle
-      // it — don't apply chat-route overscroll prevention here.
-      if (target.closest(OVERLAY_SCROLL_SELECTOR)) return;
-
-      const scrollContainer = target.closest(CHAT_SCROLL_SELECTOR) as HTMLElement | null;
-
-      // Prevent Android pull-to-refresh ONLY when dragging down from explicit
-      // chat chrome (header/composer marked with data-chat-chrome). Previously
-      // this fired for ANY non-scrollable target, which intermittently cancelled
-      // legitimate touchmoves inside menus, sheets and image viewers, producing
-      // the "scroll froze / skipped a frame" symptom mid-flick.
-      if (!scrollContainer) {
-        if (deltaY > 0 && target.closest('[data-chat-chrome="true"]')) {
-          event.preventDefault();
-        }
-        return;
-      }
-
-      const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-      const atTop = scrollContainer.scrollTop <= 0;
-      const atBottom = scrollContainer.scrollTop >= maxScrollTop - 1;
-
-      if ((deltaY > 0 && atTop) || (deltaY < 0 && atBottom)) {
+      if (currentY - touchStartYRef.current > 0) {
         event.preventDefault();
       }
     };
 
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
-    document.addEventListener("focusin", scheduleOuterViewportReset, true);
-    window.addEventListener("resize", scheduleOuterViewportReset);
+    document.addEventListener("focusin", scheduleOuterViewportResetWithTail, true);
+    window.addEventListener("resize", scheduleOuterViewportResetWithTail);
     window.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
     root.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
-    window.visualViewport?.addEventListener("resize", scheduleOuterViewportReset);
+    window.visualViewport?.addEventListener("resize", scheduleOuterViewportResetWithTail);
     window.visualViewport?.addEventListener("scroll", scheduleOuterViewportReset);
 
     return () => {
+      if (pendingRaf != null) cancelAnimationFrame(pendingRaf);
       scheduledScrollResets.forEach((id) => window.clearTimeout(id));
       document.removeEventListener("touchstart", handleTouchStart);
       document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("focusin", scheduleOuterViewportReset, true);
-      window.removeEventListener("resize", scheduleOuterViewportReset);
+      document.removeEventListener("focusin", scheduleOuterViewportResetWithTail, true);
+      window.removeEventListener("resize", scheduleOuterViewportResetWithTail);
       window.removeEventListener("scroll", scheduleOuterViewportReset);
       root.removeEventListener("scroll", scheduleOuterViewportReset);
-      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportReset);
+      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportResetWithTail);
       window.visualViewport?.removeEventListener("scroll", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
