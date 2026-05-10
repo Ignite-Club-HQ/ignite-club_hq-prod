@@ -351,7 +351,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
-  const bottomPinSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
@@ -501,6 +500,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let frame: number | null = null;
     let cancelled = false;
     let lastMetrics = "";
     const armRevealWhenStable = () => {
@@ -511,13 +511,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         lastMetrics = metrics;
         if (revealTimer !== null) clearTimeout(revealTimer);
         revealTimer = setTimeout(() => {
+          cancelled = true;
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
           userHasScrolledAfterPinRef.current = false;
           setInitialRevealReady(true);
         }, 180);
       }
-      requestAnimationFrame(armRevealWhenStable);
+      frame = requestAnimationFrame(armRevealWhenStable);
     };
     const r1 = requestAnimationFrame(() => {
       jump("raf1");
@@ -530,10 +531,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       cancelled = true;
       cancelAnimationFrame(r1);
       if (revealTimer !== null) clearTimeout(revealTimer);
-      if (bottomPinSettleTimerRef.current !== null) {
-        clearTimeout(bottomPinSettleTimerRef.current);
-        bottomPinSettleTimerRef.current = null;
-      }
+      if (frame !== null) cancelAnimationFrame(frame);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomPinRevision]);
