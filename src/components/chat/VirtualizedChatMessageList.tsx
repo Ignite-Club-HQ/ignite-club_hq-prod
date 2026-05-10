@@ -364,6 +364,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // resumes.
   const PREPEND_TRUST_WINDOW_MS = 800;
   const messagesLengthRef = useRef(messages.length);
+  const hasOlderRef = useRef(hasOlder);
+  const isLoadingOlderRef = useRef(isLoadingOlder);
+  const onLoadOlderRef = useRef(onLoadOlder);
+  const startReachedRetryTimerRef = useRef<number | null>(null);
+  hasOlderRef.current = hasOlder;
+  isLoadingOlderRef.current = isLoadingOlder;
+  onLoadOlderRef.current = onLoadOlder;
   // Synchronous in-flight guard for `startReached`. The parent's
   // `isLoadingOlder` state flips via setState, so two `startReached` events
   // fired in the same frame on a fast upward flick both see `false` and
@@ -395,6 +402,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
     prevIsLoadingOlderRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
+
+  useEffect(() => {
+    if (hasOlder) return;
+    if (startReachedRetryTimerRef.current !== null) {
+      window.clearTimeout(startReachedRetryTimerRef.current);
+      startReachedRetryTimerRef.current = null;
+    }
+  }, [hasOlder]);
+
+  useEffect(() => {
+    return () => {
+      if (startReachedRetryTimerRef.current !== null) {
+        window.clearTimeout(startReachedRetryTimerRef.current);
+        startReachedRetryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Virtuoso's anchored-prepend trick: keep `firstItemIndex` tied to the
   // message that was first visible when this data set was established. This
@@ -558,7 +582,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // hasn't scrolled through yet.
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
-      debugLogStartReached(false, "trust-window");
+      debugLogStartReached(false, "trust-window-deferred");
+      if (startReachedRetryTimerRef.current === null) {
+        startReachedRetryTimerRef.current = window.setTimeout(() => {
+          startReachedRetryTimerRef.current = null;
+          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          loadingOlderInFlightRef.current = true;
+          debugLogStartReached(true, "deferred-fetch");
+          onLoadOlderRef.current();
+        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
+      }
       return;
     }
     if (!hasOlder) {
