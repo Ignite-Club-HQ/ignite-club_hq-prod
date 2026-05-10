@@ -755,6 +755,33 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_photo_gallery_reminders: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          message_id: string | null
+          photo_count: number
+          team_id: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          photo_count?: number
+          team_id: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          photo_count?: number
+          team_id?: string
+        }
+        Relationships: []
+      }
       child_club_points: {
         Row: {
           child_id: string
@@ -2552,6 +2579,41 @@ export type Database = {
           },
         ]
       }
+      event_auto_dm_log: {
+        Row: {
+          cadence: string
+          dm_message_id: string | null
+          event_id: string
+          id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence: string
+          dm_message_id?: string | null
+          event_id: string
+          id?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence?: string
+          dm_message_id?: string | null
+          event_id?: string
+          id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_auto_dm_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
@@ -2764,6 +2826,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "event_payments_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_reminder_log: {
+        Row: {
+          channels: string
+          emails_sent: number
+          event_id: string
+          id: string
+          pushes_sent: number
+          recipients_count: number
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          channels?: string
+          emails_sent?: number
+          event_id: string
+          id?: string
+          pushes_sent?: number
+          recipients_count?: number
+          sent_at?: string
+          sent_by: string
+        }
+        Update: {
+          channels?: string
+          emails_sent?: number
+          event_id?: string
+          id?: string
+          pushes_sent?: number
+          recipients_count?: number
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminder_log_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
@@ -7127,6 +7230,7 @@ export type Database = {
       teams: {
         Row: {
           archived_at: string | null
+          auto_rsvp_dm_enabled: boolean
           class_capacity: number | null
           class_day: string | null
           class_duration_minutes: number | null
@@ -7161,6 +7265,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -7195,6 +7300,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -8419,6 +8525,12 @@ export type Database = {
           withdrawn: number
         }[]
       }
+      get_event_non_responders: {
+        Args: { _event_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
@@ -8858,6 +8970,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      post_chat_photo_gallery_reminder: {
+        Args: {
+          _author_id: string
+          _photo_count: number
+          _system_user_id: string
+          _team_id: string
+        }
+        Returns: string
+      }
       post_or_update_team_gallery_card: {
         Args: {
           _event_id?: string
@@ -8896,6 +9017,12 @@ export type Database = {
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
+      quick_rsvp_from_dm: {
+        Args: { _event_id: string; _status: string }
+        Returns: {
+          inserted_count: number
+        }[]
+      }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
         Returns: {

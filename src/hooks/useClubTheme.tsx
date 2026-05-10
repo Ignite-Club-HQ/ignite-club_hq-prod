@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
+import { preloadLogo } from "@/components/ui/logo-image";
 
 interface HSLColor {
   h: number;
@@ -395,10 +396,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
             cacheApplied = true;
             
-            // Preload the logo image so it's ready when the header renders
+            // Preload the logo image so it's ready when the header renders.
+            // Use LogoImage's shared cache so the visible <img> reuses the decoded entry
+            // instead of issuing a fresh fetch + decode on mount.
             if (themeFromCache.logoUrl) {
-              const img = new Image();
-              img.src = themeFromCache.logoUrl;
+              preloadLogo(themeFromCache.logoUrl);
             }
           }
         } catch {

@@ -1,7 +1,7 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -489,9 +489,18 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   const isMatchDay = !!(event as any).mini_league_id;
 
+  // "Needs RSVP" — neither the parent nor any of their children on this event
+  // have responded yet. Drives a subtle tint + pill so un-actioned cards stand
+  // out without competing with cancelled / today states.
+  const needsRsvp =
+    heroDataReady &&
+    !event.is_cancelled &&
+    currentStatus === null &&
+    (childRsvps?.length ?? 0) === 0;
+
   return (
     <Card
-      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`relative overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60 border-border/50" : needsRsvp ? "border-primary/40 bg-primary/[0.04]" : "border-border/50"}`}
       role="button"
       tabIndex={0}
       aria-label={`${displayTitle}, ${dateLabel} at ${dateTime}`}
@@ -504,15 +513,28 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
         aria-hidden="true"
       />
-      {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
-      <ChevronRight
-        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
-        aria-hidden="true"
-      />
+      {/* Right-edge tap affordance — hidden when RSVP pill is shown to avoid
+          competing with the high-emphasis action marker. */}
+      {!needsRsvp && (
+        <ChevronRight
+          className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+          aria-hidden="true"
+        />
+      )}
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + cancelled marker — compact, doesn't crowd chevron */}
-        {(isToday || event.is_cancelled) && (
+        {/* Status row: Today badge + needs-RSVP pill + cancelled marker */}
+        {(isToday || event.is_cancelled || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
+            {needsRsvp && !event.is_cancelled && (
+              <span
+                role="status"
+                aria-label="RSVP required"
+                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-wide bg-amber-500 text-white shadow-sm shadow-amber-500/30 animate-fade-in"
+              >
+                <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
+                RSVP Required
+              </span>
+            )}
             {isToday && !event.is_cancelled && (
               <Badge
                 variant="outline"
@@ -889,6 +911,7 @@ function CompactCard({ event }: { event: EventItem }) {
 }
 
 export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
+  const { user } = useAuth();
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
@@ -914,6 +937,44 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi, onSelect]);
 
+  // Aggregate "needs RSVP" count across the visible carousel events.
+  // An event is pending if neither the user nor any of their children have responded.
+  const carouselEventIds = React.useMemo(
+    () => (events || []).slice(0, 6).filter(e => !e.is_cancelled).map(e => e.id),
+    [events],
+  );
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["next-up-pending-count", user?.id, carouselEventIds],
+    queryFn: async () => {
+      if (!user || carouselEventIds.length === 0) return 0;
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      const uniqueChildIds = [...new Set(childIds)];
+
+      const orFilter = uniqueChildIds.length > 0
+        ? `user_id.eq.${user.id},child_id.in.(${uniqueChildIds.join(",")})`
+        : `user_id.eq.${user.id}`;
+
+      const { data: rsvps } = await supabase
+        .from("rsvps")
+        .select("event_id")
+        .in("event_id", carouselEventIds)
+        .or(orFilter);
+
+      const responded = new Set((rsvps || []).map(r => r.event_id));
+      return carouselEventIds.filter(id => !responded.has(id)).length;
+    },
+    enabled: !!user && carouselEventIds.length > 0,
+    staleTime: 60 * 1000,
+  });
+
   // Show skeleton while loading to reserve space and prevent layout shift
   if (isLoading) {
     return (
@@ -934,9 +995,20 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Next Up</h2>
-        <Link to="/events" className="text-xs text-muted-foreground/60 hover:text-primary transition-colors">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-lg font-semibold">Next Up</h2>
+          {pendingCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] h-5 font-semibold bg-amber-500 text-white shadow-sm shadow-amber-500/30 animate-fade-in shrink-0"
+              aria-label={`${pendingCount} ${pendingCount === 1 ? "event needs" : "events need"} your RSVP`}
+            >
+              <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
+              {pendingCount} {pendingCount === 1 ? "needs RSVP" : "need RSVP"}
+            </span>
+          )}
+        </div>
+        <Link to="/events" className="text-xs text-muted-foreground/60 hover:text-primary transition-colors shrink-0">
           View all →
         </Link>
       </div>

@@ -24,7 +24,7 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical } from "lucide-react";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical, AlertCircle } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -421,12 +421,9 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       />
       <CardContent className="p-3.5 pb-3 pr-9 pl-4 space-y-1.5">
         {/* Status chips only — section header already conveys the date.
-            "New" badge is suppressed for training events to reduce noise.
-            Positioned with extra right padding so the chevron isn't crowded. */}
+             Positioned with extra right padding so the chevron isn't crowded. */}
         {(() => {
-          const isTraining = event.type === "training";
-          const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
-          if (!showNew && !event.is_cancelled && !isToday) return null;
+          if (!event.is_cancelled && !isToday) return null;
           return (
             <div className="flex items-center justify-end gap-1.5 -mr-3">
               {isToday && !event.is_cancelled && (
@@ -435,12 +432,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                   className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/30"
                 >
                   Today
-                </Badge>
-              )}
-              {showNew && (
-                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[9.5px] h-[18px] px-1.5">
-                  <Eye className="h-2.5 w-2.5" />
-                  New
                 </Badge>
               )}
               {event.is_cancelled && (
@@ -554,9 +545,11 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
           if (!summary) {
             return (
-              <div className="flex items-center gap-1.5 pt-2 mt-1 border-t border-border/40 min-w-0">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-                <span className="text-[12px] font-medium text-primary/90">Tap to RSVP</span>
+              <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
+                  <AlertCircle className="h-3 w-3" />
+                  RSVP Required
+                </span>
               </div>
             );
           }

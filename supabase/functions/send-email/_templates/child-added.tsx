@@ -99,7 +99,7 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Tap the button below to see their team, teammates, and any updates for the season. If you don't have the app yet, you can download it from the App Store or Google Play.
+                  Tap the button below to open Ignite Club HQ and see their team, teammates, and any updates for the season.
                 </Text>
               </>
             )}
@@ -107,27 +107,8 @@ export const ChildAddedEmail = ({
 
           {/* CTA */}
           <Section style={ctaSection}>
-            {/* Download buttons */}
-            <Text style={stepLabel}>📲 Download the app</Text>
-            <Section style={storeButtonsRow}>
-              <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
-                <tr>
-                  <td style={{ paddingRight: '6px' }}>
-                    <Button style={playStoreBtn} href={PLAY_STORE_URL}>
-                      ▶️ Google Play
-                    </Button>
-                  </td>
-                  <td style={{ paddingLeft: '6px' }}>
-                    <Button style={appStoreBtn} href={APP_STORE_URL}>
-                      🍎 App Store
-                    </Button>
-                  </td>
-                </tr>
-              </table>
-            </Section>
-
             {/* View team button */}
-            <Text style={stepLabel}>👇 Then tap below to see their team</Text>
+            <Text style={stepLabel}>👇 Tap below to see their team</Text>
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
                 View Their Team

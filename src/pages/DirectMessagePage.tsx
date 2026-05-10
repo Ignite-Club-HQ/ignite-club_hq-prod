@@ -542,7 +542,7 @@ export default function DirectMessagePage() {
       ? messagesData 
       : (messagesData as any).messages || [];
     return [...msgList].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [messagesData]);
 
@@ -1034,7 +1034,7 @@ export default function DirectMessagePage() {
               return {
                 ...old,
                 messages: [...filtered, messageToAdd].sort(
-                  (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                  (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
                 ),
               };
             }
@@ -1243,7 +1243,7 @@ export default function DirectMessagePage() {
           fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
   }, [localMessages, searchQuery]);
 

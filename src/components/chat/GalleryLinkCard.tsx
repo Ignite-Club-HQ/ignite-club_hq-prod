@@ -25,16 +25,18 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
         .maybeSingle();
 
       let opponentLabel: string | null = null;
+      let eventStart: string | null = null;
       if (data?.event_id) {
         const { data: ev } = await supabase
           .from("events")
-          .select("opponent, type")
+          .select("opponent, type, start_time")
           .eq("id", data.event_id)
           .maybeSingle();
         if (ev?.opponent) opponentLabel = ev.opponent as string;
+        if (ev?.start_time) eventStart = ev.start_time as string;
       }
 
-      return data ? { ...data, opponentLabel } : null;
+      return data ? { ...data, opponentLabel, eventStart } : null;
     },
     enabled: !!cardId,
     staleTime: 30 * 1000,
@@ -72,8 +74,23 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
   const teamName = (card as { teams?: { name?: string } | null }).teams?.name || "Team";
   const isPrompt = card.is_prompt;
   const count = card.photo_count;
+  const promptHeadline = (() => {
+    const ref = (card as { eventStart?: string | null }).eventStart || card.created_at;
+    if (!ref) return "Got photos from the game?";
+    const refDate = new Date(ref);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayDiff = Math.round((startOfDay(now) - startOfDay(refDate)) / 86400000);
+    if (dayDiff <= 0) return "Got photos from today?";
+    if (dayDiff === 1) return "Got photos from yesterday?";
+    if (dayDiff < 7) {
+      const weekday = refDate.toLocaleDateString(undefined, { weekday: "long" });
+      return `Got photos from ${weekday}?`;
+    }
+    return "Got photos from the game?";
+  })();
   const headline = isPrompt
-    ? "Got photos from today?"
+    ? promptHeadline
     : card.opponentLabel
       ? `📸 ${count} photo${count === 1 ? "" : "s"} from vs ${card.opponentLabel}`
       : `📸 ${count} new ${teamName} photo${count === 1 ? "" : "s"}`;
@@ -87,7 +104,7 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
     <button
       type="button"
       onClick={handleClick}
-      className="group block w-full max-w-[300px] overflow-hidden rounded-2xl border border-primary/20 bg-card text-left shadow-sm transition-all active:scale-[0.985] active:bg-primary/[0.04] touch-manipulation"
+      className="group block w-full max-w-[320px] overflow-hidden rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-all hover:border-primary/30 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06)] active:scale-[0.985] active:bg-primary/[0.04] touch-manipulation dark:border-border/40 dark:bg-card/80 dark:hover:border-primary/40"
     >
       {/* Hero - only for non-prompt cards with image */}
       {!isPrompt && heroSrc && !imgError && (
@@ -111,22 +128,45 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
         </div>
       )}
 
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        {/* Icon for prompt or fallback */}
-        {(isPrompt || !heroSrc || imgError) && (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15">
+      {isPrompt ? (
+        <div className="flex items-center gap-3 px-3.5 py-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/15">
             <ImageIcon className="h-4 w-4 text-primary" />
           </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight">{headline}</p>
-          <p className="truncate text-[11px] text-muted-foreground leading-tight mt-0.5">{subline}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13.5px] font-semibold leading-snug text-foreground line-clamp-2">
+              {headline}
+            </p>
+            <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground/90">
+              {subline}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5 self-center text-[11px] font-medium text-muted-foreground/80">
+            <span className="hidden xs:inline">Upload</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/70" />
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-primary">
-          {ctaLabel}
-          <ChevronRight className="h-3.5 w-3.5" />
+      ) : (
+        <div className="flex items-center gap-3 px-3.5 py-3">
+          {(!heroSrc || imgError) && (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/15">
+              <ImageIcon className="h-4 w-4 text-primary" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13.5px] font-semibold leading-snug text-foreground">
+              {headline}
+            </p>
+            <p className="mt-0.5 truncate text-[11.5px] leading-tight text-muted-foreground/90">
+              {subline}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5 self-center text-[11px] font-medium text-primary">
+            {ctaLabel}
+            <ChevronRight className="h-3.5 w-3.5" />
+          </div>
         </div>
-      </div>
+      )}
     </button>
   );
 });

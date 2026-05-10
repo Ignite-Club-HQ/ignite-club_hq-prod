@@ -2630,9 +2630,34 @@ export default function EventDetailPage() {
           </Card>
         )}
         {/* Child RSVP - inline below parent RSVP */}
-        {childrenOnTeam && childrenOnTeam.length > 0 && (
+        {childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+          const unrespondedChildren = childrenOnTeam.filter(
+            (c: any) => !childRsvps.find((r) => r.child_id === c.id),
+          );
+          const unrespondedCount = unrespondedChildren.length;
+          return (
           <div className="pt-2">
             <Separator />
+            {/* Summary accountability chip */}
+            {unrespondedCount > 0 && (
+              <div
+                role="status"
+                className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm"
+              >
+                <span
+                  aria-hidden
+                  className="relative inline-flex h-2 w-2 shrink-0"
+                >
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+                </span>
+                <span className="text-foreground">
+                  {unrespondedCount === 1
+                    ? unrespondedChildren[0].name + " hasn't been RSVP'd yet"
+                    : `${unrespondedCount} of your ${unrespondedCount === childrenOnTeam.length ? "kids" : "children"} haven't been RSVP'd`}
+                </span>
+              </div>
+            )}
             <details open className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
               <summary className="flex items-center gap-2 cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden">
                 <Baby className="h-4 w-4 text-primary" />
@@ -2648,6 +2673,7 @@ export default function EventDetailPage() {
               <div className="space-y-3 px-3 pb-3">
               {childrenOnTeam.map((child: any) => {
               const childRsvp = childRsvps.find((r) => r.child_id === child.id);
+              const isUnresponded = !childRsvp;
               return (
                 <div key={child.id} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -2658,6 +2684,18 @@ export default function EventDetailPage() {
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm font-medium">{child.name}</span>
+                      {isUnresponded && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive"
+                          aria-label="Awaiting your response"
+                        >
+                          <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-70" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
+                          </span>
+                          Awaiting response
+                        </span>
+                      )}
                     </div>
                     {childRsvp && (
                       <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
@@ -2686,7 +2724,8 @@ export default function EventDetailPage() {
               </div>
             </details>
           </div>
-        )}
+          );
+        })()}
       </section>
 
       {/* Guest Management Section - only for social events with guests enabled */}

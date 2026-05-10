@@ -9,6 +9,8 @@ const EVENT_TOKEN_RE = /\[event:([0-9a-f-]{36})\]/gi;
 const POLL_TOKEN_RE = /\[poll:([0-9a-f-]{36})\]/gi;
 const BOARD_TOKEN_RE = /\[board:([0-9a-f-]{36})\]/gi;
 const GALLERY_TOKEN_RE = /\[gallery:([0-9a-f-]{36})\]/gi;
+const GALLERY_PROMPT_TOKEN_RE = /\[galleryprompt:([0-9a-f-]{36})\]/gi;
+const PUBLISH_TOKEN_RE = /\[publish:([0-9a-f-]{36})\]/gi;
 const VAULT_FILE_TOKEN_RE = /\[vault:([0-9a-f-]{36})\]/gi;
 const VAULT_FOLDER_TOKEN_RE = /\[vaultfolder:([0-9a-f-]{36})\]/gi;
 const VAULT_ROOT_TOKEN_RE = /\[vaultroot:(team|club):([0-9a-f-]{36})\]/gi;
@@ -117,7 +119,9 @@ export function formatMessagePreview(
   });
   out = out.replace(POLL_TOKEN_RE, " 📊 Poll ");
   out = out.replace(BOARD_TOKEN_RE, " 🏟️ Live board ");
+  out = out.replace(GALLERY_PROMPT_TOKEN_RE, " 📸 Reminder: add team photos ");
   out = out.replace(GALLERY_TOKEN_RE, " 📸 New team photos ");
+  out = out.replace(PUBLISH_TOKEN_RE, " ");
   out = out.replace(VAULT_ROOT_TOKEN_RE, (_m, scope: string) =>
     scope?.toLowerCase() === "team" ? " 🗂️ Team vault " : " 🗂️ Club vault ",
   );
