@@ -573,7 +573,7 @@ export default function TeamChatPage() {
       if (openedFromNotificationRef.current) {
         const cachedMessages = getCachedTeamMessages(teamId);
         if (cachedMessages.length) {
-          return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+          return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
         }
       }
       if (prev) return prev;
@@ -581,7 +581,7 @@ export default function TeamChatPage() {
       const cachedMessages = getCachedTeamMessages(teamId);
       if (!cachedMessages.length) return undefined;
 
-      return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+      return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
     },
   });
 
@@ -652,6 +652,7 @@ export default function TeamChatPage() {
     ).sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
 
     setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
+    setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
   }, [teamId, queryClient]);
 
@@ -944,9 +945,9 @@ export default function TeamChatPage() {
         queryClient.setQueryData(["team-messages", teamId], (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           if (!existingMessages.length) {
-            return { ...(old || {}), messages: olderMessages };
+            return { ...(old || {}), messages: olderMessages, hasOlderMessages: hasMore };
           }
-          return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
+          return { ...(old || {}), messages: [...olderMessages, ...existingMessages], hasOlderMessages: hasMore };
         });
       });
     } catch (err) {
