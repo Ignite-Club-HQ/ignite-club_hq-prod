@@ -519,9 +519,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         aria-hidden="true"
       />
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + cancelled marker — compact, doesn't crowd chevron */}
-        {(isToday || event.is_cancelled) && (
+        {/* Status row: Today badge + needs-RSVP pill + cancelled marker */}
+        {(isToday || event.is_cancelled || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
+            {needsRsvp && !event.is_cancelled && (
+              <Badge
+                variant="outline"
+                className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/40 animate-fade-in"
+              >
+                Awaiting RSVP
+              </Badge>
+            )}
             {isToday && !event.is_cancelled && (
               <Badge
                 variant="outline"
