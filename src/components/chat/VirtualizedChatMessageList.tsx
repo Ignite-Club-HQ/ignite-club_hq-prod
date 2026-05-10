@@ -345,6 +345,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // viewport to messages the user hasn't scrolled through yet (the
   // "scroll up, stop, then jump higher" symptom on cold open).
   const bottomPinReadyAtRef = useRef(0);
+  const userHasScrolledAfterPinRef = useRef(false);
   // Trust window in ms: until this elapses past the bottom-pin completion,
   // `startReached` is suppressed. After expiry, normal upward prefetch
   // resumes.
@@ -425,6 +426,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!userIsReadingHistory) {
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
+        userHasScrolledAfterPinRef.current = false;
         bottomPinRevisionRef.current += 1;
       }
       debugLogAnchor("reset", {
