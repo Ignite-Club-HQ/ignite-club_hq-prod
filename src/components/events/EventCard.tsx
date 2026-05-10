@@ -316,8 +316,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: () => {
-      toast({ title: "Failed to cancel event", variant: "destructive" });
+    onError: (error) => {
+      toast(friendlyMutationError(error, { title: "Failed to cancel event", description: "Please try again." }));
     },
   });
 
