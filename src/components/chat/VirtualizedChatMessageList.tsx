@@ -476,13 +476,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
-  // Belt-and-braces: when messages first populate OR the mounted list is
-  // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
-  // is only honoured on the first mount; thread-to-thread data replacement
-  // otherwise preserves the old scrollTop and can render a blank viewport.
-  // Use a layout effect so composer/footer height changes during first mount
-  // are absorbed before paint; otherwise the bottom row visibly moves upward
-  // a few pixels after the thread has already landed at LAST.
+  // Initial bottom pin happens while the wrapper is invisible. Reveal is held
+  // until the actual scroll metrics are quiet, not just until a fixed timeout,
+  // so first paint cannot show Virtuoso correcting an interim bottom anchor.
   useLayoutEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
@@ -504,28 +500,43 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     jump("immediate");
-    const r1 = requestAnimationFrame(() => {
-      jump("raf1");
-      requestAnimationFrame(() => {
-        jump("raf2");
-        const settle = setTimeout(() => {
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let lastMetrics = "";
+    const armRevealWhenStable = () => {
+      const el = scrollerElRef.current;
+      if (!el || cancelled) return;
+      const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
+      if (metrics !== lastMetrics) {
+        lastMetrics = metrics;
+        if (revealTimer !== null) clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => {
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
           userHasScrolledAfterPinRef.current = false;
           setInitialRevealReady(true);
-        }, 80);
-        bottomPinSettleTimerRef.current = settle;
+        }, 180);
+      }
+      requestAnimationFrame(armRevealWhenStable);
+    };
+    const r1 = requestAnimationFrame(() => {
+      jump("raf1");
+      requestAnimationFrame(() => {
+        jump("raf2");
+        armRevealWhenStable();
       });
     });
     return () => {
+      cancelled = true;
       cancelAnimationFrame(r1);
+      if (revealTimer !== null) clearTimeout(revealTimer);
       if (bottomPinSettleTimerRef.current !== null) {
         clearTimeout(bottomPinSettleTimerRef.current);
         bottomPinSettleTimerRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, bottomPadding]);
+  }, [bottomPinRevision]);
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
