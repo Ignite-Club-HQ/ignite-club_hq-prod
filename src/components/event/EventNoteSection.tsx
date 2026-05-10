@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 
 interface EventNoteSectionProps {
   eventId: string;
