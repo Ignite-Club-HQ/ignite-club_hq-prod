@@ -90,11 +90,7 @@ export function EventNoteSection({
       });
     },
     onError: (err: any) => {
-      toast({
-        title: "Couldn't save note",
-        description: err?.message,
-        variant: "destructive",
-      });
+      toast(friendlyMutationError(err, { title: "Couldn't save note", description: err?.message || "Please try again." }));
     },
   });
 
