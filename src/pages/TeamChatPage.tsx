@@ -833,7 +833,9 @@ export default function TeamChatPage() {
   // Update hasOlderMessages from fetched data
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
-      setHasOlderMessages((messagesData as any).hasOlderMessages ?? false);
+      const messageCount = ((messagesData as any).messages || []).length;
+      const fromCache = !!(messagesData as any).fromCache;
+      setHasOlderMessages(fromCache ? messageCount >= MESSAGES_PER_PAGE : (messagesData as any).hasOlderMessages ?? false);
     }
   }, [messagesData]);
 
