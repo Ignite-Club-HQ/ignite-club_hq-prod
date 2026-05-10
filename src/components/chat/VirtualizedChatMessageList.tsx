@@ -608,7 +608,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!best || distance < best.distance) best = { id, top: rect.top, distance };
     });
 
-    return best ? { id: best.id, top: best.top } : null;
+    if (!best) return null;
+    return { id: best.id, top: best.top };
   }, []);
 
   const captureViewportAnchor = useCallback(() => {
@@ -726,6 +727,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
     scheduleAnchorCapture();
   }, [scheduleAnchorCapture]);
+
+  const handleIsScrolling = useCallback(
+    (scrolling: boolean) => {
+      if (scrolling) {
+        scheduleAnchorCapture();
+        return;
+      }
+      captureViewportAnchor();
+      stabilizeViewportAnchor(520);
+    },
+    [captureViewportAnchor, scheduleAnchorCapture, stabilizeViewportAnchor],
+  );
 
   useLayoutEffect(() => {
     if (messages.length > messagesLengthRef.current && viewportAnchorRef.current) {
