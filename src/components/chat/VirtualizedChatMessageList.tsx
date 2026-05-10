@@ -219,11 +219,38 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       style={{
         ...style,
         overscrollBehaviorY: "contain",
-      }}
+        // Promote the scroller to its own compositor layer so momentum
+        // scrolling on iOS/Android WebViews doesn't repaint sibling DOM each
+        // frame. Without this, fast upward flicks repaint the chat header
+        // and composer alongside the scroller, which reads as jitter.
+        transform: "translateZ(0)",
+        willChange: "scroll-position",
+        // iOS WebKit momentum scrolling. Harmless on Android/Chromium.
+        WebkitOverflowScrolling: "touch",
+      } as React.CSSProperties}
     />
   ),
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
+
+// Custom Item wrapper that applies CSS containment to each virtualised row.
+// This is the single biggest win for fast upward scrolls on native: when a
+// row mounts it can no longer invalidate ancestor layout/paint, so the
+// 1400px upward overscan (which mounts many rows during a fast flick) stops
+// causing main-thread layout thrash.
+const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
+  ({ context: _context, style, ...props }, itemRef) => (
+    <div
+      {...props}
+      ref={itemRef}
+      style={{
+        ...style,
+        contain: "content",
+      }}
+    />
+  ),
+);
+ChatVirtuosoItem.displayName = "ChatVirtuosoItem";
 
 /**
  * Wraps a virtualised row to record render churn (key stability signal) and
@@ -564,6 +591,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const components = useMemo(
     () => ({
       Scroller: ChatVirtuosoScroller,
+      Item: ChatVirtuosoItem,
       // Keep the list header purely structural and independent of loading
       // state. Rendering the spinner here makes Virtuoso re-measure header
       // content exactly while it is trying to preserve a top anchor.
