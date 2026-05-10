@@ -2990,6 +2990,7 @@ export type Database = {
           allow_guests: boolean | null
           amount: number | null
           arrival_minutes_before: number | null
+          chat_post_message_id: string | null
           club_id: string
           coach_note: string | null
           coach_note_author: string | null
@@ -3034,6 +3035,7 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          chat_post_message_id?: string | null
           club_id: string
           coach_note?: string | null
           coach_note_author?: string | null
@@ -3078,6 +3080,7 @@ export type Database = {
           allow_guests?: boolean | null
           amount?: number | null
           arrival_minutes_before?: number | null
+          chat_post_message_id?: string | null
           club_id?: string
           coach_note?: string | null
           coach_note_author?: string | null
@@ -7230,6 +7233,7 @@ export type Database = {
       teams: {
         Row: {
           archived_at: string | null
+          auto_chat_post_enabled: boolean
           auto_rsvp_dm_enabled: boolean
           class_capacity: number | null
           class_day: string | null
@@ -7265,6 +7269,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          auto_chat_post_enabled?: boolean
           auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
@@ -7300,6 +7305,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          auto_chat_post_enabled?: boolean
           auto_rsvp_dm_enabled?: boolean
           class_capacity?: number | null
           class_day?: string | null
