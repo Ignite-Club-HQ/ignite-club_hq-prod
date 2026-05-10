@@ -48,10 +48,24 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       if (body.scrollTop !== 0) body.scrollTop = 0;
     };
 
+    // Coalesce reset bursts. Previously every scroll event (including each
+    // fling frame on Android) enqueued 4 setTimeouts at 50/150/350/700ms,
+    // which all fired after the fling stopped — producing a visible "jolt"
+    // and forcing layout reads on top of inertia. Now we run at most one
+    // rAF-coalesced reset per burst, and reserve the long-tail passes for
+    // explicit triggers (focus, viewport resize, mount).
+    let pendingRaf: number | null = null;
     const scheduleOuterViewportReset = () => {
+      if (pendingRaf != null) return;
+      pendingRaf = requestAnimationFrame(() => {
+        pendingRaf = null;
+        resetOuterViewport();
+      });
+    };
+    const scheduleOuterViewportResetWithTail = () => {
       resetOuterViewport();
       requestAnimationFrame(resetOuterViewport);
-      [50, 150, 350, 700].forEach((delay) => {
+      [150, 350, 700].forEach((delay) => {
         const id = window.setTimeout(() => {
           scheduledScrollResets.delete(id);
           resetOuterViewport();
