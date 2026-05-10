@@ -734,10 +734,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         scheduleAnchorCapture();
         return;
       }
+      // When the user stops scrolling, only refresh the anchor reference so
+      // the next prepend has an accurate target. Do NOT run the stabilize
+      // loop here — re-pinning to a captured anchor while Virtuoso settles
+      // its own height estimates produces a visible "keeps scrolling" jolt
+      // after the finger lifts. The stabilize loop is reserved for events
+      // that actually shift layout (prepends via handleStartReached and the
+      // messages.length grow effect below).
       captureViewportAnchor();
-      stabilizeViewportAnchor(520);
     },
-    [captureViewportAnchor, scheduleAnchorCapture, stabilizeViewportAnchor],
+    [captureViewportAnchor, scheduleAnchorCapture],
   );
 
   useLayoutEffect(() => {
