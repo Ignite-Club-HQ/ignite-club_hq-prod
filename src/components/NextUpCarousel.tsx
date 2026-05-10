@@ -999,13 +999,13 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-lg font-semibold">Next Up</h2>
           {pendingCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[10px] h-5 px-2 font-semibold bg-primary/10 text-primary border-primary/30 animate-fade-in shrink-0"
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] h-5 font-semibold bg-amber-500 text-white shadow-sm shadow-amber-500/30 animate-fade-in shrink-0"
               aria-label={`${pendingCount} ${pendingCount === 1 ? "event needs" : "events need"} your RSVP`}
             >
+              <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
               {pendingCount} {pendingCount === 1 ? "needs RSVP" : "need RSVP"}
-            </Badge>
+            </span>
           )}
         </div>
         <Link to="/events" className="text-xs text-muted-foreground/60 hover:text-primary transition-colors shrink-0">
