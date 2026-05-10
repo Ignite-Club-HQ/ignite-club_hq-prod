@@ -362,13 +362,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
-  const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+  const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
   const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
   // a moment after first paint and visibly push the rest of the home page down.
-  const heroDataReady = !user || (myRsvpFetched && childrenFetched);
+  // Also gates the "RSVP Required" pill so it never flashes before child
+  // RSVPs hydrate (which would briefly show the pill on already-responded events).
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched && childRsvpsFetched);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
