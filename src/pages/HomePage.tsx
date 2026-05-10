@@ -60,6 +60,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -819,6 +820,13 @@ export default function HomePage() {
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
       setCancelDialogOpen(false);
       setEventToCancel(null);
+    },
+    onError: (error) => {
+      console.error("[CancelEvent] Mutation error:", error);
+      toast(friendlyMutationError(error, {
+        title: "Failed to cancel event",
+        description: (error as any)?.message || "An unexpected error occurred",
+      }));
     },
   });
 

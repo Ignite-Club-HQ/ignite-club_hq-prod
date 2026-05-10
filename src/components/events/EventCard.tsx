@@ -29,6 +29,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
@@ -316,8 +317,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: () => {
-      toast({ title: "Failed to cancel event", variant: "destructive" });
+    onError: (error) => {
+      toast(friendlyMutationError(error, { title: "Failed to cancel event", description: "Please try again." }));
     },
   });
 
