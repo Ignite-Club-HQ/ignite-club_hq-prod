@@ -711,9 +711,13 @@ function ChatMessageInner({
     // Detect tappable [publish:<teamId>] CTA appended by the chat-photo
     // gallery reminder cron and render it as a button under the pill.
     const publishMatch = text.match(/\[publish:([0-9a-f-]{36})\]/i);
-    const cleanedText = publishMatch
-      ? text.replace(publishMatch[0], "").trim()
-      : text;
+    // Detect [rsvp:<eventId>] token appended by the auto-rsvp DM cron and
+    // render Going / Maybe / Out pills under the pill bubble.
+    const rsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
+    const cleanedText = text
+      .replace(publishMatch ? publishMatch[0] : "", "")
+      .replace(rsvpMatch ? rsvpMatch[0] : "", "")
+      .trim();
     return (
       <div ref={rowRef} className="flex flex-col items-center gap-2 my-2 px-4">
         <div className="max-w-[85%] rounded-2xl bg-muted/70 px-3 py-2 text-center text-[12px] text-muted-foreground whitespace-pre-line">
@@ -730,6 +734,7 @@ function ChatMessageInner({
             Add to gallery
           </button>
         )}
+        {rsvpMatch && <InlineRsvpActions eventId={rsvpMatch[1]} messageId={messageId} />}
       </div>
     );
   }
