@@ -21,6 +21,7 @@ import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from 
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
+import { useEventMembership } from "@/hooks/useEventMembership";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -494,9 +495,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   // "Needs RSVP" — neither the parent nor any of their children on this event
   // have responded yet. Drives a subtle tint + pill so un-actioned cards stand
   // out without competing with cancelled / today states.
+  const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
   const needsRsvp =
     heroDataReady &&
     !event.is_cancelled &&
+    isEventMember &&
     currentStatus === null &&
     (childRsvps?.length ?? 0) === 0;
 
