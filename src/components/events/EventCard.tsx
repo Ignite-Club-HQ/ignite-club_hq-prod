@@ -553,7 +553,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           const householdHasAnyRsvp =
             currentRsvpStatus !== null || (childRsvps?.length ?? 0) > 0;
 
-          if (!householdHasAnyRsvp) {
+          if (!householdHasAnyRsvp && isEventMember) {
             return (
               <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
