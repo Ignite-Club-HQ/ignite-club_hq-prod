@@ -37,7 +37,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 ) {
   const {
     highlightDurationMs = 2500,
-    maxAttempts = 40, // ~6s at 150ms
+    // ~30s at 150ms — must outlast cold-start auth + chat-page mount + first
+    // message fetch + realtime subscription handshake when the user arrives via
+    // a push-notification deep link (especially on Android where app warmup is
+    // slower). Previously 6s, which timed out before the target row arrived.
+    maxAttempts = 200,
     intervalMs = 150,
     tryLoadOlder,
     parentMessageId,
