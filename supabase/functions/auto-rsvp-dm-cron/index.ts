@@ -37,14 +37,18 @@ interface EventRow {
   clubs: { name: string; logo_url: string | null; bot_user_id: string | null } | null;
 }
 
-function copyForCadence(cadence: Cadence, title: string, eventLink: string, when: string): string {
+function copyForCadence(cadence: Cadence, title: string, eventId: string, when: string): string {
+  // Append [rsvp:<eventId>] token — the chat client renders inline
+  // Going / Maybe / Out buttons under the bubble. Falls back to readable text
+  // for any client that doesn't parse it.
+  const token = `[rsvp:${eventId}]`;
   switch (cadence) {
     case "t72":
-      return `📅 Heads up — "${title}" is on ${when}. We don't have your RSVP yet — tap to respond: ${eventLink}`;
+      return `📅 Heads up — "${title}" is on ${when}. We don't have your RSVP yet — tap below to respond.\n${token}`;
     case "t24":
-      return `⏰ "${title}" is tomorrow (${when}) and we still need your RSVP. Tap here to confirm: ${eventLink}`;
+      return `⏰ "${title}" is tomorrow (${when}) and we still need your RSVP. Tap below to confirm.\n${token}`;
     case "t3":
-      return `🚨 "${title}" is starting in a few hours (${when}) and we don't have your RSVP yet. Please tap to confirm: ${eventLink}`;
+      return `🚨 "${title}" is starting in a few hours (${when}) and we don't have your RSVP yet. Please tap below to confirm.\n${token}`;
   }
 }
 
