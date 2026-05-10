@@ -123,8 +123,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // visible as a "land then jolt up/down" flicker. Holding the wrapper at
   // opacity:0 for ~120ms of viewport quiet eliminates the visible shift.
   const viewportSettled = useViewportHeightSettled(180);
-  const virtualReady = messages.length > 0 && viewportSettled;
+  const [initialViewportReleased, setInitialViewportReleased] = useState(false);
+  const virtualReady = messages.length > 0 && (viewportSettled || initialViewportReleased);
   const lastMessageId = messages[messages.length - 1]?.id;
+
+  useEffect(() => {
+    if (messages.length > 0 && viewportSettled) {
+      setInitialViewportReleased(true);
+    }
+  }, [messages.length, viewportSettled]);
 
   // Suppress the re-pin loop during the initial mount window. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + immediate/raf1/raf2 pin already lands
@@ -219,21 +226,23 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     <div
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
-      style={{ opacity: virtualReady || isPinned ? 1 : 0, transition: "opacity 120ms ease-out" }}
+      style={{ opacity: messages.length === 0 || virtualReady ? 1 : 0, transition: "opacity 120ms ease-out" }}
     >
-      <VirtualizedChatMessageList
-        ref={virtualHandleRef}
-        messages={messages}
-        hasOlder={hasOlderMessages}
-        isLoadingOlder={isLoadingOlder}
-        onLoadOlder={onLoadOlder}
-        renderItem={renderVirtualRow}
-        topPadding={0}
-        bottomPadding={bottomPad}
-        scrollerRef={setVirtualScrollerRef}
-        initialBottomPinned={virtualReady || isPinned}
-        currentUserId={currentUserId}
-      />
+      {messages.length === 0 || virtualReady ? (
+        <VirtualizedChatMessageList
+          ref={virtualHandleRef}
+          messages={messages}
+          hasOlder={hasOlderMessages}
+          isLoadingOlder={isLoadingOlder}
+          onLoadOlder={onLoadOlder}
+          renderItem={renderVirtualRow}
+          topPadding={0}
+          bottomPadding={bottomPad}
+          scrollerRef={setVirtualScrollerRef}
+          initialBottomPinned={virtualReady || isPinned}
+          currentUserId={currentUserId}
+        />
+      ) : null}
     </div>
   );
 }
