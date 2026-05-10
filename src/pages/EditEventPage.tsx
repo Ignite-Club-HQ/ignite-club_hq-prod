@@ -641,11 +641,19 @@ export default function EditEventPage() {
       // on_event_updated DB trigger → process-event-notifications edge function
 
       navigate(`/events/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating event:", error);
+      const rawMsg = String(error?.message || error?.details || "");
+      const isNotifyQueueIssue =
+        /http_request_queue/i.test(rawMsg) ||
+        /null value in column "url"/i.test(rawMsg) ||
+        /compute_push_notification_url/i.test(rawMsg) ||
+        /send_push_notification/i.test(rawMsg);
       toast({
-        title: "Error",
-        description: "Failed to update event. Please try again.",
+        title: isNotifyQueueIssue ? "We couldn't send notifications" : "Error",
+        description: isNotifyQueueIssue
+          ? "Your event change couldn't be saved because the notification system is temporarily unavailable. Please try again in a moment — if it keeps happening, let an admin know."
+          : "Failed to update event. Please try again.",
         variant: "destructive",
       });
     } finally {
