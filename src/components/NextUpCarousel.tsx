@@ -21,6 +21,7 @@ import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from 
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
+import { useEventMembership } from "@/hooks/useEventMembership";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
