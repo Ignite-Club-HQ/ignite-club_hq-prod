@@ -93,6 +93,8 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       const h3 = getHandle();
       const idx3 = getMessages().findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
+      // Sub-content has had a chance to hydrate by now; lift the skeleton.
+      endHydration();
     }, 450);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
