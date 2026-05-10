@@ -350,8 +350,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
+  const pinnedRevisionRef = useRef<number | null>(null);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
-  const bottomPinSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
@@ -476,16 +476,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     debugLogFirstItemIndex(firstItemIndex, messages.length);
   }, [firstItemIndex, messages.length]);
 
-  // Belt-and-braces: when messages first populate OR the mounted list is
-  // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
-  // is only honoured on the first mount; thread-to-thread data replacement
-  // otherwise preserves the old scrollTop and can render a blank viewport.
-  // Use a layout effect so composer/footer height changes during first mount
-  // are absorbed before paint; otherwise the bottom row visibly moves upward
-  // a few pixels after the thread has already landed at LAST.
+  // Initial bottom pin happens while the wrapper is invisible. Reveal is held
+  // until the actual scroll metrics are quiet, not just until a fixed timeout,
+  // so first paint cannot show Virtuoso correcting an interim bottom anchor.
   useLayoutEffect(() => {
     const last = messages.length - 1;
-    if (last < 0) return;
+    if (last < 0) {
+      bottomPinReadyRef.current = false;
+      pinnedRevisionRef.current = null;
+      setInitialRevealReady(false);
+      return;
+    }
+    if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
@@ -504,28 +506,46 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
     };
     jump("immediate");
-    const r1 = requestAnimationFrame(() => {
-      jump("raf1");
-      requestAnimationFrame(() => {
-        jump("raf2");
-        const settle = setTimeout(() => {
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let frame: number | null = null;
+    let cancelled = false;
+    let lastMetrics = "";
+    const armRevealWhenStable = () => {
+      const el = scrollerElRef.current;
+      if (!el || cancelled) return;
+      const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
+      if (metrics !== lastMetrics) {
+        lastMetrics = metrics;
+        if (revealTimer !== null) clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => {
+          cancelled = true;
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
+          pinnedRevisionRef.current = bottomPinRevision;
           userHasScrolledAfterPinRef.current = false;
           setInitialRevealReady(true);
-        }, 80);
-        bottomPinSettleTimerRef.current = settle;
+        }, 180);
+      }
+      frame = requestAnimationFrame(armRevealWhenStable);
+    };
+    let r2: number | null = null;
+    const r1 = requestAnimationFrame(() => {
+      if (cancelled) return;
+      jump("raf1");
+      r2 = requestAnimationFrame(() => {
+        if (cancelled) return;
+        jump("raf2");
+        armRevealWhenStable();
       });
     });
     return () => {
+      cancelled = true;
       cancelAnimationFrame(r1);
-      if (bottomPinSettleTimerRef.current !== null) {
-        clearTimeout(bottomPinSettleTimerRef.current);
-        bottomPinSettleTimerRef.current = null;
-      }
+      if (r2 !== null) cancelAnimationFrame(r2);
+      if (revealTimer !== null) clearTimeout(revealTimer);
+      if (frame !== null) cancelAnimationFrame(frame);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, bottomPadding]);
+  });
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
