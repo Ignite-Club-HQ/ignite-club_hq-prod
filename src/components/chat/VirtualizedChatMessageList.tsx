@@ -217,6 +217,7 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       {...props}
       ref={scrollerRef}
       data-chat-scroll-lock="true"
+      data-chat-virtualized="true"
       style={{
         ...style,
         overscrollBehaviorY: "contain",
