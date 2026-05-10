@@ -820,6 +820,13 @@ export default function HomePage() {
       setCancelDialogOpen(false);
       setEventToCancel(null);
     },
+    onError: (error) => {
+      console.error("[CancelEvent] Mutation error:", error);
+      toast(friendlyMutationError(error, {
+        title: "Failed to cancel event",
+        description: (error as any)?.message || "An unexpected error occurred",
+      }));
+    },
   });
 
   const remindMutation = useMutation({
