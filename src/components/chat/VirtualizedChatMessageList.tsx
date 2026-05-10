@@ -368,6 +368,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const isLoadingOlderRef = useRef(isLoadingOlder);
   const onLoadOlderRef = useRef(onLoadOlder);
   const startReachedRetryTimerRef = useRef<number | null>(null);
+  const viewportAnchorRef = useRef<{ id: string; top: number } | null>(null);
+  const anchorCaptureRafRef = useRef<number | null>(null);
+  const anchorStabilizeFrameRef = useRef<number | null>(null);
+  const restoringAnchorRef = useRef(false);
   hasOlderRef.current = hasOlder;
   isLoadingOlderRef.current = isLoadingOlder;
   onLoadOlderRef.current = onLoadOlder;
@@ -416,6 +420,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (startReachedRetryTimerRef.current !== null) {
         window.clearTimeout(startReachedRetryTimerRef.current);
         startReachedRetryTimerRef.current = null;
+      }
+      if (anchorCaptureRafRef.current !== null) {
+        window.cancelAnimationFrame(anchorCaptureRafRef.current);
+        anchorCaptureRafRef.current = null;
+      }
+      if (anchorStabilizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
+        anchorStabilizeFrameRef.current = null;
       }
     };
   }, []);
@@ -571,6 +583,85 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     };
   });
 
+  const handleAtBottomChange = useCallback(
+    (atBottom: boolean) => {
+      atBottomRef.current = atBottom;
+      onAtBottomChange?.(atBottom);
+    },
+    [onAtBottomChange],
+  );
+
+  const findAnchorRow = useCallback(() => {
+    const viewport = scrollerElRef.current;
+    if (!viewport || atBottomRef.current) return null;
+    const viewportRect = viewport.getBoundingClientRect();
+    const anchorLine = viewportRect.top + Math.min(120, viewportRect.height * 0.25);
+    const rows = viewport.querySelectorAll<HTMLElement>('[data-chat-row="true"][data-message-id]');
+    let best: { id: string; top: number; distance: number } | null = null;
+
+    rows.forEach((row) => {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom < viewportRect.top || rect.top > viewportRect.bottom) return;
+      const id = row.dataset.messageId;
+      if (!id) return;
+      const distance = Math.abs(rect.top - anchorLine);
+      if (!best || distance < best.distance) best = { id, top: rect.top, distance };
+    });
+
+    if (!best) return null;
+    return { id: best.id, top: best.top };
+  }, []);
+
+  const captureViewportAnchor = useCallback(() => {
+    const anchor = findAnchorRow();
+    if (anchor) viewportAnchorRef.current = anchor;
+  }, [findAnchorRow]);
+
+  const scheduleAnchorCapture = useCallback(() => {
+    if (restoringAnchorRef.current || anchorCaptureRafRef.current !== null) return;
+    anchorCaptureRafRef.current = window.requestAnimationFrame(() => {
+      anchorCaptureRafRef.current = null;
+      captureViewportAnchor();
+    });
+  }, [captureViewportAnchor]);
+
+  const restoreViewportAnchor = useCallback(() => {
+    const viewport = scrollerElRef.current;
+    const anchor = viewportAnchorRef.current;
+    if (!viewport || !anchor || atBottomRef.current) return;
+
+    const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(anchor.id)
+      : anchor.id.replace(/["\\]/g, "\\$&");
+    const row = viewport.querySelector<HTMLElement>(`[data-chat-row="true"][data-message-id="${escapedId}"]`);
+    if (!row) return;
+
+    const delta = row.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(delta) < 0.75) return;
+    restoringAnchorRef.current = true;
+    viewport.scrollTop += delta;
+    window.requestAnimationFrame(() => {
+      restoringAnchorRef.current = false;
+    });
+  }, []);
+
+  const stabilizeViewportAnchor = useCallback((durationMs = 320) => {
+    if (anchorStabilizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(anchorStabilizeFrameRef.current);
+      anchorStabilizeFrameRef.current = null;
+    }
+    const startedAt = performance.now();
+    const tick = () => {
+      restoreViewportAnchor();
+      if (performance.now() - startedAt < durationMs) {
+        anchorStabilizeFrameRef.current = window.requestAnimationFrame(tick);
+      } else {
+        anchorStabilizeFrameRef.current = null;
+      }
+    };
+    tick();
+  }, [restoreViewportAnchor]);
+
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
@@ -587,6 +678,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         startReachedRetryTimerRef.current = window.setTimeout(() => {
           startReachedRetryTimerRef.current = null;
           if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          captureViewportAnchor();
           loadingOlderInFlightRef.current = true;
           debugLogStartReached(true, "deferred-fetch");
           onLoadOlderRef.current();
@@ -606,18 +698,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogStartReached(false, "in-flight-guard");
       return;
     }
+    captureViewportAnchor();
     loadingOlderInFlightRef.current = true;
     debugLogStartReached(true, "fetch");
     onLoadOlder();
-  }, [hasOlder, isLoadingOlder, onLoadOlder]);
-
-  const handleAtBottomChange = useCallback(
-    (atBottom: boolean) => {
-      atBottomRef.current = atBottom;
-      onAtBottomChange?.(atBottom);
-    },
-    [onAtBottomChange],
-  );
+  }, [captureViewportAnchor, hasOlder, isLoadingOlder, onLoadOlder]);
 
   // Belt-and-braces upward pagination trigger. With a large
   // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
@@ -640,7 +725,26 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (bottomPinReadyRef.current) {
       userHasScrolledAfterPinRef.current = true;
     }
-  }, []);
+    scheduleAnchorCapture();
+  }, [scheduleAnchorCapture]);
+
+  const handleIsScrolling = useCallback(
+    (scrolling: boolean) => {
+      if (scrolling) {
+        scheduleAnchorCapture();
+        return;
+      }
+      captureViewportAnchor();
+      stabilizeViewportAnchor(520);
+    },
+    [captureViewportAnchor, scheduleAnchorCapture, stabilizeViewportAnchor],
+  );
+
+  useLayoutEffect(() => {
+    if (messages.length > messagesLengthRef.current && viewportAnchorRef.current) {
+      stabilizeViewportAnchor(360);
+    }
+  }, [messages.length, stabilizeViewportAnchor]);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
@@ -839,6 +943,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
+      isScrolling={handleIsScrolling}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
