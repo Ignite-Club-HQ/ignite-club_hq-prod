@@ -227,47 +227,68 @@ export const TeamInviteEmail = ({
 
           {/* Get Started Section */}
           <Section style={ctaSection}>
-            <Text style={sectionLabel}>👇 Get started</Text>
-            <Text style={bodyText}>
-              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
-            </Text>
+            {isExistingUser ? (
+              <>
+                <Text style={sectionLabel}>👇 Open the app</Text>
+                <Text style={bodyText}>
+                  You're already on Ignite Club HQ — just tap below to jump straight to {teamName}.
+                </Text>
 
-            {/* Step 1: Download */}
-            <Text style={stepLabel}>1. Download the app</Text>
-            <Section style={storeButtonsRow}>
-              <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
-                <tr>
-                  <td style={{ paddingRight: '6px' }}>
-                    <Button style={playStoreBtn} href={PLAY_STORE_URL}>
-                      ▶️ Google Play
-                    </Button>
-                  </td>
-                  <td style={{ paddingLeft: '6px' }}>
-                    <Button style={appStoreBtn} href={APP_STORE_URL}>
-                      🍎 App Store
-                    </Button>
-                  </td>
-                </tr>
-              </table>
-            </Section>
+                <Section style={mainCtaSection}>
+                  <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
+                    {isAdminRole ? 'Open in App' : 'View Their Team'}
+                  </Button>
+                </Section>
 
-            {/* Step 2: View */}
-            <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
+                <Text style={fallbackLinkText}>
+                  Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={sectionLabel}>👇 Get started</Text>
+                <Text style={bodyText}>
+                  It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
+                </Text>
 
-            <Section style={mainCtaSection}>
-              <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                {isAdminRole ? 'Get Started' : 'View Their Team'}
-              </Button>
-            </Section>
+                {/* Step 1: Download */}
+                <Text style={stepLabel}>1. Download the app</Text>
+                <Section style={storeButtonsRow}>
+                  <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+                    <tr>
+                      <td style={{ paddingRight: '6px' }}>
+                        <Button style={playStoreBtn} href={PLAY_STORE_URL}>
+                          ▶️ Google Play
+                        </Button>
+                      </td>
+                      <td style={{ paddingLeft: '6px' }}>
+                        <Button style={appStoreBtn} href={APP_STORE_URL}>
+                          🍎 App Store
+                        </Button>
+                      </td>
+                    </tr>
+                  </table>
+                </Section>
 
-            <Text style={fallbackLinkText}>
-              Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>
-            </Text>
+                {/* Step 2: View */}
+                <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
 
-            {invitedEmail && (
-              <Text style={emailHint}>
-                Sign up using <strong>{invitedEmail}</strong> to link your invitation.
-              </Text>
+                <Section style={mainCtaSection}>
+                  <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
+                    {isAdminRole ? 'Get Started' : 'View Their Team'}
+                  </Button>
+                </Section>
+
+                <Text style={fallbackLinkText}>
+                  Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>
+                </Text>
+
+                {invitedEmail && (
+                  <Text style={emailHint}>
+                    Sign up using <strong>{invitedEmail}</strong> to link your invitation.
+                  </Text>
+                )}
+              </>
             )}
           </Section>
 
