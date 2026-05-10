@@ -162,7 +162,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   });
 
   // Fetch user's own RSVP
-  const { data: myRsvp } = useQuery({
+  const { data: myRsvp, isPending: myRsvpPending } = useQuery({
     queryKey: ["card-rsvp", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
