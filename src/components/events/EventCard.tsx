@@ -535,23 +535,23 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
         {/* RSVP summary only — Schedule = browse, no action buttons */}
         {!event.is_cancelled && (() => {
+          const rsvpDataPending = myRsvpLoading || childRsvpsLoading;
+          if (rsvpDataPending) {
+            // Reserve the row so the badge/summary doesn't pop in late.
+            return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
+          }
+
           const goingChildNames = (childRsvps || [])
             .filter((r) => r.status === "going")
             .map((r) => r.children?.name?.split(" ")[0] || "Child");
-          const summary = buildPersonalRsvpLine({
-            parentStatus: currentRsvpStatus,
-            goingChildNames,
-            totalGoing: attendanceCounts?.going || 0,
-          });
 
-          if (!summary) {
-            // Don't flash "RSVP Required" before our own/child RSVP queries
-            // have resolved — otherwise every card briefly shows the badge on
-            // first paint and then collapses for already-RSVP'd events.
-            const rsvpDataPending = myRsvpLoading || childRsvpsLoading;
-            if (rsvpDataPending) {
-              return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
-            }
+          // Mirrors NextUpCarousel: badge whenever neither the parent nor ANY
+          // of their children on this event have an RSVP recorded yet
+          // (regardless of how many other people are going).
+          const householdHasAnyRsvp =
+            currentRsvpStatus !== null || (childRsvps?.length ?? 0) > 0;
+
+          if (!householdHasAnyRsvp) {
             return (
               <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
@@ -560,6 +560,18 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                 </span>
               </div>
             );
+          }
+
+          const summary = buildPersonalRsvpLine({
+            parentStatus: currentRsvpStatus,
+            goingChildNames,
+            totalGoing: attendanceCounts?.going || 0,
+          });
+
+          if (!summary) {
+            // Household responded (e.g. "not going" / "maybe") but nobody is
+            // going — keep the row reserved so layout stays stable.
+            return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
