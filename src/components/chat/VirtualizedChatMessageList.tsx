@@ -619,8 +619,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onLoadOlder();
   }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
-  // Belt-and-braces upward pagination trigger. With a large
-  // `increaseViewportBy.top` (we keep ~3600px to warm the cold-open),
+  // Belt-and-braces upward pagination trigger. With top overscan,
   // `startReached` can fail to refire after a successful prepend because the
   // rendered range still spans data index 0 — the user scrolls up but
   // Virtuoso never sees a transition INTO the start. `atTopStateChange`
@@ -903,21 +902,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       itemContent={itemContent}
       itemSize={itemSize}
       defaultItemHeight={140}
-      heightEstimates={heightEstimates}
-      // Report item resize measurements synchronously. On native WebViews the
-      // default rAF-delayed ResizeObserver path can apply Virtuoso's anchor
-      // correction one frame after a fast upward fling stops, which reads as a
-      // small jolt. Synchronous reporting keeps the correction in the same
-      // layout turn as the row resize.
-      skipAnimationFrameInResizeObserver
       scrollSeekConfiguration={false}
-      // Warm a deep slice above the bottom before reveal. The cold-open jolt
-      // was caused by the first upward fling mounting unmeasured history rows;
-      // Virtuoso then corrected their real heights as momentum stopped. A
-      // ~page-sized top overscan measures those rows while hidden/idle, so the
-      // first user scroll uses the same settled size map as later scrolls.
-      increaseViewportBy={{ top: 3600, bottom: 200 }}
-      minOverscanItemCount={{ top: 24, bottom: 2 }}
+      // Keep overscan moderate. Over-mounting thousands of pixels above the
+      // viewport causes a burst of row measurements after a fast fling stops;
+      // Virtuoso then applies compensating scrollTop corrections that read as
+      // jagged up/down motion. Let Virtuoso measure only the next screenful.
+      increaseViewportBy={{ top: 1200, bottom: 200 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
