@@ -269,9 +269,8 @@ Deno.serve(async (req) => {
         const realTargets = targets.filter((u) => u !== botUserId);
         summary[cadence].events += 1;
 
-        const eventLink = `https://igniteclubhq.app/events/${event.id}`;
         const when = formatWhen(event.event_date, event.start_time);
-        const text = copyForCadence(cadence, event.title, eventLink, when);
+        const text = copyForCadence(cadence, event.title, event.id, when);
 
         // Send DMs sequentially per event so we don't blow the auth/profile
         // pool when many events fire in the same window. Within an event, fan
