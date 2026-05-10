@@ -748,7 +748,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, []);
 
   return (
-    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        width: "100%",
+        opacity: initialRevealReady ? 1 : 0,
+        transition: initialRevealReady ? "opacity 80ms ease-out" : "none",
+      }}
+    >
     <Virtuoso
       ref={virtuosoRef}
       className={className}
