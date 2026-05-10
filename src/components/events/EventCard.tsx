@@ -38,6 +38,7 @@ import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
+import { useEventMembership } from "@/hooks/useEventMembership";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
