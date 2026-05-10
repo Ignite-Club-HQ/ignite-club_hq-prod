@@ -9017,6 +9017,12 @@ export type Database = {
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
+      quick_rsvp_from_dm: {
+        Args: { _event_id: string; _status: string }
+        Returns: {
+          inserted_count: number
+        }[]
+      }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
         Returns: {
