@@ -469,7 +469,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // reused for another thread, force a bottom pin. `initialTopMostItemIndex`
   // is only honoured on the first mount; thread-to-thread data replacement
   // otherwise preserves the old scrollTop and can render a blank viewport.
-  useEffect(() => {
+  // Use a layout effect so composer/footer height changes during first mount
+  // are absorbed before paint; otherwise the bottom row visibly moves upward
+  // a few pixels after the thread has already landed at LAST.
+  useLayoutEffect(() => {
     const last = messages.length - 1;
     if (last < 0) return;
     setInitialRevealReady(false);
@@ -511,7 +514,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision]);
+  }, [bottomPinRevision, bottomPadding]);
 
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
