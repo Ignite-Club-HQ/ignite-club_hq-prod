@@ -24,6 +24,7 @@ interface TeamInviteEmailProps {
   primaryColor?: string;
   childrenNames?: string[];
   customMessage?: string;
+  isExistingUser?: boolean;
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
