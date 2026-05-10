@@ -903,7 +903,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       atTopThreshold={400}
       atBottomStateChange={handleAtBottomChange}
       onScroll={handleScroll}
-      isScrolling={handleIsScrolling}
       followOutput={initialBottomPinned ? followOutput : false}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
