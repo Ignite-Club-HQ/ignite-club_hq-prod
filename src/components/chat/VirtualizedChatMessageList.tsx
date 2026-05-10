@@ -741,10 +741,75 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   useLayoutEffect(() => {
-    if (messages.length > messagesLengthRef.current && viewportAnchorRef.current) {
+    if (
+      messages.length > messagesLengthRef.current &&
+      viewportAnchorRef.current &&
+      !atBottomRef.current
+    ) {
+      // Only stabilize the mid-list anchor when the user is reading history.
+      // If they are at the bottom, restoring an anchor would push the latest
+      // message DOWN (the very bug we are fixing).
       stabilizeViewportAnchor(360);
     }
   }, [messages.length, stabilizeViewportAnchor]);
+
+  // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
+  // late-hydrating content (images decoding, link previews mounting, reply
+  // quotes inflating, reactions arriving) grows the heights of rows already
+  // on screen. Virtuoso's `followOutput` only re-pins when NEW items are
+  // appended, not when existing rows resize, so without this the last
+  // message visibly drifts downward (or the viewport scrolls up away from
+  // it) over the first ~1.2s after open. We watch scrollHeight via a
+  // ResizeObserver on the inner content and forcibly re-pin to LAST as long
+  // as the user is still at the bottom and hasn't scrolled away.
+  useEffect(() => {
+    if (!initialRevealReady) return;
+    const viewport = scrollerElRef.current;
+    if (!viewport) return;
+    const inner = viewport.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+
+    let cancelled = false;
+    const startedAt = performance.now();
+    const STAY_PINNED_MS = 1500;
+    let lastScrollHeight = viewport.scrollHeight;
+
+    const repinIfAtBottom = () => {
+      if (cancelled) return;
+      // Stop once the user has actively scrolled away from the bottom.
+      if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
+      if (!atBottomRef.current) return;
+      const sh = viewport.scrollHeight;
+      if (sh === lastScrollHeight) return;
+      lastScrollHeight = sh;
+      virtuosoRef.current?.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
+    };
+
+    const ro = new ResizeObserver(() => {
+      if (cancelled) return;
+      repinIfAtBottom();
+      if (performance.now() - startedAt > STAY_PINNED_MS) {
+        cancelled = true;
+        ro.disconnect();
+      }
+    });
+    ro.observe(inner);
+
+    const stopTimer = window.setTimeout(() => {
+      cancelled = true;
+      ro.disconnect();
+    }, STAY_PINNED_MS + 50);
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      window.clearTimeout(stopTimer);
+    };
+  }, [initialRevealReady, bottomPinRevision]);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
