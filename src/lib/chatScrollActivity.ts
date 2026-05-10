@@ -108,13 +108,13 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
     const viewport = findChatViewport(element);
     if (!viewport) return;
 
-    // In virtualized chat, react-virtuoso owns row measurements while native
-    // momentum is active; manual scrollTop writes during that phase fight its
-    // anchoring. Once scrolling is genuinely idle, however, deferred row
-    // commits (link previews / replies / reactions) can still resize rows
-    // above the anchor and create the reported stop-scroll downward jolt. Only
-    // absorb those idle resizes after momentum has settled.
-    if (isVirtualizedChatViewport(viewport) && performance.now() - lastScrollAt < 180) return;
+    // In virtualized chat, react-virtuoso is the sole owner of row measurement
+    // and scroll anchoring. Writing scrollTop from a per-row ResizeObserver is
+    // exactly what creates the Android "scroll stops, then messages move down"
+    // jolt: the correction lands just after native momentum settles, fighting
+    // Virtuoso's own padding/anchor reconciliation. Keep this legacy absorber
+    // only for non-virtual chat containers.
+    if (isVirtualizedChatViewport(viewport)) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
