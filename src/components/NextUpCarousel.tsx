@@ -513,22 +513,27 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
         aria-hidden="true"
       />
-      {/* Right-edge tap affordance — aligned with title row for consistency across all cards */}
-      <ChevronRight
-        className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
-        aria-hidden="true"
-      />
+      {/* Right-edge tap affordance — hidden when RSVP pill is shown to avoid
+          competing with the high-emphasis action marker. */}
+      {!needsRsvp && (
+        <ChevronRight
+          className="absolute right-2.5 top-3.5 h-4 w-4 text-muted-foreground/35 pointer-events-none z-10"
+          aria-hidden="true"
+        />
+      )}
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
         {/* Status row: Today badge + needs-RSVP pill + cancelled marker */}
         {(isToday || event.is_cancelled || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
             {needsRsvp && !event.is_cancelled && (
-              <Badge
-                variant="outline"
-                className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-primary/10 text-primary border-primary/40 animate-fade-in"
+              <span
+                role="status"
+                aria-label="RSVP required"
+                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-wide bg-amber-500 text-white shadow-sm shadow-amber-500/30 animate-fade-in"
               >
-                Awaiting RSVP
-              </Badge>
+                <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
+                RSVP Required
+              </span>
             )}
             {isToday && !event.is_cancelled && (
               <Badge
