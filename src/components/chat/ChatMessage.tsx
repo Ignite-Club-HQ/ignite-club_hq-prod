@@ -34,6 +34,7 @@ import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
+import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
 import { observeChatElementHeight } from "@/lib/chatScrollActivity";
 
 interface Reaction {
