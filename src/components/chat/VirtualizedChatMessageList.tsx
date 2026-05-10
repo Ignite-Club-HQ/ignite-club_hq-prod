@@ -481,6 +481,48 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bottomPinRevision]);
 
+  // Preemptive first older-page prefetch.
+  //
+  // Without this, the very first upward scroll on a cold-opened thread waits
+  // for `PREPEND_TRUST_WINDOW_MS` (800ms) and then fires `startReached` while
+  // the user is mid-fling. The fetched page lands ~300-500ms later, the
+  // anchored-prepend shift + Virtuoso's synchronous resize correction
+  // (skipAnimationFrameInResizeObserver) applies right as the fling
+  // decelerates, and the user sees content "move down" when scroll stops.
+  // Subsequent scrolls have no jolt because the older page is already loaded.
+  //
+  // By kicking off the first older fetch immediately after the bottom pin
+  // settles — while the user is still idle at the bottom — the prepend lands
+  // BEFORE any gesture, so the first upward scroll behaves identically to
+  // every later one. We only do this once per mounted bottom-pin revision and
+  // route it through the same in-flight guard as `startReached` so we don't
+  // race with a real upward fetch.
+  const preemptivePrefetchedRef = useRef(false);
+  useEffect(() => {
+    preemptivePrefetchedRef.current = false;
+  }, [bottomPinRevision]);
+  useEffect(() => {
+    if (!hasOlder) return;
+    if (isLoadingOlder) return;
+    if (preemptivePrefetchedRef.current) return;
+    if (messages.length === 0) return;
+    // Wait until the initial bottom pin has actually completed; otherwise the
+    // prepend could race with the LAST jump and visibly nudge first paint.
+    const tryPrefetch = () => {
+      if (preemptivePrefetchedRef.current) return;
+      if (!bottomPinReadyRef.current) return;
+      if (!hasOlder || isLoadingOlder || loadingOlderInFlightRef.current) return;
+      preemptivePrefetchedRef.current = true;
+      loadingOlderInFlightRef.current = true;
+      onLoadOlder();
+    };
+    // Schedule shortly after the raf2 bottom pin lands. 250ms is comfortably
+    // after pin completion but well inside the 800ms trust window, so the
+    // prepend has time to round-trip and land before the user starts scrolling.
+    const t = window.setTimeout(tryPrefetch, 250);
+    return () => window.clearTimeout(t);
+  }, [bottomPinRevision, hasOlder, isLoadingOlder, messages.length, onLoadOlder]);
+
   const handleStartReached = useCallback(() => {
     if (!bottomPinReadyRef.current) {
       debugLogStartReached(false, "bottom-pin-not-ready");
