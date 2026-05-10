@@ -63,6 +63,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
