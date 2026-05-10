@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
@@ -40,6 +40,23 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   virtualHandleRef?: RefObject<VirtualizedChatMessageListHandle>;
 }
 
+function useDebouncedNumber(value: number, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    if (delayMs <= 0) {
+      setDebounced(value);
+      return;
+    }
+    if (Math.abs(value - debounced) <= 1) return;
+
+    const timeout = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timeout);
+  }, [debounced, delayMs, value]);
+
+  return debounced;
+}
+
 export function ChatMessagesScroller<TMessage extends { id: string }>(
   props: ChatMessagesScrollerProps<TMessage>,
 ) {
@@ -67,7 +84,19 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // behind the input. Add a small breathing gap so the newest bubble
   // doesn't kiss the composer border.
   const COMPOSER_GAP = 16;
-  const safeComposer = Math.max(composerHeight, 56); // floor for first paint before measure
+  const mountedAtRef = useRef<number>(performance.now());
+  const INITIAL_MOUNT_QUIET_MS = 600;
+  const [initialLayoutSettled, setInitialLayoutSettled] = useState(false);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setInitialLayoutSettled(true), INITIAL_MOUNT_QUIET_MS);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  const layoutComposerHeight = useDebouncedNumber(
+    composerHeight,
+    !initialLayoutSettled && !isKeyboardOpen ? 180 : 0,
+  );
+  const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
   const bottomPad = useMemo(
     () =>
       searchOpen
@@ -106,9 +135,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // visible as content shifting after the chat opens. We arm the effect only
   // after the first ~600ms of mount, by which time the composer height has
   // settled and any further changes are real (keyboard / reply / edit).
-  const mountedAtRef = useRef<number>(performance.now());
-  const INITIAL_MOUNT_QUIET_MS = 600;
-
   // When the keyboard opens/closes or the composer grows, the viewport
   // resizes underneath the virtualised list. If the user was at the bottom
   // we must re-pin to the latest message — otherwise the most recent
