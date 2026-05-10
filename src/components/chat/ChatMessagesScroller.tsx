@@ -187,12 +187,9 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     // intentional no-op
   }, []);
 
-  // Wait for real data AND for the visual viewport height to stop changing
-  // before revealing the list. If we mount Virtuoso while the URL bar /
-  // status bar / keyboard are still settling, its initial bottom-pin lands
-  // against an interim height and then re-pins when the height settles —
-  // visible as a "land then jolt up/down" flicker. Holding the wrapper at
-  // opacity:0 for ~120ms of viewport quiet eliminates the visible shift.
+  // Wait for real data, visual viewport height, wrapper size, and composer
+  // height to stop changing before mounting Virtuoso. If it mounts against an
+  // interim height, its initial bottom-pin can visibly correct down/up/down.
   const viewportSettled = useViewportHeightSettled(180);
   const [initialViewportReleased, setInitialViewportReleased] = useState(false);
   const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
