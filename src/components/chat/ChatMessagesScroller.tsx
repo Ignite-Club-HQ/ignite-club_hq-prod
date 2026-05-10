@@ -26,6 +26,7 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   isKeyboardOpen: boolean;
   searchOpen: boolean;
   composerHeight: number;
+  currentUserId?: string | null;
 
   /** Forwarded for parity with existing call sites; not used in virtual mode. */
   loadTriggerStyle?: CSSProperties;
@@ -51,6 +52,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     isKeyboardOpen,
     searchOpen,
     composerHeight,
+    currentUserId,
     virtualHandleRef: externalVirtualHandleRef,
   } = props;
 
@@ -199,6 +201,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
         bottomPadding={bottomPad}
         scrollerRef={setVirtualScrollerRef}
         initialBottomPinned={virtualReady || isPinned}
+        currentUserId={currentUserId}
       />
     </div>
   );

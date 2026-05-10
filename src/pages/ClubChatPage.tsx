@@ -1412,6 +1412,7 @@ export default function ClubChatPage() {
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
+            currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);

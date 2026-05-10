@@ -76,9 +76,12 @@ interface Props<TMessage extends { id: string }> {
   scrollerRef?: (element: HTMLElement | Window | null) => void;
   /** Parent's initial-pin state; prevents reveal before legacy pin completed. */
   initialBottomPinned?: boolean;
+  /** Current user id, used only for row-height estimates (own messages have no author label). */
+  currentUserId?: string | null;
 }
 
 type EstimableChatMessage = {
+  author_id?: string | null;
   text?: string | null;
   image_url?: string | null;
   imageUrl?: string | null;
@@ -127,6 +130,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
   messages: TMessage[],
+  currentUserId?: string | null,
 ) {
   const msg = message as TMessage & {
     author_name?: string | null;
@@ -139,7 +143,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (msg.created_at) {
     const currentDay = getMessageDay(msg.created_at);
     const previousDay = getMessageDay(prev?.created_at);
-    if (!previousDay || previousDay !== currentDay) height += 34;
+    // ChatDateSeparator is `my-4` (32px) plus a small pill (~24px).
+    // Under-estimating separator rows is a common cause of Virtuoso applying
+    // a late upward correction when an upward fling settles.
+    if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
   if (msg.is_system_message) return Math.max(52, height + 36);
@@ -152,8 +159,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Author / header line. Long author names ("Sam Bond mum of Harry and
   // Otto") wrap to 2 lines on phones — under-counting this is what makes
   // the viewport jolt as older messages mount during back-scroll.
-  const authorChars = (msg.author_name ?? "").length;
-  height += authorChars > 24 ? 44 : 22;
+  const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
+  if (!isOwnMessage) {
+    const authorChars = (msg.author_name ?? "").length;
+    height += authorChars > 24 ? 44 : 22;
+  }
 
   if (hasReply) height += 38;
   // Image bubble: aspect-[4/3] frame at width=240 → 180px image + caption
@@ -332,6 +342,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
@@ -618,8 +629,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [messages]);
 
   const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
-    [uniqueMessages],
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages, currentUserId)),
+    [uniqueMessages, currentUserId],
   );
 
   // CRITICAL flicker fix: keep `itemContent` identity stable across messages

@@ -789,6 +789,7 @@ export default function ClubAdminChatPage() {
             isKeyboardOpen={isKeyboardOpen}
             searchOpen={searchOpen}
             composerHeight={composerHeight}
+            currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             renderRow={(msg, index, arr) => {
               const showDateSeparator = index === 0 ||
