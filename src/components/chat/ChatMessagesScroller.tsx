@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   VirtualizedChatMessageList,
   type VirtualizedChatMessageListHandle,
@@ -65,11 +65,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // doesn't kiss the composer border.
   const COMPOSER_GAP = 16;
   const safeComposer = Math.max(composerHeight, 56); // floor for first paint before measure
-  const bottomPad = searchOpen
-    ? 16
-    : isKeyboardOpen
-    ? safeComposer + COMPOSER_GAP
-    : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`;
+  const bottomPad = useMemo(
+    () =>
+      searchOpen
+        ? 16
+        : isKeyboardOpen
+        ? safeComposer + COMPOSER_GAP
+        : `calc(${safeComposer + COMPOSER_GAP}px + env(safe-area-inset-bottom, 0px))`,
+    [searchOpen, isKeyboardOpen, safeComposer],
+  );
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
