@@ -920,7 +920,7 @@ function ChatMessageInner({
                 permissions hydrate (canPublishToGallery / onPublishToGallery)
                 never grows the row mid-scroll and pushes everything below
                 it downward during a fast upward flick. */}
-            {isOwn && imageUrl && !id.startsWith("queued-") && (
+            {isOwn && imageUrl && !id.startsWith("queued-") && messageType !== "dm" && (
               <div className={`mt-1 flex h-7 items-center ${isOwn ? "justify-end" : "justify-start"}`}>
                 {canPublishToGallery && onPublishToGallery ? (
                 <button
