@@ -746,18 +746,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [captureViewportAnchor, scheduleAnchorCapture],
   );
 
-  useLayoutEffect(() => {
-    if (
-      messages.length > messagesLengthRef.current &&
-      viewportAnchorRef.current &&
-      !atBottomRef.current
-    ) {
-      // Only stabilize the mid-list anchor when the user is reading history.
-      // If they are at the bottom, restoring an anchor would push the latest
-      // message DOWN (the very bug we are fixing).
-      stabilizeViewportAnchor(360);
-    }
-  }, [messages.length, stabilizeViewportAnchor]);
+  // Prepend anchoring is handled entirely by Virtuoso's `firstItemIndex`
+  // shift (see anchorRef math above). We deliberately do NOT run a manual
+  // scrollTop-restore loop here: writing scrollTop frame-after-frame while
+  // Virtuoso is settling its own row-height estimates produces a visible
+  // up/down wobble after an upward fling stops ("jitters then lands").
 
   // Post-reveal "stay pinned" guard. After the initial bottom pin reveals,
   // late-hydrating content (images decoding, link previews mounting, reply
