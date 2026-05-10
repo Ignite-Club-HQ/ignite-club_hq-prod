@@ -421,12 +421,9 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       />
       <CardContent className="p-3.5 pb-3 pr-9 pl-4 space-y-1.5">
         {/* Status chips only — section header already conveys the date.
-            "New" badge is suppressed for training events to reduce noise.
-            Positioned with extra right padding so the chevron isn't crowded. */}
+             Positioned with extra right padding so the chevron isn't crowded. */}
         {(() => {
-          const isTraining = event.type === "training";
-          const showNew = hasPro && isAdmin && !hasViewed && !event.is_cancelled && !isTraining;
-          if (!showNew && !event.is_cancelled && !isToday) return null;
+          if (!event.is_cancelled && !isToday) return null;
           return (
             <div className="flex items-center justify-end gap-1.5 -mr-3">
               {isToday && !event.is_cancelled && (
