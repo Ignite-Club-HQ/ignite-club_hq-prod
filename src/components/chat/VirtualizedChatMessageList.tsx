@@ -342,6 +342,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     onAtBottomChange,
     scrollerRef,
     initialBottomPinned = true,
+    currentUserId,
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
@@ -628,8 +629,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [messages]);
 
   const heightEstimates = useMemo(
-    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages)),
-    [uniqueMessages],
+    () => uniqueMessages.map((message, index) => estimateChatRowHeight(message, index, uniqueMessages, currentUserId)),
+    [uniqueMessages, currentUserId],
   );
 
   // CRITICAL flicker fix: keep `itemContent` identity stable across messages
