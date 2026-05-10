@@ -691,7 +691,21 @@ export default function TeamChatPage() {
 
     setLocalMessages((prev) => {
       const incomingIds = new Set(messages.map((message) => message.id));
-      const previousOnly = (prev || []).filter((message) => !incomingIds.has(message.id));
+      // Drop temp/queued optimistic messages once a real message with the same
+      // author + text has arrived via realtime (prevents brief duplicate flash).
+      const realByAuthorText = new Set(
+        messages
+          .filter((m) => !m.id.startsWith("temp-") && !m.id.startsWith("queued-"))
+          .map((m) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
+      );
+      const previousOnly = (prev || []).filter((message) => {
+        if (incomingIds.has(message.id)) return false;
+        if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
+          const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
+          if (realByAuthorText.has(key)) return false;
+        }
+        return true;
+      });
       const mergedIncomingMessages = !prev
         ? messages
         : messages.map((message) => {

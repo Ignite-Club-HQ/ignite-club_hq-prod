@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
@@ -216,14 +217,43 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       {...props}
       ref={scrollerRef}
       data-chat-scroll-lock="true"
+      data-chat-virtualized="true"
       style={{
         ...style,
         overscrollBehaviorY: "contain",
-      }}
+        // Promote the scroller to its own compositor layer so momentum
+        // scrolling on iOS/Android WebViews doesn't repaint sibling DOM each
+        // frame. Without this, fast upward flicks repaint the chat header
+        // and composer alongside the scroller, which reads as jitter.
+        transform: "translateZ(0)",
+        willChange: "scroll-position",
+        // iOS WebKit momentum scrolling. Harmless on Android/Chromium.
+        WebkitOverflowScrolling: "touch",
+      } as React.CSSProperties}
     />
   ),
 );
 ChatVirtuosoScroller.displayName = "ChatVirtuosoScroller";
+
+// Custom Item wrapper that applies CSS containment to each virtualised row.
+// This is the single biggest win for fast upward scrolls on native: when a
+// row mounts it can no longer invalidate ancestor layout/paint, so the
+// 1400px upward overscan (which mounts many rows during a fast flick) stops
+// causing main-thread layout thrash.
+const ChatVirtuosoItem = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
+  ({ context: _context, style, ...props }, itemRef) => (
+    <div
+      {...props}
+      ref={itemRef}
+      data-chat-virtuoso-item="true"
+      style={{
+        ...style,
+        contain: "content",
+      }}
+    />
+  ),
+);
+ChatVirtuosoItem.displayName = "ChatVirtuosoItem";
 
 /**
  * Wraps a virtualised row to record render churn (key stability signal) and
@@ -253,6 +283,40 @@ function DebugRowProbe({
   );
 }
 
+/**
+ * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
+ * message is hydrating. Uses semantic tokens so it follows the active theme,
+ * and `pointer-events-none` so the user can still scroll/tap underneath if
+ * they want to abort.
+ */
+function JumpHydrationSkeleton() {
+  const rows = [82, 64, 96, 72, 88, 60, 78];
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
+      style={{
+        background:
+          "linear-gradient(to bottom, hsl(var(--background) / 0.92), hsl(var(--background) / 0.98))",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
+      }}
+    >
+      {rows.map((width, i) => (
+        <div
+          key={i}
+          className="flex"
+          style={{ justifyContent: i % 2 === 0 ? "flex-start" : "flex-end" }}
+        >
+          <div
+            className="h-10 rounded-2xl bg-muted animate-pulse"
+            style={{ width: `${width}%`, maxWidth: "75%" }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   {
@@ -564,6 +628,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const components = useMemo(
     () => ({
       Scroller: ChatVirtuosoScroller,
+      Item: ChatVirtuosoItem,
       // Keep the list header purely structural and independent of loading
       // state. Rendering the spinner here makes Virtuoso re-measure header
       // content exactly while it is trying to preserve a top anchor.
@@ -589,7 +654,38 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [scrollerRef],
   );
 
+  // Brief skeleton overlay while a deep-link/jump-to-message is hydrating.
+  // Driven by window CustomEvents from `jumpToMessageInVirtualizedChat` so
+  // every chat surface (Team/Group/Club/Broadcast/ClubAdmin/DM) gets the
+  // mask without prop-drilling. Masks the visible re-anchor as deferred row
+  // sub-content (link previews, replies, reactions) hydrates after scroll.
+  const [isJumpHydrating, setIsJumpHydrating] = useState(false);
+  useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onStart = () => {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      setIsJumpHydrating(true);
+    };
+    const onEnd = () => {
+      // Slight delay before hiding so the cross-fade reads as intentional
+      // rather than a flash if hydration finishes in <100ms.
+      if (fadeTimer) clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(() => setIsJumpHydrating(false), 120);
+    };
+    window.addEventListener("chat:jump-hydration-start", onStart);
+    window.addEventListener("chat:jump-hydration-end", onEnd);
+    return () => {
+      window.removeEventListener("chat:jump-hydration-start", onStart);
+      window.removeEventListener("chat:jump-hydration-end", onEnd);
+      if (fadeTimer) clearTimeout(fadeTimer);
+    };
+  }, []);
+
   return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
     <Virtuoso
       ref={virtuosoRef}
       className={className}
@@ -616,6 +712,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       itemSize={itemSize}
       defaultItemHeight={140}
       heightEstimates={heightEstimates}
+      // Report item resize measurements synchronously. On native WebViews the
+      // default rAF-delayed ResizeObserver path can apply Virtuoso's anchor
+      // correction one frame after a fast upward fling stops, which reads as a
+      // small jolt. Synchronous reporting keeps the correction in the same
+      // layout turn as the row resize.
+      skipAnimationFrameInResizeObserver
+      scrollSeekConfiguration={false}
       // Upward overscan also acts as the "start-reached" lookahead — Virtuoso
       // fires `startReached` when the first data item mounts, so a larger top
       // window means we kick off the older-page fetch BEFORE the user
@@ -625,11 +728,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // messages it never scrolled through. 1400px gives the fetch enough
       // runway to land while the finger is still moving. Bottom kept tight
       // so we don't mount heavy image rows the user is scrolling away from.
-      increaseViewportBy={{ top: 1400, bottom: 200 }}
+      increaseViewportBy={{ top: 900, bottom: 200 }}
+      minOverscanItemCount={{ top: 8, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
     />
+    {isJumpHydrating ? <JumpHydrationSkeleton /> : null}
+    </div>
   );
 }
 

@@ -80,14 +80,14 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       touchStartYRef.current = event.touches[0]?.clientY ?? 0;
     };
 
-    // Android-only: prevent pull-to-refresh when dragging DOWN from chat
-    // chrome (header/composer). The chat scroll viewport itself uses
-    // `overscroll-behavior-y: contain`, so we no longer need to inspect it
-    // here on every touchmove — doing so was forcing Android to wait on a
-    // passive:false JS handler before continuing inertia, which made
-    // upward scroll feel slow and chunky.
+    // Prevent pull-to-refresh / rubber-band bounce when dragging DOWN from
+    // chat chrome (header/composer) on Android AND iOS. The chat scroll
+    // viewport itself uses `overscroll-behavior-y: contain`, so we no longer
+    // need to inspect it here on every touchmove — doing so was forcing the
+    // browser to wait on a passive:false JS handler before continuing
+    // inertia, which made upward scroll feel slow and chunky and produced a
+    // jolt when the fling stopped.
     const handleTouchMove = (event: TouchEvent) => {
-      if (!isAndroid) return;
       const target = event.target as HTMLElement | null;
       if (!target) return;
       // Fast path: only chat-chrome elements need preventDefault. Everything
@@ -105,10 +105,18 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
     document.addEventListener("focusin", scheduleOuterViewportResetWithTail, true);
     window.addEventListener("resize", scheduleOuterViewportResetWithTail);
-    window.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
-    root.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
-    window.visualViewport?.addEventListener("resize", scheduleOuterViewportResetWithTail);
-    window.visualViewport?.addEventListener("scroll", scheduleOuterViewportReset);
+    // NOTE: We intentionally do NOT listen for `scroll` on window/root or for
+    // `scroll` on visualViewport. The outer container has `overflow:hidden` so
+    // it cannot scroll meaningfully, but during fling inertia on Android the
+    // visualViewport emits sub-pixel scroll events as the browser settles its
+    // top chrome. Calling `window.scrollTo(0,0)` in response produced the
+    // visible up/down jolt at the end of every scroll. Focus and resize
+    // handlers are sufficient to keep the outer viewport pinned.
+    // visualViewport resize fires during Android Chrome URL-bar show/hide
+    // (which happens *during* a fling). Use the lightweight rAF-coalesced
+    // reset only — NOT the tail-timeout variant — so the post-fling moments
+    // at 150/350/700ms don't snap the viewport and produce an up/down jolt.
+    window.visualViewport?.addEventListener("resize", scheduleOuterViewportReset);
 
     return () => {
       if (pendingRaf != null) cancelAnimationFrame(pendingRaf);
@@ -117,10 +125,7 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("focusin", scheduleOuterViewportResetWithTail, true);
       window.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.removeEventListener("scroll", scheduleOuterViewportReset);
-      root.removeEventListener("scroll", scheduleOuterViewportReset);
-      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.visualViewport?.removeEventListener("scroll", scheduleOuterViewportReset);
+      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
       root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;

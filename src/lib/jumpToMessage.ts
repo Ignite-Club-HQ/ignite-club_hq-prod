@@ -37,7 +37,11 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 ) {
   const {
     highlightDurationMs = 2500,
-    maxAttempts = 40, // ~6s at 150ms
+    // ~30s at 150ms — must outlast cold-start auth + chat-page mount + first
+    // message fetch + realtime subscription handshake when the user arrives via
+    // a push-notification deep link (especially on Android where app warmup is
+    // slower). Previously 6s, which timed out before the target row arrived.
+    maxAttempts = 200,
     intervalMs = 150,
     tryLoadOlder,
     parentMessageId,
@@ -47,6 +51,23 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   // (next/next/next) doesn't stack polling loops, fight over scrollToIndex,
   // or let a stale 2.5s highlight-clear wipe the newest target.
   if (activeCancel) activeCancel();
+
+  // Notify the virtualised chat list to render a brief skeleton overlay
+  // while we poll + scroll + settle. This masks the visible re-anchor that
+  // happens as deferred row sub-content (link previews, replies, reactions)
+  // hydrates AFTER the initial scrollToIndex lands. The list listens for
+  // these CustomEvents and fades the overlay out once "end" fires.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("chat:jump-hydration-start"));
+  }
+  let hydrationEnded = false;
+  const endHydration = () => {
+    if (hydrationEnded) return;
+    hydrationEnded = true;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
+    }
+  };
 
   let attempts = 0;
   let cancelled = false;
@@ -59,19 +80,22 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
     handle.scrollToIndex(idx, "center");
-    requestAnimationFrame(() => {
-      if (cancelled) return;
-      const h2 = getHandle();
-      const idx2 = getMessages().findIndex((m) => m.id === id);
-      if (h2 && idx2 >= 0) h2.scrollToIndex(idx2, "center");
-    });
+    // Single deferred re-centre AFTER row mounts and any deferred sub-content
+    // (replies / link previews / reactions) has had a chance to commit. Doing
+    // multiple back-to-back scrollToIndex("center") calls (immediate + rAF +
+    // 350ms) is what produced the visible jitter on push-notification deep
+    // links: each call re-anchors to a different measured row height as
+    // sub-content hydrates. One settle pass is enough — the ResizeObserver
+    // height-compensator in chatScrollActivity handles late growth.
     if (settleTimer) clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       if (cancelled) return;
       const h3 = getHandle();
       const idx3 = getMessages().findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
-    }, 350);
+      // Sub-content has had a chance to hydrate by now; lift the skeleton.
+      endHydration();
+    }, 450);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
       if (cancelled) return;
@@ -125,6 +149,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
 
     if (attempts < maxAttempts) {
       nextTickTimer = setTimeout(tick, intervalMs);
+    } else {
+      // Polling exhausted without landing — drop the skeleton so the user
+      // isn't stuck staring at it.
+      endHydration();
     }
   };
 
@@ -136,6 +164,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     if (nextTickTimer) clearTimeout(nextTickTimer);
     if (settleTimer) clearTimeout(settleTimer);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
+    endHydration();
     if (activeCancel === cancel) activeCancel = null;
   };
   activeCancel = cancel;

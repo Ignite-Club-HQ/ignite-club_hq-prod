@@ -29,6 +29,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { formatEventContextualDate, formatCompactDateTime } from "@/lib/eventRelativeDate";
 import { formatMatchArrivalTime, getMatchArrivalMinutes } from "@/lib/matchArrivalTime";
 import { formatEventTitle } from "@/lib/eventTitle";
@@ -37,6 +38,7 @@ import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
+import { useEventMembership } from "@/hooks/useEventMembership";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -162,7 +164,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   });
 
   // Fetch user's own RSVP
-  const { data: myRsvp } = useQuery({
+  const { data: myRsvp, isLoading: myRsvpLoading } = useQuery({
     queryKey: ["card-rsvp", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -179,7 +181,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   });
 
   // Fetch child RSVPs
-  const { data: childRsvps } = useQuery({
+  const { data: childRsvps, isLoading: childRsvpsLoading } = useQuery({
     queryKey: ["card-child-rsvps", event.id, user?.id],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
@@ -235,6 +237,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
   const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
+  const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
 
   const deleteEventMutation = useMutation({
     mutationFn: async (deleteType: "single" | "series") => {
@@ -316,8 +319,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: () => {
-      toast({ title: "Failed to cancel event", variant: "destructive" });
+    onError: (error) => {
+      toast(friendlyMutationError(error, { title: "Failed to cancel event", description: "Please try again." }));
     },
   });
 
@@ -534,16 +537,23 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
         {/* RSVP summary only — Schedule = browse, no action buttons */}
         {!event.is_cancelled && (() => {
+          const rsvpDataPending = myRsvpLoading || childRsvpsLoading;
+          if (rsvpDataPending) {
+            // Reserve the row so the badge/summary doesn't pop in late.
+            return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
+          }
+
           const goingChildNames = (childRsvps || [])
             .filter((r) => r.status === "going")
             .map((r) => r.children?.name?.split(" ")[0] || "Child");
-          const summary = buildPersonalRsvpLine({
-            parentStatus: currentRsvpStatus,
-            goingChildNames,
-            totalGoing: attendanceCounts?.going || 0,
-          });
 
-          if (!summary) {
+          // Mirrors NextUpCarousel: badge whenever neither the parent nor ANY
+          // of their children on this event have an RSVP recorded yet
+          // (regardless of how many other people are going).
+          const householdHasAnyRsvp =
+            currentRsvpStatus !== null || (childRsvps?.length ?? 0) > 0;
+
+          if (!householdHasAnyRsvp && isEventMember) {
             return (
               <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
@@ -552,6 +562,18 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                 </span>
               </div>
             );
+          }
+
+          const summary = buildPersonalRsvpLine({
+            parentStatus: currentRsvpStatus,
+            goingChildNames,
+            totalGoing: attendanceCounts?.going || 0,
+          });
+
+          if (!summary) {
+            // Household responded (e.g. "not going" / "maybe") but nobody is
+            // going — keep the row reserved so layout stays stable.
+            return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";

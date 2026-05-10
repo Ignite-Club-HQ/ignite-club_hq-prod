@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 
 interface EventNoteSectionProps {
   eventId: string;
@@ -90,11 +91,7 @@ export function EventNoteSection({
       });
     },
     onError: (err: any) => {
-      toast({
-        title: "Couldn't save note",
-        description: err?.message,
-        variant: "destructive",
-      });
+      toast(friendlyMutationError(err, { title: "Couldn't save note", description: err?.message || "Please try again." }));
     },
   });
 

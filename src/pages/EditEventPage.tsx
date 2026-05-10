@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
@@ -641,13 +642,9 @@ export default function EditEventPage() {
       // on_event_updated DB trigger → process-event-notifications edge function
 
       navigate(`/events/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating event:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update event. Please try again.",
-        variant: "destructive",
-      });
+      toast(friendlyMutationError(error, { description: "Failed to update event. Please try again." }));
     } finally {
       setSaving(false);
     }
