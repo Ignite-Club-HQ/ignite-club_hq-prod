@@ -582,7 +582,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // hasn't scrolled through yet.
     const sincePin = performance.now() - bottomPinReadyAtRef.current;
     if (sincePin < PREPEND_TRUST_WINDOW_MS) {
-      debugLogStartReached(false, "trust-window");
+      debugLogStartReached(false, "trust-window-deferred");
+      if (startReachedRetryTimerRef.current === null) {
+        startReachedRetryTimerRef.current = window.setTimeout(() => {
+          startReachedRetryTimerRef.current = null;
+          if (!bottomPinReadyRef.current || !hasOlderRef.current || isLoadingOlderRef.current || loadingOlderInFlightRef.current) return;
+          loadingOlderInFlightRef.current = true;
+          debugLogStartReached(true, "deferred-fetch");
+          onLoadOlderRef.current();
+        }, Math.max(0, PREPEND_TRUST_WINDOW_MS - sincePin));
+      }
       return;
     }
     if (!hasOlder) {
