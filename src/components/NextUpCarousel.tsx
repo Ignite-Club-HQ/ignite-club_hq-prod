@@ -906,6 +906,7 @@ function CompactCard({ event }: { event: EventItem }) {
 }
 
 export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
+  const { user } = useAuth();
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
@@ -930,6 +931,44 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
     onSelect();
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi, onSelect]);
+
+  // Aggregate "needs RSVP" count across the visible carousel events.
+  // An event is pending if neither the user nor any of their children have responded.
+  const carouselEventIds = React.useMemo(
+    () => (events || []).slice(0, 6).filter(e => !e.is_cancelled).map(e => e.id),
+    [events],
+  );
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["next-up-pending-count", user?.id, carouselEventIds],
+    queryFn: async () => {
+      if (!user || carouselEventIds.length === 0) return 0;
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      const uniqueChildIds = [...new Set(childIds)];
+
+      const orFilter = uniqueChildIds.length > 0
+        ? `user_id.eq.${user.id},child_id.in.(${uniqueChildIds.join(",")})`
+        : `user_id.eq.${user.id}`;
+
+      const { data: rsvps } = await supabase
+        .from("rsvps")
+        .select("event_id")
+        .in("event_id", carouselEventIds)
+        .or(orFilter);
+
+      const responded = new Set((rsvps || []).map(r => r.event_id));
+      return carouselEventIds.filter(id => !responded.has(id)).length;
+    },
+    enabled: !!user && carouselEventIds.length > 0,
+    staleTime: 60 * 1000,
+  });
 
   // Show skeleton while loading to reserve space and prevent layout shift
   if (isLoading) {
