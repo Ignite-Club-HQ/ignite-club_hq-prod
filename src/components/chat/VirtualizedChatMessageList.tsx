@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ComponentProps,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
