@@ -78,6 +78,10 @@ function findChatViewport(element: HTMLElement | null): HTMLElement | null {
   return element.closest<HTMLElement>('[data-chat-scroll-lock="true"]');
 }
 
+function isVirtualizedChatViewport(viewport: HTMLElement): boolean {
+  return !!viewport.closest('[data-chat-virtualized="true"]');
+}
+
 /**
  * Observes a height-changing chat sub-tree and absorbs its resize when it is
  * above the visible viewport. This prevents the classic post-scroll jolt where
@@ -103,6 +107,13 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
 
     const viewport = findChatViewport(element);
     if (!viewport) return;
+
+    // In virtualized chat, react-virtuoso owns row measurements and scroll
+    // anchoring. A second manual `scrollTop += delta` here fights Virtuoso's
+    // own correction during native momentum scrolling, which shows up as the
+    // remaining upward jitter. Keep this compensator for legacy/non-virtual
+    // chat scroll containers only.
+    if (isVirtualizedChatViewport(viewport)) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
