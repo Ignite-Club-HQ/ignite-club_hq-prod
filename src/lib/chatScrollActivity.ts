@@ -103,15 +103,16 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
 
     const viewport = findChatViewport(element);
     if (!viewport) return;
-    if (viewport.closest('[data-chat-virtualized="true"]')) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
 
     // Compensate growth/shrink above the user's visual anchor, not only fully
-    // off-screen rows. The remaining Android/iOS jolt happens when a deferred
-    // card/reaction in the upper part of the viewport commits just after
-    // momentum stops; without this, everything below visibly drops down.
+    // off-screen rows. On virtualized chat this is especially important after
+    // a native momentum fling stops: deferred reply/link/gallery/read updates
+    // often commit during the idle window, and Virtuoso may re-measure the row
+    // after paint. Correcting scrollTop in the ResizeObserver turn preserves
+    // the message the user stopped on instead of letting it visibly jump.
     // Keep lower-half changes natural so the row the user is actively reading
     // doesn't get fought by scrollTop corrections.
     const anchorLine = viewportRect.top + viewportRect.height * 0.38;
