@@ -514,6 +514,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const tryPrefetch = () => {
       if (preemptivePrefetchedRef.current) return;
       if (!bottomPinReadyRef.current) return;
+      if (userHasScrolledAfterPinRef.current) return;
       if (!hasOlder || isLoadingOlder || loadingOlderInFlightRef.current) return;
       preemptivePrefetchedRef.current = true;
       loadingOlderInFlightRef.current = true;
@@ -564,6 +565,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     },
     [onAtBottomChange],
   );
+
+  const handleScroll = useCallback(() => {
+    if (bottomPinReadyRef.current) {
+      userHasScrolledAfterPinRef.current = true;
+    }
+  }, []);
 
   // Only auto-follow new outgoing messages when the user is already at the
   // bottom — never yank a finger reading history.
