@@ -120,11 +120,8 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
     const viewportRect = viewport.getBoundingClientRect();
 
     // Compensate growth/shrink above the user's visual anchor, not only fully
-    // off-screen rows. On virtualized chat this is especially important after
-    // a native momentum fling stops: deferred reply/link/gallery/read updates
-    // often commit during the idle window, and Virtuoso may re-measure the row
-    // after paint. Correcting scrollTop in the ResizeObserver turn preserves
-    // the message the user stopped on instead of letting it visibly jump.
+    // off-screen rows. This is retained for legacy/non-virtual scrollers where
+    // there is no library-owned anchor reconciliation.
     // Keep lower-half changes natural so the row the user is actively reading
     // doesn't get fought by scrollTop corrections.
     const anchorLine = viewportRect.top + viewportRect.height * 0.38;
