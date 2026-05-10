@@ -134,65 +134,56 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     }
   }, [initialComposerSettled, messages.length, viewportSettled]);
 
-  // Suppress the re-pin loop during the initial mount window. Virtuoso's own
-  // `initialTopMostItemIndex={LAST}` + immediate/raf1/raf2 pin already lands
-  // the chat at the bottom on open. The parent effect below would otherwise
-  // also fire when `composerHeight` transitions from the 56px floor to its
-  // measured value (~80–140px) right after mount via a ResizeObserver, and
-  // schedule snap-to-bottom calls at 80/280/550/900ms. Those late snaps are
-  // visible as content shifting after the chat opens. We arm the effect only
-  // after the first ~600ms of mount, by which time the composer height has
-  // settled and any further changes are real (keyboard / reply / edit).
-  // When the keyboard opens/closes or the composer grows, the viewport
-  // resizes underneath the virtualised list. If the user was at the bottom
-  // we must re-pin to the latest message — otherwise the most recent
-  // messages get hidden behind the keyboard and they "can't see what they
-  // just sent". Fires immediately and again after the keyboard animation.
+  // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
+  // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
+  // chat at the bottom on first paint, and `ChatMessagesScroller` holds the
+  // wrapper at opacity:0 until the visual viewport + composer height have
+  // settled. Any parent-driven `scrollToBottom` after that just re-pins
+  // against an already-pinned list and reads as content bouncing.
+  //
+  // We still react to POST-MOUNT transitions of `isKeyboardOpen` and to a
+  // reply/edit composer growth, because in those cases the viewport shrinks
+  // out from under the latest message and the user expects it to stay
+  // visible. Mount-time changes to these values are ignored via the quiet
+  // window. We do NOT re-pin on `lastMessageId` / `virtualReady` / `bottomPad`
+  // changes — Virtuoso's `followOutput` covers new appends when at-bottom.
+  const prevKeyboardOpenRef = useRef(isKeyboardOpen);
+  const prevComposerTallRef = useRef(composerHeight > 64);
   useEffect(() => {
-    if (!virtualReady) return;
+    if (!virtualReady) {
+      prevKeyboardOpenRef.current = isKeyboardOpen;
+      prevComposerTallRef.current = composerHeight > 64;
+      return;
+    }
     const handle = virtualHandleRef.current;
     if (!handle) return;
     // Initial-mount quiet window: let Virtuoso's own bottom pin own first
-    // paint without parent-driven re-snaps.
-    if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) return;
-    const isReplyOrEditResize = composerHeight > 64;
-    const wasAtBottom = handle.isAtBottom();
-    if (!isReplyOrEditResize && !wasAtBottom) return;
+    // paint without ANY parent-driven re-snaps.
+    if (performance.now() - mountedAtRef.current < INITIAL_MOUNT_QUIET_MS) {
+      prevKeyboardOpenRef.current = isKeyboardOpen;
+      prevComposerTallRef.current = composerHeight > 64;
+      return;
+    }
 
-    // Re-pin guard: when the user starts a reply/edit (composer grows) we
-    // ALWAYS want the latest message visible above the composer + keyboard,
-    // even if the timing of `isAtBottom` flips false mid-resize. Otherwise
-    // honour the user's scroll position.
-    const shouldRepin = () =>
-      handle.isAtBottom() || (isReplyOrEditResize && wasAtBottom);
+    const keyboardChanged = prevKeyboardOpenRef.current !== isKeyboardOpen;
+    const isComposerTall = composerHeight > 64;
+    const composerGrewToReply = !prevComposerTallRef.current && isComposerTall;
+    prevKeyboardOpenRef.current = isKeyboardOpen;
+    prevComposerTallRef.current = isComposerTall;
+
+    if (!keyboardChanged && !composerGrewToReply) return;
+
+    const wasAtBottom = handle.isAtBottom();
+    if (!composerGrewToReply && !wasAtBottom) return;
 
     const pin = () => handle.scrollToBottom("auto");
     pin();
-
-    // Schedule multiple re-pins to cover:
-    //  - immediate composer height change (DOM commit)
-    //  - keyboard animation start (~80ms)
-    //  - keyboard mid-animation (~280ms)
-    //  - keyboard fully settled on Android (~550ms — longest observed)
-    //  - very-late visualViewport reflow on some Android keyboards (~900ms)
-    const delays = [80, 280, 550, 900];
-    const timeouts = delays.map((ms) =>
-      window.setTimeout(() => {
-        if (shouldRepin()) pin();
-      }, ms),
-    );
-
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    const onViewportResize = () => {
-      if (shouldRepin()) pin();
-    };
-    vv?.addEventListener("resize", onViewportResize);
-
-    return () => {
-      timeouts.forEach((id) => window.clearTimeout(id));
-      vv?.removeEventListener("resize", onViewportResize);
-    };
-  }, [virtualReady, isKeyboardOpen, composerHeight, bottomPad, lastMessageId, virtualHandleRef]);
+    // One late re-pin after keyboard animation settles on Android.
+    const t = window.setTimeout(() => {
+      if (handle.isAtBottom() || composerGrewToReply) pin();
+    }, 280);
+    return () => window.clearTimeout(t);
+  }, [virtualReady, isKeyboardOpen, composerHeight, virtualHandleRef]);
 
   // Stable renderer identity — recreating it on every parent re-render
   // invalidates Virtuoso's `itemContent` and forces every visible row tree to
