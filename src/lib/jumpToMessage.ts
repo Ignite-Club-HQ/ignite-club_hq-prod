@@ -63,19 +63,20 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   const focusOn = (id: string, idx: number, handle: VirtualizedChatMessageListHandle) => {
     setHighlightedMessageId(id);
     handle.scrollToIndex(idx, "center");
-    requestAnimationFrame(() => {
-      if (cancelled) return;
-      const h2 = getHandle();
-      const idx2 = getMessages().findIndex((m) => m.id === id);
-      if (h2 && idx2 >= 0) h2.scrollToIndex(idx2, "center");
-    });
+    // Single deferred re-centre AFTER row mounts and any deferred sub-content
+    // (replies / link previews / reactions) has had a chance to commit. Doing
+    // multiple back-to-back scrollToIndex("center") calls (immediate + rAF +
+    // 350ms) is what produced the visible jitter on push-notification deep
+    // links: each call re-anchors to a different measured row height as
+    // sub-content hydrates. One settle pass is enough — the ResizeObserver
+    // height-compensator in chatScrollActivity handles late growth.
     if (settleTimer) clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       if (cancelled) return;
       const h3 = getHandle();
       const idx3 = getMessages().findIndex((m) => m.id === id);
       if (h3 && idx3 >= 0) h3.scrollToIndex(idx3, "center");
-    }, 350);
+    }, 450);
     if (highlightClearTimer) clearTimeout(highlightClearTimer);
     highlightClearTimer = setTimeout(() => {
       if (cancelled) return;
