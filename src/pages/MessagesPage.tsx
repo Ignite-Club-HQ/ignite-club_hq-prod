@@ -1634,11 +1634,19 @@ export default function MessagesPage() {
   // club's Pro status — otherwise fall back to the global "any Pro" check. This
   // prevents the upgrade banner from showing for admins of a Pro club just
   // because they also belong to a Free club elsewhere.
+  // Treat Pro access as unknown until both queries have actually returned data.
+  // The clubProStatus query is `enabled` only after memberClubIds resolves, so
+  // its loading flags can briefly be false-without-data on first render after
+  // login (especially noticeable on iOS WebView resume) — without this guard
+  // the upgrade banner flashes for admins of a Pro club. Mirrors the lock
+  // logic at line ~1394.
+  const proAccessQueryReady = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
+  const clubProQueryReady = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
   const scopedClubIsPro = effectiveClubFilter ? clubProStatus?.[effectiveClubFilter] === true : null;
   const proGateFails = effectiveClubFilter
-    ? scopedClubIsPro === false
-    : hasAnyProAccess === false;
-  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !isLoadingClubProStatus && !isFetchingClubProStatus && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
+    ? clubProQueryReady && scopedClubIsPro === false
+    : proAccessQueryReady && hasAnyProAccess === false;
+  const hasAdminRoleButNoPro = proAccessQueryReady && clubProQueryReady && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
 
   // Type label map
   const typeLabels: Record<string, string> = {
