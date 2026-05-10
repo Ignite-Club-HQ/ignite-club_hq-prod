@@ -198,7 +198,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
   const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
   const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
-  const lastMessageId = messages[messages.length - 1]?.id;
 
   useEffect(() => {
     if (messages.length > 0 && initialMountReady) {
