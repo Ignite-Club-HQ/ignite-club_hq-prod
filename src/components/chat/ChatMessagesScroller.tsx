@@ -179,6 +179,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   const internalVirtualHandleRef = useRef<VirtualizedChatMessageListHandle>(null);
   const virtualHandleRef = externalVirtualHandleRef ?? internalVirtualHandleRef;
+  const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
 
   // Virtuoso owns its own scroller; no external ref handover (legacy chat
   // hooks that mutated `scrollTop` directly are gone).
@@ -195,14 +196,15 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   const viewportSettled = useViewportHeightSettled(180);
   const [initialViewportReleased, setInitialViewportReleased] = useState(false);
   const initialComposerSettled = isKeyboardOpen || initialLayoutSettled || Math.abs(layoutComposerHeight - composerHeight) <= 1;
-  const virtualReady = messages.length > 0 && ((viewportSettled && initialComposerSettled) || initialViewportReleased);
+  const initialMountReady = viewportSettled && mountBoxSettled && initialComposerSettled;
+  const virtualReady = messages.length > 0 && (initialMountReady || initialViewportReleased);
   const lastMessageId = messages[messages.length - 1]?.id;
 
   useEffect(() => {
-    if (messages.length > 0 && viewportSettled && initialComposerSettled) {
+    if (messages.length > 0 && initialMountReady) {
       setInitialViewportReleased(true);
     }
-  }, [initialComposerSettled, messages.length, viewportSettled]);
+  }, [initialMountReady, messages.length]);
 
   // Open-time auto-adjustment is intentionally OFF. Virtuoso's own
   // `initialTopMostItemIndex={LAST}` + initialBottomPinned already lands the
@@ -286,6 +288,7 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
 
   return (
     <div
+      ref={mountBoxRef}
       className="flex-1 min-h-0 overflow-hidden"
       data-chat-virtualized="true"
       style={{ opacity: messages.length === 0 || virtualReady ? 1 : 0, transition: "opacity 120ms ease-out" }}
