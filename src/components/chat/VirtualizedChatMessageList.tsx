@@ -520,9 +520,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }
       frame = requestAnimationFrame(armRevealWhenStable);
     };
+    let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
+      if (cancelled) return;
       jump("raf1");
-      requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        if (cancelled) return;
         jump("raf2");
         armRevealWhenStable();
       });
@@ -530,6 +533,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     return () => {
       cancelled = true;
       cancelAnimationFrame(r1);
+      if (r2 !== null) cancelAnimationFrame(r2);
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (frame !== null) cancelAnimationFrame(frame);
     };
