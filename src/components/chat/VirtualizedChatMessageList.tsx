@@ -619,7 +619,38 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [scrollerRef],
   );
 
+  // Brief skeleton overlay while a deep-link/jump-to-message is hydrating.
+  // Driven by window CustomEvents from `jumpToMessageInVirtualizedChat` so
+  // every chat surface (Team/Group/Club/Broadcast/ClubAdmin/DM) gets the
+  // mask without prop-drilling. Masks the visible re-anchor as deferred row
+  // sub-content (link previews, replies, reactions) hydrates after scroll.
+  const [isJumpHydrating, setIsJumpHydrating] = useState(false);
+  useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    const onStart = () => {
+      if (fadeTimer) {
+        clearTimeout(fadeTimer);
+        fadeTimer = null;
+      }
+      setIsJumpHydrating(true);
+    };
+    const onEnd = () => {
+      // Slight delay before hiding so the cross-fade reads as intentional
+      // rather than a flash if hydration finishes in <100ms.
+      if (fadeTimer) clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(() => setIsJumpHydrating(false), 120);
+    };
+    window.addEventListener("chat:jump-hydration-start", onStart);
+    window.addEventListener("chat:jump-hydration-end", onEnd);
+    return () => {
+      window.removeEventListener("chat:jump-hydration-start", onStart);
+      window.removeEventListener("chat:jump-hydration-end", onEnd);
+      if (fadeTimer) clearTimeout(fadeTimer);
+    };
+  }, []);
+
   return (
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
     <Virtuoso
       ref={virtuosoRef}
       className={className}
