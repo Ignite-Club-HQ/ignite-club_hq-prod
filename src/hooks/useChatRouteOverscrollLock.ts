@@ -112,7 +112,11 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
     // top chrome. Calling `window.scrollTo(0,0)` in response produced the
     // visible up/down jolt at the end of every scroll. Focus and resize
     // handlers are sufficient to keep the outer viewport pinned.
-    window.visualViewport?.addEventListener("resize", scheduleOuterViewportResetWithTail);
+    // visualViewport resize fires during Android Chrome URL-bar show/hide
+    // (which happens *during* a fling). Use the lightweight rAF-coalesced
+    // reset only — NOT the tail-timeout variant — so the post-fling moments
+    // at 150/350/700ms don't snap the viewport and produce an up/down jolt.
+    window.visualViewport?.addEventListener("resize", scheduleOuterViewportReset);
 
     return () => {
       if (pendingRaf != null) cancelAnimationFrame(pendingRaf);
@@ -121,7 +125,7 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("focusin", scheduleOuterViewportResetWithTail, true);
       window.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportResetWithTail);
+      window.visualViewport?.removeEventListener("resize", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
       root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;
