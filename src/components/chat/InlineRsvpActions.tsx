@@ -61,7 +61,7 @@ export function InlineRsvpActions({ eventId, messageId }: Props) {
   const submit = async (status: Status) => {
     if (submitting || answered) return;
     setSubmitting(status);
-    haptics.light();
+    hapticImpactLight();
     try {
       const { data, error } = await supabase.rpc("quick_rsvp_from_dm", {
         _event_id: eventId,
