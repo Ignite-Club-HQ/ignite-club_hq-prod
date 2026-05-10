@@ -1740,11 +1740,10 @@ export default function EventDetailPage() {
     },
     onError: (error) => {
       console.error("[CancelEvent] Mutation error:", error);
-      toast({ 
-        title: "Failed to cancel event", 
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive" 
-      });
+      toast(friendlyMutationError(error, {
+        title: "Failed to cancel event",
+        description: (error as any)?.message || "An unexpected error occurred",
+      }));
     },
   });
 
