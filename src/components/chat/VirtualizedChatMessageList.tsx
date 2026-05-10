@@ -770,11 +770,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const renderItemRef = useRef(renderItem);
   const uniqueMessagesRef = useRef(uniqueMessages);
   const indexByIdRef = useRef(indexById);
+  const currentUserIdRef = useRef(currentUserId);
   useLayoutEffect(() => {
     renderItemRef.current = renderItem;
     uniqueMessagesRef.current = uniqueMessages;
     indexByIdRef.current = indexById;
-  }, [renderItem, uniqueMessages, indexById]);
+    currentUserIdRef.current = currentUserId;
+  }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
     (_absoluteIndex: number, message: TMessage) => {
@@ -783,7 +785,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
       if (!isChatVirtDebugEnabled()) return child;
       const estimated = idx >= 0
-        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserId)
+        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
         : undefined;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
@@ -791,7 +793,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         </DebugRowProbe>
       );
     },
-    [currentUserId],
+    [],
   );
 
   const computeItemKey = useCallback((_index: number, message: TMessage) => message.id, []);
