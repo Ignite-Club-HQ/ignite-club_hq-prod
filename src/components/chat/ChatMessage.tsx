@@ -734,7 +734,7 @@ function ChatMessageInner({
             Add to gallery
           </button>
         )}
-        {rsvpMatch && <InlineRsvpActions eventId={rsvpMatch[1]} messageId={messageId} />}
+        {rsvpMatch && <InlineRsvpActions eventId={rsvpMatch[1]} messageId={id} />}
       </div>
     );
   }
