@@ -437,12 +437,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                   Today
                 </Badge>
               )}
-              {showNew && (
-                <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[9.5px] h-[18px] px-1.5">
-                  <Eye className="h-2.5 w-2.5" />
-                  New
-                </Badge>
-              )}
               {event.is_cancelled && (
                 <Badge variant="destructive" className="text-[9.5px] h-[18px] px-1.5">Cancelled</Badge>
               )}
@@ -552,7 +546,16 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             totalGoing: attendanceCounts?.going || 0,
           });
 
-          if (!summary) return null;
+          if (!summary) {
+            return (
+              <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
+                  <AlertCircle className="h-3 w-3" />
+                  RSVP Required
+                </span>
+              </div>
+            );
+          }
 
           const personal = goingChildNames.length > 0 || currentRsvpStatus === "going";
 
