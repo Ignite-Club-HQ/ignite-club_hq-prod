@@ -340,6 +340,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
+  const bottomPinSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
   // upward gesture never triggers a prepend that visually teleports the
@@ -475,7 +476,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       jump("raf1");
       requestAnimationFrame(() => {
         jump("raf2");
-        const settle = window.setTimeout(() => {
+        const settle = setTimeout(() => {
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
           userHasScrolledAfterPinRef.current = false;
@@ -487,7 +488,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     return () => {
       cancelAnimationFrame(r1);
       if (bottomPinSettleTimerRef.current !== null) {
-        window.clearTimeout(bottomPinSettleTimerRef.current);
+        clearTimeout(bottomPinSettleTimerRef.current);
         bottomPinSettleTimerRef.current = null;
       }
     };
