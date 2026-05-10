@@ -788,11 +788,23 @@ export default function CreateEventPage() {
       }
     } catch (error: any) {
       console.error("Error creating event:", error);
-      
+
+      const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+
+      // Friendly message for the notification-dispatch trigger failure class
+      if (
+        /http_request_queue/.test(errorBlob) ||
+        /null value in column "url"/.test(errorBlob) ||
+        /compute_push_notification_url/.test(errorBlob) ||
+        /send_push_notification/.test(errorBlob)
+      ) {
+        toast(friendlyMutationError(error, { description: "Failed to create event. Please try again." }));
+        return;
+      }
+
       // Build a more helpful error message
       let errorDescription = "Failed to create event. ";
-      
-      const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+
 
       if (error?.message?.includes("row-level security")) {
         errorDescription += "You don't have permission to create events for this club/team.";
