@@ -105,10 +105,14 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
     document.addEventListener("focusin", scheduleOuterViewportResetWithTail, true);
     window.addEventListener("resize", scheduleOuterViewportResetWithTail);
-    window.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
-    root.addEventListener("scroll", scheduleOuterViewportReset, { passive: true });
+    // NOTE: We intentionally do NOT listen for `scroll` on window/root or for
+    // `scroll` on visualViewport. The outer container has `overflow:hidden` so
+    // it cannot scroll meaningfully, but during fling inertia on Android the
+    // visualViewport emits sub-pixel scroll events as the browser settles its
+    // top chrome. Calling `window.scrollTo(0,0)` in response produced the
+    // visible up/down jolt at the end of every scroll. Focus and resize
+    // handlers are sufficient to keep the outer viewport pinned.
     window.visualViewport?.addEventListener("resize", scheduleOuterViewportResetWithTail);
-    window.visualViewport?.addEventListener("scroll", scheduleOuterViewportReset);
 
     return () => {
       if (pendingRaf != null) cancelAnimationFrame(pendingRaf);
@@ -117,10 +121,7 @@ export function useChatRouteOverscrollLock(enabled: boolean) {
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("focusin", scheduleOuterViewportResetWithTail, true);
       window.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.removeEventListener("scroll", scheduleOuterViewportReset);
-      root.removeEventListener("scroll", scheduleOuterViewportReset);
       window.visualViewport?.removeEventListener("resize", scheduleOuterViewportResetWithTail);
-      window.visualViewport?.removeEventListener("scroll", scheduleOuterViewportReset);
 
       root.style.overflowY = previousRootOverflowY;
       root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;
