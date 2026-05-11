@@ -2565,6 +2565,15 @@ export default function EventDetailPage() {
             </Button>
           ))}
         </div>
+
+        {/* Training default RSVP for the parent themselves */}
+        <TrainingDefaultControl
+          teamId={event?.team_id ?? null}
+          userId={user?.id ?? null}
+          subjectName="You"
+          currentRsvpStatus={(myRsvp?.status as any) ?? null}
+          isTraining={event?.type === "training"}
+        />
         
         {/* Rich RSVP Options */}
         <Card className="border-dashed">
