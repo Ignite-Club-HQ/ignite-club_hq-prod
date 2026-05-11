@@ -143,10 +143,12 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 110: covers the common compact preview, lets the rare rich
-  // card take a small upward correction (much less perceptible than the
-  // current systematic downward drift).
-  url: 110,
+  // Settle at 80: follow-up telemetry showed 110 still over-reserved
+  // every URL row by 37-96px on the typical compact preview, with only
+  // one rich-card outlier (+560px) under. 80 covers the LinkPreview's
+  // h-20 (80px) reserved slot exactly; the rare rich card takes a small
+  // upward correction instead of the systematic downward drift.
+  url: 80,
 };
 
 /**
@@ -255,11 +257,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator measures ~44px for the common single-line quote. The
-  // previous 56 was tuned for a p95 wrapped-quote spike, but follow-up
-  // telemetry showed text+reply rows over-reserving by 33-43px on the
-  // typical case (159→126, 187→144). Drop back to 44.
-  if (hasReply) height += 44;
+  // ReplyIndicator measures ~36px on the typical single-line quote.
+  // Telemetry showed text+reply rows still net over-reserving (-25 to
+  // -56 dominant, a few +38/+45/+53 wrapped-quote outliers). 36 hits
+  // the median; rare wrapped quotes take a small upward correction.
+  if (hasReply) height += 36;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
@@ -305,11 +307,13 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding (py-2 top/bot ~16px) + row gap.
-  // Telemetry consistently showed +28px under-reservation across every basic
-  // text bubble — the previous 10px collapsed too much when the timestamp
-  // row, edited indicator and bubble chrome were added back.
-  height += 28;
+  // Timestamp row + bubble vertical padding. Latest telemetry showed an
+  // almost-perfect -27px systematic over-estimate across every text bubble
+  // (103→74, 122→94, 141→114, 160→134, 179→154, 197→170, 216→190 — all
+  // Δ -25 to -29). The previous 28 double-counted what's already inside
+  // the per-line 19 + author header constants. Drop to 2 (just the bubble
+  // bottom padding) — closes the dominant downward-drift bias.
+  height += 2;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
