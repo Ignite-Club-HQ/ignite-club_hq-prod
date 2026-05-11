@@ -21,6 +21,8 @@
  */
 
 const PERF_BUFFER_LIMIT = 200;
+const PERF_STORAGE_KEY = "ff:chat-perf-diag-state";
+const PERF_SAVE_THROTTLE_MS = 1000;
 
 type PerfEvent =
   | { t: number; kind: "mount"; name: string; id?: string | null }
