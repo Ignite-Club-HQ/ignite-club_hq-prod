@@ -145,6 +145,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   messages: TMessage[],
   currentUserId?: string | null,
 ) {
+  // Prefer the real measured height from the previous mount of this row.
+  // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
+  const cached = getCachedRowHeight(message.id);
+  if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
     edited_at?: string | null;
