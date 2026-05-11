@@ -139,12 +139,14 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  // Generic URL previews. Latest telemetry shows typical compact previews
-  // measure ~150-200px (e.g. 200→174, 263→214, 228→192) — over-reserving by
-  // 25-49px at 85. Trim further to 60 to centre on the common case; the
-  // rare rich-article card (single +553 outlier) absorbs an upward
-  // correction.
-  url: 60,
+  // Generic URL previews. Previously bumped to 160 after a p95 outlier
+  // (+570px on a single rich article card), but follow-up telemetry showed
+  // typical cards measure ~80-100px, leaving every URL row over-reserved
+  // by 43-86px — the dominant downward jolt source on upward flicks.
+  // Settle at 110: covers the common compact preview, lets the rare rich
+  // card take a small upward correction (much less perceptible than the
+  // current systematic downward drift).
+  url: 110,
 };
 
 /**
@@ -224,7 +226,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 120);
+  if (msg.is_system_message) return Math.max(52, height + 36);
 
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
@@ -247,11 +249,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
   if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    // Latest telemetry: with-author rows were over-reserving by ~40px
-    // uniformly (155→114, 197→154, 218→174, 316→270). The previous 40/56
-    // double-counted padding that's already in the bubble chrome — the
-    // visible author label measures closer to ~16px (or ~28 when wrapped).
-    height += authorChars > 24 ? 28 : 16;
+    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
+    // name wraps). Telemetry showed the previous 22/44 values produced a
+    // consistent +16px under-reservation on non-grouped rows.
+    height += authorChars > 24 ? 56 : 40;
   }
 
   // ReplyIndicator measures ~44px for the common single-line quote. The
@@ -262,9 +263,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
-  // Follow-up telemetry showed image rows over-reserving by 38-78px
-  // (e.g. 367→329, 407→329). Trim from 295 to 257.
-  if (hasImage) height += 257;
+  if (hasImage) height += 295;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -279,9 +278,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line. The earlier bump to 21 was compensating for an
-    // over-counted author header; with author trimmed to 16/28, 19 lands
-    // long-bubble math within ±10px (e.g. 6-line 218→194 vs measured 174).
+    // ~19px per visual line — telemetry showed 20 was a touch hot on long
+    // messages (caused -44/-52/-76 over-estimates).
     height += Math.min(12, lineCount) * 19;
   } else if (!hasImage) {
     height += 32;
@@ -308,9 +306,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
   // Timestamp row + bubble vertical padding (py-2 top/bot ~16px) + row gap.
-  // Follow-up telemetry showed short text bubbles still under-reserving by
-  // ~28-38px (63→91, 91→129, 103→131). Bumping fixed chrome from 28→36.
-  height += 36;
+  // Telemetry consistently showed +28px under-reservation across every basic
+  // text bubble — the previous 10px collapsed too much when the timestamp
+  // row, edited indicator and bubble chrome were added back.
+  height += 28;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
