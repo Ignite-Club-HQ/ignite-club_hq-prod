@@ -28,6 +28,7 @@ const STORAGE_KEY = "chat:rowHeightCache:v1";
 const PERSIST_DEBOUNCE_MS = 400;
 
 const cache = new Map<string, number>();
+const sigs = new Map<string, string>();
 let dirty = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let restored = false;
