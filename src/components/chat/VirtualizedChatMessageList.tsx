@@ -116,17 +116,17 @@ function getCharsPerLine() {
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
 // Per-token-type reserved heights. Tuned from production drift telemetry
-// (see /admin/chat-virt-debug). url cards drifted +64..+118px under 132;
-// event cards drifted +118px under 220 when accompanied by long context.
+// (see /admin/chat-virt-debug). Conservative: under-reserving causes the
+// upward "jolt" symptom; over-reserving leaves harmless extra padding.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 260,
-  poll: 220,
-  board: 200,
-  vault: 130,
-  vaultfolder: 130,
-  vaultroot: 130,
-  gallery: 220,
-  url: 200, // generic https?:// or www. link preview
+  event: 220,
+  poll: 200,
+  board: 180,
+  vault: 110,
+  vaultfolder: 110,
+  vaultroot: 110,
+  gallery: 200,
+  url: 150,
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -159,13 +159,23 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
 
-  // Author / header line. Long author names ("Sam Bond mum of Harry and
-  // Otto") wrap to 2 lines on phones — under-counting this is what makes
-  // the viewport jolt as older messages mount during back-scroll.
+  // Author / header line. ChatMessage hides the author name when the
+  // previous visible row is from the SAME author within a short window
+  // (consecutive bubbles are grouped). Mirror that here — counting an
+  // always-present 24px header was the dominant -34px over-estimate seen
+  // in production telemetry.
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
-  if (!isOwnMessage) {
+  const sameAuthorAsPrev =
+    !!prev &&
+    !prev.is_system_message &&
+    !!msg.author_id &&
+    prev.author_id === msg.author_id &&
+    // Same calendar day — date separator above breaks the group.
+    getMessageDay(msg.created_at) === getMessageDay(prev.created_at);
+  const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
+  if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 46 : 24;
+    height += authorChars > 24 ? 44 : 22;
   }
 
   // ReplyIndicator renders min-h-[42px] + p-2 + mb-1 ≈ 46px when reserved.
@@ -183,19 +193,14 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   if (visibleText) {
     const charsPerLine = getCharsPerLine();
-    // Honour explicit newlines — they always start a new line regardless of
-    // line length.
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // Cap at 12 lines (over-reserve rather than collapse on long messages).
-    // Bumped per-line padding from 18→26 — telemetry showed text bubbles
-    // consistently measured +30..+44px taller than estimated.
-    height += Math.min(12, lineCount) * 20 + 26;
+    height += Math.min(12, lineCount) * 20 + 18;
   } else if (!hasImage) {
-    height += 48;
+    height += 42;
   }
 
   // Inline preview cards. Match each token type separately so per-type
