@@ -143,12 +143,11 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 80: follow-up telemetry showed 110 still over-reserved
-  // every URL row by 37-96px on the typical compact preview, with only
-  // one rich-card outlier (+560px) under. 80 covers the LinkPreview's
-  // h-20 (80px) reserved slot exactly; the rare rich card takes a small
-  // upward correction instead of the systematic downward drift.
-  url: 80,
+  // Settle at 130: 80 over-corrected — follow-up telemetry showed every
+  // typical URL preview measured 154-200px (Δ +37 to +45 under). 130
+  // centers the typical compact card (title + 2-line description + favicon
+  // strip); rich hero cards remain a rare upward outlier.
+  url: 130,
 };
 
 /**
@@ -257,15 +256,16 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator measures ~36px on the typical single-line quote.
-  // Telemetry showed text+reply rows still net over-reserving (-25 to
-  // -56 dominant, a few +38/+45/+53 wrapped-quote outliers). 36 hits
-  // the median; rare wrapped quotes take a small upward correction.
-  if (hasReply) height += 36;
-  // Image bubble: aspect-square frame at width=240 → 240px image + caption
-  // padding + bubble chrome. Telemetry showed avg Δ −25px against the
-  // prior 320 reservation across 20 image rows, so trim to 295.
-  if (hasImage) height += 295;
+  // ReplyIndicator: 36 under-reserved across the board (Δ +34 to +80
+  // dominant on text+reply rows). Quote header + sender label + 1-2 line
+  // quoted text typically measures ~56px. Bump to 56 — outliers with very
+  // long wrapped quotes still take small upward corrections, which is
+  // preferable to systematic downward drift.
+  if (hasReply) height += 56;
+  // Image bubble: 295 was over-reserving by ~50px on the dominant case
+  // (Δ -30 to -57 across image rows). Drop to 245 — caption padding +
+  // bubble chrome only; aspect-ratio variance handles the rest.
+  if (hasImage) height += 245;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -307,13 +307,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding. Latest telemetry showed an
-  // almost-perfect -27px systematic over-estimate across every text bubble
-  // (103→74, 122→94, 141→114, 160→134, 179→154, 197→170, 216→190 — all
-  // Δ -25 to -29). The previous 28 double-counted what's already inside
-  // the per-line 19 + author header constants. Drop to 2 (just the bubble
-  // bottom padding) — closes the dominant downward-drift bias.
-  height += 2;
+  // Timestamp row + bubble vertical padding. The previous 2 over-corrected
+  // — fresh telemetry showed every plain text bubble systematically under
+  // by +27 to +44 (56→94, 65→92, 75→114, 84→112, 103→132). 30 restores
+  // the real timestamp + bubble bottom padding without double-counting
+  // per-line height.
+  height += 30;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
