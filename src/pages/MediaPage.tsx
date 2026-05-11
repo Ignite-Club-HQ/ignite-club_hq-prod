@@ -291,8 +291,9 @@ export default function MediaPage() {
   // Quick Pro check - check if user has any Pro club/team membership
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
-    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(","), activeClubFilter ?? ""],
+    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(",")],
     queryFn: async () => {
+      try { await ensureFreshSession(); } catch { /* offline / signed out — let queries surface real errors */ }
       const overall = performance.now();
       diagLog("hasProClub:start", { roleClubIds: roleClubIds.length, roleTeamIds: roleTeamIds.length, activeClubFilter });
       const candidateClubIds = activeClubFilter
