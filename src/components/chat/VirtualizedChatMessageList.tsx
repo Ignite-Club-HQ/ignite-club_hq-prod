@@ -143,11 +143,11 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 130: 80 over-corrected — follow-up telemetry showed every
-  // typical URL preview measured 154-200px (Δ +37 to +45 under). 130
-  // centers the typical compact card (title + 2-line description + favicon
-  // strip); rich hero cards remain a rare upward outlier.
-  url: 130,
+  // 130 over-corrected — round-2 telemetry showed every URL row over by
+  // ~60 (233→174, 214→154, 290→214, 292→174). 75 centers the compact
+  // card (favicon strip + title + 1-2 line description); rich hero cards
+  // remain a rare upward outlier the cache absorbs on revisit.
+  url: 75,
 };
 
 /**
