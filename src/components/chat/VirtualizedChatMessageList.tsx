@@ -139,10 +139,14 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  // Generic URL previews: bumped from 100 → 160 after telemetry showed
-  // url-preview rows averaged +23px under-reservation with a p95 spike of
-  // +570px on rich article cards (image + summary + site name).
-  url: 160,
+  // Generic URL previews. Previously bumped to 160 after a p95 outlier
+  // (+570px on a single rich article card), but follow-up telemetry showed
+  // typical cards measure ~80-100px, leaving every URL row over-reserved
+  // by 43-86px — the dominant downward jolt source on upward flicks.
+  // Settle at 110: covers the common compact preview, lets the rare rich
+  // card take a small upward correction (much less perceptible than the
+  // current systematic downward drift).
+  url: 110,
 };
 
 /**
@@ -251,10 +255,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator renders ~56px when the quoted line wraps (telemetry
-  // showed text+reply rows under-reserved by p95 +45px against the prior
-  // 44px constant — long quoted lines push the indicator to two lines).
-  if (hasReply) height += 56;
+  // ReplyIndicator measures ~44px for the common single-line quote. The
+  // previous 56 was tuned for a p95 wrapped-quote spike, but follow-up
+  // telemetry showed text+reply rows over-reserving by 33-43px on the
+  // typical case (159→126, 187→144). Drop back to 44.
+  if (hasReply) height += 44;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
