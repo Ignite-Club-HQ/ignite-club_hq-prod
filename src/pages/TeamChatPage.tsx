@@ -452,6 +452,10 @@ export default function TeamChatPage() {
         throw new Error("No cached messages available offline");
       }
 
+      // 15s overall budget so a hung request never leaves the chat blank
+      const queryAbort = new AbortController();
+      const queryTimeout = setTimeout(() => queryAbort.abort(), 15000);
+
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
@@ -459,8 +463,12 @@ export default function TeamChatPage() {
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(MESSAGES_PER_PAGE + 1);
-      if (error) throw error;
+        .limit(MESSAGES_PER_PAGE + 1)
+        .abortSignal(queryAbort.signal);
+      if (error) {
+        clearTimeout(queryTimeout);
+        throw error;
+      }
       
       if (!rawMessages?.length) {
         return { messages: [] as Message[], hasOlderMessages: false };
