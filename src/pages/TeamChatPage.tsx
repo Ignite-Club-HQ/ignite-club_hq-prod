@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -68,6 +68,7 @@ import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTe
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -139,6 +140,11 @@ const getCachedTeamMessages = (teamId: string): Message[] =>
   }));
 
 export default function TeamChatPage() {
+  // [chat-perf-diag] track mount/unmount lifetime
+  React.useEffect(() => {
+    const k = noteChatMount("TeamChat", null);
+    return () => noteChatUnmount("TeamChat", k, null);
+  }, []);
   const { teamId } = useParams<{ teamId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
@@ -1237,9 +1243,10 @@ export default function TeamChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`team-messages-${teamId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
     };
   }, [teamId, queryClient]);
 

@@ -14,6 +14,11 @@ import {
   getMeasurementSummary,
   type MeasurementSummary,
 } from "@/components/chat/chatVirtDebug";
+import {
+  getChatPerfSnapshot,
+  isChatPerfDiagEnabled,
+  type ChatPerfSnapshot,
+} from "@/lib/chatPerfDiagnostics";
 
 type DebugEvent = {
   t: number;
@@ -52,6 +57,8 @@ export default function AdminChatVirtDebugPage() {
   const [filterBigOnly, setFilterBigOnly] = useState(true);
   const [events, setEvents] = useState<DebugEvent[]>(() => readBuffer().slice());
   const [summary, setSummary] = useState<MeasurementSummary | null>(null);
+  const [perfSnapshot, setPerfSnapshot] = useState<ChatPerfSnapshot | null>(() => getChatPerfSnapshot());
+  const perfEnabled = isChatPerfDiagEnabled();
   const [copied, setCopied] = useState(false);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -62,6 +69,7 @@ export default function AdminChatVirtDebugPage() {
     intervalRef.current = setInterval(() => {
       setEvents(readBuffer().slice());
       setSummary(getMeasurementSummary());
+      setPerfSnapshot(getChatPerfSnapshot());
     }, 500);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -223,6 +231,97 @@ export default function AdminChatVirtDebugPage() {
               Copy {visibleEvents.length} as JSON
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Chat Performance Diagnostics</CardTitle>
+          <CardDescription>
+            {perfEnabled
+              ? "Live counts of leaked observers, channels and main-thread blocks while you use chat."
+              : "Disabled. Append ?chatPerfDiag=1 to the URL once (or set localStorage ff:chat-perf-diag=1) and reload to enable. Patches ResizeObserver + installs a longtask observer."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {perfSnapshot && perfEnabled ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-xs text-muted-foreground">Live ResizeObservers</p>
+                  <p className="text-lg font-semibold">{perfSnapshot.liveResizeObservers}</p>
+                  <p className="text-[10px] text-muted-foreground">total created: {perfSnapshot.totalResizeObserversCreated}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-xs text-muted-foreground">Live realtime channels</p>
+                  <p className="text-lg font-semibold">{perfSnapshot.liveChannels.reduce((a, c) => a + c.count, 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">+{perfSnapshot.totalChannelsCreated} / -{perfSnapshot.totalChannelsRemoved}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-xs text-muted-foreground">Live chat pages</p>
+                  <p className="text-lg font-semibold">{perfSnapshot.liveChatPages.reduce((a, c) => a + c.count, 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">{perfSnapshot.liveChatPages.map((p) => `${p.name}:${p.count}`).join(" ") || "—"}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-xs text-muted-foreground">JS heap (MB)</p>
+                  <p className="text-lg font-semibold">{perfSnapshot.jsHeapMB ?? "—"}</p>
+                  <p className="text-[10px] text-muted-foreground">limit: {perfSnapshot.jsHeapLimitMB ?? "—"}</p>
+                </div>
+              </div>
+
+              {perfSnapshot.liveChannels.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-1">Channels by topic</p>
+                  <div className="flex flex-wrap gap-1">
+                    {perfSnapshot.liveChannels.map((c) => (
+                      <Badge key={c.topic} variant="outline" className="font-mono text-[10px]">
+                        {c.topic} × {c.count}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold mb-1">Recent events ({perfSnapshot.recentEvents.length})</p>
+                <ScrollArea className="h-48 rounded border">
+                  <div className="p-2 space-y-1 font-mono text-[11px]">
+                    {perfSnapshot.recentEvents.slice().reverse().map((e, i) => {
+                      const time = new Date(e.t).toLocaleTimeString();
+                      if (e.kind === "longtask") {
+                        return (
+                          <div key={i} className="text-red-700 dark:text-red-300">
+                            {time} longtask {e.durationMs}ms @ {e.startTime}
+                          </div>
+                        );
+                      }
+                      if (e.kind === "mount" || e.kind === "unmount") {
+                        return (
+                          <div key={i} className={e.kind === "unmount" ? "text-blue-700 dark:text-blue-300" : ""}>
+                            {time} {e.kind} {e.name}{e.kind === "unmount" ? ` (${e.lifetimeMs}ms)` : ""}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={i}>
+                          {time} {e.kind} {(e as any).topic}
+                        </div>
+                      );
+                    })}
+                    {perfSnapshot.recentEvents.length === 0 && (
+                      <div className="text-muted-foreground">No events yet — open a chat and switch threads.</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              After enabling, reload the app, then reproduce the freeze (open a thread → scroll → back → open another).
+              Watch live ResizeObservers + Live channels — if they keep climbing on every thread switch, that's a leak.
+              Long tasks &gt;150ms during scroll/open are your freeze culprits.
+            </p>
+          )}
         </CardContent>
       </Card>
 

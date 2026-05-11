@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -59,6 +59,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -175,6 +176,11 @@ const mergeDirectMessages = (
 };
 
 export default function DirectMessagePage() {
+  // [chat-perf-diag] track mount/unmount lifetime
+  React.useEffect(() => {
+    const k = noteChatMount("DirectMessage", null);
+    return () => noteChatUnmount("DirectMessage", k, null);
+  }, []);
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1213,9 +1219,10 @@ export default function DirectMessagePage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`dm-${conversationId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`dm-${conversationId}`);
     };
   }, [conversationId, queryClient]);
 

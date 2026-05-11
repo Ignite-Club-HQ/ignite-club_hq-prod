@@ -49,9 +49,15 @@ import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 import { checkVaultFoldersSchema } from "./lib/vaultSchemaCheck";
+import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
 
 // Non-blocking startup probe: warn loudly if vault_folders.deleted_at is missing.
 checkVaultFoldersSchema();
+
+// Chat performance diagnostics — disabled unless `?chatPerfDiag=1` or
+// localStorage `ff:chat-perf-diag=1`. Patches ResizeObserver + installs a
+// longtask PerformanceObserver to track main-thread blocks during chat use.
+setupChatPerfDiagnostics();
 
 // Declare global types
 declare global {

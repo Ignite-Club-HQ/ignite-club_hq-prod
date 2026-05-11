@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -63,6 +63,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -118,6 +119,11 @@ const getCachedClubMessages = (clubId: string): Message[] =>
   }));
 
 export default function ClubChatPage() {
+  // [chat-perf-diag] track mount/unmount lifetime
+  React.useEffect(() => {
+    const k = noteChatMount("ClubChat", null);
+    return () => noteChatUnmount("ClubChat", k, null);
+  }, []);
   const { clubId } = useParams<{ clubId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
@@ -1018,9 +1024,10 @@ export default function ClubChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`club-messages-${clubId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
     };
   }, [clubId, queryClient]);
 
