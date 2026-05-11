@@ -159,13 +159,23 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
 
-  // Author / header line. Long author names ("Sam Bond mum of Harry and
-  // Otto") wrap to 2 lines on phones — under-counting this is what makes
-  // the viewport jolt as older messages mount during back-scroll.
+  // Author / header line. ChatMessage hides the author name when the
+  // previous visible row is from the SAME author within a short window
+  // (consecutive bubbles are grouped). Mirror that here — counting an
+  // always-present 24px header was the dominant -34px over-estimate seen
+  // in production telemetry.
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
-  if (!isOwnMessage) {
+  const sameAuthorAsPrev =
+    !!prev &&
+    !prev.is_system_message &&
+    !!msg.author_id &&
+    prev.author_id === msg.author_id &&
+    // Same calendar day — date separator above breaks the group.
+    getMessageDay(msg.created_at) === getMessageDay(prev.created_at);
+  const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
+  if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 46 : 24;
+    height += authorChars > 24 ? 44 : 22;
   }
 
   // ReplyIndicator renders min-h-[42px] + p-2 + mb-1 ≈ 46px when reserved.
@@ -183,19 +193,14 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   if (visibleText) {
     const charsPerLine = getCharsPerLine();
-    // Honour explicit newlines — they always start a new line regardless of
-    // line length.
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // Cap at 12 lines (over-reserve rather than collapse on long messages).
-    // Bumped per-line padding from 18→26 — telemetry showed text bubbles
-    // consistently measured +30..+44px taller than estimated.
-    height += Math.min(12, lineCount) * 20 + 26;
+    height += Math.min(12, lineCount) * 20 + 18;
   } else if (!hasImage) {
-    height += 48;
+    height += 42;
   }
 
   // Inline preview cards. Match each token type separately so per-type
