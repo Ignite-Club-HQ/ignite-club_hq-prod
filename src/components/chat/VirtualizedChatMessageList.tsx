@@ -184,8 +184,8 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 44 : 22;
   }
 
-  // ReplyIndicator renders min-h-[42px] + p-2 + mb-1 ≈ 46px when reserved.
-  if (hasReply) height += 46;
+  // ReplyIndicator renders ~36px including its bottom margin in practice.
+  if (hasReply) height += 36;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Slightly over-reserving keeps the row from
   // shrinking after image decode.
@@ -204,9 +204,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    height += Math.min(12, lineCount) * 20 + 18;
+    // Per-line 20px; no extra padding here — bubble vertical padding is
+    // already covered by the timestamp row reservation below.
+    height += Math.min(12, lineCount) * 20;
   } else if (!hasImage) {
-    height += 42;
+    height += 28;
   }
 
   // Inline preview cards. Match each token type separately so per-type
@@ -217,7 +219,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   for (const match of tokenMatches) {
     if (previewCount >= 3) break;
     const kind = (match[1] || "").toLowerCase();
-    previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 132;
+    previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 96;
     previewCount += 1;
   }
   // Generic URL previews (only count once per message — we render at most one).
@@ -229,13 +231,15 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp / edited / read-receipt row. Edited adds an inline label;
-  // read avatars push the row taller when present.
-  height += 22;
+  // Timestamp / edited / read-receipt row + bubble vertical padding.
+  // Telemetry showed rows were consistently over-reserved by ~30px when the
+  // previous +22 timestamp row was combined with +18 text padding above —
+  // both are now folded into this single ~10px reservation.
+  height += 10;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
-  return Math.max(64, Math.min(960, height));
+  return Math.max(56, Math.min(960, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
