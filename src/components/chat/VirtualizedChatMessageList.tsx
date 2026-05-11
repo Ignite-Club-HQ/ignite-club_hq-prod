@@ -566,6 +566,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
+  // Tracks which revision currently has an in-flight pin sequence
+  // (immediate → raf1 → raf2 → stabilisation). Without this, the
+  // depless useLayoutEffect below re-fires `jump("immediate")` on
+  // every parent re-render that occurs during the 320ms stabilisation
+  // window (Virtuoso paddingTop measurements cause many such renders),
+  // flooding telemetry and re-yanking scrollTop.
+  const pinAttemptRevisionRef = useRef<number | null>(null);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
@@ -723,10 +730,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (last < 0) {
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
+      pinAttemptRevisionRef.current = null;
       setInitialRevealReady(false);
       return;
     }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    // Skip if a pin sequence for this revision is already in flight — a
+    // re-render mid-stabilisation must not retrigger the synchronous
+    // `jump("immediate")` below.
+    if (pinAttemptRevisionRef.current === bottomPinRevision) return;
+    pinAttemptRevisionRef.current = bottomPinRevision;
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
@@ -788,7 +801,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  });
+    // Intentionally narrow deps: this effect must NOT re-run on every
+    // parent render (Virtuoso paddingTop measurements cause many during
+    // the stabilisation window — re-running cancels in-flight rAFs and
+    // floods telemetry with redundant `jump("immediate")` calls). It only
+    // needs to fire when a new pin revision is requested or when the list
+    // transitions between empty / non-empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bottomPinRevision, messages.length === 0]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
