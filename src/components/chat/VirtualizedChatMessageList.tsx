@@ -118,15 +118,21 @@ function getCharsPerLine() {
 // Per-token-type reserved heights. Tuned from production drift telemetry
 // (see /admin/chat-virt-debug). Conservative: under-reserving causes the
 // upward "jolt" symptom; over-reserving leaves harmless extra padding.
+// Note: under-reserving causes upward jolts (Virtuoso grows paddingTop after
+// measure, pushing the viewport down); over-reserving causes downward jolts
+// (paddingTop shrinks, viewport slides up). Production telemetry showed the
+// previous defaults were systematically over-reserving by 90-130px on URL
+// previews and 30-40px on text bubbles, which read as a continuous upward
+// drift during fast upward flicks.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 220,
-  poll: 200,
-  board: 180,
-  vault: 110,
-  vaultfolder: 110,
-  vaultroot: 110,
-  gallery: 200,
-  url: 150,
+  event: 200,
+  poll: 180,
+  board: 160,
+  vault: 96,
+  vaultfolder: 96,
+  vaultroot: 96,
+  gallery: 180,
+  url: 60,
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
