@@ -904,14 +904,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       computeItemKey={computeItemKey}
       itemContent={itemContent}
       itemSize={itemSize}
-      defaultItemHeight={140}
+      // Tuned to the real median chat row height: most rows fall in the
+      // 90–180px band (text bubble + author + timestamp ≈ 90, image rows
+      // with the reserved 4/3 frame ≈ 300). 160 is the population median
+      // and minimises the magnitude of the post-measure correction Virtuoso
+      // applies to unmeasured rows during a fast upward fling.
+      defaultItemHeight={160}
       scrollSeekConfiguration={false}
-      // Keep overscan moderate. Over-mounting thousands of pixels above the
-      // viewport causes a burst of row measurements after a fast fling stops;
-      // Virtuoso then applies compensating scrollTop corrections that read as
-      // jagged up/down motion. Let Virtuoso measure only the next screenful.
-      increaseViewportBy={{ top: 1200, bottom: 200 }}
-      minOverscanItemCount={{ top: 8, bottom: 2 }}
+      // Asymmetric overscan: jank on this app is overwhelmingly on UPWARD
+      // scrolls into older history (rows that have never mounted, with
+      // variable heights). Reserve a wider top viewport so a hard fling
+      // (~2000px in <300ms on a phone) lands inside already-measured
+      // territory; keep bottom modest because incoming-message growth is
+      // already handled by `followOutput`. Bumping `minOverscanItemCount.top`
+      // alongside ensures very tall rows (image + reactions ≈ 360px) are
+      // pre-mounted by row count, not just by pixel budget.
+      increaseViewportBy={{ top: 1600, bottom: 240 }}
+      minOverscanItemCount={{ top: 12, bottom: 2 }}
       atBottomThreshold={120}
       scrollerRef={wrappedScrollerRef}
       components={components}
