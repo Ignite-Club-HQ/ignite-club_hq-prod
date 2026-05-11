@@ -11,6 +11,8 @@ import { toast } from "@/hooks/use-toast";
 import {
   isChatVirtDebugEnabled,
   setChatVirtDebugEnabled,
+  getMeasurementSummary,
+  type MeasurementSummary,
 } from "@/components/chat/chatVirtDebug";
 
 type DebugEvent = {
