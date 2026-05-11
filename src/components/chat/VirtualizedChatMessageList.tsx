@@ -248,12 +248,14 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator renders ~44px including its bottom margin in practice.
-  if (hasReply) height += 44;
+  // ReplyIndicator renders ~56px when the quoted line wraps (telemetry
+  // showed text+reply rows under-reserved by p95 +45px against the prior
+  // 44px constant — long quoted lines push the indicator to two lines).
+  if (hasReply) height += 56;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
-  // padding + bubble chrome. Slightly over-reserving keeps the row from
-  // shrinking after image decode.
-  if (hasImage) height += 320;
+  // padding + bubble chrome. Telemetry showed avg Δ −25px against the
+  // prior 320 reservation across 20 image rows, so trim to 295.
+  if (hasImage) height += 295;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
