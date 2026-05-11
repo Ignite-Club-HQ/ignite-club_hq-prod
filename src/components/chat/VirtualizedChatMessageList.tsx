@@ -115,15 +115,18 @@ function getCharsPerLine() {
 // Per-token-type reserved heights for inline link/preview cards. Real cards
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
+// Per-token-type reserved heights. Tuned from production drift telemetry
+// (see /admin/chat-virt-debug). url cards drifted +64..+118px under 132;
+// event cards drifted +118px under 220 when accompanied by long context.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 220,
-  poll: 200,
-  board: 180,
-  vault: 96,
-  vaultfolder: 96,
-  vaultroot: 96,
-  gallery: 196,
-  url: 132, // generic https?:// or www. link preview
+  event: 260,
+  poll: 220,
+  board: 200,
+  vault: 130,
+  vaultfolder: 130,
+  vaultroot: 130,
+  gallery: 220,
+  url: 200, // generic https?:// or www. link preview
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
