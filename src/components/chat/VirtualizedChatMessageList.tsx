@@ -166,10 +166,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   }
 
   if (hasReply) height += 38;
-  // Image bubble: aspect-[4/3] frame at width=240 → 180px image + caption
+  // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Slightly over-reserving keeps the row from
   // shrinking after image decode.
-  if (hasImage) height += 268;
+  if (hasImage) height += 320;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
