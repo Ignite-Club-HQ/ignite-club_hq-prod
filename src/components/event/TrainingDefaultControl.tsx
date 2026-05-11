@@ -65,10 +65,10 @@ export function TrainingDefaultControl({
     childId,
     userId,
   });
+  const dismissKey = `${teamId}:${childId ?? userId ?? "self"}`;
+  const [locallyDismissed, setLocallyDismissed] = useState(() => isDismissed(dismissKey));
 
   if (!isTraining || !teamId) return null;
-
-  const dismissKey = `${teamId}:${childId ?? userId ?? "self"}`;
 
   // Already has a default — render management chip
   if (defaultRow) {
