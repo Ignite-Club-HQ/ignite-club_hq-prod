@@ -235,9 +235,11 @@ type WatchdogTick = {
   heapLimitMB?: number;
   activePages: string;
   url: string;
+  hidden: boolean; // document.hidden at tick time
+  hiddenSinceTs: number | null; // Date.now() of last visibilitychange→hidden, or null
 };
 
-function writeWatchdog(state: ChatPerfState) {
+function writeWatchdog(state: ChatPerfState, hiddenSinceTs: number | null) {
   if (typeof window === "undefined") return;
   let heapMB: number | undefined;
   let heapLimitMB: number | undefined;
@@ -253,6 +255,8 @@ function writeWatchdog(state: ChatPerfState) {
     heapLimitMB,
     activePages: activePagesString(state),
     url: typeof window !== "undefined" ? window.location.pathname : "",
+    hidden: typeof document !== "undefined" ? document.hidden : false,
+    hiddenSinceTs,
   };
   try {
     window.localStorage.setItem(WATCHDOG_KEY, JSON.stringify(tick));
@@ -266,25 +270,42 @@ function checkWatchdogOnStartup(state: ChatPerfState) {
     if (!raw) return;
     const last: WatchdogTick = JSON.parse(raw);
     const gap = Date.now() - last.ts;
-    // If last tick was >5s ago, the previous session likely hung (or was killed).
-    if (gap >= 5000) {
-      pushEvent(state, {
-        t: last.ts,
-        kind: "freeze",
-        stallMs: gap,
-        activePages: last.activePages || "none",
-        source: "manual",
-        note: `pre-kill watchdog: last tick ${gap}ms ago, heap ${last.heapMB ?? "?"}/${last.heapLimitMB ?? "?"}MB on ${last.url}`,
-      });
-    }
+    if (gap < 5000) return;
+    // Suppress phantom "freezes" caused by Android backgrounding throttling
+    // setInterval. If the page was hidden at last tick, or had been hidden
+    // recently before the gap, the gap is almost certainly background-throttle
+    // and not a real main-thread hang.
+    if (last.hidden) return;
+    if (last.hiddenSinceTs && last.ts - last.hiddenSinceTs < 5000) return;
+    pushEvent(state, {
+      t: last.ts,
+      kind: "freeze",
+      stallMs: gap,
+      activePages: last.activePages || "none",
+      source: "manual",
+      note: `pre-kill watchdog: last tick ${gap}ms ago, heap ${last.heapMB ?? "?"}/${last.heapLimitMB ?? "?"}MB on ${last.url}`,
+    });
   } catch {}
 }
 
 function installWatchdog(state: ChatPerfState) {
   if (typeof window === "undefined") return;
+  let hiddenSinceTs: number | null =
+    typeof document !== "undefined" && document.hidden ? Date.now() : null;
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        hiddenSinceTs = Date.now();
+      } else {
+        // Stamp a fresh tick on resume so we don't count the hidden gap as a freeze.
+        hiddenSinceTs = null;
+        writeWatchdog(state, hiddenSinceTs);
+      }
+    });
+  }
   checkWatchdogOnStartup(state);
-  writeWatchdog(state);
-  setInterval(() => writeWatchdog(state), WATCHDOG_INTERVAL_MS);
+  writeWatchdog(state, hiddenSinceTs);
+  setInterval(() => writeWatchdog(state, hiddenSinceTs), WATCHDOG_INTERVAL_MS);
 }
 
 function installFreezeDetector(state: ChatPerfState) {
