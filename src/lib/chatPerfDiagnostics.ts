@@ -29,7 +29,8 @@ type PerfEvent =
   | { t: number; kind: "unmount"; name: string; id?: string | null; lifetimeMs: number }
   | { t: number; kind: "longtask"; durationMs: number; startTime: number }
   | { t: number; kind: "channel-add"; topic: string }
-  | { t: number; kind: "channel-remove"; topic: string };
+  | { t: number; kind: "channel-remove"; topic: string }
+  | { t: number; kind: "freeze"; stallMs: number; activePages: string };
 
 type ChatPerfState = {
   enabled: boolean;
