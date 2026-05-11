@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import TeamTrainingPausesCard from "@/components/team/TeamTrainingPausesCard";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -428,6 +429,8 @@ export default function EditTeamPage() {
           )}
         </CardContent>
       </Card>
+
+      {id && <TeamTrainingPausesCard teamId={id} />}
 
       {/* Submit Button */}
       <Button
