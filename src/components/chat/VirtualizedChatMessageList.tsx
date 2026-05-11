@@ -858,13 +858,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const idx = indexByIdRef.current.get(message.id);
       if (idx === undefined) return null;
       const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-      if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0
+      const estimated = isChatVirtDebugEnabled() && idx >= 0
         ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
         : undefined;
+      const measured = (
+        <CachedMeasureRow messageId={message.id}>
+          {child}
+        </CachedMeasureRow>
+      );
+      if (estimated === undefined) return measured;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
-          {child}
+          {measured}
         </DebugRowProbe>
       );
     },
