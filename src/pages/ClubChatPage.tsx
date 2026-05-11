@@ -119,13 +119,11 @@ const getCachedClubMessages = (clubId: string): Message[] =>
   }));
 
 export default function ClubChatPage() {
-  // [chat-perf-diag] track mount/unmount lifetime per thread
-  const __chatPerfNameRef = "ClubChat";
-  const __chatPerfId = clubId;
+  // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
-    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
-    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
-  }, [__chatPerfId]);
+    const k = noteChatMount("ClubChat", null);
+    return () => noteChatUnmount("ClubChat", k, null);
+  }, []);
   const { clubId } = useParams<{ clubId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");

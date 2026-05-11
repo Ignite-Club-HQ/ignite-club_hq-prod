@@ -183,13 +183,11 @@ const getCachedGroupMessages = (groupId: string) => {
 };
 
 export default function GroupChatPage() {
-  // [chat-perf-diag] track mount/unmount lifetime per thread
-  const __chatPerfNameRef = "GroupChat";
-  const __chatPerfId = groupId;
+  // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
-    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
-    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
-  }, [__chatPerfId]);
+    const k = noteChatMount("GroupChat", null);
+    return () => noteChatUnmount("GroupChat", k, null);
+  }, []);
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

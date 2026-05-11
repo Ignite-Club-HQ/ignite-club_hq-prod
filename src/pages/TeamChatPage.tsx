@@ -140,13 +140,11 @@ const getCachedTeamMessages = (teamId: string): Message[] =>
   }));
 
 export default function TeamChatPage() {
-  // [chat-perf-diag] track mount/unmount lifetime per thread
-  const __chatPerfNameRef = "TeamChat";
-  const __chatPerfId = teamId;
+  // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
-    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
-    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
-  }, [__chatPerfId]);
+    const k = noteChatMount("TeamChat", null);
+    return () => noteChatUnmount("TeamChat", k, null);
+  }, []);
   const { teamId } = useParams<{ teamId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");

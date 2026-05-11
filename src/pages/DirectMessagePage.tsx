@@ -176,13 +176,11 @@ const mergeDirectMessages = (
 };
 
 export default function DirectMessagePage() {
-  // [chat-perf-diag] track mount/unmount lifetime per thread
-  const __chatPerfNameRef = "DirectMessage";
-  const __chatPerfId = conversationId;
+  // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
-    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
-    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
-  }, [__chatPerfId]);
+    const k = noteChatMount("DirectMessage", null);
+    return () => noteChatUnmount("DirectMessage", k, null);
+  }, []);
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

@@ -100,13 +100,11 @@ const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] 
   }));
 
 export default function ClubAdminChatPage() {
-  // [chat-perf-diag] track mount/unmount lifetime per thread
-  const __chatPerfNameRef = "ClubAdminChat";
-  const __chatPerfId = conversationId;
+  // [chat-perf-diag] track mount/unmount lifetime
   React.useEffect(() => {
-    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
-    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
-  }, [__chatPerfId]);
+    const k = noteChatMount("ClubAdminChat", null);
+    return () => noteChatUnmount("ClubAdminChat", k, null);
+  }, []);
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
