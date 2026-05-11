@@ -384,6 +384,8 @@ export default function MediaPage() {
     enabled: !!user,
     staleTime: 300000,
     gcTime: 300000,
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
 
