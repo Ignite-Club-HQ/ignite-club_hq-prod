@@ -566,6 +566,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
+  // Tracks which revision currently has an in-flight pin sequence
+  // (immediate → raf1 → raf2 → stabilisation). Without this, the
+  // depless useLayoutEffect below re-fires `jump("immediate")` on
+  // every parent re-render that occurs during the 320ms stabilisation
+  // window (Virtuoso paddingTop measurements cause many such renders),
+  // flooding telemetry and re-yanking scrollTop.
+  const pinAttemptRevisionRef = useRef<number | null>(null);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
