@@ -322,10 +322,32 @@ Deno.serve(async (req) => {
     }
     const uniqueMentionedIds = new Set(mentionedIds);
 
-    // Remove mentioned users from the regular recipient list to avoid duplicate notifications
-    const filteredRecipientIds = recipientUserIds.filter(id => !uniqueMentionedIds.has(id));
+    // Resolve the original author of the replied-to message up-front so we can
+    // exclude them from the regular fan-out (otherwise they receive both a
+    // "sent a message" notification AND a "replied to your message"
+    // notification — i.e. duplicate push + duplicate inbox row).
+    let originalAuthorId: string | null = null;
+    if (replyToId) {
+      const replyTable = messageType === 'team' ? 'team_messages'
+        : messageType === 'club' ? 'club_messages'
+        : messageType === 'group' ? 'group_messages'
+        : 'broadcast_messages';
+      const { data: originalMsg } = await supabase
+        .from(replyTable)
+        .select('author_id')
+        .eq('id', replyToId)
+        .maybeSingle();
+      originalAuthorId = originalMsg?.author_id ?? null;
+    }
 
-    console.log(`[NOTIFY] ${filteredRecipientIds.length} recipients (${uniqueMentionedIds.size} mentioned separately) for ${messageType} message`);
+    // Remove mentioned users AND reply-target author from the regular recipient
+    // list so they each only receive their dedicated notification (mention /
+    // reply) instead of two pushes for the same message.
+    const filteredRecipientIds = recipientUserIds.filter(id =>
+      !uniqueMentionedIds.has(id) && id !== originalAuthorId,
+    );
+
+    console.log(`[NOTIFY] ${filteredRecipientIds.length} recipients (${uniqueMentionedIds.size} mentioned separately, replyAuthor=${originalAuthorId ?? 'n/a'}) for ${messageType} message`);
 
     // Batch insert notifications with skip_push=true (in chunks of 500)
     const BATCH_SIZE = 500;
@@ -359,47 +381,31 @@ Deno.serve(async (req) => {
     }
 
     // Handle reply notifications (single insert, skip_push=true, dispatch push individually)
-    if (replyToId) {
-      let originalAuthorId: string | null = null;
-      const table = messageType === 'team' ? 'team_messages'
-        : messageType === 'club' ? 'club_messages'
-        : messageType === 'group' ? 'group_messages'
-        : 'broadcast_messages';
-      
-      const { data: originalMsg } = await supabase
-        .from(table)
-        .select('author_id')
-        .eq('id', replyToId)
-        .maybeSingle();
-      
-      originalAuthorId = originalMsg?.author_id || null;
-      
-      if (originalAuthorId && originalAuthorId !== authorId) {
-        let isMuted = false;
-        if (muteChatId && muteChatType) {
-          const { data: muteCheck } = await supabase
-            .from('chat_mute_preferences')
-            .select('id')
-            .eq('user_id', originalAuthorId)
-            .eq('chat_id', muteChatId)
-            .eq('chat_type', muteChatType)
-            .or('muted_until.is.null,muted_until.gt.' + new Date().toISOString())
-            .maybeSingle();
-          isMuted = !!muteCheck;
-        }
+    if (replyToId && originalAuthorId && originalAuthorId !== authorId) {
+      let isMuted = false;
+      if (muteChatId && muteChatType) {
+        const { data: muteCheck } = await supabase
+          .from('chat_mute_preferences')
+          .select('id')
+          .eq('user_id', originalAuthorId)
+          .eq('chat_id', muteChatId)
+          .eq('chat_type', muteChatType)
+          .or('muted_until.is.null,muted_until.gt.' + new Date().toISOString())
+          .maybeSingle();
+        isMuted = !!muteCheck;
+      }
 
-        if (!isMuted) {
-          const { data: replyNotif } = await supabase.from('notifications').insert({
-            user_id: originalAuthorId,
-            type: 'message_reply',
-            message: `${senderName} replied to your message`,
-            related_id: messageId,
-            skip_push: true,
-          }).select('id').single();
+      if (!isMuted) {
+        const { data: replyNotif } = await supabase.from('notifications').insert({
+          user_id: originalAuthorId,
+          type: 'message_reply',
+          message: `${senderName} replied to your message`,
+          related_id: messageId,
+          skip_push: true,
+        }).select('id').single();
 
-          if (replyNotif) {
-            insertedNotificationIds.push({ userId: originalAuthorId, id: replyNotif.id });
-          }
+        if (replyNotif) {
+          insertedNotificationIds.push({ userId: originalAuthorId, id: replyNotif.id });
         }
       }
     }
