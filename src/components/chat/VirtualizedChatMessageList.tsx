@@ -279,12 +279,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line — telemetry showed 20 was a touch hot on long
-    // messages (caused -44/-52/-76 over-estimates).
-    // Follow-up telemetry showed text rows systematically under-reserving by
-    // 28-60px across short and long bubbles. Bumping per-visual-line from
-    // 19→21 closes the long-bubble gap (282→405, 396→525) without overshoot.
-    height += Math.min(12, lineCount) * 21;
+    // ~19px per visual line. The earlier bump to 21 was compensating for an
+    // over-counted author header; with author trimmed to 16/28, 19 lands
+    // long-bubble math within ±10px (e.g. 6-line 218→194 vs measured 174).
+    height += Math.min(12, lineCount) * 19;
   } else if (!hasImage) {
     height += 32;
   }
