@@ -331,6 +331,13 @@ export default function AdminChatVirtDebugPage() {
                           </div>
                         );
                       }
+                      if (e.kind === "freeze") {
+                        return (
+                          <div key={i} className="text-orange-700 dark:text-orange-300 font-semibold">
+                            {time} FREEZE {e.stallMs}ms · pages: {e.activePages}
+                          </div>
+                        );
+                      }
                       if (e.kind === "mount" || e.kind === "unmount") {
                         return (
                           <div key={i} className={e.kind === "unmount" ? "text-blue-700 dark:text-blue-300" : ""}>
