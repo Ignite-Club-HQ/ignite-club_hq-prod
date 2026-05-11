@@ -139,7 +139,10 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  url: 100,
+  // Generic URL previews: bumped from 100 → 160 after telemetry showed
+  // url-preview rows averaged +23px under-reservation with a p95 spike of
+  // +570px on rich article cards (image + summary + site name).
+  url: 160,
 };
 
 /**
