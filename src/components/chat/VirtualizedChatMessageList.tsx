@@ -549,7 +549,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           pinnedRevisionRef.current = bottomPinRevision;
           userHasScrolledAfterPinRef.current = false;
           setInitialRevealReady(true);
-        }, 180);
+        }, 320);
       }
       frame = requestAnimationFrame(armRevealWhenStable);
     };
