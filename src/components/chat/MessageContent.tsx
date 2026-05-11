@@ -369,7 +369,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               resolve later. This is what keeps history scroll anchored
               while images above the viewport hydrate. */}
           <div
-            className="relative w-full aspect-[4/3] bg-muted/40"
+            className="relative w-full aspect-square bg-muted/40"
             style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
@@ -416,7 +416,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   loading="eager"
                   draggable={false}
                   style={{ touchAction: 'pan-y', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
-                  className={`absolute inset-0 w-full h-full object-contain cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover cursor-pointer hover:opacity-90 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   onClick={handleImageClick}
