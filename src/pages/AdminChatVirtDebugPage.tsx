@@ -374,7 +374,7 @@ export default function AdminChatVirtDebugPage() {
                       if (e.kind === "freeze") {
                         return (
                           <div key={i} className="text-orange-700 dark:text-orange-300 font-semibold">
-                            {time} FREEZE {e.stallMs}ms · pages: {e.activePages}
+                            {time} FREEZE [{e.source}{e.note ? `:${e.note}` : ""}] {e.stallMs}ms · pages: {e.activePages}
                           </div>
                         );
                       }
