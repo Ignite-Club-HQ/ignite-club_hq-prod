@@ -272,7 +272,19 @@ export function noteChannelRemoved(topic: string): void {
   pushEvent(state, { t: Date.now(), kind: "channel-remove", topic });
 }
 
-export type ChatPerfSnapshot = {
+export function clearChatPerfDiagnostics(): void {
+  const s = getOrInitState();
+  s.events = [];
+  s.totalResizeObserversCreated = 0;
+  s.totalChannelsCreated = 0;
+  s.totalChannelsRemoved = 0;
+  s.liveChannels.clear();
+  s.liveChatPages.clear();
+  s.mounts.clear();
+  try {
+    if (typeof window !== "undefined") window.localStorage.removeItem(PERF_STORAGE_KEY);
+  } catch {}
+}
   enabled: boolean;
   installed: boolean;
   liveResizeObservers: number;
