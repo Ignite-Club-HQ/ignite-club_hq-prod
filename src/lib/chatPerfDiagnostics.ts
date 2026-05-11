@@ -288,6 +288,39 @@ function checkWatchdogOnStartup(state: ChatPerfState) {
   } catch {}
 }
 
+/**
+ * Tracks whether the app is currently "paused" from the OS perspective.
+ * On Capacitor Android, `document.hidden` does NOT flip on screen-off or
+ * task-switch — only `App.addListener('pause'|'resume')` does. Without this
+ * the freeze/watchdog detectors generate phantom multi-minute "freezes"
+ * every time the user puts the phone down.
+ */
+let osPausedSinceTs: number | null = null;
+function isOsPaused(): boolean {
+  if (osPausedSinceTs !== null) return true;
+  if (typeof document !== "undefined" && document.hidden) return true;
+  return false;
+}
+
+function installCapacitorPauseListeners() {
+  if (typeof window === "undefined") return;
+  // Only attempt on Capacitor — dynamic import keeps web bundle clean.
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  if (!cap?.isNativePlatform?.()) return;
+  import("@capacitor/app")
+    .then(({ App }) => {
+      App.addListener("pause", () => {
+        osPausedSinceTs = Date.now();
+      });
+      App.addListener("resume", () => {
+        osPausedSinceTs = null;
+      });
+    })
+    .catch(() => {
+      /* ignore — diagnostics are best-effort */
+    });
+}
+
 function installWatchdog(state: ChatPerfState) {
   if (typeof window === "undefined") return;
   let hiddenSinceTs: number | null =
@@ -297,7 +330,6 @@ function installWatchdog(state: ChatPerfState) {
       if (document.hidden) {
         hiddenSinceTs = Date.now();
       } else {
-        // Stamp a fresh tick on resume so we don't count the hidden gap as a freeze.
         hiddenSinceTs = null;
         writeWatchdog(state, hiddenSinceTs);
       }
@@ -305,21 +337,28 @@ function installWatchdog(state: ChatPerfState) {
   }
   checkWatchdogOnStartup(state);
   writeWatchdog(state, hiddenSinceTs);
-  setInterval(() => writeWatchdog(state, hiddenSinceTs), WATCHDOG_INTERVAL_MS);
+  setInterval(() => {
+    // Don't write a tick while OS-paused. On resume, native pause listener
+    // clears `osPausedSinceTs` and we resume ticking with a fresh timestamp,
+    // so the gap won't be reported as a freeze.
+    if (isOsPaused()) return;
+    writeWatchdog(state, hiddenSinceTs);
+  }, WATCHDOG_INTERVAL_MS);
 }
 
 function installFreezeDetector(state: ChatPerfState) {
   if (typeof window === "undefined") return;
 
   // 1) JS heartbeat — catches synchronous main-thread blocks.
-  //    Skipped when document.hidden because OS throttles setInterval and
-  //    would otherwise emit phantom "freezes" of ~1000ms.
+  //    Skipped when `document.hidden` OR when Capacitor reports the app
+  //    paused (Android screen-off, task-switch). Without the OS check we
+  //    log phantom ~750ms "freezes" every second under Doze throttling.
   let last = performance.now();
   setInterval(() => {
     const now = performance.now();
     const gap = now - last;
     last = now;
-    if (typeof document !== "undefined" && document.hidden) return;
+    if (isOsPaused()) return;
     const stall = gap - HEARTBEAT_MS;
     if (stall >= FREEZE_THRESHOLD_MS) {
       pushEvent(state, {
@@ -341,12 +380,7 @@ function installFreezeDetector(state: ChatPerfState) {
     const now = performance.now();
     const gap = now - lastRaf;
     lastRaf = now;
-    if (
-      gap >= RAF_FREEZE_THRESHOLD_MS &&
-      (typeof document === "undefined" || !document.hidden)
-    ) {
-      // De-dupe with heartbeat: if last event in buffer is already a freeze
-      // within 500ms, skip — same incident.
+    if (gap >= RAF_FREEZE_THRESHOLD_MS && !isOsPaused()) {
       const lastEv = state.events[state.events.length - 1];
       const isDup =
         lastEv &&
