@@ -480,11 +480,6 @@ const ChatRowAdapter = memo(
     const measured = (
       <CachedMeasureRow messageId={message.id} signature={signature}>{child}</CachedMeasureRow>
     );
-        ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
-        : undefined;
-    const measured = (
-      <CachedMeasureRow messageId={message.id}>{child}</CachedMeasureRow>
-    );
     if (estimated === undefined) return measured;
     const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
     return (
