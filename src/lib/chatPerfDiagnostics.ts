@@ -453,6 +453,7 @@ export function noteChatMount(name: string, id?: string | null): string {
   const key = `${name}:${id ?? ""}:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`;
   state.mounts.set(key, performance.now());
   state.liveChatPages.set(name, (state.liveChatPages.get(name) ?? 0) + 1);
+  rememberActivePagesIfAny(state);
   pushEvent(state, { t: Date.now(), kind: "mount", name, id });
   return key;
 }
@@ -462,6 +463,8 @@ export function noteChatUnmount(name: string, mountKey: string, id?: string | nu
   if (!state.enabled || !mountKey) return;
   const t0 = state.mounts.get(mountKey);
   state.mounts.delete(mountKey);
+  // Snapshot BEFORE decrementing so we capture the page that's about to leave.
+  rememberActivePagesIfAny(state);
   state.liveChatPages.set(name, Math.max(0, (state.liveChatPages.get(name) ?? 1) - 1));
   pushEvent(state, {
     t: Date.now(),
