@@ -257,11 +257,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator measures ~44px for the common single-line quote. The
-  // previous 56 was tuned for a p95 wrapped-quote spike, but follow-up
-  // telemetry showed text+reply rows over-reserving by 33-43px on the
-  // typical case (159→126, 187→144). Drop back to 44.
-  if (hasReply) height += 44;
+  // ReplyIndicator measures ~36px on the typical single-line quote.
+  // Telemetry showed text+reply rows still net over-reserving (-25 to
+  // -56 dominant, a few +38/+45/+53 wrapped-quote outliers). 36 hits
+  // the median; rare wrapped quotes take a small upward correction.
+  if (hasReply) height += 36;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
