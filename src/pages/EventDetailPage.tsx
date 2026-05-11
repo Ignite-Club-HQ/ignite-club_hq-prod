@@ -2551,7 +2551,17 @@ export default function EventDetailPage() {
 
       {/* RSVP Section */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+          {(myRsvp as any)?.source === "default" && (
+            <span
+              title="Auto-applied from your training default. Tap a button to confirm."
+              className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+            >
+              Auto
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
