@@ -139,10 +139,14 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  // Generic URL previews: bumped from 100 → 160 after telemetry showed
-  // url-preview rows averaged +23px under-reservation with a p95 spike of
-  // +570px on rich article cards (image + summary + site name).
-  url: 160,
+  // Generic URL previews. Previously bumped to 160 after a p95 outlier
+  // (+570px on a single rich article card), but follow-up telemetry showed
+  // typical cards measure ~80-100px, leaving every URL row over-reserved
+  // by 43-86px — the dominant downward jolt source on upward flicks.
+  // Settle at 110: covers the common compact preview, lets the rare rich
+  // card take a small upward correction (much less perceptible than the
+  // current systematic downward drift).
+  url: 110,
 };
 
 /**
