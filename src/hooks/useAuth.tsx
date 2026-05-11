@@ -494,6 +494,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[Auth] Session restored:', event, isNative ? '(native app)' : '(web)');
           setIsFreshLogin(false);
           handleSession(currentSession, event === 'INITIAL_SESSION', false);
+
+          if (event === 'TOKEN_REFRESHED') {
+            // Push the fresh JWT into the realtime websocket so subscriptions
+            // opened before the refresh don't keep authenticating with a stale
+            // token (root cause of chat channels losing access mid-session).
+            try { (supabase.realtime as any)?.setAuth?.(currentSession.access_token); } catch { /* noop */ }
+            // Re-run any queries that errored against the old token. Without
+            // this, screens that already cached an auth-shaped failure stay
+            // empty until the user navigates away and back.
+            queryClient.refetchQueries({ type: 'active' }).catch(() => {});
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
           // Clear ALL cached query data - prevents stale data from being served
