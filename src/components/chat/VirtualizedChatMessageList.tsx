@@ -143,12 +143,11 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 80: follow-up telemetry showed 110 still over-reserved
-  // every URL row by 37-96px on the typical compact preview, with only
-  // one rich-card outlier (+560px) under. 80 covers the LinkPreview's
-  // h-20 (80px) reserved slot exactly; the rare rich card takes a small
-  // upward correction instead of the systematic downward drift.
-  url: 80,
+  // 130 over-corrected — round-2 telemetry showed every URL row over by
+  // ~60 (233→174, 214→154, 290→214, 292→174). 75 centers the compact
+  // card (favicon strip + title + 1-2 line description); rich hero cards
+  // remain a rare upward outlier the cache absorbs on revisit.
+  url: 75,
 };
 
 /**
@@ -257,15 +256,16 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator measures ~36px on the typical single-line quote.
-  // Telemetry showed text+reply rows still net over-reserving (-25 to
-  // -56 dominant, a few +38/+45/+53 wrapped-quote outliers). 36 hits
-  // the median; rare wrapped quotes take a small upward correction.
-  if (hasReply) height += 36;
-  // Image bubble: aspect-square frame at width=240 → 240px image + caption
-  // padding + bubble chrome. Telemetry showed avg Δ −25px against the
-  // prior 320 reservation across 20 image rows, so trim to 295.
-  if (hasImage) height += 295;
+  // ReplyIndicator: 36 under-reserved across the board (Δ +34 to +80
+  // dominant on text+reply rows). Quote header + sender label + 1-2 line
+  // quoted text typically measures ~56px. Bump to 56 — outliers with very
+  // long wrapped quotes still take small upward corrections, which is
+  // preferable to systematic downward drift.
+  if (hasReply) height += 56;
+  // Image bubble: 245 still slightly over on the dominant case (Δ -25 to
+  // -48 across captionless image rows). Drop to 225 — captioned/portrait
+  // images remain a +60 to +77 upward outlier the cache absorbs on revisit.
+  if (hasImage) height += 225;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -307,13 +307,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding. Latest telemetry showed an
-  // almost-perfect -27px systematic over-estimate across every text bubble
-  // (103→74, 122→94, 141→114, 160→134, 179→154, 197→170, 216→190 — all
-  // Δ -25 to -29). The previous 28 double-counted what's already inside
-  // the per-line 19 + author header constants. Drop to 2 (just the bubble
-  // bottom padding) — closes the dominant downward-drift bias.
-  height += 2;
+  // Timestamp row + bubble vertical padding. Round-2 telemetry showed the
+  // +30 chrome bump was wrong direction — every plain text bubble came in
+  // systematically OVER by ~30 (105→74, 124→94, 143→114, 162→134, 181→154,
+  // 199→170). Revert to 0; per-line height already covers the timestamp row
+  // bottom padding.
+  // (no chrome added here)
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
@@ -566,6 +565,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const bottomPinReadyRef = useRef(false);
   const pinnedRevisionRef = useRef<number | null>(null);
+  // Tracks which revision currently has an in-flight pin sequence
+  // (immediate → raf1 → raf2 → stabilisation). Without this, the
+  // depless useLayoutEffect below re-fires `jump("immediate")` on
+  // every parent re-render that occurs during the 320ms stabilisation
+  // window (Virtuoso paddingTop measurements cause many such renders),
+  // flooding telemetry and re-yanking scrollTop.
+  const pinAttemptRevisionRef = useRef<number | null>(null);
   const [initialRevealReady, setInitialRevealReady] = useState(false);
   // Timestamp of when the initial bottom-pin completed. Used to enforce a
   // "trust window" before any upward pagination fires, so the very first
@@ -723,10 +729,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (last < 0) {
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
-      setInitialRevealReady(false);
+      pinAttemptRevisionRef.current = null;
+      // Empty thread: nothing to pin to. Reveal the wrapper immediately so
+      // the (empty) chat surface and any parent empty-state are visible —
+      // otherwise opacity stays 0 forever and the page looks frozen.
+      setInitialRevealReady(true);
       return;
     }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    // Skip if a pin sequence for this revision is already in flight — a
+    // re-render mid-stabilisation must not retrigger the synchronous
+    // `jump("immediate")` below.
+    if (pinAttemptRevisionRef.current === bottomPinRevision) return;
+    pinAttemptRevisionRef.current = bottomPinRevision;
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
@@ -749,27 +764,56 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let frame: number | null = null;
     let cancelled = false;
     let lastMetrics = "";
+    // Hard deadline for the reveal. On Android, late-hydrating images / link
+    // previews / reactions can keep `scrollHeight` ticking for far longer
+    // than the 320 ms idle window, which previously left the wrapper at
+    // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
+    // visible to the user as a frozen, blank chat. After this deadline we
+    // reveal regardless and let any remaining reflows happen in plain sight.
+    const REVEAL_DEADLINE_MS = 800;
+    const startedAt = performance.now();
+    const doReveal = (reason: string) => {
+      if (cancelled) return;
+      cancelled = true;
+      if (revealTimer !== null) {
+        clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+      // Final belt-and-braces re-anchor the frame before we reveal, so any
+      // last paddingTop adjustment from overscan-row measurement doesn't
+      // visually shift the bottom row at the moment opacity flips to 1.
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      userHasScrolledAfterPinRef.current = false;
+      debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
+      requestAnimationFrame(() => setInitialRevealReady(true));
+    };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
+      // Hard deadline first — never poll past this regardless of metric churn.
+      if (performance.now() - startedAt >= REVEAL_DEADLINE_MS) {
+        doReveal("deadline");
+        return;
+      }
       const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
         lastMetrics = metrics;
         if (revealTimer !== null) clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => {
-          cancelled = true;
-          // Final belt-and-braces re-anchor the frame before we reveal, so any
-          // last paddingTop adjustment from overscan-row measurement doesn't
-          // visually shift the bottom row at the moment opacity flips to 1.
-          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
-          if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-          bottomPinReadyRef.current = true;
-          pinnedRevisionRef.current = bottomPinRevision;
-          userHasScrolledAfterPinRef.current = false;
-          requestAnimationFrame(() => setInitialRevealReady(true));
-        }, 320);
+        revealTimer = setTimeout(() => doReveal("idle"), 320);
       }
-      frame = requestAnimationFrame(armRevealWhenStable);
+      // Only keep polling while we're still waiting for an idle window. Once
+      // `revealTimer` is armed we can stop the per-frame loop — any further
+      // metric change inside the 320 ms window will be picked up by the
+      // ResizeObserver-driven stay-pinned effect (and would just reschedule
+      // the timer anyway).
+      if (revealTimer === null) {
+        frame = requestAnimationFrame(armRevealWhenStable);
+      } else {
+        frame = null;
+      }
     };
     let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
@@ -788,7 +832,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  });
+    // Intentionally narrow deps: this effect must NOT re-run on every
+    // parent render (Virtuoso paddingTop measurements cause many during
+    // the stabilisation window — re-running cancels in-flight rAFs and
+    // floods telemetry with redundant `jump("immediate")` calls). It only
+    // needs to fire when a new pin revision is requested or when the list
+    // transitions between empty / non-empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bottomPinRevision, messages.length === 0]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -886,14 +937,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const startedAt = performance.now();
     const STAY_PINNED_MS = 1500;
     let lastScrollHeight = viewport.scrollHeight;
+    let pendingFrame: number | null = null;
 
     const repinIfAtBottom = () => {
+      pendingFrame = null;
       if (cancelled) return;
       // Stop once the user has actively scrolled away from the bottom.
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       if (!atBottomRef.current) return;
       const sh = viewport.scrollHeight;
-      if (sh === lastScrollHeight) return;
+      // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
+      // dies quickly. On Android WebView this is the difference between a
+      // ~1.5 s main-thread freeze on first open and a clean reveal.
+      if (Math.abs(sh - lastScrollHeight) < 4) return;
       lastScrollHeight = sh;
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
@@ -904,7 +960,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     const ro = new ResizeObserver(() => {
       if (cancelled) return;
-      repinIfAtBottom();
+      // Coalesce: at most one re-pin per animation frame, regardless of how
+      // many ResizeObserver callbacks fire (image decode, link preview
+      // hydrate, reaction land, padding reflow can all fire in the same
+      // tick). Without this, every RO callback wrote scrollTop synchronously
+      // and re-triggered itself.
+      if (pendingFrame === null) {
+        pendingFrame = requestAnimationFrame(repinIfAtBottom);
+      }
       if (performance.now() - startedAt > STAY_PINNED_MS) {
         cancelled = true;
         ro.disconnect();
@@ -915,12 +978,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const stopTimer = window.setTimeout(() => {
       cancelled = true;
       ro.disconnect();
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
     }, STAY_PINNED_MS + 50);
 
     return () => {
       cancelled = true;
       ro.disconnect();
       window.clearTimeout(stopTimer);
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     };
   }, [initialRevealReady, bottomPinRevision]);
 
