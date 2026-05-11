@@ -240,10 +240,32 @@ export default function AdminChatVirtDebugPage() {
           <CardDescription>
             {perfEnabled
               ? "Live counts of leaked observers, channels and main-thread blocks while you use chat."
-              : "Disabled. Append ?chatPerfDiag=1 to the URL once (or set localStorage ff:chat-perf-diag=1) and reload to enable. Patches ResizeObserver + installs a longtask observer."}
+              : "Disabled. Tap Enable below, then reload the app. Patches ResizeObserver + installs a longtask observer."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={perfEnabled ? "outline" : "default"}
+              size="sm"
+              onClick={() => {
+                try {
+                  if (perfEnabled) {
+                    window.localStorage.removeItem("ff:chat-perf-diag");
+                    toast({ title: "Diagnostics disabled", description: "Reloading…" });
+                  } else {
+                    window.localStorage.setItem("ff:chat-perf-diag", "1");
+                    toast({ title: "Diagnostics enabled", description: "Reloading…" });
+                  }
+                  setTimeout(() => window.location.reload(), 400);
+                } catch (e) {
+                  toast({ title: "Failed to toggle", description: String(e), variant: "destructive" });
+                }
+              }}
+            >
+              {perfEnabled ? "Disable & reload" : "Enable & reload"}
+            </Button>
+          </div>
           {perfSnapshot && perfEnabled ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
