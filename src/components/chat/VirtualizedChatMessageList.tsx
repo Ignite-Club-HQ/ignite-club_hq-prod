@@ -143,12 +143,11 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 80: follow-up telemetry showed 110 still over-reserved
-  // every URL row by 37-96px on the typical compact preview, with only
-  // one rich-card outlier (+560px) under. 80 covers the LinkPreview's
-  // h-20 (80px) reserved slot exactly; the rare rich card takes a small
-  // upward correction instead of the systematic downward drift.
-  url: 80,
+  // Settle at 130: 80 over-corrected — follow-up telemetry showed every
+  // typical URL preview measured 154-200px (Δ +37 to +45 under). 130
+  // centers the typical compact card (title + 2-line description + favicon
+  // strip); rich hero cards remain a rare upward outlier.
+  url: 130,
 };
 
 /**
