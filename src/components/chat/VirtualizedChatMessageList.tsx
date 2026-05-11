@@ -115,15 +115,18 @@ function getCharsPerLine() {
 // Per-token-type reserved heights for inline link/preview cards. Real cards
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
+// Per-token-type reserved heights. Tuned from production drift telemetry
+// (see /admin/chat-virt-debug). url cards drifted +64..+118px under 132;
+// event cards drifted +118px under 220 when accompanied by long context.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 220,
-  poll: 200,
-  board: 180,
-  vault: 96,
-  vaultfolder: 96,
-  vaultroot: 96,
-  gallery: 196,
-  url: 132, // generic https?:// or www. link preview
+  event: 260,
+  poll: 220,
+  board: 200,
+  vault: 130,
+  vaultfolder: 130,
+  vaultroot: 130,
+  gallery: 220,
+  url: 200, // generic https?:// or www. link preview
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
@@ -162,10 +165,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
   if (!isOwnMessage) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 44 : 22;
+    height += authorChars > 24 ? 46 : 24;
   }
 
-  if (hasReply) height += 38;
+  // ReplyIndicator renders min-h-[42px] + p-2 + mb-1 ≈ 46px when reserved.
+  if (hasReply) height += 46;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Slightly over-reserving keeps the row from
   // shrinking after image decode.
@@ -187,9 +191,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
     // Cap at 12 lines (over-reserve rather than collapse on long messages).
-    height += Math.min(12, lineCount) * 20 + 18;
+    // Bumped per-line padding from 18→26 — telemetry showed text bubbles
+    // consistently measured +30..+44px taller than estimated.
+    height += Math.min(12, lineCount) * 20 + 26;
   } else if (!hasImage) {
-    height += 42;
+    height += 48;
   }
 
   // Inline preview cards. Match each token type separately so per-type
