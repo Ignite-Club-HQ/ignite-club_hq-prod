@@ -500,22 +500,42 @@ export default function TeamChatPage() {
       });
       
       // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
-      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+      // Use allSettled so a single hung/failing RPC cannot block the entire message render.
+      const [reactionsSettled, replyToSettled, profilesSettled] = await Promise.allSettled([
         supabase
           .from("message_reactions")
           .select("id, user_id, reaction_type, team_message_id")
-          .in("team_message_id", messageIds),
+          .in("team_message_id", messageIds)
+          .abortSignal(queryAbort.signal),
         replyToIds.length > 0
           ? supabase
               .from("team_messages")
               .select("id, text, author_id")
               .in("id", replyToIds)
-          : Promise.resolve({ data: [] as any[] }),
+              .abortSignal(queryAbort.signal)
+          : Promise.resolve({ data: [] as any[], error: null }),
         fetchProfilesWithCache(authorIds),
       ]);
+      clearTimeout(queryTimeout);
+
+      const reactionsResult: any = reactionsSettled.status === "fulfilled"
+        ? reactionsSettled.value
+        : { data: null, error: reactionsSettled.reason };
+      const replyToResult: any = replyToSettled.status === "fulfilled"
+        ? replyToSettled.value
+        : { data: [], error: replyToSettled.reason };
+      const profilesMap: Map<string, any> = profilesSettled.status === "fulfilled"
+        ? profilesSettled.value
+        : new Map();
 
       if (reactionsResult.error) {
         console.warn("[TeamChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
+      if (replyToSettled.status === "rejected") {
+        console.warn("[TeamChat] Failed to fetch reply-to messages", replyToSettled.reason);
+      }
+      if (profilesSettled.status === "rejected") {
+        console.warn("[TeamChat] Failed to fetch profiles", profilesSettled.reason);
       }
 
       const replyToMap = new Map(
@@ -531,7 +551,7 @@ export default function TeamChatPage() {
         const profile = profilesMap.get(msg.author_id);
         const reactions = reactionsResult.error
           ? cachedReactionsByMessage.get(msg.id) || []
-          : reactionsResult.data?.filter((r) => r.team_message_id === msg.id) || [];
+          : reactionsResult.data?.filter((r: any) => r.team_message_id === msg.id) || [];
         return {
           id: msg.id,
           team_id: msg.team_id,
