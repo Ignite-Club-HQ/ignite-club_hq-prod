@@ -20,6 +20,8 @@ import {
   debugLogStartReached,
   debugTrackRender,
   isChatVirtDebugEnabled,
+  classifyChatRow,
+  type ChatRowType,
 } from "./chatVirtDebug";
 import {
   getCachedRowHeight,
