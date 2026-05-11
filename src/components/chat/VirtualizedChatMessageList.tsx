@@ -520,10 +520,12 @@ function JumpHydrationSkeleton() {
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end gap-3 px-4 pb-6 animate-in fade-in duration-150"
       style={{
+        // NOTE: do NOT add backdrop-filter here. On Android WebView, a
+        // backdrop blur layered over a virtualised scroller forces the
+        // compositor to re-rasterise on every scroll frame and causes
+        // multi-second freezes. The gradient alone is sufficient.
         background:
-          "linear-gradient(to bottom, hsl(var(--background) / 0.92), hsl(var(--background) / 0.98))",
-        backdropFilter: "blur(2px)",
-        WebkitBackdropFilter: "blur(2px)",
+          "linear-gradient(to bottom, hsl(var(--background) / 0.96), hsl(var(--background)))",
       }}
     >
       {rows.map((width, i) => (
