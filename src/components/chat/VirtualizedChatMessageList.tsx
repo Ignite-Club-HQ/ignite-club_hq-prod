@@ -730,7 +730,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
-      setInitialRevealReady(false);
+      // Empty thread: nothing to pin to. Reveal the wrapper immediately so
+      // the (empty) chat surface and any parent empty-state are visible —
+      // otherwise opacity stays 0 forever and the page looks frozen.
+      setInitialRevealReady(true);
       return;
     }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
