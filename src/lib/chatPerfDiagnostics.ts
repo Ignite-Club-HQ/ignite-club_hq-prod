@@ -287,6 +287,7 @@ export function clearChatPerfDiagnostics(): void {
 }
 
 export type ChatPerfSnapshot = {
+  enabled: boolean;
   installed: boolean;
   liveResizeObservers: number;
   totalResizeObserversCreated: number;
