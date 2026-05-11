@@ -68,7 +68,7 @@ async function sendQueuedRsvp(r: QueuedRsvp): Promise<boolean> {
     if (r.existingRsvpId) {
       const { error } = await supabase
         .from("rsvps")
-        .update({ status: r.status, notes: r.notes ?? null })
+        .update({ status: r.status, notes: r.notes ?? null, source: "user" })
         .eq("id", r.existingRsvpId);
       if (error) {
         // If row no longer exists, fall through to insert
