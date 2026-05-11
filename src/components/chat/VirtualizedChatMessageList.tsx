@@ -116,17 +116,17 @@ function getCharsPerLine() {
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
 // Per-token-type reserved heights. Tuned from production drift telemetry
-// (see /admin/chat-virt-debug). url cards drifted +64..+118px under 132;
-// event cards drifted +118px under 220 when accompanied by long context.
+// (see /admin/chat-virt-debug). Conservative: under-reserving causes the
+// upward "jolt" symptom; over-reserving leaves harmless extra padding.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 260,
-  poll: 220,
-  board: 200,
-  vault: 130,
-  vaultfolder: 130,
-  vaultroot: 130,
-  gallery: 220,
-  url: 200, // generic https?:// or www. link preview
+  event: 220,
+  poll: 200,
+  board: 180,
+  vault: 110,
+  vaultfolder: 110,
+  vaultroot: 110,
+  gallery: 200,
+  url: 150,
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
