@@ -225,6 +225,23 @@ function activePagesString(state: ChatPerfState): string {
   );
 }
 
+/**
+ * Last non-empty active-pages snapshot. Lets a manual freeze mark taken from
+ * the debug page (after navigating off the offending chat) still report which
+ * chat the user was last on, with an "ago" annotation.
+ */
+let lastSeenActivePages: { pages: string; ts: number; url: string } | null = null;
+function rememberActivePagesIfAny(state: ChatPerfState) {
+  const s = activePagesString(state);
+  if (s !== "none") {
+    lastSeenActivePages = {
+      pages: s,
+      ts: Date.now(),
+      url: typeof window !== "undefined" ? window.location.pathname : "",
+    };
+  }
+}
+
 const WATCHDOG_KEY = "ff:chat-perf-watchdog";
 const WATCHDOG_INTERVAL_MS = 1000;
 
