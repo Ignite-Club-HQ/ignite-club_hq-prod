@@ -21,6 +21,10 @@ import {
   debugTrackRender,
   isChatVirtDebugEnabled,
 } from "./chatVirtDebug";
+import {
+  getCachedRowHeight,
+  setCachedRowHeight,
+} from "./chatRowHeightCache";
 
 /**
  * Virtualised chat message list.
@@ -141,6 +145,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   messages: TMessage[],
   currentUserId?: string | null,
 ) {
+  // Prefer the real measured height from the previous mount of this row.
+  // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
+  const cached = getCachedRowHeight(message.id);
+  if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
     edited_at?: string | null;
@@ -313,6 +321,44 @@ function DebugRowProbe({
   }, [messageId, estimated]);
   return (
     <div ref={ref} data-debug-probe={messageId}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Always-mounted measurement wrapper. Writes the row's real `offsetHeight`
+ * into the module-level cache (`chatRowHeightCache`) so `estimateChatRowHeight`
+ * can return the exact previous value the next time this row mounts. Uses a
+ * ResizeObserver so reactions / edits / late-loading link previews update the
+ * cached value as the row's true height changes.
+ *
+ * Identity-stable component (declared at module scope) — safe to use inside a
+ * stable `itemContent` callback.
+ */
+function CachedMeasureRow({
+  messageId,
+  children,
+}: {
+  messageId: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const write = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setCachedRowHeight(messageId, h);
+    };
+    write();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [messageId]);
+  return (
+    <div ref={ref} data-row-id={messageId}>
       {children}
     </div>
   );
@@ -812,13 +858,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const idx = indexByIdRef.current.get(message.id);
       if (idx === undefined) return null;
       const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-      if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0
+      const estimated = isChatVirtDebugEnabled() && idx >= 0
         ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
         : undefined;
+      const measured = (
+        <CachedMeasureRow messageId={message.id}>
+          {child}
+        </CachedMeasureRow>
+      );
+      if (estimated === undefined) return measured;
       return (
         <DebugRowProbe messageId={message.id} estimated={estimated}>
-          {child}
+          {measured}
         </DebugRowProbe>
       );
     },
