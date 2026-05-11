@@ -917,26 +917,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
-    (_absoluteIndex: number, message: TMessage) => {
-      const idx = indexByIdRef.current.get(message.id);
-      if (idx === undefined) return null;
-      const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-      const estimated = isChatVirtDebugEnabled() && idx >= 0
-        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
-        : undefined;
-      const measured = (
-        <CachedMeasureRow messageId={message.id}>
-          {child}
-        </CachedMeasureRow>
-      );
-      if (estimated === undefined) return measured;
-      const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
-      return (
-        <DebugRowProbe messageId={message.id} estimated={estimated} rowType={rowType}>
-          {measured}
-        </DebugRowProbe>
-      );
-    },
+    (_absoluteIndex: number, message: TMessage) => (
+      <ChatRowAdapter
+        message={message}
+        renderItemRef={renderItemRef as React.MutableRefObject<
+          (m: any, i: number, a: any[]) => React.ReactNode
+        >}
+        uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
+        indexByIdRef={indexByIdRef}
+        currentUserIdRef={currentUserIdRef}
+      />
+    ),
     [],
   );
 
