@@ -88,6 +88,7 @@ async function sendQueuedRsvp(r: QueuedRsvp): Promise<boolean> {
       mini_league_player_id: r.miniLeaguePlayerId ?? null,
       status: r.status,
       notes: r.notes ?? null,
+      source: "user",
     });
     if (error) {
       console.error("rsvp insert failed", error);
