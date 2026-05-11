@@ -97,7 +97,7 @@ export function TrainingDefaultControl({
 
   // Only suggest a default after an explicit going / not_going RSVP
   if (currentRsvpStatus !== "going" && currentRsvpStatus !== "not_going") return null;
-  if (isDismissed(dismissKey)) return null;
+  if (locallyDismissed) return null;
 
   const verb = currentRsvpStatus === "going" ? "Going" : "Not going";
 
