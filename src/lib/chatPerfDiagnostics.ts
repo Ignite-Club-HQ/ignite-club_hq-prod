@@ -72,6 +72,49 @@ function readEnabledFlag(): boolean {
   return false;
 }
 
+function loadPersistedState(): Partial<ChatPerfState> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PERF_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      totalResizeObserversCreated: parsed.totalResizeObserversCreated ?? 0,
+      totalChannelsCreated: parsed.totalChannelsCreated ?? 0,
+      totalChannelsRemoved: parsed.totalChannelsRemoved ?? 0,
+      events: Array.isArray(parsed.events) ? parsed.events : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+let savePending = false;
+let lastSaveAt = 0;
+function persistState(state: ChatPerfState) {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (savePending) return;
+  const elapsed = now - lastSaveAt;
+  const delay = Math.max(0, PERF_SAVE_THROTTLE_MS - elapsed);
+  savePending = true;
+  setTimeout(() => {
+    savePending = false;
+    lastSaveAt = Date.now();
+    try {
+      window.localStorage.setItem(
+        PERF_STORAGE_KEY,
+        JSON.stringify({
+          totalResizeObserversCreated: state.totalResizeObserversCreated,
+          totalChannelsCreated: state.totalChannelsCreated,
+          totalChannelsRemoved: state.totalChannelsRemoved,
+          events: state.events.slice(-PERF_BUFFER_LIMIT),
+        }),
+      );
+    } catch {}
+  }, delay);
+}
+
 function getOrInitState(): ChatPerfState {
   if (typeof window === "undefined") {
     return {
@@ -88,17 +131,18 @@ function getOrInitState(): ChatPerfState {
     };
   }
   if (!window.__chatPerfState) {
+    const persisted = loadPersistedState();
     window.__chatPerfState = {
       enabled: false,
       installed: false,
       liveResizeObservers: 0,
-      totalResizeObserversCreated: 0,
+      totalResizeObserversCreated: persisted?.totalResizeObserversCreated ?? 0,
       liveChannels: new Map(),
-      totalChannelsCreated: 0,
-      totalChannelsRemoved: 0,
+      totalChannelsCreated: persisted?.totalChannelsCreated ?? 0,
+      totalChannelsRemoved: persisted?.totalChannelsRemoved ?? 0,
       liveChatPages: new Map(),
       mounts: new Map(),
-      events: [],
+      events: persisted?.events ?? [],
     };
   }
   return window.__chatPerfState!;
@@ -109,6 +153,7 @@ function pushEvent(state: ChatPerfState, e: PerfEvent) {
   if (state.events.length > PERF_BUFFER_LIMIT) {
     state.events.splice(0, state.events.length - PERF_BUFFER_LIMIT);
   }
+  persistState(state);
 }
 
 function patchResizeObserver(state: ChatPerfState) {
