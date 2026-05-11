@@ -1143,9 +1143,10 @@ export default function GroupChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`group-messages-${groupId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`group-messages-${groupId}`);
     };
   }, [groupId, queryClient]);
 

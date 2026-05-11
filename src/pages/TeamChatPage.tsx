@@ -1245,9 +1245,10 @@ export default function TeamChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`team-messages-${teamId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`team-messages-${teamId}`);
     };
   }, [teamId, queryClient]);
 

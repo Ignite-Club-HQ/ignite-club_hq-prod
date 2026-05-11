@@ -1221,9 +1221,10 @@ export default function DirectMessagePage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`dm-${conversationId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`dm-${conversationId}`);
     };
   }, [conversationId, queryClient]);
 

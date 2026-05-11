@@ -1026,9 +1026,10 @@ export default function ClubChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`club-messages-${clubId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`club-messages-${clubId}`);
     };
   }, [clubId, queryClient]);
 

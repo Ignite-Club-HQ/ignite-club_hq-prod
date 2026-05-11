@@ -775,9 +775,10 @@ export default function BroadcastChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed("broadcast-messages-realtime");
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved("broadcast-messages-realtime");
     };
   }, [queryClient]);
 

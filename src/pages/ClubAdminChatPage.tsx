@@ -715,8 +715,9 @@ export default function ClubAdminChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`club-admin-chat-${conversationId}`);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { supabase.removeChannel(channel); noteChannelRemoved(`club-admin-chat-${conversationId}`); };
   }, [conversationId, queryClient, queryKey]);
 
   // Visibility change handler
