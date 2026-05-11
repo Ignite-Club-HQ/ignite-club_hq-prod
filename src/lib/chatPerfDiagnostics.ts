@@ -413,6 +413,7 @@ export function setupChatPerfDiagnostics(): void {
 
   patchResizeObserver(state);
   installLongTaskObserver(state);
+  installCapacitorPauseListeners();
   installFreezeDetector(state);
   installWatchdog(state);
   state.installed = true;
