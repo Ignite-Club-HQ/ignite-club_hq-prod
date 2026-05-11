@@ -3053,6 +3053,25 @@ export default function EventDetailPage() {
                 <Label htmlFor="showAllRoles" className="text-xs cursor-pointer text-muted-foreground">Show all roles</Label>
               </div>
             )}
+            {/* Phase 2: Confirmed vs Auto split for coaches on trainings */}
+            {(isAdmin || isAppAdmin) && event.type === "training" && goingRsvps.length > 0 && (() => {
+              const auto = goingRsvps.filter((r: any) => r.source === "default").length;
+              const confirmed = goingRsvps.length - auto;
+              return (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {confirmed} confirmed
+                  </span>
+                  {auto > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary px-2 py-1">
+                      <span className="h-2 w-2 rounded-full border border-primary" />
+                      {auto} on default
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             <AttendanceSection
               eventId={id!}
               isAdmin={isAdmin || isAppAdmin}
