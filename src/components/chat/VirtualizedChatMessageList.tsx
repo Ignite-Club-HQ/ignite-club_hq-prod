@@ -761,27 +761,56 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let frame: number | null = null;
     let cancelled = false;
     let lastMetrics = "";
+    // Hard deadline for the reveal. On Android, late-hydrating images / link
+    // previews / reactions can keep `scrollHeight` ticking for far longer
+    // than the 320 ms idle window, which previously left the wrapper at
+    // opacity 0 indefinitely AND ran a per-frame rAF the entire time —
+    // visible to the user as a frozen, blank chat. After this deadline we
+    // reveal regardless and let any remaining reflows happen in plain sight.
+    const REVEAL_DEADLINE_MS = 800;
+    const startedAt = performance.now();
+    const doReveal = (reason: string) => {
+      if (cancelled) return;
+      cancelled = true;
+      if (revealTimer !== null) {
+        clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+      // Final belt-and-braces re-anchor the frame before we reveal, so any
+      // last paddingTop adjustment from overscan-row measurement doesn't
+      // visually shift the bottom row at the moment opacity flips to 1.
+      virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
+      if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      userHasScrolledAfterPinRef.current = false;
+      debugLogBottomPin(bottomPinRevision, `reveal-${reason}`);
+      requestAnimationFrame(() => setInitialRevealReady(true));
+    };
     const armRevealWhenStable = () => {
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
+      // Hard deadline first — never poll past this regardless of metric churn.
+      if (performance.now() - startedAt >= REVEAL_DEADLINE_MS) {
+        doReveal("deadline");
+        return;
+      }
       const metrics = `${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
         lastMetrics = metrics;
         if (revealTimer !== null) clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => {
-          cancelled = true;
-          // Final belt-and-braces re-anchor the frame before we reveal, so any
-          // last paddingTop adjustment from overscan-row measurement doesn't
-          // visually shift the bottom row at the moment opacity flips to 1.
-          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
-          if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
-          bottomPinReadyRef.current = true;
-          pinnedRevisionRef.current = bottomPinRevision;
-          userHasScrolledAfterPinRef.current = false;
-          requestAnimationFrame(() => setInitialRevealReady(true));
-        }, 320);
+        revealTimer = setTimeout(() => doReveal("idle"), 320);
       }
-      frame = requestAnimationFrame(armRevealWhenStable);
+      // Only keep polling while we're still waiting for an idle window. Once
+      // `revealTimer` is armed we can stop the per-frame loop — any further
+      // metric change inside the 320 ms window will be picked up by the
+      // ResizeObserver-driven stay-pinned effect (and would just reschedule
+      // the timer anyway).
+      if (revealTimer === null) {
+        frame = requestAnimationFrame(armRevealWhenStable);
+      } else {
+        frame = null;
+      }
     };
     let r2: number | null = null;
     const r1 = requestAnimationFrame(() => {
