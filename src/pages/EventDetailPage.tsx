@@ -1070,6 +1070,7 @@ export default function EventDetailPage() {
           .update({
             status,
             notes: rsvpNotes || null,
+            source: "user",
           })
           .eq("id", myRsvp.id);
         if (error) throw error;
@@ -1080,6 +1081,7 @@ export default function EventDetailPage() {
           user_id: user!.id,
           status,
           notes: rsvpNotes || null,
+          source: "user",
         }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
