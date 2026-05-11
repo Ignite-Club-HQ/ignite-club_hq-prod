@@ -363,6 +363,9 @@ function CachedMeasureRow({
     </div>
   );
 }
+
+/**
+ * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
  * message is hydrating. Uses semantic tokens so it follows the active theme,
  * and `pointer-events-none` so the user can still scroll/tap underneath if
  * they want to abort.
