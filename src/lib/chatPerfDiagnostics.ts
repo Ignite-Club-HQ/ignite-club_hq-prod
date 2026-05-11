@@ -30,7 +30,8 @@ type PerfEvent =
   | { t: number; kind: "longtask"; durationMs: number; startTime: number }
   | { t: number; kind: "channel-add"; topic: string }
   | { t: number; kind: "channel-remove"; topic: string }
-  | { t: number; kind: "freeze"; stallMs: number; activePages: string; source: "heartbeat" | "raf" | "manual"; note?: string };
+  | { t: number; kind: "freeze"; stallMs: number; activePages: string; source: "heartbeat" | "raf" | "manual"; note?: string }
+  | { t: number; kind: "sample"; heapMB?: number; liveRO: number; totalRO: number; liveChannels: number; activePages: string };
 
 type ChatPerfState = {
   enabled: boolean;
