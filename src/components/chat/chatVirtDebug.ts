@@ -135,22 +135,161 @@ function log(level: "log" | "warn", label: string, payload: Record<string, unkno
 // ─── row height measurements ──────────────────────────────────────────────
 const measuredOnce = new Set<string>();
 
+/**
+ * Coarse row classification used to bucket measurements in the per-run
+ * summary. Categories are content-driven (not visual layout) so the buckets
+ * map directly to branches in `estimateChatRowHeight`.
+ */
+export type ChatRowType =
+  | "system"
+  | "image"
+  | "image+reply"
+  | "url-preview"
+  | "event"
+  | "poll"
+  | "board"
+  | "vault"
+  | "gallery"
+  | "text+reply"
+  | "text-empty"
+  | "text";
+
+type TypeStats = {
+  type: ChatRowType;
+  count: number;
+  driftedCount: number;
+  sumDelta: number;
+  sumAbsDelta: number;
+  maxAbsDelta: number;
+  sumEstimated: number;
+  sumMeasured: number;
+  deltas: number[];
+};
+
+const typeStats = new Map<ChatRowType, TypeStats>();
+
+function getTypeBucket(type: ChatRowType): TypeStats {
+  let entry = typeStats.get(type);
+  if (!entry) {
+    entry = {
+      type,
+      count: 0,
+      driftedCount: 0,
+      sumDelta: 0,
+      sumAbsDelta: 0,
+      maxAbsDelta: 0,
+      sumEstimated: 0,
+      sumMeasured: 0,
+      deltas: [],
+    };
+    typeStats.set(type, entry);
+  }
+  return entry;
+}
+
+function percentile(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.floor((p / 100) * sortedAsc.length)));
+  return sortedAsc[idx];
+}
+
+export interface MeasurementSummaryRow {
+  type: ChatRowType;
+  count: number;
+  driftedOver24px: number;
+  avgEstimated: number;
+  avgMeasured: number;
+  avgDelta: number;
+  avgAbsDelta: number;
+  maxAbsDelta: number;
+  p50Delta: number;
+  p95Delta: number;
+}
+
+export interface MeasurementSummary {
+  generatedAt: string;
+  totalMeasurements: number;
+  totalDriftedOver24px: number;
+  byType: MeasurementSummaryRow[];
+}
+
+/**
+ * Build a summary of every measurement recorded since the last `clear()`.
+ * Stable JSON shape suitable for pasting into bug reports.
+ */
+export function getMeasurementSummary(): MeasurementSummary {
+  const byType: MeasurementSummaryRow[] = [];
+  let totalCount = 0;
+  let totalDrifted = 0;
+  for (const stats of typeStats.values()) {
+    if (stats.count === 0) continue;
+    const sorted = stats.deltas.slice().sort((a, b) => a - b);
+    totalCount += stats.count;
+    totalDrifted += stats.driftedCount;
+    byType.push({
+      type: stats.type,
+      count: stats.count,
+      driftedOver24px: stats.driftedCount,
+      avgEstimated: Math.round(stats.sumEstimated / stats.count),
+      avgMeasured: Math.round(stats.sumMeasured / stats.count),
+      avgDelta: Math.round(stats.sumDelta / stats.count),
+      avgAbsDelta: Math.round(stats.sumAbsDelta / stats.count),
+      maxAbsDelta: stats.maxAbsDelta,
+      p50Delta: percentile(sorted, 50),
+      p95Delta: percentile(sorted, 95),
+    });
+  }
+  // Sort by drift impact: most-drifted buckets first.
+  byType.sort((a, b) => b.driftedOver24px - a.driftedOver24px || b.count - a.count);
+  return {
+    generatedAt: new Date().toISOString(),
+    totalMeasurements: totalCount,
+    totalDriftedOver24px: totalDrifted,
+    byType,
+  };
+}
+
+export function clearMeasurementSummary() {
+  typeStats.clear();
+  measuredOnce.clear();
+}
+
 export function debugLogMeasure(
   messageId: string,
   estimated: number | undefined,
   measured: number,
+  rowType: ChatRowType = "text",
 ) {
   if (!isChatVirtDebugEnabled()) return;
-  // De-noise: only log first measurement (mount) per id; later remeasures
-  // get logged only when they differ materially from the first one.
-  const key = `${messageId}`;
-  const firstTime = !measuredOnce.has(key);
-  measuredOnce.add(key);
+  // Aggregate every measurement (not just first) so the summary reflects
+  // real drift distribution, including post-hydrate corrections.
+  if (estimated != null) {
+    const delta = measured - estimated;
+    const stats = getTypeBucket(rowType);
+    stats.count += 1;
+    stats.sumDelta += delta;
+    stats.sumAbsDelta += Math.abs(delta);
+    if (Math.abs(delta) > stats.maxAbsDelta) stats.maxAbsDelta = Math.abs(delta);
+    stats.sumEstimated += estimated;
+    stats.sumMeasured += measured;
+    if (Math.abs(delta) > 24) stats.driftedCount += 1;
+    // Cap stored deltas at 1000 per bucket to bound memory; keep most recent.
+    if (stats.deltas.length >= 1000) stats.deltas.shift();
+    stats.deltas.push(delta);
+  }
+  // De-noise event stream: only push first measurement per id, plus any later
+  // remeasure with material drift (>24px).
+  const firstTime = !measuredOnce.has(messageId);
+  measuredOnce.add(messageId);
   const delta = estimated == null ? null : measured - estimated;
   const big = delta != null && Math.abs(delta) > 24;
   if (!firstTime && !big) return;
-  push({ t: Date.now(), kind: "measure", data: { messageId, estimated, measured, delta } });
-  if (big) log("warn", "row height drift", { messageId, estimated, measured, delta });
+  push({
+    t: Date.now(),
+    kind: "measure",
+    data: { messageId, rowType, estimated, measured, delta },
+  });
+  if (big) log("warn", "row height drift", { messageId, rowType, estimated, measured, delta });
 }
 
 // ─── key stability ────────────────────────────────────────────────────────
