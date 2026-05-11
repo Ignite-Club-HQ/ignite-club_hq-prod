@@ -135,6 +135,21 @@ export default function AdminChatVirtDebugPage() {
     }
   };
 
+  const handleCopySummary = async () => {
+    const snapshot = summary ?? getMeasurementSummary();
+    const payload = JSON.stringify(snapshot, null, 2);
+    try {
+      await navigator.clipboard.writeText(payload);
+      setSummaryCopied(true);
+      toast({
+        title: "Summary copied",
+        description: `${snapshot.byType.length} row types, ${snapshot.totalMeasurements} measurements`,
+      });
+      setTimeout(() => setSummaryCopied(false), 1500);
+    } catch {
+      toast({ title: "Copy failed", description: "Could not access clipboard", variant: "destructive" });
+    }
+  };
   return (
     <div className="py-6 space-y-6">
       <div className="flex items-center gap-3">
