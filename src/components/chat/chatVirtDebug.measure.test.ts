@@ -17,7 +17,7 @@ type MeasureEvent = {
 };
 
 function measureEventsFor(id: string): MeasureEvent[] {
-  const buf = (window.__chatVirtDebugDump?.() ?? []) as MeasureEvent[];
+  const buf = (window.__chatVirtDebugDump?.() ?? []) as unknown as MeasureEvent[];
   return buf.filter((e) => e.kind === "measure" && e.data.messageId === id);
 }
 
