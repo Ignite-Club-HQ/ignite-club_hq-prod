@@ -18,6 +18,7 @@ import {
   getChatPerfSnapshot,
   isChatPerfDiagEnabled,
   clearChatPerfDiagnostics,
+  markChatPerfFreeze,
   type ChatPerfSnapshot,
 } from "@/lib/chatPerfDiagnostics";
 
@@ -309,6 +310,17 @@ export default function AdminChatVirtDebugPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    markChatPerfFreeze("user-marked");
+                    setPerfSnapshot(getChatPerfSnapshot());
+                    toast({ title: "Freeze marked", description: "Stamped into event log" });
+                  }}
+                >
+                  Mark freeze now
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
                     clearChatPerfDiagnostics();
                     toast({ title: "Diagnostics cleared" });
                   }}
@@ -373,7 +385,7 @@ export default function AdminChatVirtDebugPage() {
                       if (e.kind === "freeze") {
                         return (
                           <div key={i} className="text-orange-700 dark:text-orange-300 font-semibold">
-                            {time} FREEZE {e.stallMs}ms · pages: {e.activePages}
+                            {time} FREEZE [{e.source}{e.note ? `:${e.note}` : ""}] {e.stallMs}ms · pages: {e.activePages}
                           </div>
                         );
                       }

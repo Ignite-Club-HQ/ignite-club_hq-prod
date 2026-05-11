@@ -30,7 +30,7 @@ type PerfEvent =
   | { t: number; kind: "longtask"; durationMs: number; startTime: number }
   | { t: number; kind: "channel-add"; topic: string }
   | { t: number; kind: "channel-remove"; topic: string }
-  | { t: number; kind: "freeze"; stallMs: number; activePages: string };
+  | { t: number; kind: "freeze"; stallMs: number; activePages: string; source: "heartbeat" | "raf" | "manual"; note?: string };
 
 type ChatPerfState = {
   enabled: boolean;
@@ -213,28 +213,75 @@ function installLongTaskObserver(state: ChatPerfState) {
  * see which screen the user was on when the app froze.
  */
 const HEARTBEAT_MS = 250;
-const FREEZE_THRESHOLD_MS = 300;
+const FREEZE_THRESHOLD_MS = 200;
+const RAF_FREEZE_THRESHOLD_MS = 250;
+
+function activePagesString(state: ChatPerfState): string {
+  return (
+    Array.from(state.liveChatPages.entries())
+      .filter(([, c]) => c > 0)
+      .map(([name, c]) => `${name}:${c}`)
+      .join(",") || "none"
+  );
+}
+
 function installFreezeDetector(state: ChatPerfState) {
   if (typeof window === "undefined") return;
+
+  // 1) JS heartbeat — catches synchronous main-thread blocks.
+  //    Skipped when document.hidden because OS throttles setInterval and
+  //    would otherwise emit phantom "freezes" of ~1000ms.
   let last = performance.now();
   setInterval(() => {
     const now = performance.now();
     const gap = now - last;
     last = now;
+    if (typeof document !== "undefined" && document.hidden) return;
     const stall = gap - HEARTBEAT_MS;
     if (stall >= FREEZE_THRESHOLD_MS) {
-      const active = Array.from(state.liveChatPages.entries())
-        .filter(([, c]) => c > 0)
-        .map(([name, c]) => `${name}:${c}`)
-        .join(",") || "none";
       pushEvent(state, {
         t: Date.now(),
         kind: "freeze",
         stallMs: Math.round(stall),
-        activePages: active,
+        activePages: activePagesString(state),
+        source: "heartbeat",
       });
     }
   }, HEARTBEAT_MS);
+
+  // 2) requestAnimationFrame gap — catches *paint/compositor* freezes that
+  //    the JS heartbeat misses (Android WebView scroll/layout stalls where
+  //    JS keeps running but the screen is locked). If two consecutive rAFs
+  //    are >RAF_FREEZE_THRESHOLD_MS apart while visible, log it.
+  let lastRaf = performance.now();
+  const tick = () => {
+    const now = performance.now();
+    const gap = now - lastRaf;
+    lastRaf = now;
+    if (
+      gap >= RAF_FREEZE_THRESHOLD_MS &&
+      (typeof document === "undefined" || !document.hidden)
+    ) {
+      // De-dupe with heartbeat: if last event in buffer is already a freeze
+      // within 500ms, skip — same incident.
+      const lastEv = state.events[state.events.length - 1];
+      const isDup =
+        lastEv &&
+        lastEv.kind === "freeze" &&
+        Date.now() - lastEv.t < 500;
+      if (!isDup) {
+        pushEvent(state, {
+          t: Date.now(),
+          kind: "freeze",
+          stallMs: Math.round(gap),
+          activePages: activePagesString(state),
+          source: "raf",
+        });
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 /**
@@ -306,6 +353,22 @@ export function noteChannelRemoved(topic: string): void {
   else state.liveChannels.set(topic, next);
   state.totalChannelsRemoved += 1;
   pushEvent(state, { t: Date.now(), kind: "channel-remove", topic });
+}
+
+export function markChatPerfFreeze(note?: string): void {
+  const state = getOrInitState();
+  if (!state.enabled) return;
+  pushEvent(state, {
+    t: Date.now(),
+    kind: "freeze",
+    stallMs: 0,
+    activePages: Array.from(state.liveChatPages.entries())
+      .filter(([, c]) => c > 0)
+      .map(([name, c]) => `${name}:${c}`)
+      .join(",") || "none",
+    source: "manual",
+    note: note || "user-marked",
+  });
 }
 
 export function clearChatPerfDiagnostics(): void {
