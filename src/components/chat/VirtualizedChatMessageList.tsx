@@ -871,8 +871,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         </CachedMeasureRow>
       );
       if (estimated === undefined) return measured;
+      const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
       return (
-        <DebugRowProbe messageId={message.id} estimated={estimated}>
+        <DebugRowProbe messageId={message.id} estimated={estimated} rowType={rowType}>
           {measured}
         </DebugRowProbe>
       );
