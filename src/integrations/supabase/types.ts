@@ -2665,6 +2665,51 @@ export type Database = {
           },
         ]
       }
+      event_default_confirm_log: {
+        Row: {
+          child_id: string | null
+          dm_message_id: string | null
+          event_id: string
+          id: string
+          parent_user_id: string
+          rsvp_id: string | null
+          sent_at: string
+        }
+        Insert: {
+          child_id?: string | null
+          dm_message_id?: string | null
+          event_id: string
+          id?: string
+          parent_user_id: string
+          rsvp_id?: string | null
+          sent_at?: string
+        }
+        Update: {
+          child_id?: string | null
+          dm_message_id?: string | null
+          event_id?: string
+          id?: string
+          parent_user_id?: string
+          rsvp_id?: string | null
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_default_confirm_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_default_confirm_log_rsvp_id_fkey"
+            columns: ["rsvp_id"]
+            isOneToOne: false
+            referencedRelation: "rsvps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
