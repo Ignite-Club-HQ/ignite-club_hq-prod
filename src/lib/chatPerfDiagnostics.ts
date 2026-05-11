@@ -285,7 +285,8 @@ export function clearChatPerfDiagnostics(): void {
     if (typeof window !== "undefined") window.localStorage.removeItem(PERF_STORAGE_KEY);
   } catch {}
 }
-  enabled: boolean;
+
+export type ChatPerfSnapshot = {
   installed: boolean;
   liveResizeObservers: number;
   totalResizeObserversCreated: number;
