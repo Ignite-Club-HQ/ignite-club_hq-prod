@@ -181,11 +181,14 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
   if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 44 : 22;
+    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
+    // name wraps). Telemetry showed the previous 22/44 values produced a
+    // consistent +16px under-reservation on non-grouped rows.
+    height += authorChars > 24 ? 56 : 40;
   }
 
-  // ReplyIndicator renders ~36px including its bottom margin in practice.
-  if (hasReply) height += 36;
+  // ReplyIndicator renders ~44px including its bottom margin in practice.
+  if (hasReply) height += 44;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Slightly over-reserving keeps the row from
   // shrinking after image decode.
@@ -204,11 +207,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // Per-line 20px; no extra padding here — bubble vertical padding is
-    // already covered by the timestamp row reservation below.
-    height += Math.min(12, lineCount) * 20;
+    // ~19px per visual line — telemetry showed 20 was a touch hot on long
+    // messages (caused -44/-52/-76 over-estimates).
+    height += Math.min(12, lineCount) * 19;
   } else if (!hasImage) {
-    height += 28;
+    height += 32;
   }
 
   // Inline preview cards. Match each token type separately so per-type
