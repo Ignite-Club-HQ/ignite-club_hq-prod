@@ -497,16 +497,20 @@ export function noteChannelRemoved(topic: string): void {
 export function markChatPerfFreeze(note?: string): void {
   const state = getOrInitState();
   if (!state.enabled) return;
+  let activePages = activePagesString(state);
+  let resolvedNote = note || "user-marked";
+  if (activePages === "none" && lastSeenActivePages) {
+    const ago = Math.round((Date.now() - lastSeenActivePages.ts) / 1000);
+    activePages = lastSeenActivePages.pages;
+    resolvedNote = `${resolvedNote} (recalled last chat ${ago}s ago on ${lastSeenActivePages.url})`;
+  }
   pushEvent(state, {
     t: Date.now(),
     kind: "freeze",
     stallMs: 0,
-    activePages: Array.from(state.liveChatPages.entries())
-      .filter(([, c]) => c > 0)
-      .map(([name, c]) => `${name}:${c}`)
-      .join(",") || "none",
+    activePages,
     source: "manual",
-    note: note || "user-marked",
+    note: resolvedNote,
   });
 }
 
