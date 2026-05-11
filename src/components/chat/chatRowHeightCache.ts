@@ -15,10 +15,80 @@
  * The cache is process-local and bounded (~2000 entries) so it cannot grow
  * unbounded across long sessions. Entries are evicted in insertion order
  * (Map iteration order). 2000 rows ≈ ~6 weeks of an active team chat.
+ *
+ * The cache is mirrored to sessionStorage so a full page refresh (common on
+ * native WebView resume) does not lose the measured heights — Virtuoso can
+ * render the next session's rows at exact heights from the very first paint.
  */
 
 const MAX_ENTRIES = 2000;
+const STORAGE_KEY = "chat:rowHeightCache:v1";
+// Throttle persistence — measurement bursts (e.g. initial mount) can call
+// setCachedRowHeight dozens of times per frame; avoid serialising on each.
+const PERSIST_DEBOUNCE_MS = 400;
+
 const cache = new Map<string, number>();
+let dirty = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let restored = false;
+
+function safeSessionStorage(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreFromStorage() {
+  if (restored) return;
+  restored = true;
+  const ss = safeSessionStorage();
+  if (!ss) return;
+  try {
+    const raw = ss.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return;
+    for (const entry of parsed) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [id, h] = entry as [unknown, unknown];
+      if (typeof id !== "string" || !id) continue;
+      if (typeof h !== "number" || !Number.isFinite(h) || h <= 0) continue;
+      cache.set(id, Math.round(h));
+      if (cache.size > MAX_ENTRIES) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey !== undefined) cache.delete(firstKey);
+      }
+    }
+  } catch {
+    // Corrupt payload — drop it silently.
+    try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
+}
+
+function schedulePersist() {
+  dirty = true;
+  if (persistTimer !== null) return;
+  const ss = safeSessionStorage();
+  if (!ss) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    if (!dirty) return;
+    dirty = false;
+    try {
+      const payload = JSON.stringify(Array.from(cache.entries()));
+      ss.setItem(STORAGE_KEY, payload);
+    } catch {
+      // Quota / serialisation failure — ignore; in-memory cache is still good.
+    }
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+// Restore eagerly at module load so the very first estimateChatRowHeight()
+// call after a refresh already sees prior heights.
+restoreFromStorage();
 
 export function getCachedRowHeight(id: string | null | undefined): number | undefined {
   if (!id) return undefined;
@@ -50,18 +120,50 @@ export function setCachedRowHeight(id: string | null | undefined, height: number
     const firstKey = cache.keys().next().value;
     if (firstKey !== undefined) cache.delete(firstKey);
   }
+  schedulePersist();
 }
 
 export function invalidateCachedRowHeight(id: string | null | undefined) {
   if (!id) return;
-  cache.delete(id);
+  if (cache.delete(id)) schedulePersist();
 }
 
 export function clearChatRowHeightCache() {
   cache.clear();
+  const ss = safeSessionStorage();
+  if (ss) {
+    try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
+  dirty = false;
+  if (persistTimer !== null) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
 }
 
 /** Test/debug accessor — current cache size. */
 export function getChatRowHeightCacheSize() {
   return cache.size;
+}
+
+// Flush any pending writes when the tab is hidden / unloaded so a refresh
+// triggered immediately after a measurement burst doesn't lose entries.
+if (typeof window !== "undefined") {
+  const flush = () => {
+    if (!dirty) return;
+    const ss = safeSessionStorage();
+    if (!ss) return;
+    try {
+      ss.setItem(STORAGE_KEY, JSON.stringify(Array.from(cache.entries())));
+      dirty = false;
+      if (persistTimer !== null) {
+        clearTimeout(persistTimer);
+        persistTimer = null;
+      }
+    } catch { /* ignore */ }
+  };
+  window.addEventListener("pagehide", flush);
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
 }
