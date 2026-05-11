@@ -2728,9 +2728,16 @@ export default function EventDetailPage() {
                       >
                         <span>{icon}</span>
                         <span className="text-xs">{label}</span>
-                      </Button>
+                       </Button>
                     ))}
                   </div>
+                  <TrainingDefaultControl
+                    teamId={event?.team_id ?? null}
+                    childId={child.id}
+                    subjectName={child.name}
+                    currentRsvpStatus={(childRsvp?.status as any) ?? null}
+                    isTraining={event?.type === "training"}
+                  />
                 </div>
               );
             })}
