@@ -139,16 +139,12 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  // Generic URL previews. Previously bumped to 160 after a p95 outlier
-  // (+570px on a single rich article card), but follow-up telemetry showed
-  // typical cards measure ~80-100px, leaving every URL row over-reserved
-  // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 110: covers the common compact preview, lets the rare rich
-  // card take a small upward correction (much less perceptible than the
-  // current systematic downward drift).
-  // Follow-up telemetry showed url-preview rows over-reserving by ~29px
-  // (e.g. 201→172). Trim from 110 to 85.
-  url: 85,
+  // Generic URL previews. Latest telemetry shows typical compact previews
+  // measure ~150-200px (e.g. 200→174, 263→214, 228→192) — over-reserving by
+  // 25-49px at 85. Trim further to 60 to centre on the common case; the
+  // rare rich-article card (single +553 outlier) absorbs an upward
+  // correction.
+  url: 60,
 };
 
 /**
@@ -251,10 +247,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
   if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
-    // name wraps). Telemetry showed the previous 22/44 values produced a
-    // consistent +16px under-reservation on non-grouped rows.
-    height += authorChars > 24 ? 56 : 40;
+    // Latest telemetry: with-author rows were over-reserving by ~40px
+    // uniformly (155→114, 197→154, 218→174, 316→270). The previous 40/56
+    // double-counted padding that's already in the bubble chrome — the
+    // visible author label measures closer to ~16px (or ~28 when wrapped).
+    height += authorChars > 24 ? 28 : 16;
   }
 
   // ReplyIndicator measures ~44px for the common single-line quote. The
@@ -282,12 +279,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // ~19px per visual line — telemetry showed 20 was a touch hot on long
-    // messages (caused -44/-52/-76 over-estimates).
-    // Follow-up telemetry showed text rows systematically under-reserving by
-    // 28-60px across short and long bubbles. Bumping per-visual-line from
-    // 19→21 closes the long-bubble gap (282→405, 396→525) without overshoot.
-    height += Math.min(12, lineCount) * 21;
+    // ~19px per visual line. The earlier bump to 21 was compensating for an
+    // over-counted author header; with author trimmed to 16/28, 19 lands
+    // long-bubble math within ±10px (e.g. 6-line 218→194 vs measured 174).
+    height += Math.min(12, lineCount) * 19;
   } else if (!hasImage) {
     height += 32;
   }
