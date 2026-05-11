@@ -17,6 +17,7 @@ import {
 import {
   getChatPerfSnapshot,
   isChatPerfDiagEnabled,
+  clearChatPerfDiagnostics,
   type ChatPerfSnapshot,
 } from "@/lib/chatPerfDiagnostics";
 
