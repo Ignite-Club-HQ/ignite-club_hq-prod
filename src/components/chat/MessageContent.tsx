@@ -369,7 +369,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               resolve later. This is what keeps history scroll anchored
               while images above the viewport hydrate. */}
           <div
-            className="relative w-full aspect-[4/3] bg-muted/40"
+            className="relative w-full aspect-square bg-muted/40"
             style={{ contain: 'layout paint size', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
           >
             {(!imageLoaded || isLoadingSignedUrl) && (
