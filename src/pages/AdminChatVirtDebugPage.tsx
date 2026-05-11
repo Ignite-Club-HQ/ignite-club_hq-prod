@@ -266,6 +266,19 @@ export default function AdminChatVirtDebugPage() {
             >
               {perfEnabled ? "Disable & reload" : "Enable & reload"}
             </Button>
+            {perfEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearChatPerfDiagnostics();
+                  toast({ title: "Diagnostics cleared" });
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Clear
+              </Button>
+            )}
           </div>
           {perfSnapshot && perfEnabled ? (
             <>
