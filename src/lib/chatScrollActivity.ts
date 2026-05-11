@@ -92,6 +92,9 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
   ensureInstalled();
   if (!element || typeof ResizeObserver === "undefined") return () => {};
 
+  const viewport = findChatViewport(element);
+  if (!viewport || isVirtualizedChatViewport(viewport)) return () => {};
+
   let lastHeight = element.getBoundingClientRect().height;
   let adjusting = false;
 
@@ -104,17 +107,6 @@ export function observeChatElementHeight(element: HTMLElement | null): () => voi
     const delta = nextHeight - lastHeight;
     lastHeight = nextHeight;
     if (Math.abs(delta) < 0.75) return;
-
-    const viewport = findChatViewport(element);
-    if (!viewport) return;
-
-    // In virtualized chat, react-virtuoso is the sole owner of row measurement
-    // and scroll anchoring. Writing scrollTop from a per-row ResizeObserver is
-    // exactly what creates the Android "scroll stops, then messages move down"
-    // jolt: the correction lands just after native momentum settles, fighting
-    // Virtuoso's own padding/anchor reconciliation. Keep this legacy absorber
-    // only for non-virtual chat containers.
-    if (isVirtualizedChatViewport(viewport)) return;
 
     const elementRect = element.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();

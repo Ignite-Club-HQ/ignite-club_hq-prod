@@ -339,7 +339,7 @@ export function BottomNav() {
         />
       )}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg transition-transform duration-200 ease-out"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card transition-transform duration-200 ease-out"
         style={{
           paddingBottom: navBottomInset,
           transform: hideTransform,

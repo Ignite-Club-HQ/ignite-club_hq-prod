@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -55,6 +55,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -93,6 +94,11 @@ const getCachedBroadcastMessages = (): Message[] =>
   }));
 
 export default function BroadcastChatPage() {
+  // [chat-perf-diag] track mount/unmount lifetime
+  React.useEffect(() => {
+    const k = noteChatMount("Broadcast", null);
+    return () => noteChatUnmount("Broadcast", k, null);
+  }, []);
   const { user, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
@@ -769,9 +775,10 @@ export default function BroadcastChatPage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed("broadcast-messages-realtime");
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved("broadcast-messages-realtime");
     };
   }, [queryClient]);
 

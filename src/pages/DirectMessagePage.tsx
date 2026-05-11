@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -59,6 +59,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -175,6 +176,11 @@ const mergeDirectMessages = (
 };
 
 export default function DirectMessagePage() {
+  // [chat-perf-diag] track mount/unmount lifetime
+  React.useEffect(() => {
+    const k = noteChatMount("DirectMessage", null);
+    return () => noteChatUnmount("DirectMessage", k, null);
+  }, []);
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1213,9 +1219,10 @@ export default function DirectMessagePage() {
         }
       )
       .subscribe();
+    noteChannelSubscribed(`dm-${conversationId}`);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); noteChannelRemoved(`dm-${conversationId}`);
     };
   }, [conversationId, queryClient]);
 
@@ -1445,7 +1452,7 @@ export default function DirectMessagePage() {
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef} data-chat-chrome="true"
-             className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
+             className={`fixed left-0 right-0 border-t border-border/30 pt-1 pb-2 px-4 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
@@ -1458,7 +1465,7 @@ export default function DirectMessagePage() {
            <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef} data-chat-chrome="true"
-             className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 z-[51] ${searchOpen ? "hidden" : ""}`}
+             className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background z-[51] ${searchOpen ? "hidden" : ""}`}
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
              <TypingIndicator typingUsers={typingUsers} />
