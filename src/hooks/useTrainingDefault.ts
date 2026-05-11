@@ -16,6 +16,8 @@ export interface TrainingDefaultRow {
   team_id: string;
   child_id: string | null;
   user_id: string | null;
+  auto_paused_at: string | null;
+  auto_paused_reason: string | null;
 }
 
 /**
@@ -36,7 +38,7 @@ export function useTrainingDefault({ teamId, childId, userId }: Args) {
     queryFn: async (): Promise<TrainingDefaultRow | null> => {
       let q = supabase
         .from("child_training_defaults")
-        .select("id, default_status, team_id, child_id, user_id")
+        .select("id, default_status, team_id, child_id, user_id, auto_paused_at, auto_paused_reason")
         .eq("team_id", teamId!)
         .is("deleted_at", null);
       q = childId ? q.eq("child_id", childId) : q.eq("user_id", userId!);
@@ -55,7 +57,7 @@ export function useTrainingDefault({ teamId, childId, userId }: Args) {
       if (query.data) {
         const { error } = await supabase
           .from("child_training_defaults")
-          .update({ default_status: status, deleted_at: null })
+          .update({ default_status: status, deleted_at: null, auto_paused_at: null, auto_paused_reason: null })
           .eq("id", query.data.id);
         if (error) throw error;
       } else {
