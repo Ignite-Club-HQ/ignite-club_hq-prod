@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
+import { TrainingDefaultControl } from "@/components/event/TrainingDefaultControl";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -1070,6 +1071,7 @@ export default function EventDetailPage() {
           .update({
             status,
             notes: rsvpNotes || null,
+            source: "user",
           })
           .eq("id", myRsvp.id);
         if (error) throw error;
@@ -1080,6 +1082,7 @@ export default function EventDetailPage() {
           user_id: user!.id,
           status,
           notes: rsvpNotes || null,
+          source: "user",
         }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
@@ -1140,7 +1143,7 @@ export default function EventDetailPage() {
       if (existingRsvp) {
         const { error } = await supabase
           .from("rsvps")
-          .update({ status })
+          .update({ status, source: "user" })
           .eq("id", existingRsvp.id);
         if (error) throw error;
         rsvpId = existingRsvp.id;
@@ -1150,6 +1153,7 @@ export default function EventDetailPage() {
           user_id: user!.id,
           child_id: childId,
           status,
+          source: "user",
         }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
@@ -2547,7 +2551,17 @@ export default function EventDetailPage() {
 
       {/* RSVP Section */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+          {(myRsvp as any)?.source === "default" && (
+            <span
+              title="Auto-applied from your training default. Tap a button to confirm."
+              className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+            >
+              Auto
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
@@ -2562,6 +2576,15 @@ export default function EventDetailPage() {
             </Button>
           ))}
         </div>
+
+        {/* Training default RSVP for the parent themselves */}
+        <TrainingDefaultControl
+          teamId={event?.team_id ?? null}
+          userId={user?.id ?? null}
+          subjectName="You"
+          currentRsvpStatus={(myRsvp?.status as any) ?? null}
+          isTraining={event?.type === "training"}
+        />
         
         {/* Rich RSVP Options */}
         <Card className="border-dashed">
@@ -2698,9 +2721,19 @@ export default function EventDetailPage() {
                       )}
                     </div>
                     {childRsvp && (
-                      <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
-                        {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {(childRsvp as any).source === "default" && (
+                          <span
+                            title="Auto-applied from training default. Tap a button to confirm."
+                            className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+                          >
+                            Auto
+                          </span>
+                        )}
+                        <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                          {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                        </Badge>
+                      </div>
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -2715,9 +2748,16 @@ export default function EventDetailPage() {
                       >
                         <span>{icon}</span>
                         <span className="text-xs">{label}</span>
-                      </Button>
+                       </Button>
                     ))}
                   </div>
+                  <TrainingDefaultControl
+                    teamId={event?.team_id ?? null}
+                    childId={child.id}
+                    subjectName={child.name}
+                    currentRsvpStatus={(childRsvp?.status as any) ?? null}
+                    isTraining={event?.type === "training"}
+                  />
                 </div>
               );
             })}

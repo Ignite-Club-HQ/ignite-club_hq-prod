@@ -945,6 +945,57 @@ export type Database = {
           },
         ]
       }
+      child_training_defaults: {
+        Row: {
+          child_id: string | null
+          created_at: string
+          created_by: string
+          default_status: string
+          deleted_at: string | null
+          id: string
+          team_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          created_at?: string
+          created_by: string
+          default_status: string
+          deleted_at?: string | null
+          id?: string
+          team_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          created_at?: string
+          created_by?: string
+          default_status?: string
+          deleted_at?: string | null
+          id?: string
+          team_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_training_defaults_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_training_defaults_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       children: {
         Row: {
           created_at: string
@@ -6146,6 +6197,7 @@ export type Database = {
           id: string
           mini_league_player_id: string | null
           notes: string | null
+          source: string
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at: string
           user_id: string | null
@@ -6160,6 +6212,7 @@ export type Database = {
           id?: string
           mini_league_player_id?: string | null
           notes?: string | null
+          source?: string
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
           user_id?: string | null
@@ -6174,6 +6227,7 @@ export type Database = {
           id?: string
           mini_league_player_id?: string | null
           notes?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
           user_id?: string | null
