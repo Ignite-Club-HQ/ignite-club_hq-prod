@@ -262,10 +262,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // long wrapped quotes still take small upward corrections, which is
   // preferable to systematic downward drift.
   if (hasReply) height += 56;
-  // Image bubble: 295 was over-reserving by ~50px on the dominant case
-  // (Δ -30 to -57 across image rows). Drop to 245 — caption padding +
-  // bubble chrome only; aspect-ratio variance handles the rest.
-  if (hasImage) height += 245;
+  // Image bubble: 245 still slightly over on the dominant case (Δ -25 to
+  // -48 across captionless image rows). Drop to 225 — captioned/portrait
+  // images remain a +60 to +77 upward outlier the cache absorbs on revisit.
+  if (hasImage) height += 225;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
