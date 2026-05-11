@@ -353,6 +353,20 @@ export function noteChannelRemoved(topic: string): void {
   else state.liveChannels.set(topic, next);
   state.totalChannelsRemoved += 1;
   pushEvent(state, { t: Date.now(), kind: "channel-remove", topic });
+export function markChatPerfFreeze(note?: string): void {
+  const state = getOrInitState();
+  if (!state.enabled) return;
+  pushEvent(state, {
+    t: Date.now(),
+    kind: "freeze",
+    stallMs: 0,
+    activePages: Array.from(state.liveChatPages.entries())
+      .filter(([, c]) => c > 0)
+      .map(([name, c]) => `${name}:${c}`)
+      .join(",") || "none",
+    source: "manual",
+    note: note || "user-marked",
+  });
 }
 
 export function clearChatPerfDiagnostics(): void {
