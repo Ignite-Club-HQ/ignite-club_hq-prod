@@ -198,6 +198,12 @@ export default function AdminPage() {
               description="Tune the gallery-reminder window and per-author cooldown"
               onClick={() => navigate("/admin/chat-photo-reminders")}
             />
+            <AdminMenuItem
+              icon={Bug}
+              label="Chat Virt Debug"
+              description="Capture row-height drift and scroll jolts in any chat thread"
+              onClick={() => navigate("/admin/chat-virt-debug")}
+            />
           </CardContent>
         </Card>
       )}
