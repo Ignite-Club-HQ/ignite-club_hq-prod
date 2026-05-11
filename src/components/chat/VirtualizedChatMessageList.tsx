@@ -801,7 +801,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (revealTimer !== null) clearTimeout(revealTimer);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  });
+    // Intentionally narrow deps: this effect must NOT re-run on every
+    // parent render (Virtuoso paddingTop measurements cause many during
+    // the stabilisation window — re-running cancels in-flight rAFs and
+    // floods telemetry with redundant `jump("immediate")` calls). It only
+    // needs to fire when a new pin revision is requested or when the list
+    // transitions between empty / non-empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bottomPinRevision, messages.length === 0]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
