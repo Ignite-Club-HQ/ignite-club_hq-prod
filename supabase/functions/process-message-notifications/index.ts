@@ -381,47 +381,31 @@ Deno.serve(async (req) => {
     }
 
     // Handle reply notifications (single insert, skip_push=true, dispatch push individually)
-    if (replyToId) {
-      let originalAuthorId: string | null = null;
-      const table = messageType === 'team' ? 'team_messages'
-        : messageType === 'club' ? 'club_messages'
-        : messageType === 'group' ? 'group_messages'
-        : 'broadcast_messages';
-      
-      const { data: originalMsg } = await supabase
-        .from(table)
-        .select('author_id')
-        .eq('id', replyToId)
-        .maybeSingle();
-      
-      originalAuthorId = originalMsg?.author_id || null;
-      
-      if (originalAuthorId && originalAuthorId !== authorId) {
-        let isMuted = false;
-        if (muteChatId && muteChatType) {
-          const { data: muteCheck } = await supabase
-            .from('chat_mute_preferences')
-            .select('id')
-            .eq('user_id', originalAuthorId)
-            .eq('chat_id', muteChatId)
-            .eq('chat_type', muteChatType)
-            .or('muted_until.is.null,muted_until.gt.' + new Date().toISOString())
-            .maybeSingle();
-          isMuted = !!muteCheck;
-        }
+    if (replyToId && originalAuthorId && originalAuthorId !== authorId) {
+      let isMuted = false;
+      if (muteChatId && muteChatType) {
+        const { data: muteCheck } = await supabase
+          .from('chat_mute_preferences')
+          .select('id')
+          .eq('user_id', originalAuthorId)
+          .eq('chat_id', muteChatId)
+          .eq('chat_type', muteChatType)
+          .or('muted_until.is.null,muted_until.gt.' + new Date().toISOString())
+          .maybeSingle();
+        isMuted = !!muteCheck;
+      }
 
-        if (!isMuted) {
-          const { data: replyNotif } = await supabase.from('notifications').insert({
-            user_id: originalAuthorId,
-            type: 'message_reply',
-            message: `${senderName} replied to your message`,
-            related_id: messageId,
-            skip_push: true,
-          }).select('id').single();
+      if (!isMuted) {
+        const { data: replyNotif } = await supabase.from('notifications').insert({
+          user_id: originalAuthorId,
+          type: 'message_reply',
+          message: `${senderName} replied to your message`,
+          related_id: messageId,
+          skip_push: true,
+        }).select('id').single();
 
-          if (replyNotif) {
-            insertedNotificationIds.push({ userId: originalAuthorId, id: replyNotif.id });
-          }
+        if (replyNotif) {
+          insertedNotificationIds.push({ userId: originalAuthorId, id: replyNotif.id });
         }
       }
     }
