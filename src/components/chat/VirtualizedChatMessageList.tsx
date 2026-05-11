@@ -146,7 +146,9 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // Settle at 110: covers the common compact preview, lets the rare rich
   // card take a small upward correction (much less perceptible than the
   // current systematic downward drift).
-  url: 110,
+  // Follow-up telemetry showed url-preview rows over-reserving by ~29px
+  // (e.g. 201→172). Trim from 110 to 85.
+  url: 85,
 };
 
 /**
