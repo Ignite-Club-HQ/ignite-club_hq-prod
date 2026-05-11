@@ -267,17 +267,56 @@ export default function AdminChatVirtDebugPage() {
               {perfEnabled ? "Disable & reload" : "Enable & reload"}
             </Button>
             {perfEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  clearChatPerfDiagnostics();
-                  toast({ title: "Diagnostics cleared" });
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Clear
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    try {
+                      const snap = getChatPerfSnapshot();
+                      const payload = {
+                        exportedAt: new Date().toISOString(),
+                        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+                        url: typeof window !== "undefined" ? window.location.href : null,
+                        snapshot: snap,
+                      };
+                      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+                        type: "application/json",
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+                      a.href = url;
+                      a.download = `chat-perf-diag-${stamp}.json`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      toast({ title: "Diagnostics exported", description: a.download });
+                    } catch (e) {
+                      toast({
+                        title: "Export failed",
+                        description: String(e),
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Export JSON
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    clearChatPerfDiagnostics();
+                    toast({ title: "Diagnostics cleared" });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Clear
+                </Button>
+              </>
             )}
           </div>
           {perfSnapshot && perfEnabled ? (
