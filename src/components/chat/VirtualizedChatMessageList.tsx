@@ -165,10 +165,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
   if (!isOwnMessage) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 44 : 22;
+    height += authorChars > 24 ? 46 : 24;
   }
 
-  if (hasReply) height += 38;
+  // ReplyIndicator renders min-h-[42px] + p-2 + mb-1 ≈ 46px when reserved.
+  if (hasReply) height += 46;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Slightly over-reserving keeps the row from
   // shrinking after image decode.
@@ -190,9 +191,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
     // Cap at 12 lines (over-reserve rather than collapse on long messages).
-    height += Math.min(12, lineCount) * 20 + 18;
+    // Bumped per-line padding from 18→26 — telemetry showed text bubbles
+    // consistently measured +30..+44px taller than estimated.
+    height += Math.min(12, lineCount) * 20 + 26;
   } else if (!hasImage) {
-    height += 42;
+    height += 48;
   }
 
   // Inline preview cards. Match each token type separately so per-type
