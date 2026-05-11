@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -81,6 +81,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 
 
 
@@ -182,6 +183,13 @@ const getCachedGroupMessages = (groupId: string) => {
 };
 
 export default function GroupChatPage() {
+  // [chat-perf-diag] track mount/unmount lifetime per thread
+  const __chatPerfNameRef = "GroupChat";
+  const __chatPerfId = groupId;
+  React.useEffect(() => {
+    const k = noteChatMount(__chatPerfNameRef, __chatPerfId ?? null);
+    return () => noteChatUnmount(__chatPerfNameRef, k, __chatPerfId ?? null);
+  }, [__chatPerfId]);
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
