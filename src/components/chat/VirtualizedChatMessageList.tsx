@@ -228,7 +228,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 36);
+  if (msg.is_system_message) return Math.max(52, height + 120);
 
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
