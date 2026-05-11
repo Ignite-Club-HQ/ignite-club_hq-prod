@@ -129,8 +129,7 @@ export function TrainingDefaultControl({
           className="p-1 text-muted-foreground hover:text-foreground touch-manipulation"
           onClick={() => {
             dismiss(dismissKey);
-            // force re-render via toast; the parent re-reads on next render naturally
-            toast({ title: "No default set", description: "We'll ask you each time." });
+            setLocallyDismissed(true);
           }}
         >
           <X className="h-3 w-3" />
