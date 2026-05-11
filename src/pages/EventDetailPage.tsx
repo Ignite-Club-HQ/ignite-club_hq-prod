@@ -2721,9 +2721,19 @@ export default function EventDetailPage() {
                       )}
                     </div>
                     {childRsvp && (
-                      <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
-                        {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {(childRsvp as any).source === "default" && (
+                          <span
+                            title="Auto-applied from training default. Tap a button to confirm."
+                            className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+                          >
+                            Auto
+                          </span>
+                        )}
+                        <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                          {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                        </Badge>
+                      </div>
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
