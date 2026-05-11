@@ -57,6 +57,8 @@ export default function AdminChatVirtDebugPage() {
   const [filterBigOnly, setFilterBigOnly] = useState(true);
   const [events, setEvents] = useState<DebugEvent[]>(() => readBuffer().slice());
   const [summary, setSummary] = useState<MeasurementSummary | null>(null);
+  const [perfSnapshot, setPerfSnapshot] = useState<ChatPerfSnapshot | null>(() => getChatPerfSnapshot());
+  const perfEnabled = isChatPerfDiagEnabled();
   const [copied, setCopied] = useState(false);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -67,6 +69,7 @@ export default function AdminChatVirtDebugPage() {
     intervalRef.current = setInterval(() => {
       setEvents(readBuffer().slice());
       setSummary(getMeasurementSummary());
+      setPerfSnapshot(getChatPerfSnapshot());
     }, 500);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
