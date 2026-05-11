@@ -234,11 +234,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp / edited / read-receipt row + bubble vertical padding.
-  // Telemetry showed rows were consistently over-reserved by ~30px when the
-  // previous +22 timestamp row was combined with +18 text padding above —
-  // both are now folded into this single ~10px reservation.
-  height += 10;
+  // Timestamp row + bubble vertical padding (py-2 top/bot ~16px) + row gap.
+  // Telemetry consistently showed +28px under-reservation across every basic
+  // text bubble — the previous 10px collapsed too much when the timestamp
+  // row, edited indicator and bubble chrome were added back.
+  height += 28;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
