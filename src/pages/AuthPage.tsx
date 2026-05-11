@@ -395,9 +395,14 @@ export default function AuthPage() {
       } else if (message.includes("Email not confirmed")) {
         title = "Email not verified";
         message = "Please check your inbox and verify your email.";
-      } else if (message.includes("Network") || message.includes("fetch")) {
+      } else if (
+        message.includes("Network") ||
+        message.includes("fetch") ||
+        /load failed/i.test(message) ||
+        /timed? out/i.test(message)
+      ) {
         title = "Connection issue";
-        message = "Please check your internet connection and try again.";
+        message = "We couldn't reach the server. Check your connection and try again.";
       } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
         title = "Password not accepted";
         message = "This password is too common or has appeared in data breaches. Please choose a more unique password (e.g. add symbols or a random word).";

@@ -1,7 +1,22 @@
-// Cache for messages page list data - enables instant loading for returning users
+// Cache for messages page list data - enables instant loading for returning users.
+//
+// IMPORTANT (Android WebView freeze fix):
+// Writes used to be synchronous on every dep change in MessagesPage's caching
+// useEffect — which fires many times in a burst as each react-query refetch
+// resolves (refetchInterval=30s + realtime + post-chat-unmount refetch). Each
+// write did JSON.parse(localStorage) → merge → JSON.stringify → setItem. With
+// power users (many teams/clubs/groups) the blob is 100-500KB and that I/O
+// blocks the main thread for hundreds of ms per write. A burst of 5+ writes
+// after returning from a chat freezes the WebView for >20s.
+//
+// Now: in-memory mirror is the source of truth for merges; disk writes are
+// debounced (1500ms) and scheduled via requestIdleCallback so they never sit
+// on the navigation/render critical path.
 
 const CACHE_KEY = 'messages-page-cache';
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const FLUSH_DEBOUNCE_MS = 1500;
+const IDLE_TIMEOUT_MS = 3000;
 
 interface CachedTeam {
   id: string;
@@ -66,42 +81,87 @@ interface LatestMessage {
   image_url?: string | null;
 }
 
-export function getCachedMessagesPageData(userId: string): Omit<MessagesPageCache, 'userId' | 'timestamp'> | null {
+// In-memory mirror of the on-disk cache. Single read on first access; all
+// subsequent merges read from here instead of re-parsing localStorage.
+let memCache: MessagesPageCache | null = null;
+let memCacheLoaded = false;
+
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushIdleHandle: number | null = null;
+let pendingFlush = false;
+
+function safeLoadFromDisk(): MessagesPageCache | null {
   try {
-    // Check if localStorage is available (Safari private mode blocks it)
     if (typeof localStorage === 'undefined') return null;
-    
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
-    
     const data: MessagesPageCache = JSON.parse(cached);
-    
-    // Check if cache belongs to current user
-    if (data.userId !== userId) return null;
-    
-    // Check if cache is expired
     if (Date.now() - data.timestamp > CACHE_EXPIRY_MS) {
-      try {
-        localStorage.removeItem(CACHE_KEY);
-      } catch {}
+      try { localStorage.removeItem(CACHE_KEY); } catch {}
       return null;
     }
-    
-    return {
-      teams: data.teams || [],
-      memberClubs: data.memberClubs || [],
-      adminClubs: data.adminClubs || [],
-      chatGroups: data.chatGroups || [],
-      dmConversations: data.dmConversations || [],
-      latestBroadcast: data.latestBroadcast || null,
-      latestTeamMessages: data.latestTeamMessages || {},
-      latestClubMessages: data.latestClubMessages || {},
-      latestGroupMessages: data.latestGroupMessages || {},
-      latestDMMessages: data.latestDMMessages || {},
-    };
+    return data;
   } catch {
     return null;
   }
+}
+
+function ensureMemCache(): void {
+  if (memCacheLoaded) return;
+  memCacheLoaded = true;
+  memCache = safeLoadFromDisk();
+}
+
+export function getCachedMessagesPageData(userId: string): Omit<MessagesPageCache, 'userId' | 'timestamp'> | null {
+  ensureMemCache();
+  if (!memCache || memCache.userId !== userId) return null;
+  return {
+    teams: memCache.teams || [],
+    memberClubs: memCache.memberClubs || [],
+    adminClubs: memCache.adminClubs || [],
+    chatGroups: memCache.chatGroups || [],
+    dmConversations: memCache.dmConversations || [],
+    latestBroadcast: memCache.latestBroadcast || null,
+    latestTeamMessages: memCache.latestTeamMessages || {},
+    latestClubMessages: memCache.latestClubMessages || {},
+    latestGroupMessages: memCache.latestGroupMessages || {},
+    latestDMMessages: memCache.latestDMMessages || {},
+  };
+}
+
+function writeToDiskNow(): void {
+  pendingFlush = false;
+  if (!memCache) return;
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const jsonData = JSON.stringify(memCache);
+    try {
+      localStorage.setItem(CACHE_KEY, jsonData);
+    } catch {
+      clearOldCaches();
+      try { localStorage.setItem(CACHE_KEY, jsonData); } catch { /* skip */ }
+    }
+  } catch {
+    /* caching is best-effort */
+  }
+}
+
+function scheduleFlush(): void {
+  if (pendingFlush) return;
+  pendingFlush = true;
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    // Run the actual stringify + setItem in idle time so it never lands
+    // on the user's interaction or navigation frame.
+    const ric = (typeof window !== 'undefined' && (window as any).requestIdleCallback) as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    if (ric) {
+      flushIdleHandle = ric(() => { flushIdleHandle = null; writeToDiskNow(); }, { timeout: IDLE_TIMEOUT_MS });
+    } else {
+      // Fallback: still off the immediate render frame.
+      setTimeout(writeToDiskNow, 0);
+    }
+  }, FLUSH_DEBOUNCE_MS);
 }
 
 export function cacheMessagesPageData(
@@ -120,13 +180,11 @@ export function cacheMessagesPageData(
   }
 ): void {
   try {
-    // Check if localStorage is available (Safari private mode blocks it)
-    if (typeof localStorage === 'undefined') return;
-    
-    // Get existing cache or create new
-    const existing = getCachedMessagesPageData(userId);
-    
-    const cacheData: MessagesPageCache = {
+    ensureMemCache();
+    const existing: MessagesPageCache | null =
+      memCache && memCache.userId === userId ? memCache : null;
+
+    memCache = {
       userId,
       timestamp: Date.now(),
       teams: data.teams ?? existing?.teams ?? [],
@@ -140,23 +198,10 @@ export function cacheMessagesPageData(
       latestGroupMessages: data.latestGroupMessages ?? existing?.latestGroupMessages ?? {},
       latestDMMessages: data.latestDMMessages ?? existing?.latestDMMessages ?? {},
     };
-    
-    const jsonData = JSON.stringify(cacheData);
-    
-    try {
-      localStorage.setItem(CACHE_KEY, jsonData);
-    } catch (quotaError) {
-      // Quota exceeded - try to clear old caches and retry
-      clearOldCaches();
-      try {
-        localStorage.setItem(CACHE_KEY, jsonData);
-      } catch {
-        // Still failing - just skip caching silently
-      }
-    }
+
+    scheduleFlush();
   } catch (e) {
-    // Handle any other errors silently - caching is not critical
-    console.debug('Failed to cache messages page data:', e);
+    console.debug('Failed to update messages page cache:', e);
   }
 }
 
@@ -164,31 +209,30 @@ export function cacheMessagesPageData(
 function clearOldCaches(): void {
   try {
     const keysToRemove: string[] = [];
-    
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith('ignite_message_cache_') || 
+      if (key?.startsWith('ignite_message_cache_') ||
           key?.startsWith('ignite_photos_cache') ||
           key?.startsWith('ignite_folders_cache')) {
         keysToRemove.push(key);
       }
     }
-    
-    // Remove oldest caches first
     keysToRemove.forEach(key => {
-      try {
-        localStorage.removeItem(key);
-      } catch {}
+      try { localStorage.removeItem(key); } catch {}
     });
-  } catch {
-    // Ignore errors
-  }
+  } catch { /* ignore */ }
 }
 
 export function clearMessagesPageCache(): void {
+  memCache = null;
+  memCacheLoaded = true;
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  if (flushIdleHandle != null && typeof window !== 'undefined' && (window as any).cancelIdleCallback) {
+    try { (window as any).cancelIdleCallback(flushIdleHandle); } catch {}
+    flushIdleHandle = null;
+  }
+  pendingFlush = false;
   try {
     localStorage.removeItem(CACHE_KEY);
-  } catch {
-    // Ignore errors
-  }
+  } catch { /* ignore */ }
 }

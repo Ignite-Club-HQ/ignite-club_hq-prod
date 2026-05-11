@@ -494,6 +494,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[Auth] Session restored:', event, isNative ? '(native app)' : '(web)');
           setIsFreshLogin(false);
           handleSession(currentSession, event === 'INITIAL_SESSION', false);
+
+          if (event === 'TOKEN_REFRESHED') {
+            // Push the fresh JWT into the realtime websocket so subscriptions
+            // opened before the refresh don't keep authenticating with a stale
+            // token (root cause of chat channels losing access mid-session).
+            try { (supabase.realtime as any)?.setAuth?.(currentSession.access_token); } catch { /* noop */ }
+            // Re-run only the queries that historically silently failed under
+            // a stale token (Pro gate + events). A blanket
+            // refetchQueries({ type: 'active' }) here causes a refetch storm
+            // on Android mid-navigation and can stall the WebView. The global
+            // 401 fetch interceptor (supabaseAuthRetry) already heals other
+            // in-flight requests on the same refresh.
+            try {
+              queryClient.invalidateQueries({ queryKey: ['has-pro-access'] });
+              queryClient.invalidateQueries({ queryKey: ['events'] });
+            } catch { /* noop */ }
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
           // Clear ALL cached query data - prevents stale data from being served
@@ -695,9 +712,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }
 
+    // Foreground heartbeat: every 4 minutes while the page is visible, check
+    // session expiry and refresh proactively. Long focused sessions (e.g.
+    // chatting for 30+ min on iOS) otherwise rely solely on supabase-js's
+    // internal timer, which can be throttled in WKWebView and iframed previews.
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      supabase.auth.getSession().then(({ data }) => {
+        const session = data.session;
+        if (!session) return;
+        const expiresAt = session.expires_at ?? 0;
+        const nowSec = Math.floor(Date.now() / 1000);
+        // Refresh when <2 min remaining.
+        if (expiresAt - nowSec < 120) {
+          supabase.auth.refreshSession().catch(() => { /* ignore — recovery path will pick up */ });
+        }
+      }).catch(() => {});
+    }, 4 * 60 * 1000);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       resumeListener?.remove().catch(() => {});
+      window.clearInterval(heartbeat);
     };
   }, [queryClient]);
 

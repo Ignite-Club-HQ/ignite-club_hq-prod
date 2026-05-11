@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
@@ -236,6 +237,11 @@ export default function EventsPage() {
   const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
+      // Proactively refresh JWT if it's near expiry — prevents an expired
+      // token from making user_roles return null and silently emptying the
+      // schedule.
+      try { await ensureFreshSession(); } catch { /* offline or signed out — let queries surface real errors */ }
+
       const overall = performance.now();
       diagLog("memberships:start");
       let step = performance.now();
@@ -245,6 +251,9 @@ export default function EventsPage() {
         .eq("user_id", user!.id);
       diagLog("memberships:user_roles", { ms: Math.round(performance.now() - step), rolesCount: roles?.length ?? null, error: rolesErr?.message });
 
+      // Surface auth/network errors so react-query retries instead of silently
+      // returning empty memberships (which made the schedule appear empty).
+      if (rolesErr) throw rolesErr;
       if (!roles) {
         diagLog("memberships:end-no-roles", { totalMs: Math.round(performance.now() - overall) });
         return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
@@ -272,19 +281,22 @@ export default function EventsPage() {
       
       // Add teams via children (primary parents and guardians)
       step = performance.now();
-      const [{ data: guardianRows }, { data: ownChildren }] = await Promise.all([
+      const [guardianRes, ownChildrenRes] = await Promise.all([
         supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
         supabase.from("children").select("id").eq("parent_id", user!.id),
       ]);
+      if (guardianRes.error) throw guardianRes.error;
+      if (ownChildrenRes.error) throw ownChildrenRes.error;
       const childIds = Array.from(new Set([
-        ...(guardianRows || []).map((g: any) => g.child_id).filter(Boolean),
-        ...(ownChildren || []).map((c: any) => c.id).filter(Boolean),
+        ...(guardianRes.data || []).map((g: any) => g.child_id).filter(Boolean),
+        ...(ownChildrenRes.data || []).map((c: any) => c.id).filter(Boolean),
       ]));
       if (childIds.length > 0) {
-        const { data: childTeams } = await supabase
+        const { data: childTeams, error: childTeamsErr } = await supabase
           .from("child_team_assignments")
           .select("team_id")
           .in("child_id", childIds);
+        if (childTeamsErr) throw childTeamsErr;
         (childTeams || []).forEach((ct: any) => {
           if (ct.team_id && !teamIds.includes(ct.team_id)) teamIds.push(ct.team_id);
         });
@@ -299,6 +311,7 @@ export default function EventsPage() {
           .select("club_id")
           .in("id", teamIds);
         diagLog("memberships:teams-lookup", { ms: Math.round(performance.now() - step), teamCount: teams?.length ?? null, error: teamsErr?.message });
+        if (teamsErr) throw teamsErr;
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
@@ -309,6 +322,7 @@ export default function EventsPage() {
         .select("mini_league_id")
         .eq("parent_user_id", user!.id);
       diagLog("memberships:mini_league_players", { ms: Math.round(performance.now() - step), count: playerLeagues?.length ?? null, error: pLeaguesErr?.message });
+      if (pLeaguesErr) throw pLeaguesErr;
       
       const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
       
@@ -319,6 +333,7 @@ export default function EventsPage() {
         .select("id")
         .in("club_id", Array.from(leagueAdminClubIds));
       diagLog("memberships:mini_leagues-admin", { ms: Math.round(performance.now() - step), count: adminLeagues?.length ?? null, error: adminLeaguesErr?.message });
+      if (adminLeaguesErr) throw adminLeaguesErr;
       
       // Add leagues where user is admin
       adminLeagues?.forEach(l => {
@@ -338,6 +353,8 @@ export default function EventsPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
   const eventsScopeKey = useMemo(

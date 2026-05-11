@@ -70,6 +70,16 @@ function readEnabledFlag(): boolean {
       return true;
     }
     if (window.localStorage.getItem("ff:chat-perf-diag") === "1") return true;
+    // Auto-enable on Capacitor native builds so the watchdog captures
+    // freezes without requiring users to flip a flag first. Cheap to run:
+    // a few Map updates per channel/mount + a paused RAF tick.
+    const isCapacitorNative =
+      !!(window as any).Capacitor?.isNativePlatform?.() ||
+      /Capacitor/i.test(navigator.userAgent || "");
+    if (isCapacitorNative) {
+      try { window.localStorage.setItem("ff:chat-perf-diag", "1"); } catch {}
+      return true;
+    }
   } catch {}
   return false;
 }

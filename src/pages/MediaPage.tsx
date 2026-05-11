@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -290,8 +291,9 @@ export default function MediaPage() {
   // Quick Pro check - check if user has any Pro club/team membership
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
-    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(","), activeClubFilter ?? ""],
+    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(",")],
     queryFn: async () => {
+      try { await ensureFreshSession(); } catch { /* offline / signed out — let queries surface real errors */ }
       const overall = performance.now();
       diagLog("hasProClub:start", { roleClubIds: roleClubIds.length, roleTeamIds: roleTeamIds.length, activeClubFilter });
       const candidateClubIds = activeClubFilter
@@ -382,6 +384,8 @@ export default function MediaPage() {
     enabled: !!user,
     staleTime: 300000,
     gcTime: 300000,
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
 
