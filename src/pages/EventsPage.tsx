@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
