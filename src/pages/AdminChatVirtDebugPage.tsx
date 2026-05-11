@@ -310,6 +310,17 @@ export default function AdminChatVirtDebugPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    markChatPerfFreeze("user-marked");
+                    setPerfSnapshot(getChatPerfSnapshot());
+                    toast({ title: "Freeze marked", description: "Stamped into event log" });
+                  }}
+                >
+                  Mark freeze now
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
                     clearChatPerfDiagnostics();
                     toast({ title: "Diagnostics cleared" });
                   }}
