@@ -307,13 +307,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding. Latest telemetry showed an
-  // almost-perfect -27px systematic over-estimate across every text bubble
-  // (103→74, 122→94, 141→114, 160→134, 179→154, 197→170, 216→190 — all
-  // Δ -25 to -29). The previous 28 double-counted what's already inside
-  // the per-line 19 + author header constants. Drop to 2 (just the bubble
-  // bottom padding) — closes the dominant downward-drift bias.
-  height += 2;
+  // Timestamp row + bubble vertical padding. The previous 2 over-corrected
+  // — fresh telemetry showed every plain text bubble systematically under
+  // by +27 to +44 (56→94, 65→92, 75→114, 84→112, 103→132). 30 restores
+  // the real timestamp + bubble bottom padding without double-counting
+  // per-line height.
+  height += 30;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
