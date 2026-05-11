@@ -228,6 +228,7 @@ const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & 
       ref={scrollerRef}
       data-chat-scroll-lock="true"
       data-chat-virtualized="true"
+      className={`${(props as any).className ?? ""} scrollbar-hide`}
       style={{
         ...style,
         overscrollBehaviorY: "contain",
