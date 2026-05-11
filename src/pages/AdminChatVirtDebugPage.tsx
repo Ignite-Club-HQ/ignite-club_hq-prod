@@ -18,6 +18,7 @@ import {
   getChatPerfSnapshot,
   isChatPerfDiagEnabled,
   clearChatPerfDiagnostics,
+  markChatPerfFreeze,
   type ChatPerfSnapshot,
 } from "@/lib/chatPerfDiagnostics";
 
