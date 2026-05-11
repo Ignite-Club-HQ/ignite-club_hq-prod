@@ -157,6 +157,7 @@ export function invalidateCachedRowHeight(id: string | null | undefined) {
 
 export function clearChatRowHeightCache() {
   cache.clear();
+  sigs.clear();
   const ss = safeSessionStorage();
   if (ss) {
     try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
