@@ -741,7 +741,7 @@ export function MentionInput({
 
       {showSuggestions && users && users.length > 0 && (
         <div
-          className="absolute bottom-full left-1 mb-2 z-50 w-fit min-w-[200px] max-w-[min(320px,calc(100%-0.5rem))] rounded-2xl border border-border/40 bg-popover/85 backdrop-blur-xl shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)] dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.7)] overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
+          className="absolute bottom-full left-1 mb-2 z-50 w-fit min-w-[200px] max-w-[min(320px,calc(100%-0.5rem))] rounded-2xl border border-border/40 bg-popover shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)] dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.7)] overflow-hidden animate-in fade-in slide-in-from-bottom-1 duration-150"
           onClick={(e) => e.stopPropagation()}
           role="listbox"
           aria-label="Mention suggestions"
