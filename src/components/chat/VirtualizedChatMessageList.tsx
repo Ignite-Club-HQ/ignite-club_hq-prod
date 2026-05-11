@@ -21,6 +21,10 @@ import {
   debugTrackRender,
   isChatVirtDebugEnabled,
 } from "./chatVirtDebug";
+import {
+  getCachedRowHeight,
+  setCachedRowHeight,
+} from "./chatRowHeightCache";
 
 /**
  * Virtualised chat message list.
