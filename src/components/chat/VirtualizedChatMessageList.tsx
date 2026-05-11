@@ -934,14 +934,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const startedAt = performance.now();
     const STAY_PINNED_MS = 1500;
     let lastScrollHeight = viewport.scrollHeight;
+    let pendingFrame: number | null = null;
 
     const repinIfAtBottom = () => {
+      pendingFrame = null;
       if (cancelled) return;
       // Stop once the user has actively scrolled away from the bottom.
       if (userHasScrolledAfterPinRef.current && !atBottomRef.current) return;
       if (!atBottomRef.current) return;
       const sh = viewport.scrollHeight;
-      if (sh === lastScrollHeight) return;
+      // Bail on sub-pixel / tiny noise so the RO→scroll→RO feedback loop
+      // dies quickly. On Android WebView this is the difference between a
+      // ~1.5 s main-thread freeze on first open and a clean reveal.
+      if (Math.abs(sh - lastScrollHeight) < 4) return;
       lastScrollHeight = sh;
       virtuosoRef.current?.scrollToIndex({
         index: "LAST",
@@ -952,7 +957,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     const ro = new ResizeObserver(() => {
       if (cancelled) return;
-      repinIfAtBottom();
+      // Coalesce: at most one re-pin per animation frame, regardless of how
+      // many ResizeObserver callbacks fire (image decode, link preview
+      // hydrate, reaction land, padding reflow can all fire in the same
+      // tick). Without this, every RO callback wrote scrollTop synchronously
+      // and re-triggered itself.
+      if (pendingFrame === null) {
+        pendingFrame = requestAnimationFrame(repinIfAtBottom);
+      }
       if (performance.now() - startedAt > STAY_PINNED_MS) {
         cancelled = true;
         ro.disconnect();
@@ -963,12 +975,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const stopTimer = window.setTimeout(() => {
       cancelled = true;
       ro.disconnect();
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
     }, STAY_PINNED_MS + 50);
 
     return () => {
       cancelled = true;
       ro.disconnect();
       window.clearTimeout(stopTimer);
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     };
   }, [initialRevealReady, bottomPinRevision]);
 
