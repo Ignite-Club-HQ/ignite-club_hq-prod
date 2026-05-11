@@ -439,3 +439,39 @@ export function debugAttachScrollerWatcher(element: HTMLElement | Window | null)
     },
   });
 }
+
+// ─── row classification ───────────────────────────────────────────────────
+type ClassifiableMessage = {
+  text?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  reply_to?: unknown;
+  reply_to_id?: string | null;
+  is_system_message?: boolean | null;
+};
+
+/**
+ * Bucket a message into one of the `ChatRowType` categories used by the
+ * measurement summary. Mirrors the structural branches in
+ * `estimateChatRowHeight` so per-bucket drift maps to a single estimator
+ * branch (easier to tune from the JSON output).
+ */
+export function classifyChatRow(message: ClassifiableMessage): ChatRowType {
+  if (message?.is_system_message) return "system";
+  const hasImage = !!(message?.image_url || message?.imageUrl);
+  const hasReply = !!(message?.reply_to || message?.reply_to_id);
+  const text = (message?.text ?? "").trim();
+  if (hasImage) return hasReply ? "image+reply" : "image";
+
+  // Token-driven preview cards take precedence over generic URL preview.
+  const tokenMatch = /\[(event|poll|board|vault|vaultfolder|vaultroot|gallery):/i.exec(text);
+  if (tokenMatch) {
+    const k = tokenMatch[1].toLowerCase();
+    if (k === "vaultfolder" || k === "vaultroot") return "vault";
+    return (k as ChatRowType) ?? "text";
+  }
+  if (/https?:\/\/|www\./i.test(text)) return "url-preview";
+  if (hasReply) return "text+reply";
+  if (!text) return "text-empty";
+  return "text";
+}
