@@ -146,7 +146,9 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // Settle at 110: covers the common compact preview, lets the rare rich
   // card take a small upward correction (much less perceptible than the
   // current systematic downward drift).
-  url: 110,
+  // Follow-up telemetry showed url-preview rows over-reserving by ~29px
+  // (e.g. 201→172). Trim from 110 to 85.
+  url: 85,
 };
 
 /**
@@ -226,7 +228,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     if (!previousDay || previousDay !== currentDay) height += 56;
   }
 
-  if (msg.is_system_message) return Math.max(52, height + 36);
+  if (msg.is_system_message) return Math.max(52, height + 120);
 
   const text = (msg.text || "").trim();
   const hasImage = !!(msg.image_url || msg.imageUrl);
@@ -263,7 +265,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
-  if (hasImage) height += 295;
+  // Follow-up telemetry showed image rows over-reserving by 38-78px
+  // (e.g. 367→329, 407→329). Trim from 295 to 257.
+  if (hasImage) height += 257;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -280,7 +284,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     }
     // ~19px per visual line — telemetry showed 20 was a touch hot on long
     // messages (caused -44/-52/-76 over-estimates).
-    height += Math.min(12, lineCount) * 19;
+    // Follow-up telemetry showed text rows systematically under-reserving by
+    // 28-60px across short and long bubbles. Bumping per-visual-line from
+    // 19→21 closes the long-bubble gap (282→405, 396→525) without overshoot.
+    height += Math.min(12, lineCount) * 21;
   } else if (!hasImage) {
     height += 32;
   }
@@ -306,10 +313,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
   // Timestamp row + bubble vertical padding (py-2 top/bot ~16px) + row gap.
-  // Telemetry consistently showed +28px under-reservation across every basic
-  // text bubble — the previous 10px collapsed too much when the timestamp
-  // row, edited indicator and bubble chrome were added back.
-  height += 28;
+  // Follow-up telemetry showed short text bubbles still under-reserving by
+  // ~28-38px (63→91, 91→129, 103→131). Bumping fixed chrome from 28→36.
+  height += 36;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
