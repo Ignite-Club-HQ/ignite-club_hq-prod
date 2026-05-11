@@ -142,6 +142,54 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   url: 100,
 };
 
+/**
+ * Compute a compact signature of every message field that affects rendered
+ * row height. Used as a versioning key on the row-height cache so that an
+ * edit, a reaction add/remove, a link-preview hydration, or any other
+ * layout-affecting mutation immediately invalidates the cached measurement
+ * — even for rows that were unmounted (off-screen) when the change landed.
+ *
+ * Cheap to compute (called per-row on every estimator invocation): no JSON
+ * serialisation of large objects, just primitive concatenation.
+ */
+function chatRowSignature(message: unknown): string {
+  const m = (message ?? {}) as {
+    text?: string | null;
+    image_url?: string | null;
+    imageUrl?: string | null;
+    edited_at?: string | null;
+    is_edited?: boolean | null;
+    reply_to?: { id?: string } | null;
+    reply_to_id?: string | null;
+    reactions?: Array<{ emoji?: string; user_id?: string } | unknown> | null;
+    link_preview?: unknown;
+    link_previews?: unknown;
+    preview?: unknown;
+  };
+  const text = (m.text ?? "");
+  const img = m.image_url ?? m.imageUrl ?? "";
+  const edited = m.edited_at ?? (m.is_edited ? "1" : "");
+  const replyId =
+    (m.reply_to && typeof m.reply_to === "object" && (m.reply_to as { id?: string }).id) ||
+    m.reply_to_id ||
+    "";
+  // Reactions: count + total emoji-string length is a stable fingerprint
+  // of the reaction set without serialising user ids.
+  let rxCount = 0;
+  let rxEmojiLen = 0;
+  if (Array.isArray(m.reactions)) {
+    rxCount = m.reactions.length;
+    for (const r of m.reactions) {
+      const e = (r as { emoji?: string })?.emoji;
+      if (typeof e === "string") rxEmojiLen += e.length;
+    }
+  }
+  // Link-preview hydration: just the presence/shape, not the payload.
+  const hasPreview =
+    (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
+  return `${text.length}:${text.slice(0, 64)}|${img.length}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+}
+
 function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
   index: number,
@@ -150,7 +198,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 ) {
   // Prefer the real measured height from the previous mount of this row.
   // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
-  const cached = getCachedRowHeight(message.id);
+  // Pass a content signature so an edit / reaction change / preview hydrate
+  // that happened while this row was unmounted invalidates the stale value.
+  const cached = getCachedRowHeight(message.id, chatRowSignature(message));
   if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
@@ -343,18 +393,25 @@ function DebugRowProbe({
  */
 function CachedMeasureRow({
   messageId,
+  signature,
   children,
 }: {
   messageId: string;
+  signature: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest signature in a ref so the ResizeObserver callback always
+  // writes the freshest version alongside the measured height (without
+  // re-subscribing the observer on every signature change).
+  const sigRef = useRef(signature);
+  sigRef.current = signature;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const write = () => {
       const h = el.offsetHeight;
-      if (h > 0) setCachedRowHeight(messageId, h);
+      if (h > 0) setCachedRowHeight(messageId, h, sigRef.current);
     };
     write();
     if (typeof ResizeObserver === "undefined") return;
@@ -362,6 +419,15 @@ function CachedMeasureRow({
     ro.observe(el);
     return () => ro.disconnect();
   }, [messageId]);
+  // Re-write the cached height whenever the signature changes (edit, reaction,
+  // preview hydrate) — content height may shift before the ResizeObserver
+  // fires, so capture it eagerly.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    if (h > 0) setCachedRowHeight(messageId, h, signature);
+  }, [messageId, signature]);
   return (
     <div ref={ref} data-row-id={messageId}>
       {children}
@@ -405,13 +471,14 @@ const ChatRowAdapter = memo(
     const idx = indexByIdRef.current.get(message.id);
     if (idx === undefined) return null;
     const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
+    const signature = chatRowSignature(message);
     const debug = isChatVirtDebugEnabled();
     const estimated =
       debug && idx >= 0
         ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
         : undefined;
     const measured = (
-      <CachedMeasureRow messageId={message.id}>{child}</CachedMeasureRow>
+      <CachedMeasureRow messageId={message.id} signature={signature}>{child}</CachedMeasureRow>
     );
     if (estimated === undefined) return measured;
     const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);

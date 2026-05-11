@@ -28,6 +28,7 @@ const STORAGE_KEY = "chat:rowHeightCache:v1";
 const PERSIST_DEBOUNCE_MS = 400;
 
 const cache = new Map<string, number>();
+const sigs = new Map<string, string>();
 let dirty = false;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let restored = false;
@@ -90,10 +91,26 @@ function schedulePersist() {
 // call after a refresh already sees prior heights.
 restoreFromStorage();
 
-export function getCachedRowHeight(id: string | null | undefined): number | undefined {
+export function getCachedRowHeight(
+  id: string | null | undefined,
+  signature?: string,
+): number | undefined {
   if (!id) return undefined;
   const v = cache.get(id);
   if (v === undefined) return undefined;
+  // Signature mismatch → message content changed since last measurement
+  // (edit, reactions changed, link-preview hydrated). Treat as a miss so
+  // estimateChatRowHeight falls back to a fresh estimate instead of returning
+  // a stale measured height.
+  if (signature !== undefined) {
+    const prevSig = sigs.get(id);
+    if (prevSig !== undefined && prevSig !== signature) {
+      cache.delete(id);
+      sigs.delete(id);
+      schedulePersist();
+      return undefined;
+    }
+  }
   // Touch for LRU: re-insert moves the entry to the most-recent position in
   // Map iteration order so the next eviction targets a stale row instead.
   cache.delete(id);
@@ -101,12 +118,17 @@ export function getCachedRowHeight(id: string | null | undefined): number | unde
   return v;
 }
 
-export function setCachedRowHeight(id: string | null | undefined, height: number) {
+export function setCachedRowHeight(
+  id: string | null | undefined,
+  height: number,
+  signature?: string,
+) {
   if (!id) return;
   if (!Number.isFinite(height) || height <= 0) return;
   // Snap to integer — Virtuoso's measurement comes from `offsetHeight` which
   // is already integer, but guard against accidental floats.
   const next = Math.round(height);
+  if (signature !== undefined) sigs.set(id, signature);
   const prev = cache.get(id);
   if (prev === next) {
     // Touch for LRU without churning insertion when the value is unchanged.
@@ -118,18 +140,24 @@ export function setCachedRowHeight(id: string | null | undefined, height: number
   if (cache.size > MAX_ENTRIES) {
     // Evict the oldest entry (first in insertion order).
     const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) cache.delete(firstKey);
+    if (firstKey !== undefined) {
+      cache.delete(firstKey);
+      sigs.delete(firstKey);
+    }
   }
   schedulePersist();
 }
 
 export function invalidateCachedRowHeight(id: string | null | undefined) {
   if (!id) return;
-  if (cache.delete(id)) schedulePersist();
+  const had = cache.delete(id);
+  sigs.delete(id);
+  if (had) schedulePersist();
 }
 
 export function clearChatRowHeightCache() {
   cache.clear();
+  sigs.clear();
   const ss = safeSessionStorage();
   if (ss) {
     try { ss.removeItem(STORAGE_KEY); } catch { /* ignore */ }
