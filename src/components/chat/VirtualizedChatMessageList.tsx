@@ -544,12 +544,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         if (revealTimer !== null) clearTimeout(revealTimer);
         revealTimer = setTimeout(() => {
           cancelled = true;
+          // Final belt-and-braces re-anchor the frame before we reveal, so any
+          // last paddingTop adjustment from overscan-row measurement doesn't
+          // visually shift the bottom row at the moment opacity flips to 1.
+          virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
           if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
           bottomPinReadyRef.current = true;
           pinnedRevisionRef.current = bottomPinRevision;
           userHasScrolledAfterPinRef.current = false;
-          setInitialRevealReady(true);
-        }, 180);
+          requestAnimationFrame(() => setInitialRevealReady(true));
+        }, 320);
       }
       frame = requestAnimationFrame(armRevealWhenStable);
     };
