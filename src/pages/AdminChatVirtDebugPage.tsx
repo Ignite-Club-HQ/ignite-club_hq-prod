@@ -272,7 +272,10 @@ export default function AdminChatVirtDebugPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
+                    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+                    const filename = `chat-perf-diag-${stamp}.json`;
+                    let json = "";
                     try {
                       const snap = getChatPerfSnapshot();
                       const payload = {
@@ -281,23 +284,63 @@ export default function AdminChatVirtDebugPage() {
                         url: typeof window !== "undefined" ? window.location.href : null,
                         snapshot: snap,
                       };
-                      const blob = new Blob([JSON.stringify(payload, null, 2)], {
-                        type: "application/json",
+                      json = JSON.stringify(payload, null, 2);
+                    } catch (e) {
+                      toast({
+                        title: "Snapshot failed",
+                        description: String(e),
+                        variant: "destructive",
                       });
+                      return;
+                    }
+
+                    // 1) Try clipboard first — works in iframe + Android WebView
+                    let copied = false;
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(json);
+                        copied = true;
+                      }
+                    } catch {
+                      /* fall through */
+                    }
+
+                    // 2) Try anchor download (often blocked in iframe / WebView)
+                    let downloaded = false;
+                    try {
+                      const blob = new Blob([json], { type: "application/json" });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
-                      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
                       a.href = url;
-                      a.download = `chat-perf-diag-${stamp}.json`;
+                      a.download = filename;
+                      a.rel = "noopener";
                       document.body.appendChild(a);
                       a.click();
                       document.body.removeChild(a);
-                      setTimeout(() => URL.revokeObjectURL(url), 1000);
-                      toast({ title: "Diagnostics exported", description: a.download });
-                    } catch (e) {
+                      setTimeout(() => URL.revokeObjectURL(url), 2000);
+                      downloaded = true;
+                    } catch {
+                      /* fall through */
+                    }
+
+                    // 3) Always also stash on window for manual retrieval
+                    try {
+                      (window as unknown as { __chatPerfLastExport?: string }).__chatPerfLastExport = json;
+                    } catch {
+                      /* ignore */
+                    }
+
+                    if (copied) {
                       toast({
-                        title: "Export failed",
-                        description: String(e),
+                        title: "Copied to clipboard",
+                        description: `${filename} (${(json.length / 1024).toFixed(1)} KB)${downloaded ? " — also downloaded" : ""}`,
+                      });
+                    } else if (downloaded) {
+                      toast({ title: "Diagnostics downloaded", description: filename });
+                    } else {
+                      toast({
+                        title: "Export blocked",
+                        description: "Run window.__chatPerfLastExport in the console to grab it.",
                         variant: "destructive",
                       });
                     }
