@@ -393,18 +393,25 @@ function DebugRowProbe({
  */
 function CachedMeasureRow({
   messageId,
+  signature,
   children,
 }: {
   messageId: string;
+  signature: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest signature in a ref so the ResizeObserver callback always
+  // writes the freshest version alongside the measured height (without
+  // re-subscribing the observer on every signature change).
+  const sigRef = useRef(signature);
+  sigRef.current = signature;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const write = () => {
       const h = el.offsetHeight;
-      if (h > 0) setCachedRowHeight(messageId, h);
+      if (h > 0) setCachedRowHeight(messageId, h, sigRef.current);
     };
     write();
     if (typeof ResizeObserver === "undefined") return;
@@ -412,6 +419,15 @@ function CachedMeasureRow({
     ro.observe(el);
     return () => ro.disconnect();
   }, [messageId]);
+  // Re-write the cached height whenever the signature changes (edit, reaction,
+  // preview hydrate) — content height may shift before the ResizeObserver
+  // fires, so capture it eagerly.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    if (h > 0) setCachedRowHeight(messageId, h, signature);
+  }, [messageId, signature]);
   return (
     <div ref={ref} data-row-id={messageId}>
       {children}
