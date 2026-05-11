@@ -730,6 +730,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     if (last < 0) {
       bottomPinReadyRef.current = false;
       pinnedRevisionRef.current = null;
+      pinAttemptRevisionRef.current = null;
       setInitialRevealReady(false);
       return;
     }
