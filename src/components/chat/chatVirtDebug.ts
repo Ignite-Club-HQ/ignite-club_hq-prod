@@ -58,6 +58,28 @@ declare global {
 
 let cachedEnabled: boolean | null = null;
 
+/**
+ * Programmatically toggle the debug flag at runtime. Persists in
+ * localStorage so it survives reloads, and resets the cached value so the
+ * very next `isChatVirtDebugEnabled()` call reflects the new state without
+ * a page reload.
+ */
+export function setChatVirtDebugEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (enabled) window.localStorage?.setItem("ff:chat-virt-debug", "1");
+    else window.localStorage?.removeItem("ff:chat-virt-debug");
+  } catch {
+    /* ignore quota / private mode errors */
+  }
+  window.__chatVirtDebug = enabled || undefined;
+  cachedEnabled = null;
+  if (enabled) {
+    // Force-init buffer + global helpers immediately.
+    isChatVirtDebugEnabled();
+  }
+}
+
 export function isChatVirtDebugEnabled(): boolean {
   if (cachedEnabled !== null) return cachedEnabled;
   if (typeof window === "undefined") {
