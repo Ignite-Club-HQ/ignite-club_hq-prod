@@ -284,7 +284,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
     }
     // ~19px per visual line — telemetry showed 20 was a touch hot on long
     // messages (caused -44/-52/-76 over-estimates).
-    height += Math.min(12, lineCount) * 19;
+    // Follow-up telemetry showed text rows systematically under-reserving by
+    // 28-60px across short and long bubbles. Bumping per-visual-line from
+    // 19→21 closes the long-bubble gap (282→405, 396→525) without overshoot.
+    height += Math.min(12, lineCount) * 21;
   } else if (!hasImage) {
     height += 32;
   }
@@ -310,10 +313,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
   // Timestamp row + bubble vertical padding (py-2 top/bot ~16px) + row gap.
-  // Telemetry consistently showed +28px under-reservation across every basic
-  // text bubble — the previous 10px collapsed too much when the timestamp
-  // row, edited indicator and bubble chrome were added back.
-  height += 28;
+  // Follow-up telemetry showed short text bubbles still under-reserving by
+  // ~28-38px (63→91, 91→129, 103→131). Bumping fixed chrome from 28→36.
+  height += 36;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
