@@ -327,7 +327,42 @@ function DebugRowProbe({
 }
 
 /**
- * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
+ * Always-mounted measurement wrapper. Writes the row's real `offsetHeight`
+ * into the module-level cache (`chatRowHeightCache`) so `estimateChatRowHeight`
+ * can return the exact previous value the next time this row mounts. Uses a
+ * ResizeObserver so reactions / edits / late-loading link previews update the
+ * cached value as the row's true height changes.
+ *
+ * Identity-stable component (declared at module scope) — safe to use inside a
+ * stable `itemContent` callback.
+ */
+function CachedMeasureRow({
+  messageId,
+  children,
+}: {
+  messageId: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const write = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setCachedRowHeight(messageId, h);
+    };
+    write();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [messageId]);
+  return (
+    <div ref={ref} data-row-id={messageId}>
+      {children}
+    </div>
+  );
+}
  * message is hydrating. Uses semantic tokens so it follows the active theme,
  * and `pointer-events-none` so the user can still scroll/tap underneath if
  * they want to abort.
