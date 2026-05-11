@@ -132,7 +132,7 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   vaultfolder: 96,
   vaultroot: 96,
   gallery: 180,
-  url: 60,
+  url: 100,
 };
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
