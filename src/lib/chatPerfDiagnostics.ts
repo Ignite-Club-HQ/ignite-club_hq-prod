@@ -204,6 +204,40 @@ function installLongTaskObserver(state: ChatPerfState) {
 }
 
 /**
+ * Heartbeat-based main-thread freeze detector. We schedule a setInterval at
+ * `HEARTBEAT_MS`; if the actual gap between ticks exceeds
+ * `HEARTBEAT_MS + FREEZE_THRESHOLD_MS`, the JS thread was blocked for
+ * roughly that overage. Catches blocks PerformanceObserver longtask misses
+ * on Android WebView (e.g. layout/composite stalls during scroll), and
+ * stamps each freeze with the currently-mounted chat page names so we can
+ * see which screen the user was on when the app froze.
+ */
+const HEARTBEAT_MS = 250;
+const FREEZE_THRESHOLD_MS = 300;
+function installFreezeDetector(state: ChatPerfState) {
+  if (typeof window === "undefined") return;
+  let last = performance.now();
+  setInterval(() => {
+    const now = performance.now();
+    const gap = now - last;
+    last = now;
+    const stall = gap - HEARTBEAT_MS;
+    if (stall >= FREEZE_THRESHOLD_MS) {
+      const active = Array.from(state.liveChatPages.entries())
+        .filter(([, c]) => c > 0)
+        .map(([name, c]) => `${name}:${c}`)
+        .join(",") || "none";
+      pushEvent(state, {
+        t: Date.now(),
+        kind: "freeze",
+        stallMs: Math.round(stall),
+        activePages: active,
+      });
+    }
+  }, HEARTBEAT_MS);
+}
+
+/**
  * Initialise the diagnostics. Safe to call many times — only patches once.
  * Should be invoked once at app startup (e.g. from `main.tsx`).
  */
@@ -215,6 +249,7 @@ export function setupChatPerfDiagnostics(): void {
 
   patchResizeObserver(state);
   installLongTaskObserver(state);
+  installFreezeDetector(state);
   state.installed = true;
 
   if (typeof window !== "undefined") {
