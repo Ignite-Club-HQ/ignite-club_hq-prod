@@ -947,34 +947,43 @@ export type Database = {
       }
       child_training_defaults: {
         Row: {
+          auto_paused_at: string | null
+          auto_paused_reason: string | null
           child_id: string | null
           created_at: string
           created_by: string
           default_status: string
           deleted_at: string | null
           id: string
+          last_confirmation_at: string | null
           team_id: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          auto_paused_at?: string | null
+          auto_paused_reason?: string | null
           child_id?: string | null
           created_at?: string
           created_by: string
           default_status: string
           deleted_at?: string | null
           id?: string
+          last_confirmation_at?: string | null
           team_id: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          auto_paused_at?: string | null
+          auto_paused_reason?: string | null
           child_id?: string | null
           created_at?: string
           created_by?: string
           default_status?: string
           deleted_at?: string | null
           id?: string
+          last_confirmation_at?: string | null
           team_id?: string
           updated_at?: string
           user_id?: string | null
@@ -2039,6 +2048,32 @@ export type Database = {
             columns: ["comment_id"]
             isOneToOne: false
             referencedRelation: "photo_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      default_rollover_log: {
+        Row: {
+          default_id: string
+          id: string
+          notified_at: string
+        }
+        Insert: {
+          default_id: string
+          id?: string
+          notified_at?: string
+        }
+        Update: {
+          default_id?: string
+          id?: string
+          notified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "default_rollover_log_default_id_fkey"
+            columns: ["default_id"]
+            isOneToOne: false
+            referencedRelation: "child_training_defaults"
             referencedColumns: ["id"]
           },
         ]
@@ -7324,6 +7359,47 @@ export type Database = {
             foreignKeyName: "team_subscriptions_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_training_pauses: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          label: string | null
+          starts_at: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          label?: string | null
+          starts_at: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          label?: string | null
+          starts_at?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_training_pauses_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
             referencedRelation: "teams"
             referencedColumns: ["id"]
           },

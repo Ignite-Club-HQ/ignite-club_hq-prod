@@ -70,8 +70,29 @@ export function TrainingDefaultControl({
 
   if (!isTraining || !teamId) return null;
 
-  // Already has a default — render management chip
+  // Already has a default — render management chip (or paused notice)
   if (defaultRow) {
+    if (defaultRow.auto_paused_at) {
+      return (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          <Repeat2 className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+          <span className="text-foreground/90">
+            Auto-RSVP paused for {subjectName} — we haven't heard from you in a while.
+          </span>
+          <Button
+            size="sm"
+            disabled={isSaving}
+            className="ml-auto h-7 px-2 text-xs"
+            onClick={() => {
+              setDefault(defaultRow.default_status);
+              toast({ title: "Auto-RSVP resumed." });
+            }}
+          >
+            Resume
+          </Button>
+        </div>
+      );
+    }
     const label =
       defaultRow.default_status === "going"
         ? `Auto-RSVP'ing ${subjectName} as Going to trainings`
