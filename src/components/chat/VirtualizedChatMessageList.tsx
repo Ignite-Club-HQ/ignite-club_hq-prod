@@ -247,10 +247,11 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
   if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
-    // name wraps). Telemetry showed the previous 22/44 values produced a
-    // consistent +16px under-reservation on non-grouped rows.
-    height += authorChars > 24 ? 56 : 40;
+    // Latest telemetry: with-author rows were over-reserving by ~40px
+    // uniformly (155→114, 197→154, 218→174, 316→270). The previous 40/56
+    // double-counted padding that's already in the bubble chrome — the
+    // visible author label measures closer to ~16px (or ~28 when wrapped).
+    height += authorChars > 24 ? 28 : 16;
   }
 
   // ReplyIndicator measures ~44px for the common single-line quote. The
