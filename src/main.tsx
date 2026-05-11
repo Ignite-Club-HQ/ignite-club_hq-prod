@@ -50,6 +50,12 @@ import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 import { checkVaultFoldersSchema } from "./lib/vaultSchemaCheck";
 import { setupChatPerfDiagnostics } from "./lib/chatPerfDiagnostics";
+import { installSupabaseAuthRetry } from "./lib/supabaseAuthRetry";
+
+// Install global Supabase fetch interceptor that refreshes the JWT once and
+// retries on 401, so a stale token mid-session can't silently empty Schedule /
+// Media / Pro-check screens on iOS.
+installSupabaseAuthRetry();
 
 // Non-blocking startup probe: warn loudly if vault_folders.deleted_at is missing.
 checkVaultFoldersSchema();
