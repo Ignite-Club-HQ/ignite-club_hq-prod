@@ -14,6 +14,11 @@ import {
   getMeasurementSummary,
   type MeasurementSummary,
 } from "@/components/chat/chatVirtDebug";
+import {
+  getChatPerfSnapshot,
+  isChatPerfDiagEnabled,
+  type ChatPerfSnapshot,
+} from "@/lib/chatPerfDiagnostics";
 
 type DebugEvent = {
   t: number;
