@@ -20,6 +20,8 @@ import {
   debugLogStartReached,
   debugTrackRender,
   isChatVirtDebugEnabled,
+  classifyChatRow,
+  type ChatRowType,
 } from "./chatVirtDebug";
 import {
   getCachedRowHeight,
@@ -306,10 +308,12 @@ ChatVirtuosoItem.displayName = "ChatVirtuosoItem";
 function DebugRowProbe({
   messageId,
   estimated,
+  rowType,
   children,
 }: {
   messageId: string;
   estimated: number | undefined;
+  rowType: ChatRowType;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -317,10 +321,10 @@ function DebugRowProbe({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    debugLogMeasure(messageId, estimated, el.offsetHeight);
-  }, [messageId, estimated]);
+    debugLogMeasure(messageId, estimated, el.offsetHeight, rowType);
+  }, [messageId, estimated, rowType]);
   return (
-    <div ref={ref} data-debug-probe={messageId}>
+    <div ref={ref} data-debug-probe={messageId} data-row-type={rowType}>
       {children}
     </div>
   );
@@ -867,8 +871,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         </CachedMeasureRow>
       );
       if (estimated === undefined) return measured;
+      const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
       return (
-        <DebugRowProbe messageId={message.id} estimated={estimated}>
+        <DebugRowProbe messageId={message.id} estimated={estimated} rowType={rowType}>
           {measured}
         </DebugRowProbe>
       );
