@@ -370,6 +370,62 @@ function CachedMeasureRow({
 }
 
 /**
+ * Memoised wrapper for one virtualised row. Virtuoso re-invokes the parent's
+ * `itemContent` for every visible row each time the `data` array reference
+ * changes (e.g. on every prepend page). Without memoisation, that means the
+ * parent's `renderItem` closure is invoked — and each `ChatMessage` rebuilt
+ * — for every visible row on every prepend, producing the "21 renders / 1.5s"
+ * key churn observed in production telemetry.
+ *
+ * This adapter takes ONLY the message reference as a memo key; the real
+ * `renderItem`, the index map, and the messages array are read from refs so
+ * an updated parent closure does not invalidate every row. The result: a row
+ * only re-renders when its OWN message reference changes (edit, reaction,
+ * read-receipt update — all already produce a fresh message object via the
+ * upstream cache).
+ */
+type ChatRowAdapterProps = {
+  message: { id: string };
+  renderItemRef: React.MutableRefObject<
+    (message: any, index: number, arr: any[]) => React.ReactNode
+  >;
+  uniqueMessagesRef: React.MutableRefObject<any[]>;
+  indexByIdRef: React.MutableRefObject<Map<string, number>>;
+  currentUserIdRef: React.MutableRefObject<string | null | undefined>;
+};
+
+const ChatRowAdapter = memo(
+  function ChatRowAdapter({
+    message,
+    renderItemRef,
+    uniqueMessagesRef,
+    indexByIdRef,
+    currentUserIdRef,
+  }: ChatRowAdapterProps) {
+    const idx = indexByIdRef.current.get(message.id);
+    if (idx === undefined) return null;
+    const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
+    const debug = isChatVirtDebugEnabled();
+    const estimated =
+      debug && idx >= 0
+        ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        : undefined;
+    const measured = (
+      <CachedMeasureRow messageId={message.id}>{child}</CachedMeasureRow>
+    );
+    if (estimated === undefined) return measured;
+    const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
+    return (
+      <DebugRowProbe messageId={message.id} estimated={estimated} rowType={rowType}>
+        {measured}
+      </DebugRowProbe>
+    );
+  },
+  // Skip re-render unless THIS row's message reference changed. The ref props
+  // are stable for the lifetime of the parent component, so they're never the
+  // cause of a re-render.
+  (prev, next) => prev.message === next.message,
+);
  * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
  * message is hydrating. Uses semantic tokens so it follows the active theme,
  * and `pointer-events-none` so the user can still scroll/tap underneath if
