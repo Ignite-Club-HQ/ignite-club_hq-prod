@@ -120,7 +120,7 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId }: Gallery
             className={`h-full w-full object-cover transition-opacity duration-200 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
           />
           {count > 1 && (
-            <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+            <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
               <ImageIcon className="h-2.5 w-2.5" />
               {count}
             </div>
