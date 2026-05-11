@@ -265,7 +265,9 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
   // padding + bubble chrome. Telemetry showed avg Δ −25px against the
   // prior 320 reservation across 20 image rows, so trim to 295.
-  if (hasImage) height += 295;
+  // Follow-up telemetry showed image rows over-reserving by 38-78px
+  // (e.g. 367→329, 407→329). Trim from 295 to 257.
+  if (hasImage) height += 257;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
