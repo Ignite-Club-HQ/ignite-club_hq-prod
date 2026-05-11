@@ -51,7 +51,9 @@ export default function AdminChatVirtDebugPage() {
   const [paused, setPaused] = useState(false);
   const [filterBigOnly, setFilterBigOnly] = useState(true);
   const [events, setEvents] = useState<DebugEvent[]>(() => readBuffer().slice());
+  const [summary, setSummary] = useState<MeasurementSummary | null>(null);
   const [copied, setCopied] = useState(false);
+  const [summaryCopied, setSummaryCopied] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll the in-memory buffer 2x/sec while not paused.
@@ -59,6 +61,7 @@ export default function AdminChatVirtDebugPage() {
     if (paused) return;
     intervalRef.current = setInterval(() => {
       setEvents(readBuffer().slice());
+      setSummary(getMeasurementSummary());
     }, 500);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
