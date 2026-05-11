@@ -103,6 +103,7 @@ const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage
 const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const AdminDmAttachmentsPage = lazy(() => import("./pages/AdminDmAttachmentsPage"));
 const AdminChatPhotoRemindersPage = lazy(() => import("./pages/AdminChatPhotoRemindersPage"));
+const AdminChatVirtDebugPage = lazy(() => import("./pages/AdminChatVirtDebugPage"));
 const PublishChatPhotosPage = lazy(() => import("./pages/PublishChatPhotosPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
@@ -334,6 +335,7 @@ const App = () => {
                  <Route path="/admin/drills" element={<AdminDrillsPage />} />
                 <Route path="/admin/dm-attachments" element={<AdminDmAttachmentsPage />} />
                 <Route path="/admin/chat-photo-reminders" element={<AdminChatPhotoRemindersPage />} />
+                <Route path="/admin/chat-virt-debug" element={<AdminChatVirtDebugPage />} />
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />

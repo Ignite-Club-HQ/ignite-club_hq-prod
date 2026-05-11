@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -20,7 +21,13 @@ import {
   debugLogStartReached,
   debugTrackRender,
   isChatVirtDebugEnabled,
+  classifyChatRow,
+  type ChatRowType,
 } from "./chatVirtDebug";
+import {
+  getCachedRowHeight,
+  setCachedRowHeight,
+} from "./chatRowHeightCache";
 
 /**
  * Virtualised chat message list.
@@ -115,16 +122,82 @@ function getCharsPerLine() {
 // Per-token-type reserved heights for inline link/preview cards. Real cards
 // vary 96–220px; over-reserving is safer than under (Virtuoso shrinks
 // paddingTop on under-estimates which reads as an upward jolt mid-scroll).
+// Per-token-type reserved heights. Tuned from production drift telemetry
+// (see /admin/chat-virt-debug). Conservative: under-reserving causes the
+// upward "jolt" symptom; over-reserving leaves harmless extra padding.
+// Note: under-reserving causes upward jolts (Virtuoso grows paddingTop after
+// measure, pushing the viewport down); over-reserving causes downward jolts
+// (paddingTop shrinks, viewport slides up). Production telemetry showed the
+// previous defaults were systematically over-reserving by 90-130px on URL
+// previews and 30-40px on text bubbles, which read as a continuous upward
+// drift during fast upward flicks.
 const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
-  event: 220,
-  poll: 200,
-  board: 180,
+  event: 200,
+  poll: 180,
+  board: 160,
   vault: 96,
   vaultfolder: 96,
   vaultroot: 96,
-  gallery: 196,
-  url: 132, // generic https?:// or www. link preview
+  gallery: 180,
+  // Generic URL previews. Previously bumped to 160 after a p95 outlier
+  // (+570px on a single rich article card), but follow-up telemetry showed
+  // typical cards measure ~80-100px, leaving every URL row over-reserved
+  // by 43-86px — the dominant downward jolt source on upward flicks.
+  // Settle at 80: follow-up telemetry showed 110 still over-reserved
+  // every URL row by 37-96px on the typical compact preview, with only
+  // one rich-card outlier (+560px) under. 80 covers the LinkPreview's
+  // h-20 (80px) reserved slot exactly; the rare rich card takes a small
+  // upward correction instead of the systematic downward drift.
+  url: 80,
 };
+
+/**
+ * Compute a compact signature of every message field that affects rendered
+ * row height. Used as a versioning key on the row-height cache so that an
+ * edit, a reaction add/remove, a link-preview hydration, or any other
+ * layout-affecting mutation immediately invalidates the cached measurement
+ * — even for rows that were unmounted (off-screen) when the change landed.
+ *
+ * Cheap to compute (called per-row on every estimator invocation): no JSON
+ * serialisation of large objects, just primitive concatenation.
+ */
+function chatRowSignature(message: unknown): string {
+  const m = (message ?? {}) as {
+    text?: string | null;
+    image_url?: string | null;
+    imageUrl?: string | null;
+    edited_at?: string | null;
+    is_edited?: boolean | null;
+    reply_to?: { id?: string } | null;
+    reply_to_id?: string | null;
+    reactions?: Array<{ emoji?: string; user_id?: string } | unknown> | null;
+    link_preview?: unknown;
+    link_previews?: unknown;
+    preview?: unknown;
+  };
+  const text = (m.text ?? "");
+  const img = m.image_url ?? m.imageUrl ?? "";
+  const edited = m.edited_at ?? (m.is_edited ? "1" : "");
+  const replyId =
+    (m.reply_to && typeof m.reply_to === "object" && (m.reply_to as { id?: string }).id) ||
+    m.reply_to_id ||
+    "";
+  // Reactions: count + total emoji-string length is a stable fingerprint
+  // of the reaction set without serialising user ids.
+  let rxCount = 0;
+  let rxEmojiLen = 0;
+  if (Array.isArray(m.reactions)) {
+    rxCount = m.reactions.length;
+    for (const r of m.reactions) {
+      const e = (r as { emoji?: string })?.emoji;
+      if (typeof e === "string") rxEmojiLen += e.length;
+    }
+  }
+  // Link-preview hydration: just the presence/shape, not the payload.
+  const hasPreview =
+    (m.link_preview ? 1 : 0) | (m.link_previews ? 2 : 0) | (m.preview ? 4 : 0);
+  return `${text.length}:${text.slice(0, 64)}|${img.length}|${edited}|${replyId}|${rxCount}.${rxEmojiLen}|${hasPreview}`;
+}
 
 function estimateChatRowHeight<TMessage extends { id: string }>(
   message: TMessage,
@@ -132,6 +205,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   messages: TMessage[],
   currentUserId?: string | null,
 ) {
+  // Prefer the real measured height from the previous mount of this row.
+  // Eliminates Virtuoso's post-measure paddingTop correction on revisits.
+  // Pass a content signature so an edit / reaction change / preview hydrate
+  // that happened while this row was unmounted invalidates the stale value.
+  const cached = getCachedRowHeight(message.id, chatRowSignature(message));
+  if (cached !== undefined) return cached;
   const msg = message as TMessage & {
     author_name?: string | null;
     edited_at?: string | null;
@@ -156,20 +235,37 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   const hasReply = !!(msg.reply_to || msg.reply_to_id);
   const reactions = Array.isArray(msg.reactions) ? msg.reactions.length : 0;
 
-  // Author / header line. Long author names ("Sam Bond mum of Harry and
-  // Otto") wrap to 2 lines on phones — under-counting this is what makes
-  // the viewport jolt as older messages mount during back-scroll.
+  // Author / header line. ChatMessage hides the author name when the
+  // previous visible row is from the SAME author within a short window
+  // (consecutive bubbles are grouped). Mirror that here — counting an
+  // always-present 24px header was the dominant -34px over-estimate seen
+  // in production telemetry.
   const isOwnMessage = !!currentUserId && msg.author_id === currentUserId;
-  if (!isOwnMessage) {
+  const sameAuthorAsPrev =
+    !!prev &&
+    !prev.is_system_message &&
+    !!msg.author_id &&
+    prev.author_id === msg.author_id &&
+    // Same calendar day — date separator above breaks the group.
+    getMessageDay(msg.created_at) === getMessageDay(prev.created_at);
+  const showAuthorHeader = !isOwnMessage && !sameAuthorAsPrev;
+  if (showAuthorHeader) {
     const authorChars = (msg.author_name ?? "").length;
-    height += authorChars > 24 ? 44 : 22;
+    // Avatar + name + spacing in ChatMessage measures ~40px (or ~56 when the
+    // name wraps). Telemetry showed the previous 22/44 values produced a
+    // consistent +16px under-reservation on non-grouped rows.
+    height += authorChars > 24 ? 56 : 40;
   }
 
-  if (hasReply) height += 38;
+  // ReplyIndicator measures ~36px on the typical single-line quote.
+  // Telemetry showed text+reply rows still net over-reserving (-25 to
+  // -56 dominant, a few +38/+45/+53 wrapped-quote outliers). 36 hits
+  // the median; rare wrapped quotes take a small upward correction.
+  if (hasReply) height += 36;
   // Image bubble: aspect-square frame at width=240 → 240px image + caption
-  // padding + bubble chrome. Slightly over-reserving keeps the row from
-  // shrinking after image decode.
-  if (hasImage) height += 320;
+  // padding + bubble chrome. Telemetry showed avg Δ −25px against the
+  // prior 320 reservation across 20 image rows, so trim to 295.
+  if (hasImage) height += 295;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -179,17 +275,16 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
 
   if (visibleText) {
     const charsPerLine = getCharsPerLine();
-    // Honour explicit newlines — they always start a new line regardless of
-    // line length.
     const explicitLines = visibleText.split(/\n/);
     let lineCount = 0;
     for (const line of explicitLines) {
       lineCount += Math.max(1, Math.ceil(line.length / charsPerLine));
     }
-    // Cap at 12 lines (over-reserve rather than collapse on long messages).
-    height += Math.min(12, lineCount) * 20 + 18;
+    // ~19px per visual line — telemetry showed 20 was a touch hot on long
+    // messages (caused -44/-52/-76 over-estimates).
+    height += Math.min(12, lineCount) * 19;
   } else if (!hasImage) {
-    height += 42;
+    height += 32;
   }
 
   // Inline preview cards. Match each token type separately so per-type
@@ -200,7 +295,7 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   for (const match of tokenMatches) {
     if (previewCount >= 3) break;
     const kind = (match[1] || "").toLowerCase();
-    previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 132;
+    previewHeight += PREVIEW_HEIGHT_BY_TOKEN[kind] ?? 96;
     previewCount += 1;
   }
   // Generic URL previews (only count once per message — we render at most one).
@@ -212,13 +307,17 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp / edited / read-receipt row. Edited adds an inline label;
-  // read avatars push the row taller when present.
-  height += 22;
+  // Timestamp row + bubble vertical padding. Latest telemetry showed an
+  // almost-perfect -27px systematic over-estimate across every text bubble
+  // (103→74, 122→94, 141→114, 160→134, 179→154, 197→170, 216→190 — all
+  // Δ -25 to -29). The previous 28 double-counted what's already inside
+  // the per-line 19 + author header constants. Drop to 2 (just the bubble
+  // bottom padding) — closes the dominant downward-drift bias.
+  height += 2;
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
-  return Math.max(64, Math.min(960, height));
+  return Math.max(56, Math.min(960, height));
 }
 
 const ChatVirtuosoScroller = forwardRef<HTMLDivElement, ComponentProps<"div"> & { context?: unknown }>(
@@ -274,10 +373,12 @@ ChatVirtuosoItem.displayName = "ChatVirtuosoItem";
 function DebugRowProbe({
   messageId,
   estimated,
+  rowType,
   children,
 }: {
   messageId: string;
   estimated: number | undefined;
+  rowType: ChatRowType;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -285,14 +386,127 @@ function DebugRowProbe({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    debugLogMeasure(messageId, estimated, el.offsetHeight);
-  }, [messageId, estimated]);
+    debugLogMeasure(messageId, estimated, el.offsetHeight, rowType);
+  }, [messageId, estimated, rowType]);
   return (
-    <div ref={ref} data-debug-probe={messageId}>
+    <div ref={ref} data-debug-probe={messageId} data-row-type={rowType}>
       {children}
     </div>
   );
 }
+
+/**
+ * Always-mounted measurement wrapper. Writes the row's real `offsetHeight`
+ * into the module-level cache (`chatRowHeightCache`) so `estimateChatRowHeight`
+ * can return the exact previous value the next time this row mounts. Uses a
+ * ResizeObserver so reactions / edits / late-loading link previews update the
+ * cached value as the row's true height changes.
+ *
+ * Identity-stable component (declared at module scope) — safe to use inside a
+ * stable `itemContent` callback.
+ */
+function CachedMeasureRow({
+  messageId,
+  signature,
+  children,
+}: {
+  messageId: string;
+  signature: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest signature in a ref so the ResizeObserver callback always
+  // writes the freshest version alongside the measured height (without
+  // re-subscribing the observer on every signature change).
+  const sigRef = useRef(signature);
+  sigRef.current = signature;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const write = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setCachedRowHeight(messageId, h, sigRef.current);
+    };
+    write();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [messageId]);
+  // Re-write the cached height whenever the signature changes (edit, reaction,
+  // preview hydrate) — content height may shift before the ResizeObserver
+  // fires, so capture it eagerly.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    if (h > 0) setCachedRowHeight(messageId, h, signature);
+  }, [messageId, signature]);
+  return (
+    <div ref={ref} data-row-id={messageId}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Memoised wrapper for one virtualised row. Virtuoso re-invokes the parent's
+ * `itemContent` for every visible row each time the `data` array reference
+ * changes (e.g. on every prepend page). Without memoisation, that means the
+ * parent's `renderItem` closure is invoked — and each `ChatMessage` rebuilt
+ * — for every visible row on every prepend, producing the "21 renders / 1.5s"
+ * key churn observed in production telemetry.
+ *
+ * This adapter takes ONLY the message reference as a memo key; the real
+ * `renderItem`, the index map, and the messages array are read from refs so
+ * an updated parent closure does not invalidate every row. The result: a row
+ * only re-renders when its OWN message reference changes (edit, reaction,
+ * read-receipt update — all already produce a fresh message object via the
+ * upstream cache).
+ */
+type ChatRowAdapterProps = {
+  message: { id: string };
+  renderItemRef: React.MutableRefObject<
+    (message: any, index: number, arr: any[]) => React.ReactNode
+  >;
+  uniqueMessagesRef: React.MutableRefObject<any[]>;
+  indexByIdRef: React.MutableRefObject<Map<string, number>>;
+  currentUserIdRef: React.MutableRefObject<string | null | undefined>;
+};
+
+const ChatRowAdapter = memo(
+  function ChatRowAdapter({
+    message,
+    renderItemRef,
+    uniqueMessagesRef,
+    indexByIdRef,
+    currentUserIdRef,
+  }: ChatRowAdapterProps) {
+    const idx = indexByIdRef.current.get(message.id);
+    if (idx === undefined) return null;
+    const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
+    const signature = chatRowSignature(message);
+    const debug = isChatVirtDebugEnabled();
+    const estimated =
+      debug && idx >= 0
+        ? estimateChatRowHeight(message as any, idx, uniqueMessagesRef.current, currentUserIdRef.current)
+        : undefined;
+    const measured = (
+      <CachedMeasureRow messageId={message.id} signature={signature}>{child}</CachedMeasureRow>
+    );
+    if (estimated === undefined) return measured;
+    const rowType = classifyChatRow(message as Parameters<typeof classifyChatRow>[0]);
+    return (
+      <DebugRowProbe messageId={message.id} estimated={estimated} rowType={rowType}>
+        {measured}
+      </DebugRowProbe>
+    );
+  },
+  // Skip re-render unless THIS row's message reference changed. The ref props
+  // are stable for the lifetime of the parent component, so they're never the
+  // cause of a re-render.
+  (prev, next) => prev.message === next.message,
+);
 
 /**
  * Lightweight skeleton overlay shown briefly while a deep-link / jump-to-
@@ -784,20 +998,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }, [renderItem, uniqueMessages, indexById, currentUserId]);
 
   const itemContent = useCallback(
-    (_absoluteIndex: number, message: TMessage) => {
-      const idx = indexByIdRef.current.get(message.id);
-      if (idx === undefined) return null;
-      const child = renderItemRef.current(message, idx, uniqueMessagesRef.current);
-      if (!isChatVirtDebugEnabled()) return child;
-      const estimated = idx >= 0
-        ? estimateChatRowHeight(message, idx, uniqueMessagesRef.current, currentUserIdRef.current)
-        : undefined;
-      return (
-        <DebugRowProbe messageId={message.id} estimated={estimated}>
-          {child}
-        </DebugRowProbe>
-      );
-    },
+    (_absoluteIndex: number, message: TMessage) => (
+      <ChatRowAdapter
+        message={message}
+        renderItemRef={renderItemRef as React.MutableRefObject<
+          (m: any, i: number, a: any[]) => React.ReactNode
+        >}
+        uniqueMessagesRef={uniqueMessagesRef as React.MutableRefObject<any[]>}
+        indexByIdRef={indexByIdRef}
+        currentUserIdRef={currentUserIdRef}
+      />
+    ),
     [],
   );
 
