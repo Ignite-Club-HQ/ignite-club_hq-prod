@@ -257,6 +257,83 @@ export default function AdminChatVirtDebugPage() {
 
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-lg">Per-Type Drift Summary</CardTitle>
+              <CardDescription>
+                {summary
+                  ? `${summary.totalMeasurements} measurements across ${summary.byType.length} row types — ${summary.totalDriftedOver24px} drifted >24px`
+                  : "Aggregated estimated vs measured per row type"}
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopySummary}
+              disabled={!enabled || !summary || summary.byType.length === 0}
+            >
+              {summaryCopied ? <Check className="h-4 w-4 mr-1.5" /> : <Copy className="h-4 w-4 mr-1.5" />}
+              Copy JSON
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!enabled || !summary || summary.byType.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No measurements yet. Open a chat thread and scroll.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b border-border/50">
+                    <th className="text-left font-medium py-2 pr-3">Type</th>
+                    <th className="text-right font-medium py-2 px-2">N</th>
+                    <th className="text-right font-medium py-2 px-2">Drift &gt;24</th>
+                    <th className="text-right font-medium py-2 px-2">Avg est</th>
+                    <th className="text-right font-medium py-2 px-2">Avg meas</th>
+                    <th className="text-right font-medium py-2 px-2">Avg Δ</th>
+                    <th className="text-right font-medium py-2 px-2">P50 Δ</th>
+                    <th className="text-right font-medium py-2 px-2">P95 Δ</th>
+                    <th className="text-right font-medium py-2 pl-2">Max |Δ|</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {summary.byType.map((row) => {
+                    const driftPct = row.count > 0 ? (row.driftedOver24px / row.count) * 100 : 0;
+                    const hot = driftPct >= 25;
+                    return (
+                      <tr key={row.type} className="border-b border-border/30">
+                        <td className="py-1.5 pr-3 font-sans">
+                          <Badge variant="secondary" className={hot ? "bg-red-500/15 text-red-700 dark:text-red-300" : ""}>
+                            {row.type}
+                          </Badge>
+                        </td>
+                        <td className="text-right px-2">{row.count}</td>
+                        <td className="text-right px-2">
+                          {row.driftedOver24px}
+                          <span className="text-muted-foreground"> ({Math.round(driftPct)}%)</span>
+                        </td>
+                        <td className="text-right px-2">{row.avgEstimated}</td>
+                        <td className="text-right px-2">{row.avgMeasured}</td>
+                        <td className={`text-right px-2 ${row.avgDelta > 0 ? "text-amber-600 dark:text-amber-400" : row.avgDelta < 0 ? "text-blue-600 dark:text-blue-400" : ""}`}>
+                          {row.avgDelta > 0 ? "+" : ""}{row.avgDelta}
+                        </td>
+                        <td className="text-right px-2">{row.p50Delta > 0 ? "+" : ""}{row.p50Delta}</td>
+                        <td className="text-right px-2">{row.p95Delta > 0 ? "+" : ""}{row.p95Delta}</td>
+                        <td className="text-right pl-2">{row.maxAbsDelta}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Event Stream</CardTitle>
           <CardDescription>
             Newest first. Positive delta = row is taller than estimate (causes downward jolt as paddingTop shrinks).
