@@ -1142,7 +1142,7 @@ export default function EventDetailPage() {
       if (existingRsvp) {
         const { error } = await supabase
           .from("rsvps")
-          .update({ status })
+          .update({ status, source: "user" })
           .eq("id", existingRsvp.id);
         if (error) throw error;
         rsvpId = existingRsvp.id;
@@ -1152,6 +1152,7 @@ export default function EventDetailPage() {
           user_id: user!.id,
           child_id: childId,
           status,
+          source: "user",
         }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
