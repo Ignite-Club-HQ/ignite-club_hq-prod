@@ -53,6 +53,8 @@ declare global {
     __chatVirtDebugDump?: () => DebugEvent[];
     __chatVirtDebugClear?: () => void;
     __chatVirtDebugBuffer?: DebugEvent[];
+    __chatVirtDebugSummary?: () => MeasurementSummary;
+    __chatVirtDebugSummaryJSON?: () => string;
   }
 }
 
