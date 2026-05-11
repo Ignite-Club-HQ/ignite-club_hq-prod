@@ -353,7 +353,7 @@ export default function EventsPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
-    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || !navigator.onLine === false),
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
