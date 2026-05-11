@@ -143,11 +143,11 @@ const PREVIEW_HEIGHT_BY_TOKEN: Record<string, number> = {
   // (+570px on a single rich article card), but follow-up telemetry showed
   // typical cards measure ~80-100px, leaving every URL row over-reserved
   // by 43-86px — the dominant downward jolt source on upward flicks.
-  // Settle at 130: 80 over-corrected — follow-up telemetry showed every
-  // typical URL preview measured 154-200px (Δ +37 to +45 under). 130
-  // centers the typical compact card (title + 2-line description + favicon
-  // strip); rich hero cards remain a rare upward outlier.
-  url: 130,
+  // 130 over-corrected — round-2 telemetry showed every URL row over by
+  // ~60 (233→174, 214→154, 290→214, 292→174). 75 centers the compact
+  // card (favicon strip + title + 1-2 line description); rich hero cards
+  // remain a rare upward outlier the cache absorbs on revisit.
+  url: 75,
 };
 
 /**
@@ -262,10 +262,10 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // long wrapped quotes still take small upward corrections, which is
   // preferable to systematic downward drift.
   if (hasReply) height += 56;
-  // Image bubble: 295 was over-reserving by ~50px on the dominant case
-  // (Δ -30 to -57 across image rows). Drop to 245 — caption padding +
-  // bubble chrome only; aspect-ratio variance handles the rest.
-  if (hasImage) height += 245;
+  // Image bubble: 245 still slightly over on the dominant case (Δ -25 to
+  // -48 across captionless image rows). Drop to 225 — captioned/portrait
+  // images remain a +60 to +77 upward outlier the cache absorbs on revisit.
+  if (hasImage) height += 225;
 
   // Strip mention pills and embed tokens before counting visible text length.
   const visibleText = text
@@ -307,12 +307,12 @@ function estimateChatRowHeight<TMessage extends { id: string }>(
   // Reactions row wraps every ~4 chips on a phone-width bubble.
   if (reactions) height += Math.ceil(reactions / 4) * 28;
 
-  // Timestamp row + bubble vertical padding. The previous 2 over-corrected
-  // — fresh telemetry showed every plain text bubble systematically under
-  // by +27 to +44 (56→94, 65→92, 75→114, 84→112, 103→132). 30 restores
-  // the real timestamp + bubble bottom padding without double-counting
-  // per-line height.
-  height += 30;
+  // Timestamp row + bubble vertical padding. Round-2 telemetry showed the
+  // +30 chrome bump was wrong direction — every plain text bubble came in
+  // systematically OVER by ~30 (105→74, 124→94, 143→114, 162→134, 181→154,
+  // 199→170). Revert to 0; per-line height already covers the timestamp row
+  // bottom padding.
+  // (no chrome added here)
   if (msg.edited_at || msg.is_edited) height += 4;
 
   // Allow taller rows now that long messages and stacked previews are real.
