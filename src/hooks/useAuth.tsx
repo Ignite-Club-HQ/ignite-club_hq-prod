@@ -500,10 +500,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // opened before the refresh don't keep authenticating with a stale
             // token (root cause of chat channels losing access mid-session).
             try { (supabase.realtime as any)?.setAuth?.(currentSession.access_token); } catch { /* noop */ }
-            // Re-run any queries that errored against the old token. Without
-            // this, screens that already cached an auth-shaped failure stay
-            // empty until the user navigates away and back.
-            queryClient.refetchQueries({ type: 'active' }).catch(() => {});
+            // Re-run only the queries that historically silently failed under
+            // a stale token (Pro gate + events). A blanket
+            // refetchQueries({ type: 'active' }) here causes a refetch storm
+            // on Android mid-navigation and can stall the WebView. The global
+            // 401 fetch interceptor (supabaseAuthRetry) already heals other
+            // in-flight requests on the same refresh.
+            try {
+              queryClient.invalidateQueries({ queryKey: ['has-pro-access'] });
+              queryClient.invalidateQueries({ queryKey: ['events'] });
+            } catch { /* noop */ }
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
