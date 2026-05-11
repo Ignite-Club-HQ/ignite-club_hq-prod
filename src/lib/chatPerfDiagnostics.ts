@@ -30,7 +30,8 @@ type PerfEvent =
   | { t: number; kind: "longtask"; durationMs: number; startTime: number }
   | { t: number; kind: "channel-add"; topic: string }
   | { t: number; kind: "channel-remove"; topic: string }
-  | { t: number; kind: "freeze"; stallMs: number; activePages: string; source: "heartbeat" | "raf" | "manual"; note?: string };
+  | { t: number; kind: "freeze"; stallMs: number; activePages: string; source: "heartbeat" | "raf" | "manual"; note?: string }
+  | { t: number; kind: "sample"; heapMB?: number; liveRO: number; totalRO: number; liveChannels: number; activePages: string };
 
 type ChatPerfState = {
   enabled: boolean;
@@ -419,6 +420,35 @@ function installFreezeDetector(state: ChatPerfState) {
 }
 
 /**
+ * Periodic snapshot of heap + ResizeObserver count + live channel count +
+ * active chat pages. Lets the next freeze export reveal whether resources
+ * are climbing across the session even if the watchdog never fires.
+ */
+const SAMPLE_INTERVAL_MS = 10000;
+function installPeriodicSampler(state: ChatPerfState) {
+  if (typeof window === "undefined") return;
+  setInterval(() => {
+    if (isOsPaused()) return;
+    let heapMB: number | undefined;
+    try {
+      const mem = (performance as any).memory;
+      if (mem?.usedJSHeapSize) heapMB = Math.round(mem.usedJSHeapSize / 1048576);
+    } catch {}
+    let liveChannels = 0;
+    state.liveChannels.forEach((c) => (liveChannels += c));
+    pushEvent(state, {
+      t: Date.now(),
+      kind: "sample",
+      heapMB,
+      liveRO: state.liveResizeObservers,
+      totalRO: state.totalResizeObserversCreated,
+      liveChannels,
+      activePages: activePagesString(state),
+    });
+  }, SAMPLE_INTERVAL_MS);
+}
+
+/**
  * Initialise the diagnostics. Safe to call many times — only patches once.
  * Should be invoked once at app startup (e.g. from `main.tsx`).
  */
@@ -433,6 +463,7 @@ export function setupChatPerfDiagnostics(): void {
   installCapacitorPauseListeners();
   installFreezeDetector(state);
   installWatchdog(state);
+  installPeriodicSampler(state);
   state.installed = true;
 
   if (typeof window !== "undefined") {
