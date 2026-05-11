@@ -734,6 +734,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       return;
     }
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
+    // Skip if a pin sequence for this revision is already in flight — a
+    // re-render mid-stabilisation must not retrigger the synchronous
+    // `jump("immediate")` below.
+    if (pinAttemptRevisionRef.current === bottomPinRevision) return;
+    pinAttemptRevisionRef.current = bottomPinRevision;
     setInitialRevealReady(false);
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
