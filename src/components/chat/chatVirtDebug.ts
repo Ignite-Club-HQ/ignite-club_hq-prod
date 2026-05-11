@@ -114,10 +114,13 @@ function initRuntime() {
   window.__chatVirtDebugDump = () => window.__chatVirtDebugBuffer ?? [];
   window.__chatVirtDebugClear = () => {
     if (window.__chatVirtDebugBuffer) window.__chatVirtDebugBuffer.length = 0;
+    clearMeasurementSummary();
   };
+  window.__chatVirtDebugSummary = () => getMeasurementSummary();
+  window.__chatVirtDebugSummaryJSON = () => JSON.stringify(getMeasurementSummary(), null, 2);
   // eslint-disable-next-line no-console
   console.info(
-    "[chat-virt] debug instrumentation enabled — call __chatVirtDebugDump() to inspect events",
+    "[chat-virt] debug instrumentation enabled — call __chatVirtDebugDump() / __chatVirtDebugSummary() to inspect events",
   );
 }
 
