@@ -296,6 +296,25 @@ export function ManageMiniLeagueAdminsSheet({
     }
   };
 
+  const handleShareLink = async (token: string, recipientName?: string | null) => {
+    const link = `${window.location.origin}/join/p/${token}`;
+    const title = `League Admin invite — ${miniLeagueName}`;
+    const text = `${recipientName ? `${recipientName}, you're` : "You're"} invited to be a League Admin for ${miniLeagueName}. Tap to accept:`;
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Share.share({ title, text, url: link, dialogTitle: "Share invite link" });
+        return;
+      } catch {/* cancelled */}
+    }
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title, text, url: link });
+        return;
+      } catch {/* cancelled */}
+    }
+    handleCopyLink(token);
+  };
+
   const currentIds = new Set((currentAdmins || []).map((a) => a.user_id));
   const filteredMembers = (clubMembers || [])
     .filter((m) => !currentIds.has(m.user_id))
