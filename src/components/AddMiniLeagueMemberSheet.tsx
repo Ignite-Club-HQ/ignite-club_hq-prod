@@ -665,7 +665,3 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   );
 }
 
-// helper to add to a Set when parameter ordering is awkward
-function childIdsadd(set: Set<string>, id: string) {
-  set.add(id);
-}
