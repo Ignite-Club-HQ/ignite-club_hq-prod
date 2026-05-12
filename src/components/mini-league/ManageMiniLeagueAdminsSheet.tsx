@@ -446,8 +446,8 @@ export function ManageMiniLeagueAdminsSheet({
             </div>
           </TabsContent>
 
-          <TabsContent value="invite" className="flex-1 overflow-hidden flex flex-col mt-3 data-[state=inactive]:hidden">
-            <ScrollArea className="flex-1 -mx-2 px-2">
+          <TabsContent value="invite" className="flex-1 min-h-0 overflow-hidden flex flex-col mt-3 data-[state=inactive]:hidden">
+            <ScrollArea className="flex-1 min-h-0 -mx-2 px-2">
               <div className="space-y-4 pb-6">
                 {/* Shareable join link — primary CTA */}
                 <MiniLeagueAdminJoinLinkCard
