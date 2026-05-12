@@ -46,6 +46,24 @@ export function ManageMiniLeagueAdminsSheet({
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 200);
+  const [tab, setTab] = useState<"existing" | "invite">("existing");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Club name for email branding
+  const { data: clubInfo } = useQuery({
+    queryKey: ["club-branding-mini-league-invite", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("name, logo_url, contact_email")
+        .eq("id", clubId)
+        .single();
+      return data;
+    },
+    enabled: open && !!clubId,
+  });
 
   // Current per-league admin grants
   const { data: currentAdmins, isLoading: loadingCurrent } = useQuery({
