@@ -233,6 +233,23 @@ export default function EventsPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Mini-leagues the user can filter the schedule by — only ones they're actually a member of
+  // (parent of a player, mini_league_admin, or league_admin/app_admin for the club).
+  const { data: userMiniLeagues } = useQuery({
+    queryKey: ["user-mini-leagues-for-filter", user?.id, userMembershipsKey],
+    queryFn: async () => {
+      const ids = userMemberships?.miniLeagueIds || [];
+      if (ids.length === 0) return [] as { id: string; name: string; club_id: string }[];
+      let query = supabase.from("mini_leagues").select("id, name, club_id").in("id", ids).order("name");
+      if (clubFilter) query = query.eq("club_id", clubFilter);
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user && !!userMemberships,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
   // Get user's accessible team, club, and mini league IDs for event filtering
   const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
