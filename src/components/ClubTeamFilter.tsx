@@ -325,6 +325,11 @@ export function ClubTeamFilter({
                 {team.name}
               </SelectItem>
             ))}
+            {miniLeagues.map((ml) => (
+              <SelectItem key={ml.id} value={`ml:${ml.id}`}>
+                🏆 {ml.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}
