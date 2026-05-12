@@ -52,8 +52,11 @@ export default function AppSettingsPage() {
         .eq("key", key);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["appSettings"] });
+      // Also invalidate the targeted single-key cache used by hooks like
+      // useChatVirtualizationEnabled so the kill-switch propagates immediately.
+      queryClient.invalidateQueries({ queryKey: ["app-setting", vars.key] });
       toast({ title: "Setting updated" });
     },
     onError: (error: Error) => {
