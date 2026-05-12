@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
@@ -23,7 +24,7 @@ import { Loader2 } from "lucide-react";
  * use the two interchangeably without conditional ref logic.
  */
 
-const MAX_RENDERED = 100;
+const DEFAULT_CHUNK = 100;
 
 export interface BasicChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
@@ -65,13 +66,14 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   }: Props<TMessage>,
   ref: React.Ref<BasicChatMessageListHandle>,
 ) {
+  const chunkSize = useChatBasicChunkSize();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const lastLengthRef = useRef(0);
   const [revealed, setRevealed] = useState(false);
-  // How many of the most-recent messages to render. Starts at MAX_RENDERED
-  // and grows by REVEAL_STEP each time the user taps "Load earlier messages".
-  const [revealCount, setRevealCount] = useState(MAX_RENDERED);
+  // How many of the most-recent messages to render. Starts at the admin-tunable
+  // chunk size and grows by `chunkSize` each time the user taps "Load earlier".
+  const [revealCount, setRevealCount] = useState(() => chunkSize || DEFAULT_CHUNK);
   // Preserve scroll offset from bottom across reveals so the user's current
   // viewport doesn't jump when older rows are inserted above.
   const preserveBottomOffsetRef = useRef<number | null>(null);
@@ -91,16 +93,17 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
     if (el) {
       preserveBottomOffsetRef.current = el.scrollHeight - el.scrollTop;
     }
+    const step = chunkSize || DEFAULT_CHUNK;
     if (truncatedCount > 0) {
       // Reveal another page of already-cached messages first.
-      setRevealCount((c) => c + MAX_RENDERED);
+      setRevealCount((c) => c + step);
     } else if (hasOlder && !_isLoadingOlder) {
       // Cached set exhausted — fetch the next page from the server.
       _onLoadOlder();
       // Grow the cap proactively so the new page is visible once it lands.
-      setRevealCount((c) => c + MAX_RENDERED);
+      setRevealCount((c) => c + step);
     }
-  }, [truncatedCount, hasOlder, _isLoadingOlder, _onLoadOlder]);
+  }, [truncatedCount, hasOlder, _isLoadingOlder, _onLoadOlder, chunkSize]);
 
   // After visible grows, restore the user's scroll position relative to
   // the bottom of the content so the viewport stays put.

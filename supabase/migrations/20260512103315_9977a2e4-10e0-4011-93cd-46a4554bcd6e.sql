@@ -1,0 +1,1 @@
+insert into public.app_settings (key, value) values ('chat_basic_chunk_size', to_jsonb(100)) on conflict (key) do nothing;
