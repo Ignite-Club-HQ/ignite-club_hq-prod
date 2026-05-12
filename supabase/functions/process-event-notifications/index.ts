@@ -106,21 +106,31 @@ async function resolveRecipients(
   excludeUserId: string,
 ): Promise<string[]> {
   if (miniLeagueId) {
-    const [parentResult, adminResult] = await Promise.all([
+    // Mini-league events route ONLY to league members:
+    // - parents/player-users in this mini_league
+    // - mini_league_admins for this league
+    // - league_admin role-holders for this club
+    // Club-wide coaches/club_admins are intentionally excluded.
+    const [playersResult, leagueAdminResult, roleAdminResult] = await Promise.all([
       supabase
         .from('mini_league_players')
         .select('parent_user_id')
         .eq('mini_league_id', miniLeagueId)
         .not('parent_user_id', 'is', null),
       supabase
+        .from('mini_league_admins')
+        .select('user_id')
+        .eq('mini_league_id', miniLeagueId),
+      supabase
         .from('user_roles')
         .select('user_id')
-        .in('role', ['league_admin', 'coach', 'club_admin'])
+        .eq('role', 'league_admin')
         .eq('club_id', clubId),
     ]);
-    const parentIds = (parentResult.data || []).map((p: any) => p.parent_user_id);
-    const adminIds = (adminResult.data || []).map((a: any) => a.user_id);
-    return [...new Set([...parentIds, ...adminIds])].filter(id => id !== excludeUserId);
+    const parentIds = (playersResult.data || []).map((p: any) => p.parent_user_id);
+    const leagueAdminIds = (leagueAdminResult.data || []).map((a: any) => a.user_id);
+    const roleAdminIds = (roleAdminResult.data || []).map((a: any) => a.user_id);
+    return [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])].filter(id => id !== excludeUserId);
   }
 
   if (teamId) {

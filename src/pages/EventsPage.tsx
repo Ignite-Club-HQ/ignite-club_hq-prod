@@ -233,6 +233,7 @@ export default function EventsPage() {
     placeholderData: (prev) => prev,
   });
 
+
   // Get user's accessible team, club, and mini league IDs for event filtering
   const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
@@ -272,8 +273,10 @@ export default function EventsPage() {
           if (r.role === 'club_admin' || r.role === 'app_admin') {
             clubAdminClubIds.add(r.club_id);
           }
-          // Track club admin roles for league access
-          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+          // Track league admin roles for league access (per-club league_admin sees every league in that club).
+          // club_admin is intentionally excluded here — they only see mini-league events for leagues
+          // they're explicitly a member/admin of (matches mini-league chat scoping).
+          if (r.role === 'league_admin' || r.role === 'app_admin') {
             leagueAdminClubIds.add(r.club_id);
           }
         }
@@ -315,32 +318,40 @@ export default function EventsPage() {
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
-      // Get mini league IDs where user is a parent (has a player)
+      // Mini-league membership: parent of a player in that league, OR explicit mini_league_admin,
+      // OR league_admin/app_admin for that club (covers every league in the club).
       step = performance.now();
-      const { data: playerLeagues, error: pLeaguesErr } = await supabase
-        .from("mini_league_players")
-        .select("mini_league_id")
-        .eq("parent_user_id", user!.id);
-      diagLog("memberships:mini_league_players", { ms: Math.round(performance.now() - step), count: playerLeagues?.length ?? null, error: pLeaguesErr?.message });
-      if (pLeaguesErr) throw pLeaguesErr;
-      
-      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
-      
-      // Also get mini leagues where user is league admin via club_admin role
-      step = performance.now();
-      const { data: adminLeagues, error: adminLeaguesErr } = await supabase
-        .from("mini_leagues")
-        .select("id")
-        .in("club_id", Array.from(leagueAdminClubIds));
-      diagLog("memberships:mini_leagues-admin", { ms: Math.round(performance.now() - step), count: adminLeagues?.length ?? null, error: adminLeaguesErr?.message });
-      if (adminLeaguesErr) throw adminLeaguesErr;
-      
-      // Add leagues where user is admin
-      adminLeagues?.forEach(l => {
-        if (!miniLeagueIds.includes(l.id)) {
-          miniLeagueIds.push(l.id);
-        }
+      const [playerLeaguesRes, mlaRes, adminLeaguesRes] = await Promise.all([
+        supabase
+          .from("mini_league_players")
+          .select("mini_league_id")
+          .eq("parent_user_id", user!.id),
+        supabase
+          .from("mini_league_admins")
+          .select("mini_league_id")
+          .eq("user_id", user!.id),
+        leagueAdminClubIds.size > 0
+          ? supabase
+              .from("mini_leagues")
+              .select("id")
+              .in("club_id", Array.from(leagueAdminClubIds))
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+      diagLog("memberships:mini_leagues", {
+        ms: Math.round(performance.now() - step),
+        playerLeagues: playerLeaguesRes.data?.length ?? null,
+        mlAdmins: mlaRes.data?.length ?? null,
+        clubAdminLeagues: adminLeaguesRes.data?.length ?? null,
       });
+      if (playerLeaguesRes.error) throw playerLeaguesRes.error;
+      if (mlaRes.error) throw mlaRes.error;
+      if (adminLeaguesRes.error) throw adminLeaguesRes.error;
+
+      const miniLeagueIds = Array.from(new Set([
+        ...((playerLeaguesRes.data || []).map((p: any) => p.mini_league_id).filter(Boolean) as string[]),
+        ...((mlaRes.data || []).map((m: any) => m.mini_league_id).filter(Boolean) as string[]),
+        ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
+      ]));
       
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
@@ -355,6 +366,23 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000,
     retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || navigator.onLine),
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    placeholderData: (prev) => prev,
+  });
+
+  // Mini-leagues the user can filter the schedule by — only ones they're actually a member of
+  // (parent of a player, mini_league_admin, or league_admin/app_admin for the club).
+  const { data: userMiniLeagues } = useQuery({
+    queryKey: ["user-mini-leagues-for-filter", user?.id, userMemberships?.miniLeagueIds, clubFilter],
+    queryFn: async () => {
+      const ids = userMemberships?.miniLeagueIds || [];
+      if (ids.length === 0) return [] as { id: string; name: string; club_id: string }[];
+      let query = supabase.from("mini_leagues").select("id, name, club_id").in("id", ids).order("name");
+      if (clubFilter) query = query.eq("club_id", clubFilter);
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user && !!userMemberships,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
   const eventsScopeKey = useMemo(
@@ -424,9 +452,16 @@ export default function EventsPage() {
         .lte("event_date", upperBound.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
+      // teamFilter may encode either a real team id or a mini-league id (`ml:<uuid>`).
+      const selectedMiniLeagueId = teamFilter && teamFilter.startsWith("ml:")
+        ? teamFilter.slice(3)
+        : null;
+      const selectedTeamIdFilter = teamFilter && !selectedMiniLeagueId ? teamFilter : null;
+
       if (filter !== "all") query = query.eq("type", filter);
       if (clubFilter) query = query.eq("club_id", clubFilter);
-      if (teamFilter) query = query.eq("team_id", teamFilter);
+      if (selectedTeamIdFilter) query = query.eq("team_id", selectedTeamIdFilter);
+      if (selectedMiniLeagueId) query = query.eq("mini_league_id", selectedMiniLeagueId);
 
       const queryStart = performance.now();
       const { data, error } = await query;
@@ -449,9 +484,11 @@ export default function EventsPage() {
       const { clubAdminClubIds } = userMemberships;
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
+          // When explicitly filtering by a mini-league, the SQL `eq` already restricted us.
+          if (selectedMiniLeagueId) return event.mini_league_id === selectedMiniLeagueId;
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          if (teamFilter && teamFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
+          if (selectedTeamIdFilter && selectedTeamIdFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
             return true;
           }
           return teamIds.includes(event.team_id);
@@ -612,7 +649,8 @@ export default function EventsPage() {
   const broadcastTargetClubId = clubFilter && adminClubIds.includes(clubFilter)
     ? clubFilter
     : adminClubIds[0];
-  const broadcastTargetTeamId = teamFilter || null;
+  // Broadcast targets a real team only — mini-league selections (`ml:` prefix) are ignored here.
+  const broadcastTargetTeamId = teamFilter && !teamFilter.startsWith("ml:") ? teamFilter : null;
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
 
@@ -801,12 +839,13 @@ export default function EventsPage() {
               <ClubTeamFilter
                 clubs={userClubs || []}
                 teams={userTeams || []}
+                miniLeagues={userMiniLeagues || []}
                 selectedClubId={clubFilter || "all"}
                 selectedTeamId={teamFilter || "all"}
                 onClubChange={handleClubChange}
                 onTeamChange={handleTeamChange}
                 showClubFilter={!activeClubFilter && (userClubs?.length || 0) > 1}
-                showTeamFilter={(userTeams?.length || 0) > 0}
+                showTeamFilter={((userTeams?.length || 0) + (userMiniLeagues?.length || 0)) > 0}
                 getSportEmoji={getSportEmoji}
               />
 
@@ -964,7 +1003,7 @@ export default function EventsPage() {
                   : (userMemberships?.clubIds || [])
               }
               myTeamIds={
-                teamFilter
+                teamFilter && !teamFilter.startsWith("ml:")
                   ? [teamFilter]
                   : (userMemberships?.teamIds || [])
               }

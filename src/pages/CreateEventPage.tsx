@@ -1318,18 +1318,18 @@ export default function CreateEventPage() {
               </div>
 
 
-              {!isFromMiniLeague && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Repeat className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Repeat this event</span>
+                  <span className="text-sm font-medium">
+                    {isFromMiniLeague ? "Repeat this match day" : "Repeat this event"}
+                  </span>
                 </div>
                 <Switch
                   checked={isRecurring}
                   onCheckedChange={setIsRecurring}
                 />
               </div>
-              )}
 
               {isRecurring && (
                 <div className="space-y-4 p-3 rounded-lg border border-dashed">

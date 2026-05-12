@@ -31,9 +31,16 @@ interface Team {
   club_id?: string;
 }
 
+interface MiniLeague {
+  id: string;
+  name: string;
+  club_id?: string;
+}
+
 interface ClubTeamFilterProps {
   clubs: Club[];
   teams: Team[];
+  miniLeagues?: MiniLeague[];
   selectedClubId: string;
   selectedTeamId: string;
   onClubChange: (clubId: string) => void;
@@ -48,6 +55,7 @@ interface ClubTeamFilterProps {
 export function ClubTeamFilter({
   clubs,
   teams,
+  miniLeagues = [],
   selectedClubId,
   selectedTeamId,
   onClubChange,
@@ -63,11 +71,15 @@ export function ClubTeamFilter({
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
 
   const selectedClub = clubs.find((c) => c.id === selectedClubId);
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+  const selectedMiniLeague = selectedTeamId.startsWith("ml:")
+    ? miniLeagues.find((m) => `ml:${m.id}` === selectedTeamId)
+    : null;
+  const selectedTeam = selectedMiniLeague ? null : teams.find((t) => t.id === selectedTeamId);
+  const selectedLabel = selectedMiniLeague?.name ?? selectedTeam?.name ?? null;
 
   // Only show clear button if there are visible filters with active selections
   const showClubOption = showClubFilter && clubs.length > 1;
-  const showTeamOption = showTeamFilter && teams.length > 0;
+  const showTeamOption = showTeamFilter && (teams.length > 0 || miniLeagues.length > 0);
   const hasActiveFilters = (showClubOption && selectedClubId !== "all") || (showTeamOption && selectedTeamId !== "all");
 
   const handleClubSelect = (clubId: string) => {
@@ -182,8 +194,8 @@ export function ClubTeamFilter({
               )}
             >
               <Users className="h-4 w-4" />
-              <span className="max-w-[100px] truncate">
-                {selectedTeam ? selectedTeam.name : "All Teams"}
+              <span className="max-w-[140px] truncate">
+                {selectedLabel ?? "All Teams"}
               </span>
               <ChevronDown className="h-3 w-3" />
             </Button>
@@ -233,6 +245,33 @@ export function ClubTeamFilter({
                         )}
                       </button>
                     ))}
+                    {miniLeagues.length > 0 && (
+                      <div className="pt-3 pb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                        Mini-leagues
+                      </div>
+                    )}
+                    {miniLeagues.map((ml) => {
+                      const value = `ml:${ml.id}`;
+                      return (
+                        <button
+                          key={ml.id}
+                          type="button"
+                          onClick={() => handleTeamSelect(value)}
+                          className={cn(
+                            "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
+                            "hover:bg-accent/50",
+                            selectedTeamId === value
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card"
+                          )}
+                        >
+                          <span className="text-base font-medium">🏆 {ml.name}</span>
+                          {selectedTeamId === value && (
+                            <Check className="h-5 w-5 text-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </DrawerContent>
@@ -284,6 +323,11 @@ export function ClubTeamFilter({
             {teams.map((team) => (
               <SelectItem key={team.id} value={team.id}>
                 {team.name}
+              </SelectItem>
+            ))}
+            {miniLeagues.map((ml) => (
+              <SelectItem key={ml.id} value={`ml:${ml.id}`}>
+                🏆 {ml.name}
               </SelectItem>
             ))}
           </SelectContent>
