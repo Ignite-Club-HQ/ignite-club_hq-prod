@@ -561,6 +561,32 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   <Check className="h-3 w-3" /> Linked to existing player
                                 </p>
                               )}
+                              {activeSearch?.rowId === player.id && activeSearch.field === "name" && !player.existingChildId && player.name.trim().length >= 2 && (
+                                <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                                  {activeChildSuggestions.length > 0 ? activeChildSuggestions.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      className="w-full text-left p-2 rounded-lg hover:bg-background transition-colors text-sm"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        updatePlayer(player.id, {
+                                          name: c.name,
+                                          existingChildId: c.id,
+                                          existingParentUserId: c.parent_id || undefined,
+                                          parentName: c.parent_name || "",
+                                        });
+                                        setActiveSearch(null);
+                                      }}
+                                    >
+                                      <p className="font-medium">{c.name}</p>
+                                      {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
+                                    </button>
+                                  )) : (
+                                    <p className="px-2 py-1 text-xs text-muted-foreground">No existing players found — will add as new player</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="space-y-2">
@@ -603,6 +629,31 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   <p className="text-xs text-primary flex items-center gap-1">
                                     <Check className="h-3 w-3" /> Linked to existing parent
                                   </p>
+                                )}
+                                {activeSearch?.rowId === player.id && activeSearch.field === "parentName" && !player.existingParentUserId && player.parentName.trim().length >= 2 && (
+                                  <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                                    {activeParentSuggestions.length > 0 ? activeParentSuggestions.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        className="w-full text-left p-2 rounded-lg hover:bg-background transition-colors text-sm"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          updatePlayer(player.id, {
+                                            parentName: p.display_name || "",
+                                            existingParentUserId: p.id,
+                                            parentEmail: "",
+                                          });
+                                          setActiveSearch(null);
+                                        }}
+                                      >
+                                        <p className="font-medium">{p.display_name || "Unknown"}</p>
+                                        {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
+                                      </button>
+                                    )) : (
+                                      <p className="px-2 py-1 text-xs text-muted-foreground">No existing parents found — keep typing to add manually</p>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                               <div className="space-y-2">
