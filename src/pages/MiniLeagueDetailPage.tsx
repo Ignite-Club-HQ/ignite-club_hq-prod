@@ -3,16 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
-  ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
+  ArrowLeft, Users, Calendar as CalendarIcon, Plus, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
   UserPlus, CalendarDays, Shield, UserRound
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -389,19 +383,15 @@ export default function MiniLeagueDetailPage() {
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
         {canManageLeague && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Edit Settings
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 h-10 w-10"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Mini-league settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         )}
       </div>
 
