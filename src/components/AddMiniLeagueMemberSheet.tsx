@@ -398,7 +398,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     && activeSearchValue.trim().length >= 2
     && activeChildSuggestions.length === 0
     && activeParentSuggestions.length === 0;
-  const showSearchOverlay = !!activeSearch && !!activePlayer && (hasActiveSearchText || activeChildSuggestions.length > 0 || activeParentSuggestions.length > 0);
+  const showSearchOverlay = !!activeSearch && !!activePlayer;
 
   return (
     <>
@@ -478,6 +478,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               {showNoMatches && (
                 <div className="px-3 py-3 text-sm text-muted-foreground">
                   No existing matches
+                </div>
+              )}
+              {!hasActiveSearchText && (
+                <div className="px-3 py-3 text-sm text-muted-foreground">
+                  Type to search existing records or add a new name
                 </div>
               )}
             </div>
