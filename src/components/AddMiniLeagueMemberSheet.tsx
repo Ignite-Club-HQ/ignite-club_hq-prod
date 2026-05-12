@@ -70,6 +70,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     }
   };
   const [mode, setMode] = useState<"single" | "bulk">("single");
+  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
   
   // Single input state
   const [playerName, setPlayerName] = useState("");
