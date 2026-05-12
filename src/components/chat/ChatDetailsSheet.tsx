@@ -43,6 +43,8 @@ interface ChatDetailsSheetProps {
   otherUserId?: string;
   /** For group chats — controls participant filtering */
   groupAllowedRoles?: string[];
+  /** For mini-league chats — enables league-scoped participant query */
+  miniLeagueId?: string;
 }
 
 export function ChatDetailsSheet({
@@ -57,6 +59,7 @@ export function ChatDetailsSheet({
   clubId,
   otherUserId,
   groupAllowedRoles,
+  miniLeagueId,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
