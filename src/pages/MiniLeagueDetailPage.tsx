@@ -172,12 +172,18 @@ export default function MiniLeagueDetailPage() {
   const { data: leagueMembers } = useQuery({
     queryKey: ["mini-league-members", league?.club_id, parentUserIds],
     queryFn: async () => {
-      // Get league admins and coaches only (not committee members)
+      // Only show league admins for THIS mini-league's club. Team-level
+      // coaches must NOT appear here — there is no `coach ↔ mini_league`
+      // assignment in the schema, so including them would surface every
+      // coach in the entire club as a "coach" of this mini-league, which
+      // is incorrect (e.g. U8 Blue's coach showing up under Maxiroos).
+      // The mini-league surface is strictly: league admins (staff) +
+      // parents of players assigned to this mini-league.
       const { data: adminRoles } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .eq("club_id", league!.club_id)
-        .in("role", ["league_admin", "coach"]);
+        .eq("role", "league_admin");
 
       // Collect all user IDs we need profiles for
       const allUserIds = [...new Set([
@@ -511,7 +517,7 @@ export default function MiniLeagueDetailPage() {
           {/* Staff (Admins & Coaches) */}
           {leagueMembers.staff.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground px-1">Coaches & Admins</p>
+              <p className="text-sm font-medium text-muted-foreground px-1">League Admins</p>
               <div className="space-y-2">
                 {leagueMembers.staff.map((member: any) => {
                   const roleLabels: Record<string, string> = {

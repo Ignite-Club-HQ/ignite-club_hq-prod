@@ -23,8 +23,6 @@ import { isIgniteSupportUser } from "@/lib/systemUser";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
-
-const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
@@ -57,6 +55,17 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { EyeOff } from "lucide-react";
+
+const MESSAGES_PER_PAGE = 15;
+const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
+// Web polls aggressively (30s); native uses a longer interval to reduce
+// background work on low-end Android WebViews while still keeping the inbox
+// reasonably fresh between realtime events / resume refetches.
+const INBOX_REFETCH_INTERVAL_MS = isNativeRuntime() ? 120000 : 30000;
+// Cap background prefetch fanout. Without a cap, /messages prefetches every
+// thread the user belongs to, which on Android WebView can stall the main
+// thread for seconds after navigating away.
+const PREFETCH_THREAD_CAP = isNativeRuntime() ? 5 : 15;
 
 
 // Skeleton component for message items while loading
@@ -200,7 +209,7 @@ export default function MessagesPage() {
     queryKey: ["unread-message-counts", user?.id],
     queryFn: () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
-    refetchInterval: 30000,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -345,7 +354,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: 30000,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
   });
@@ -477,7 +486,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: 30000,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
@@ -745,7 +754,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: 30000,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
   });
@@ -1017,11 +1026,23 @@ export default function MessagesPage() {
     });
   }, [user?.id, teams, memberClubs, adminClubs, chatGroups, latestBroadcast, latestTeamMessages, latestClubMessages, latestGroupMessages]);
 
-  // Prefetch messages for all threads in the background (non-blocking)
+  // Prefetch messages for top N threads in the background (non-blocking).
+  // Capped via PREFETCH_THREAD_CAP to avoid the Android WebView freeze caused
+  // by fanning out a prefetch per team/club/group on /messages — which stalled
+  // the main thread for seconds after navigating away from a chat.
   useEffect(() => {
     if (!user) return;
-    
+
+    let cancelled = false;
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    const cappedTeams = (teams ?? []).slice(0, PREFETCH_THREAD_CAP);
+    const cappedClubs = (memberClubs ?? []).slice(0, PREFETCH_THREAD_CAP);
+    const cappedGroups = (chatGroups ?? []).slice(0, PREFETCH_THREAD_CAP);
+
     const prefetchAll = () => {
+      if (cancelled) return;
       queryClient.prefetchQuery({
         queryKey: ["broadcast-messages"],
         queryFn: async () => {
@@ -1039,7 +1060,8 @@ export default function MessagesPage() {
         staleTime: 1000 * 60,
       });
 
-      teams?.forEach((team) => {
+      cappedTeams.forEach((team) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
           queryFn: async () => {
@@ -1059,7 +1081,8 @@ export default function MessagesPage() {
         });
       });
 
-      memberClubs?.forEach((club) => {
+      cappedClubs.forEach((club) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
           queryFn: async () => {
@@ -1079,7 +1102,8 @@ export default function MessagesPage() {
         });
       });
 
-      chatGroups?.forEach((group) => {
+      cappedGroups.forEach((group) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
           queryFn: async () => {
@@ -1101,10 +1125,18 @@ export default function MessagesPage() {
     };
 
     if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(prefetchAll, { timeout: 2000 });
+      idleHandle = (window as any).requestIdleCallback(prefetchAll, { timeout: 2000 });
     } else {
-      setTimeout(prefetchAll, 100);
+      timeoutHandle = setTimeout(prefetchAll, 100);
     }
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== null && 'cancelIdleCallback' in window) {
+        try { (window as any).cancelIdleCallback(idleHandle); } catch { /* ignore */ }
+      }
+      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+    };
   }, [user, teams, memberClubs, chatGroups, queryClient]);
 
   // Realtime: keep inbox previews + ordering fresh as new messages arrive.
