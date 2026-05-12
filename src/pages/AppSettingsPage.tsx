@@ -120,6 +120,9 @@ export default function AppSettingsPage() {
   }
 
   const isClubCreationLocked = getSetting("club_creation_locked");
+  // Default chat virtualisation to ON when the row is missing or unset.
+  const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
+  const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
