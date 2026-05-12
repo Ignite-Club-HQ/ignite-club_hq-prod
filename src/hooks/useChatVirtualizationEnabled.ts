@@ -1,20 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+const QUERY_KEY = ["app-setting", "chat_virtualization_enabled"] as const;
 
 /**
  * App-admin kill-switch for chat message virtualisation.
  *
- * Reads the `chat_virtualization_enabled` row from `public.app_settings`.
+ * Reads the `chat_virtualization_enabled` row from `public.app_settings` and
+ * subscribes to realtime UPDATE events on that row so toggles in
+ * /admin/settings propagate to active sessions immediately (no 5-minute wait).
+ *
  * Defaults to ENABLED on any error/missing row so a transient fetch failure
  * never silently downgrades every chat to the basic fallback scroller.
- *
- * The flag is cached for 5 minutes per session — flipping it from
- * /admin/settings will take up to 5 min to propagate to active sessions
- * (or one hard reload).
  */
 export function useChatVirtualizationEnabled(): boolean {
+  const queryClient = useQueryClient();
+
   const { data } = useQuery({
-    queryKey: ["app-setting", "chat_virtualization_enabled"],
+    queryKey: QUERY_KEY,
     queryFn: async () => {
       const { data: row } = await supabase
         .from("app_settings")
@@ -29,6 +33,36 @@ export function useChatVirtualizationEnabled(): boolean {
     retry: 1,
     refetchOnWindowFocus: false,
   });
+
+  // Realtime subscription — flips propagate within ~1s instead of waiting for
+  // the 5-minute staleTime. Single shared channel; the postgres_changes filter
+  // ensures we only react to the row we care about.
+  useEffect(() => {
+    const channel = supabase
+      .channel("app-settings-chat-virt")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_settings",
+          filter: "key=eq.chat_virtualization_enabled",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [queryClient]);
+
   // While loading or on error, assume enabled (safe default).
   return data !== false;
 }
