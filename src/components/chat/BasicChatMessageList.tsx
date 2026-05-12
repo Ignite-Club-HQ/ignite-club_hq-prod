@@ -69,14 +69,49 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
   const atBottomRef = useRef(true);
   const lastLengthRef = useRef(0);
   const [revealed, setRevealed] = useState(false);
+  // How many of the most-recent messages to render. Starts at MAX_RENDERED
+  // and grows by REVEAL_STEP each time the user taps "Load earlier messages".
+  const [revealCount, setRevealCount] = useState(MAX_RENDERED);
+  // Preserve scroll offset from bottom across reveals so the user's current
+  // viewport doesn't jump when older rows are inserted above.
+  const preserveBottomOffsetRef = useRef<number | null>(null);
 
-  // Cap to most recent N messages to keep the DOM small on long histories.
+  // Cap to most recent revealCount messages to keep the DOM small.
   const visible = useMemo(() => {
-    if (messages.length <= MAX_RENDERED) return messages;
-    return messages.slice(messages.length - MAX_RENDERED);
-  }, [messages]);
+    if (messages.length <= revealCount) return messages;
+    return messages.slice(messages.length - revealCount);
+  }, [messages, revealCount]);
 
   const truncatedCount = messages.length - visible.length;
+
+  const canRevealMore = truncatedCount > 0 || hasOlder;
+
+  const handleLoadEarlier = useCallback(() => {
+    const el = containerRef.current;
+    if (el) {
+      preserveBottomOffsetRef.current = el.scrollHeight - el.scrollTop;
+    }
+    if (truncatedCount > 0) {
+      // Reveal another page of already-cached messages first.
+      setRevealCount((c) => c + MAX_RENDERED);
+    } else if (hasOlder && !_isLoadingOlder) {
+      // Cached set exhausted — fetch the next page from the server.
+      _onLoadOlder();
+      // Grow the cap proactively so the new page is visible once it lands.
+      setRevealCount((c) => c + MAX_RENDERED);
+    }
+  }, [truncatedCount, hasOlder, _isLoadingOlder, _onLoadOlder]);
+
+  // After visible grows, restore the user's scroll position relative to
+  // the bottom of the content so the viewport stays put.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    const offset = preserveBottomOffsetRef.current;
+    if (el && offset !== null) {
+      el.scrollTop = el.scrollHeight - offset;
+      preserveBottomOffsetRef.current = null;
+    }
+  }, [visible.length]);
 
   const isAtBottom = useCallback(() => {
     const el = containerRef.current;
