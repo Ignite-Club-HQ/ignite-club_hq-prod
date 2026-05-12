@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, Trash2, Shield } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, Shield, Mail, Send, Copy, Check, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,7 +9,9 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
   SheetContent,
@@ -44,6 +46,24 @@ export function ManageMiniLeagueAdminsSheet({
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 200);
+  const [tab, setTab] = useState<"existing" | "invite">("existing");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Club name for email branding
+  const { data: clubInfo } = useQuery({
+    queryKey: ["club-branding-mini-league-invite", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("name, logo_url, contact_email")
+        .eq("id", clubId)
+        .single();
+      return data;
+    },
+    enabled: open && !!clubId,
+  });
 
   // Current per-league admin grants
   const { data: currentAdmins, isLoading: loadingCurrent } = useQuery({
@@ -145,6 +165,135 @@ export function ManageMiniLeagueAdminsSheet({
     },
   });
 
+
+  // Pending email invites for this league (league_admin role + matching mini_league_id in metadata)
+  const { data: pendingInvites } = useQuery({
+    queryKey: ["mini-league-pending-admin-invites", miniLeagueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, invited_email, invite_token, status, created_at, email_sent_at, metadata")
+        .eq("club_id", clubId)
+        .eq("role", "league_admin" as any)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).filter(
+        (r) => (r.metadata as any)?.mini_league_id === miniLeagueId,
+      );
+    },
+    enabled: open && !!miniLeagueId,
+  });
+
+  const sendInviteMutation = useMutation({
+    mutationFn: async () => {
+      const email = inviteEmail.trim().toLowerCase();
+      const name = inviteName.trim();
+      if (!email || !name) throw new Error("Name and email are required");
+      const inviteToken = crypto.randomUUID();
+
+      const { error: insertErr } = await supabase
+        .from("pending_invites")
+        .insert({
+          club_id: clubId,
+          role: "league_admin" as any,
+          invited_user_id: null,
+          invited_by_user_id: user!.id,
+          invited_label: name,
+          invited_email: email,
+          invite_token: inviteToken,
+          metadata: {
+            mini_league_id: miniLeagueId,
+            kind: "mini_league_admin_invite",
+          },
+        } as any);
+      if (insertErr) throw insertErr;
+
+      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      let emailSent = false;
+      let emailError: string | null = null;
+      try {
+        const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+          body: {
+            to: email,
+            subject: `You're invited as a League Admin for ${miniLeagueName}`,
+            template: "team-invite",
+            senderName: clubInfo?.name || undefined,
+            replyTo: (clubInfo as any)?.contact_email || undefined,
+            templateData: {
+              recipientName: name,
+              invitedEmail: email,
+              teamName: miniLeagueName,
+              clubName: clubInfo?.name || "The Club",
+              roleName: "League Admin",
+              inviteLink: link,
+              clubLogoUrl: clubInfo?.logo_url || undefined,
+            },
+          },
+        });
+        emailSent = !funcError && emailResult?.verified && emailResult?.success;
+        if (funcError) emailError = funcError.message;
+        else if (!emailSent) emailError = "Email not verified";
+      } catch (e: any) {
+        emailError = e?.message ?? "Failed to send email";
+      }
+
+      await supabase
+        .from("pending_invites")
+        .update({
+          email_sent_at: emailSent ? new Date().toISOString() : null,
+          email_error: emailError,
+        } as any)
+        .eq("invite_token", inviteToken);
+
+      return { emailSent, link };
+    },
+    onSuccess: ({ emailSent }) => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-pending-admin-invites", miniLeagueId] });
+      toast({
+        title: emailSent ? "Invite sent" : "Invite created",
+        description: emailSent
+          ? `Email sent to ${inviteEmail.trim()}`
+          : "Email couldn't be sent — copy the link below to share manually",
+      });
+      setInviteName("");
+      setInviteEmail("");
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Couldn't create invite",
+        description: err?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelPendingMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      const { error } = await supabase
+        .from("pending_invites")
+        .update({ status: "cancelled" } as any)
+        .eq("id", inviteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-pending-admin-invites", miniLeagueId] });
+      toast({ title: "Invite cancelled" });
+    },
+  });
+
+  const handleCopyLink = async (token: string) => {
+    const link = `${window.location.origin}/join/p/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 1500);
+      toast({ title: "Link copied" });
+    } catch {
+      toast({ title: "Couldn't copy link", variant: "destructive" });
+    }
+  };
+
   const currentIds = new Set((currentAdmins || []).map((a) => a.user_id));
   const filteredMembers = (clubMembers || [])
     .filter((m) => !currentIds.has(m.user_id))
@@ -154,6 +303,7 @@ export function ManageMiniLeagueAdminsSheet({
       return name.includes(debouncedSearch.toLowerCase());
     })
     .slice(0, 50);
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -169,102 +319,208 @@ export function ManageMiniLeagueAdminsSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4 mt-2">
-          {/* Current admins */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Current
-            </p>
-            {loadingCurrent ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (currentAdmins || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground px-1 py-2">
-                No per-league admins yet.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {(currentAdmins || []).map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center gap-3 p-2 rounded-lg bg-card border"
-                  >
-                    <Avatar className="h-8 w-8">
-                      {a.avatar_url && <AvatarImage src={a.avatar_url} />}
-                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                        {(a.display_name || "?").charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p className="flex-1 text-sm font-medium truncate">
-                      {a.display_name || "Unknown"}
-                    </p>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => revokeMutation.mutate(a.id)}
-                      disabled={revokeMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 overflow-hidden flex flex-col mt-2">
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="existing">From club</TabsTrigger>
+            <TabsTrigger value="invite">Invite by email</TabsTrigger>
+          </TabsList>
 
-          {/* Picker */}
-          <div className="flex-1 flex flex-col min-h-0 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Add from club
-            </p>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search club members…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-            <ScrollArea className="flex-1 -mx-2 px-2">
-              <div className="space-y-1.5 pb-4">
-                {filteredMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-1 py-4 text-center">
-                    No matches.
-                  </p>
-                ) : (
-                  filteredMembers.map((m) => (
+          <TabsContent value="existing" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+            {/* Current admins */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Current
+              </p>
+              {loadingCurrent ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (currentAdmins || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground px-1 py-2">
+                  No per-league admins yet.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {(currentAdmins || []).map((a) => (
                     <div
-                      key={m.user_id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50"
+                      key={a.id}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-card border"
                     >
                       <Avatar className="h-8 w-8">
-                        {m.avatar_url && <AvatarImage src={m.avatar_url} />}
-                        <AvatarFallback className="bg-muted text-foreground text-sm">
-                          {(m.display_name || "?").charAt(0).toUpperCase()}
+                        {a.avatar_url && <AvatarImage src={a.avatar_url} />}
+                        <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                          {(a.display_name || "?").charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <p className="flex-1 text-sm truncate">
-                        {m.display_name || "Unknown"}
+                      <p className="flex-1 text-sm font-medium truncate">
+                        {a.display_name || "Unknown"}
                       </p>
                       <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => grantMutation.mutate(m.user_id)}
-                        disabled={grantMutation.isPending}
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => revokeMutation.mutate(a.id)}
+                        disabled={revokeMutation.isPending}
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Add
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Picker */}
+            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Add from club
+              </p>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search club members…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8"
+                />
               </div>
-            </ScrollArea>
-          </div>
-        </div>
+              <ScrollArea className="flex-1 -mx-2 px-2">
+                <div className="space-y-1.5 pb-4">
+                  {filteredMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                      No matches.
+                    </p>
+                  ) : (
+                    filteredMembers.map((m) => (
+                      <div
+                        key={m.user_id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50"
+                      >
+                        <Avatar className="h-8 w-8">
+                          {m.avatar_url && <AvatarImage src={m.avatar_url} />}
+                          <AvatarFallback className="bg-muted text-foreground text-sm">
+                            {(m.display_name || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <p className="flex-1 text-sm truncate">
+                          {m.display_name || "Unknown"}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => grantMutation.mutate(m.user_id)}
+                          disabled={grantMutation.isPending}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="invite" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+            {/* Send new invite */}
+            <div className="space-y-3 rounded-lg border bg-card p-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Invite someone not on the app
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="ml-invite-name" className="text-xs">Their name</Label>
+                <Input
+                  id="ml-invite-name"
+                  placeholder="Jane Smith"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ml-invite-email" className="text-xs">Email</Label>
+                <Input
+                  id="ml-invite-email"
+                  type="email"
+                  inputMode="email"
+                  placeholder="jane@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <Button
+                onClick={() => sendInviteMutation.mutate()}
+                disabled={sendInviteMutation.isPending || !inviteName.trim() || !inviteEmail.trim()}
+                className="w-full gap-2"
+              >
+                {sendInviteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Send invite
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                They'll receive an email with a link. Once they sign up, they get
+                League Admin rights for {miniLeagueName} only.
+              </p>
+            </div>
+
+            {/* Pending list */}
+            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Pending invites
+              </p>
+              <ScrollArea className="flex-1 -mx-2 px-2">
+                <div className="space-y-1.5 pb-4">
+                  {(pendingInvites || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                      No pending invites.
+                    </p>
+                  ) : (
+                    (pendingInvites || []).map((inv) => (
+                      <div
+                        key={inv.id}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-card border"
+                      >
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{inv.invited_label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{inv.invited_email}</p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => inv.invite_token && handleCopyLink(inv.invite_token)}
+                          title="Copy invite link"
+                        >
+                          {copiedToken === inv.invite_token ? (
+                            <Check className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => cancelPendingMutation.mutate(inv.id)}
+                          disabled={cancelPendingMutation.isPending}
+                          title="Cancel invite"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
   );
