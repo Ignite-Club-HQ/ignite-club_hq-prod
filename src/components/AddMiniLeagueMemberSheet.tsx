@@ -489,19 +489,19 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             ) : (
               <div className="space-y-4 pb-4">
                 {!inviteByNameExpanded ? (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
+                  <button
+                    type="button"
                     onClick={() => setInviteByNameExpanded(true)}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
                   >
-                    <span className="flex flex-col items-start text-left">
-                      <span className="text-sm font-medium">Invite a specific player</span>
-                      <span className="text-xs text-muted-foreground font-normal">Add by name, search existing players or parents</span>
+                    <span className="inline-flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-muted-foreground" />
+                      Invite a specific player
                     </span>
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  </Button>
+                    <span className="text-xs text-muted-foreground">Name or CSV</span>
+                  </button>
                 ) : (
-                  <div className="space-y-4 border border-border rounded-lg p-4">
+                  <>
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5">
                         <h3 className="text-sm font-semibold">Invite by name</h3>
@@ -646,7 +646,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                         </>
                       )}
                     </Button>
-                  </div>
+                  </>
                 )}
               </div>
             )}
