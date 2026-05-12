@@ -99,6 +99,16 @@ type EstimableChatMessage = {
   is_system_message?: boolean | null;
 };
 
+function isAndroidNativeWebView() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const cap = (window as any).Capacitor;
+  try {
+    if (cap?.isNativePlatform?.() && cap?.getPlatform?.() === "android") return true;
+  } catch { /* ignore */ }
+  const ua = navigator.userAgent || "";
+  return /Android/i.test(ua) && (/(; wv\)|\bwv\b)/i.test(ua) || /IgniteClubHQ-Android/i.test(ua));
+}
+
 function getMessageDay(value?: string | null) {
   return value ? new Date(value).toDateString() : "";
 }
@@ -427,6 +437,13 @@ function CachedMeasureRow({
       if (h > 0) setCachedRowHeight(messageId, h, sigRef.current);
     };
     write();
+    // Android WebView crash fix: a fast fling through chat history was creating
+    // hundreds of per-row ResizeObservers in seconds (546 total in the field
+    // snapshot), which correlated with 14–18s compositor stalls / app kills.
+    // Virtuoso already observes row size; on Android we only capture the mount
+    // height and skip our extra live observer. Edits/reactions still recapture
+    // through the signature layout effect below.
+    if (isAndroidNativeWebView()) return;
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(write);
     ro.observe(el);
