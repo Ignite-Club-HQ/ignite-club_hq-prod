@@ -1139,6 +1139,13 @@ export default function MessagesPage() {
     //   - opening a thread (the thread itself stays fully realtime)
     // Web still gets the live channel.
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    // Native uses a separate, lightweight realtime block (below) that patches
+    // react-query caches in place via setQueryData — no invalidations, no
+    // refetch storm, no localStorage rewrites on the hot path. The freeze on
+    // /messages came from invalidateQueries chaining 4-6 parallel refetches
+    // that each parsed/merged/restringified the 100-500KB messages-page cache
+    // blob. Patching the in-memory query data directly lets previews stay
+    // live without any of that work.
     if (isNative) return;
 
     const rafState = { team: 0, club: 0, group: 0, dm: 0, unread: 0 } as Record<string, number>;
