@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star, Search, CheckCircle2 } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
+import MiniLeagueParentJoinLinkCard from "@/components/mini-league/MiniLeagueParentJoinLinkCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -544,7 +545,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             </SheetDescription>
           </SheetHeader>
 
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="flex-1 flex flex-col mt-4">
+          <div className="mt-4">
+            <MiniLeagueParentJoinLinkCard
+              miniLeagueId={miniLeagueId}
+              miniLeagueName={miniLeagueName}
+              clubId={clubId}
+            />
+          </div>
+
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="flex-1 flex flex-col mt-4 min-h-0">
             <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="single" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
