@@ -419,17 +419,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
     ? parentResults
     : [];
-  const activeSearchValue = activeSearch?.field === "parentName"
-    ? activePlayer?.parentName ?? ""
-    : activePlayer?.name ?? "";
-  const activeSearchLabel = activeSearch?.field === "parentName" ? "Parent name" : "Player name";
-  const activeSearchPlaceholder = activeSearch?.field === "parentName" ? "Search parent" : "Search player";
-  const hasActiveSearchText = activeSearchValue.trim().length > 0;
-  const showNoMatches = hasActiveSearchText
-    && activeSearchValue.trim().length >= 2
-    && activeChildSuggestions.length === 0
-    && activeParentSuggestions.length === 0;
-  const showSearchOverlay = !!activeSearch && !!activePlayer;
   const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
   const sheetStyle = {
     "--mini-league-keyboard-inset": `${keyboardInset}px`,
@@ -469,64 +458,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               clubId={clubId}
             />
           </div>
-
-          {showSearchOverlay && activeSearch && (
-            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100000] bg-popover border border-border rounded-lg shadow-lg max-h-[38dvh] overflow-auto overscroll-contain">
-              <div className="sticky top-0 bg-popover border-b border-border px-3 py-2">
-                <p className="text-xs font-medium text-muted-foreground">{activeSearchLabel}</p>
-                <p className="text-base font-semibold truncate">{activeSearchValue || activeSearchPlaceholder}</p>
-              </div>
-              {activeSearch.field === "name" && activeChildSuggestions.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    updatePlayer(activeSearch.rowId, {
-                      name: c.name,
-                      existingChildId: c.id,
-                      existingParentUserId: c.parent_id || undefined,
-                      parentName: c.parent_name || "",
-                    });
-                    setActiveSearch(null);
-                  }}
-                >
-                  <p className="font-medium">{c.name}</p>
-                  {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
-                </button>
-              ))}
-              {activeSearch.field === "parentName" && activeParentSuggestions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    updatePlayer(activeSearch.rowId, {
-                      parentName: p.display_name || "",
-                      existingParentUserId: p.id,
-                      parentEmail: "",
-                    });
-                    setActiveSearch(null);
-                  }}
-                >
-                  <p className="font-medium">{p.display_name || "Unknown"}</p>
-                  {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
-                </button>
-              ))}
-              {showNoMatches && (
-                <div className="px-3 py-3 text-sm text-muted-foreground">
-                  No existing matches
-                </div>
-              )}
-              {!hasActiveSearchText && (
-                <div className="px-3 py-3 text-sm text-muted-foreground">
-                  Type to search existing records or add a new name
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
             {results.length > 0 ? (
