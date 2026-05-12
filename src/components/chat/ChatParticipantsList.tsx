@@ -63,6 +63,7 @@ export function ChatParticipantsList({
   chatName,
   teamId,
   clubId,
+  miniLeagueId,
   groupAllowedRoles,
   enabled = true,
   onBeforeNavigate,
