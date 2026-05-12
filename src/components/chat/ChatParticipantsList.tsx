@@ -221,12 +221,9 @@ export function ChatParticipantsList({
             .from("user_roles")
             .select("user_id, role")
             .eq("club_id", mlClubId)
-            .in("role", ["league_admin", "club_admin"]);
+            .eq("role", "league_admin");
           for (const r of clubRoles || []) {
-            // Prioritise more specific role label
-            if (!roleMap.has(r.user_id) || r.role === "league_admin") {
-              roleMap.set(r.user_id, r.role);
-            }
+            roleMap.set(r.user_id, r.role);
           }
         }
         for (const a of perLeagueAdmins.data || []) {
