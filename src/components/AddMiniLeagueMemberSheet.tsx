@@ -419,17 +419,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
     ? parentResults
     : [];
-  const activeSearchValue = activeSearch?.field === "parentName"
-    ? activePlayer?.parentName ?? ""
-    : activePlayer?.name ?? "";
-  const activeSearchLabel = activeSearch?.field === "parentName" ? "Parent name" : "Player name";
-  const activeSearchPlaceholder = activeSearch?.field === "parentName" ? "Search parent" : "Search player";
-  const hasActiveSearchText = activeSearchValue.trim().length > 0;
-  const showNoMatches = hasActiveSearchText
-    && activeSearchValue.trim().length >= 2
-    && activeChildSuggestions.length === 0
-    && activeParentSuggestions.length === 0;
-  const showSearchOverlay = !!activeSearch && !!activePlayer;
   const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
   const sheetStyle = {
     "--mini-league-keyboard-inset": `${keyboardInset}px`,
@@ -470,64 +459,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             />
           </div>
 
-          {showSearchOverlay && activeSearch && (
-            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100000] bg-popover border border-border rounded-lg shadow-lg max-h-[38dvh] overflow-auto overscroll-contain">
-              <div className="sticky top-0 bg-popover border-b border-border px-3 py-2">
-                <p className="text-xs font-medium text-muted-foreground">{activeSearchLabel}</p>
-                <p className="text-base font-semibold truncate">{activeSearchValue || activeSearchPlaceholder}</p>
-              </div>
-              {activeSearch.field === "name" && activeChildSuggestions.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    updatePlayer(activeSearch.rowId, {
-                      name: c.name,
-                      existingChildId: c.id,
-                      existingParentUserId: c.parent_id || undefined,
-                      parentName: c.parent_name || "",
-                    });
-                    setActiveSearch(null);
-                  }}
-                >
-                  <p className="font-medium">{c.name}</p>
-                  {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
-                </button>
-              ))}
-              {activeSearch.field === "parentName" && activeParentSuggestions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    updatePlayer(activeSearch.rowId, {
-                      parentName: p.display_name || "",
-                      existingParentUserId: p.id,
-                      parentEmail: "",
-                    });
-                    setActiveSearch(null);
-                  }}
-                >
-                  <p className="font-medium">{p.display_name || "Unknown"}</p>
-                  {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
-                </button>
-              ))}
-              {showNoMatches && (
-                <div className="px-3 py-3 text-sm text-muted-foreground">
-                  No existing matches
-                </div>
-              )}
-              {!hasActiveSearchText && (
-                <div className="px-3 py-3 text-sm text-muted-foreground">
-                  Type to search existing records or add a new name
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
             {results.length > 0 ? (
               <div className="flex flex-col h-full space-y-3">
@@ -558,19 +489,19 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             ) : (
               <div className="space-y-4 pb-4">
                 {!inviteByNameExpanded ? (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
+                  <button
+                    type="button"
                     onClick={() => setInviteByNameExpanded(true)}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
                   >
-                    <span className="flex flex-col items-start text-left">
-                      <span className="text-sm font-medium">Invite a specific player</span>
-                      <span className="text-xs text-muted-foreground font-normal">Add by name, search existing players or parents</span>
+                    <span className="inline-flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-muted-foreground" />
+                      Invite a specific player
                     </span>
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  </Button>
+                    <span className="text-xs text-muted-foreground">Name or CSV</span>
+                  </button>
                 ) : (
-                  <div className="space-y-4 border border-border rounded-lg p-4">
+                  <>
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5">
                         <h3 className="text-sm font-semibold">Invite by name</h3>
@@ -630,6 +561,32 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   <Check className="h-3 w-3" /> Linked to existing player
                                 </p>
                               )}
+                              {activeSearch?.rowId === player.id && activeSearch.field === "name" && !player.existingChildId && player.name.trim().length >= 2 && (
+                                <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                                  {activeChildSuggestions.length > 0 ? activeChildSuggestions.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      className="w-full text-left p-2 rounded-lg hover:bg-background transition-colors text-sm"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        updatePlayer(player.id, {
+                                          name: c.name,
+                                          existingChildId: c.id,
+                                          existingParentUserId: c.parent_id || undefined,
+                                          parentName: c.parent_name || "",
+                                        });
+                                        setActiveSearch(null);
+                                      }}
+                                    >
+                                      <p className="font-medium">{c.name}</p>
+                                      {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
+                                    </button>
+                                  )) : (
+                                    <p className="px-2 py-1 text-xs text-muted-foreground">No existing players found — will add as new player</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="space-y-2">
@@ -673,6 +630,31 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                     <Check className="h-3 w-3" /> Linked to existing parent
                                   </p>
                                 )}
+                                {activeSearch?.rowId === player.id && activeSearch.field === "parentName" && !player.existingParentUserId && player.parentName.trim().length >= 2 && (
+                                  <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                                    {activeParentSuggestions.length > 0 ? activeParentSuggestions.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        className="w-full text-left p-2 rounded-lg hover:bg-background transition-colors text-sm"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          updatePlayer(player.id, {
+                                            parentName: p.display_name || "",
+                                            existingParentUserId: p.id,
+                                            parentEmail: "",
+                                          });
+                                          setActiveSearch(null);
+                                        }}
+                                      >
+                                        <p className="font-medium">{p.display_name || "Unknown"}</p>
+                                        {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
+                                      </button>
+                                    )) : (
+                                      <p className="px-2 py-1 text-xs text-muted-foreground">No existing parents found — keep typing to add manually</p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`mini-league-parent-email-${player.id}`}>Parent email optional</Label>
@@ -715,7 +697,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                         </>
                       )}
                     </Button>
-                  </div>
+                  </>
                 )}
               </div>
             )}
