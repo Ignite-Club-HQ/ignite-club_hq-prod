@@ -1003,7 +1003,7 @@ export default function EventsPage() {
                   : (userMemberships?.clubIds || [])
               }
               myTeamIds={
-                teamFilter
+                teamFilter && !teamFilter.startsWith("ml:")
                   ? [teamFilter]
                   : (userMemberships?.teamIds || [])
               }
