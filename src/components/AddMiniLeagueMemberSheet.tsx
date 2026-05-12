@@ -118,7 +118,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
           .from("child_team_assignments")
           .select("child_id")
           .in("team_id", teamIds.map(t => t.id));
-        assignments?.forEach(a => childIdsadd(childIds, a.child_id));
+        assignments?.forEach(a => childIds.add(a.child_id));
       }
 
       const { data: clubParents } = await supabase
