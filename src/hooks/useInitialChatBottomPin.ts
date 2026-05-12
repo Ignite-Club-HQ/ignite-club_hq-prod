@@ -339,9 +339,9 @@ export function useInitialChatBottomPin({
       });
 
       teardown = () => {
+        if (postPinResizeObserver === localPostPinRO) postPinResizeObserver = null;
         localPostPinRO?.disconnect();
         localPostPinRO = null;
-        if (postPinResizeObserver === localPostPinRO) postPinResizeObserver = null;
         localImageMountObserver?.disconnect();
         localImageMountObserver = null;
         imageListeners.forEach(({ img, handler }) => {
