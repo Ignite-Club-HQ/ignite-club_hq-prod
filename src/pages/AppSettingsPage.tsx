@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
