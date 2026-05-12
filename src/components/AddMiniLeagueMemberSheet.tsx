@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -246,22 +247,24 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
         if (player.parentEmail.trim() && !player.existingParentUserId) {
           const inviteToken = crypto.randomUUID();
-          const { error: inviteError } = await supabase.from("pending_invites").insert({
+          const inviteMetadata: Json = {
+            mini_league_id: miniLeagueId,
+            child_id: childId,
+            player_id: newPlayer?.id,
+            player_name: player.name.trim(),
+            children: [{ name: player.name.trim(), yearOfBirth: null }],
+          };
+          const invitePayload: Database["public"]["Tables"]["pending_invites"]["Insert"] = {
             club_id: clubId,
-            role: "parent" as any,
+            role: "parent",
             invited_user_id: null,
             invited_by_user_id: user!.id,
             invited_label: player.parentName.trim() || player.parentEmail.trim(),
             invited_email: player.parentEmail.trim().toLowerCase(),
             invite_token: inviteToken,
-            metadata: {
-              mini_league_id: miniLeagueId,
-              child_id: childId,
-              player_id: newPlayer?.id,
-              player_name: player.name.trim(),
-              children: [{ name: player.name.trim(), yearOfBirth: null }],
-            },
-          } as any);
+            metadata: inviteMetadata,
+          };
+          const { error: inviteError } = await supabase.from("pending_invites").insert(invitePayload);
 
           if (!inviteError) {
             try {
@@ -272,7 +275,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   subject: `You're invited to ${miniLeagueName}`,
                   template: "team-invite",
                   senderName: clubBranding?.name || undefined,
-                  replyTo: (clubBranding as any)?.contact_email || undefined,
+                  replyTo: clubBranding?.contact_email || undefined,
                   templateData: {
                     recipientName: player.parentName.trim() || player.parentEmail.trim(),
                     teamName: miniLeagueName,
@@ -293,7 +296,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   email_sent_at: sent ? new Date().toISOString() : null,
                   email_id: emailResult?.emailId || null,
                   email_error: funcError?.message || (!sent ? "Email not verified" : null),
-                } as any)
+                } satisfies Database["public"]["Tables"]["pending_invites"]["Update"])
                 .eq("invite_token", inviteToken);
             } catch (error) {
               console.error("Failed to send email:", error);
@@ -378,6 +381,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
   };
 
+  const activePlayer = activeSearch ? players.find((player) => player.id === activeSearch.rowId) : undefined;
+  const activeChildSuggestions = activeSearch?.field === "name" && activePlayer && !activePlayer.existingChildId
+    ? childMatchesFor(activePlayer.name)
+    : [];
+  const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
+    ? parentResults
+    : [];
+  const showSearchOverlay = activeChildSuggestions.length > 0 || activeParentSuggestions.length > 0;
+
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -407,6 +419,50 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               clubId={clubId}
             />
           </div>
+
+          {showSearchOverlay && activeSearch && (
+            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100000] bg-popover border border-border rounded-lg shadow-lg max-h-[38dvh] overflow-auto overscroll-contain">
+              {activeSearch.field === "name" && activeChildSuggestions.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    updatePlayer(activeSearch.rowId, {
+                      name: c.name,
+                      existingChildId: c.id,
+                      existingParentUserId: c.parent_id || undefined,
+                      parentName: c.parent_name || "",
+                    });
+                    setActiveSearch(null);
+                  }}
+                >
+                  <p className="font-medium">{c.name}</p>
+                  {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
+                </button>
+              ))}
+              {activeSearch.field === "parentName" && activeParentSuggestions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    updatePlayer(activeSearch.rowId, {
+                      parentName: p.display_name || "",
+                      existingParentUserId: p.id,
+                      parentEmail: "",
+                    });
+                    setActiveSearch(null);
+                  }}
+                >
+                  <p className="font-medium">{p.display_name || "Unknown"}</p>
+                  {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
             {results.length > 0 ? (
@@ -474,12 +530,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
                     <div className="space-y-4">
                       {players.map((player, idx) => {
-                        const childSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "name"
-                          ? childMatchesFor(player.name)
-                          : [];
-                        const parentSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "parentName"
-                          ? parentResults
-                          : [];
                         return (
                           <div key={player.id} className="space-y-3 border-b border-border pb-4 last:border-b-0 last:pb-0">
                             <div className="flex items-center justify-between gap-2">
@@ -515,30 +565,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 <p className="text-xs text-primary flex items-center gap-1">
                                   <Check className="h-3 w-3" /> Linked to existing player
                                 </p>
-                              )}
-                              {childSuggestions.length > 0 && !player.existingChildId && (
-                                <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
-                                  {childSuggestions.map((c) => (
-                                    <button
-                                      key={c.id}
-                                      type="button"
-                                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        updatePlayer(player.id, {
-                                          name: c.name,
-                                          existingChildId: c.id,
-                                          existingParentUserId: c.parent_id || undefined,
-                                          parentName: c.parent_name || "",
-                                        });
-                                        setActiveSearch(null);
-                                      }}
-                                    >
-                                      <p className="font-medium">{c.name}</p>
-                                      {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
-                                    </button>
-                                  ))}
-                                </div>
                               )}
                             </div>
 
@@ -582,29 +608,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   <p className="text-xs text-primary flex items-center gap-1">
                                     <Check className="h-3 w-3" /> Linked to existing parent
                                   </p>
-                                )}
-                                {parentSuggestions.length > 0 && !player.existingParentUserId && (
-                                  <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
-                                    {parentSuggestions.map((p) => (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          updatePlayer(player.id, {
-                                            parentName: p.display_name || "",
-                                            existingParentUserId: p.id,
-                                            parentEmail: "",
-                                          });
-                                          setActiveSearch(null);
-                                        }}
-                                      >
-                                        <p className="font-medium">{p.display_name || "Unknown"}</p>
-                                        {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
-                                      </button>
-                                    ))}
-                                  </div>
                                 )}
                               </div>
                               <div className="space-y-2">
