@@ -346,7 +346,7 @@ export function ManageMiniLeagueAdminsSheet({
         <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 overflow-hidden flex flex-col mt-2">
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="existing">From club</TabsTrigger>
-            <TabsTrigger value="invite">Invite by email</TabsTrigger>
+            <TabsTrigger value="invite">Invite</TabsTrigger>
           </TabsList>
 
           <TabsContent value="existing" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
