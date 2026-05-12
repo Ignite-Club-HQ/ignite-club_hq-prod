@@ -398,15 +398,17 @@ export default function JoinTeamPage() {
           } as any);
         }
 
-        // Mark invite accepted
-        await supabase
-          .from("pending_invites")
-          .update({
-            status: "accepted",
-            accepted_at: new Date().toISOString(),
-            invited_user_id: user.id,
-          })
-          .eq("id", pendingInviteData.id);
+        // Mark invite accepted — but keep reusable shareable join links pending
+        if (metadata?.kind !== "league_admin_join_link") {
+          await supabase
+            .from("pending_invites")
+            .update({
+              status: "accepted",
+              accepted_at: new Date().toISOString(),
+              invited_user_id: user.id,
+            })
+            .eq("id", pendingInviteData.id);
+        }
 
         // Notification
         await supabase.from("notifications").insert({
