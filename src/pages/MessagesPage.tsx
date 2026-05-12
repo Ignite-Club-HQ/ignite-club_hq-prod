@@ -21,6 +21,7 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
+import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 
 const MESSAGES_PER_PAGE = 15;
@@ -1126,6 +1127,28 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!user?.id) return;
 
+    // HARD-STOP PERF GUARD (native): the inbox realtime fanout was the single
+    // largest source of long-task storms / 26s freezes on Android WebView.
+    // Every INSERT to team/club/group/dm/broadcast tables would invalidate
+    // 1-2 large queries AND the unread-counts query, which on accounts with
+    // many threads chained dozens of long tasks together and froze the UI.
+    //
+    // On native we now rely on:
+    //   - 30s refetchInterval on each query
+    //   - foreground resume + reconnect refetches (reactQueryNativeAdapter)
+    //   - pull-to-refresh
+    //   - opening a thread (the thread itself stays fully realtime)
+    // Web still gets the live channel.
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    // Native uses a separate, lightweight realtime block (below) that patches
+    // react-query caches in place via setQueryData — no invalidations, no
+    // refetch storm, no localStorage rewrites on the hot path. The freeze on
+    // /messages came from invalidateQueries chaining 4-6 parallel refetches
+    // that each parsed/merged/restringified the 100-500KB messages-page cache
+    // blob. Patching the in-memory query data directly lets previews stay
+    // live without any of that work.
+    if (isNative) return;
+
     const rafState = { team: 0, club: 0, group: 0, dm: 0, unread: 0 } as Record<string, number>;
     const schedule = (key: keyof typeof rafState, fn: () => void) => {
       if (rafState[key]) return;
@@ -1168,6 +1191,256 @@ export default function MessagesPage() {
     return () => {
       supabase.removeChannel(channel);
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
+    };
+  }, [user?.id, queryClient]);
+
+  // Native-only: lightweight realtime that PATCHES react-query caches in
+  // place instead of invalidating them. This keeps inbox previews live
+  // (latest text, image hint, bubble-to-top sort) without triggering the
+  // refetch storm + cache rewrites that froze Android WebView for 11-26s.
+  // No unread-count bump here — counts refresh on 30s poll, foreground
+  // resume, reconnect, and on opening the thread.
+  useEffect(() => {
+    if (!user?.id) return;
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    if (!isNative) return;
+
+    // Resolve an author display name without ever invalidating react-query.
+    // 1) "You" if it's the current user.
+    // 2) profileCache hit (sync, in-memory).
+    // 3) Queue the id; a coalesced batch lookup runs every 500ms and
+    //    re-patches the affected preview rows when names arrive.
+    type PendingTarget = { kind: 'team' | 'club' | 'group' | 'dm'; targetId: string };
+    const pendingByAuthor = new Map<string, PendingTarget[]>();
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const patchAuthor = (kind: PendingTarget['kind'], targetId: string, authorName: string) => {
+      const apply = (key: any[], idKey: string) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old?.latestMessages?.[targetId]) return old;
+          if (old.latestMessages[targetId].author === authorName) return old;
+          return {
+            ...old,
+            latestMessages: {
+              ...old.latestMessages,
+              [targetId]: { ...old.latestMessages[targetId], author: authorName },
+            },
+          };
+        });
+      };
+      if (kind === 'team') apply(["my-teams-with-messages", user.id], 'team_id');
+      else if (kind === 'club') apply(["member-clubs-with-messages", user.id], 'club_id');
+      else if (kind === 'group') apply(["my-chat-groups-with-messages", user.id], 'group_id');
+      else if (kind === 'dm') {
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === targetId);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          if (conv?.other_user?.display_name === authorName) return old;
+          const next = old.slice();
+          next[idx] = { ...conv, other_user: { ...(conv.other_user || { id: '' }), display_name: authorName } };
+          return next;
+        });
+      }
+    };
+
+    const flushPending = async () => {
+      flushTimer = null;
+      if (pendingByAuthor.size === 0) return;
+      const ids = Array.from(pendingByAuthor.keys());
+      const batch = new Map(pendingByAuthor);
+      pendingByAuthor.clear();
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", ids);
+        if (data && data.length) cacheProfiles(data);
+        const byId = new Map((data ?? []).map(p => [p.id, p.display_name || ""]));
+        batch.forEach((targets, authorId) => {
+          const name = byId.get(authorId);
+          if (!name) return;
+          targets.forEach(t => patchAuthor(t.kind, t.targetId, name));
+        });
+      } catch { /* silent — next 30s poll will fill it in */ }
+    };
+
+    const queueAuthor = (authorId: string, target: PendingTarget) => {
+      const list = pendingByAuthor.get(authorId) ?? [];
+      list.push(target);
+      pendingByAuthor.set(authorId, list);
+      if (!flushTimer) flushTimer = setTimeout(flushPending, 500);
+    };
+
+    const resolveAuthor = (authorId: string | undefined, target: PendingTarget): string => {
+      if (!authorId) return "";
+      if (authorId === user.id) return "You";
+      const cached = getProfileFromCache(authorId);
+      if (cached?.display_name) return cached.display_name;
+      queueAuthor(authorId, target);
+      return ""; // placeholder — patched in <500ms once batch resolves
+    };
+
+    // Lightweight unread bump: in-place setQueryData on the unread-counts
+    // cache, no invalidation (which would re-run the expensive RPC fanout
+    // and re-freeze Android WebView). Skips own messages and the currently
+    // open thread so badges don't flash.
+    const bumpUnread = (
+      kind: 'team' | 'club' | 'group' | 'dm' | 'broadcast',
+      targetId: string | null,
+      authorId?: string,
+    ) => {
+      if (authorId && authorId === user.id) return;
+      const path = window.location.pathname;
+      if (kind === 'team' && targetId && path === `/messages/${targetId}`) return;
+      if (kind === 'club' && targetId && path === `/messages/club/${targetId}`) return;
+      if (kind === 'group' && targetId && path === `/groups/${targetId}`) return;
+      if (kind === 'dm' && targetId && path === `/messages/dm/${targetId}`) return;
+      if (kind === 'broadcast' && path === '/messages/broadcast') return;
+      queryClient.setQueryData(["unread-message-counts", user.id], (old: any) => {
+        if (!old) return old;
+        if (kind === 'broadcast') return { ...old, broadcast: (old.broadcast ?? 0) + 1 };
+        if (!targetId) return old;
+        const bucket =
+          kind === 'team' ? 'teams' :
+          kind === 'club' ? 'clubs' :
+          kind === 'group' ? 'groups' : 'dms';
+        const map = { ...(old[bucket] || {}) };
+        map[targetId] = (map[targetId] ?? 0) + 1;
+        return { ...old, [bucket]: map };
+      });
+    };
+
+    const channel = supabase
+      .channel(`messages-inbox-light-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.team_id) return;
+        const ids = teamIdsRef.current;
+        if (ids.size && !ids.has(row.team_id)) return;
+        const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+        const author = isAnnouncement
+          ? row.club_announcement_name
+          : resolveAuthor(row.author_id, { kind: 'team', targetId: row.team_id });
+        queryClient.setQueryData(["my-teams-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.team_id];
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.team_id]: {
+                text: row.text ?? '',
+                author: author || (prev?.author ?? ""),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+                is_announcement: isAnnouncement,
+              },
+            },
+          };
+        });
+        bumpUnread('team', row.team_id, row.author_id);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.club_id) return;
+        const ids = clubIdsRef.current;
+        if (ids.size && !ids.has(row.club_id)) return;
+        const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
+        queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.club_id];
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.club_id]: {
+                text: row.text ?? '',
+                author: author || (prev?.author ?? ""),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+              },
+            },
+          };
+        });
+        bumpUnread('club', row.club_id, row.author_id);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.group_id) return;
+        const ids = groupIdsRef.current;
+        if (ids.size && !ids.has(row.group_id)) return;
+        const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
+        queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.group_id];
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.group_id]: {
+                text: row.text ?? '',
+                author: author || (prev?.author ?? ""),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+              },
+            },
+          };
+        });
+        bumpUnread('group', row.group_id, row.author_id);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.conversation_id) return;
+        // For DMs, the "author name" surface is the other_user.display_name on
+        // the conversation row — already populated. Only queue a lookup if
+        // the other_user is missing (rare, e.g. brand-new convo arriving).
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          const updated = {
+            ...conv,
+            updated_at: row.created_at,
+            last_message: {
+              text: row.text ?? '',
+              image_url: row.image_url ?? null,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            },
+          };
+          const next = old.slice();
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        });
+        // If the other participant's name is unknown, queue a lookup.
+        const convs = queryClient.getQueryData<any[]>(["dm-conversations", user.id]);
+        const conv = convs?.find(c => c.id === row.conversation_id);
+        const otherId = conv?.other_user?.id
+          ?? (conv?.participant_1 === user.id ? conv?.participant_2 : conv?.participant_1);
+        if (otherId && otherId !== user.id && !conv?.other_user?.display_name) {
+          resolveAuthor(otherId, { kind: 'dm', targetId: row.conversation_id });
+        }
+        bumpUnread('dm', row.conversation_id, row.author_id);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        const row = payload.new;
+        queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
+          text: row.text ?? '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+          profiles: old?.profiles ?? null,
+        }));
+        bumpUnread('broadcast', null);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (flushTimer) clearTimeout(flushTimer);
     };
   }, [user?.id, queryClient]);
 
