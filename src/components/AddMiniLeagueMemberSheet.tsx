@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Loader2, X, Send, Plus, Upload } from "lucide-react";
+import { UserPlus, Loader2, X, Send, Plus, Upload, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
 import MiniLeagueParentJoinLinkCard from "@/components/mini-league/MiniLeagueParentJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -34,6 +34,8 @@ interface BulkPlayer {
   abilityRating: string;
   parentName: string;
   parentEmail: string;
+  existingChildId?: string;
+  existingParentUserId?: string;
 }
 
 interface AddMiniLeagueMemberSheetProps {
@@ -78,6 +80,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const [players, setPlayers] = useState<BulkPlayer[]>([createEmptyPlayer()]);
   const [results, setResults] = useState<{ playerName: string; parentEmail: string; sent: boolean }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  const [activeSearch, setActiveSearch] = useState<{ rowId: string; field: "name" | "parentName" } | null>(null);
+  const [parentQuery, setParentQuery] = useState("");
+  const [debouncedParentQuery, setDebouncedParentQuery] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedParentQuery(parentQuery), 250);
+    return () => clearTimeout(t);
+  }, [parentQuery]);
 
   const { data: clubBranding } = useQuery({
     queryKey: ["club-branding", clubId],
@@ -92,10 +103,87 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     enabled: !!clubId,
   });
 
+  // Fetch existing children in this club for player name search
+  const { data: clubChildren = [] } = useQuery({
+    queryKey: ["mini-league-club-children", clubId],
+    queryFn: async () => {
+      const { data: teamIds } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId);
+
+      const childIds = new Set<string>();
+      if (teamIds?.length) {
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .in("team_id", teamIds.map(t => t.id));
+        assignments?.forEach(a => childIdsadd(childIds, a.child_id));
+      }
+
+      const { data: clubParents } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", clubId)
+        .eq("role", "parent");
+      const parentUserIds = [...new Set(clubParents?.map(p => p.user_id) || [])];
+      if (parentUserIds.length) {
+        const { data: parentChildren } = await supabase
+          .from("children")
+          .select("id")
+          .in("parent_id", parentUserIds);
+        parentChildren?.forEach(c => childIds.add(c.id));
+      }
+
+      if (!childIds.size) return [];
+      const { data: children } = await supabase
+        .from("children")
+        .select("id, name, parent_id")
+        .in("id", [...childIds]);
+      if (!children?.length) return [];
+
+      const parentIds = [...new Set(children.map(c => c.parent_id).filter(Boolean))];
+      const { data: parents } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", parentIds);
+      const parentMap = new Map(parents?.map(p => [p.id, p.display_name]) || []);
+
+      return children.map(c => ({
+        id: c.id,
+        name: c.name,
+        parent_id: c.parent_id,
+        parent_name: parentMap.get(c.parent_id) || "",
+      }));
+    },
+    enabled: open && inviteByNameExpanded && !!clubId,
+  });
+
+  // Search invitable parents
+  const { data: parentResults = [] } = useQuery({
+    queryKey: ["mini-league-parent-search", debouncedParentQuery],
+    queryFn: async () => {
+      if (debouncedParentQuery.trim().length < 2) return [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedParentQuery.trim(),
+        _limit: 6,
+      });
+      return (data || []) as Array<{
+        id: string;
+        display_name: string | null;
+        masked_email: string | null;
+      }>;
+    },
+    enabled: debouncedParentQuery.trim().length >= 2,
+  });
+
   const handleClose = () => {
     setOpen(false);
     setPlayers([createEmptyPlayer()]);
     setResults([]);
+    setInviteByNameExpanded(false);
+    setActiveSearch(null);
+    setParentQuery("");
   };
 
   const addPlayersMutation = useMutation({
@@ -107,24 +195,29 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       const addedResults: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        const { data: child, error: childError } = await supabase
-          .from("children")
-          .insert({
-            parent_id: user!.id,
-            name: player.name.trim(),
-          })
-          .select()
-          .single();
+        let childId = player.existingChildId;
 
-        if (childError) {
-          console.error("Failed to create child:", player.name, childError);
-          continue;
+        if (!childId) {
+          const { data: child, error: childError } = await supabase
+            .from("children")
+            .insert({
+              parent_id: player.existingParentUserId || user!.id,
+              name: player.name.trim(),
+            })
+            .select()
+            .single();
+
+          if (childError) {
+            console.error("Failed to create child:", player.name, childError);
+            continue;
+          }
+          childId = child.id;
         }
 
         const { error: assignmentError } = await supabase
           .from("child_mini_league_assignments")
           .insert({
-            child_id: child.id,
+            child_id: childId!,
             mini_league_id: miniLeagueId,
             ability_rating: parseInt(player.abilityRating),
           });
@@ -139,8 +232,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             mini_league_id: miniLeagueId,
             name: player.name.trim(),
             ability_rating: parseInt(player.abilityRating),
-            child_id: child.id,
-            parent_user_id: null,
+            child_id: childId!,
+            parent_user_id: player.existingParentUserId || null,
           })
           .select()
           .single();
@@ -151,7 +244,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
         let sent = false;
 
-        if (player.parentEmail.trim()) {
+        if (player.parentEmail.trim() && !player.existingParentUserId) {
           const inviteToken = crypto.randomUUID();
           const { error: inviteError } = await supabase.from("pending_invites").insert({
             club_id: clubId,
@@ -163,7 +256,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             invite_token: inviteToken,
             metadata: {
               mini_league_id: miniLeagueId,
-              child_id: child.id,
+              child_id: childId,
               player_id: newPlayer?.id,
               player_name: player.name.trim(),
               children: [{ name: player.name.trim(), yearOfBirth: null }],
@@ -250,8 +343,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     setPlayers((current) => current.filter((player) => player.id !== id));
   };
 
-  const updatePlayer = (id: string, field: keyof BulkPlayer, value: string) => {
-    setPlayers((current) => current.map((player) => player.id === id ? { ...player, [field]: value } : player));
+  const updatePlayer = (id: string, patch: Partial<BulkPlayer>) => {
+    setPlayers((current) => current.map((player) => player.id === id ? { ...player, ...patch } : player));
   };
 
   const handlePastePlayers = (text: string) => {
@@ -278,6 +371,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   };
 
   const isPending = addPlayersMutation.isPending;
+
+  const childMatchesFor = (q: string) => {
+    const query = q.trim().toLowerCase();
+    if (query.length < 2) return [];
+    return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
+  };
 
   return (
     <>
@@ -338,117 +437,219 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               </div>
             ) : (
               <div className="space-y-4 pb-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <h3 className="text-sm font-semibold">Add by name</h3>
-                    <p className="text-xs text-muted-foreground">Enter one player or add more rows for multiple players.</p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => setCsvImportOpen(true)}>
-                    <Upload className="h-4 w-4 mr-1" />
-                    CSV
+                {!inviteByNameExpanded ? (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => setInviteByNameExpanded(true)}
+                  >
+                    <span className="flex flex-col items-start text-left">
+                      <span className="text-sm font-medium">Invite a specific player</span>
+                      <span className="text-xs text-muted-foreground font-normal">Add by name, search existing players or parents</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0" />
                   </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {players.map((player, idx) => (
-                    <div key={player.id} className="space-y-3 border-b border-border pb-4 last:border-b-0 last:pb-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-medium text-muted-foreground">Player {idx + 1}</p>
-                        {players.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => removeRow(player.id)}
-                            aria-label={`Remove player ${idx + 1}`}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
+                ) : (
+                  <div className="space-y-4 border border-border rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <h3 className="text-sm font-semibold">Invite by name</h3>
+                        <p className="text-xs text-muted-foreground">Search existing or add new players.</p>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`mini-league-player-name-${player.id}`}>Player name</Label>
-                        <Input
-                          id={`mini-league-player-name-${player.id}`}
-                          placeholder="e.g. Tommy Smith"
-                          value={player.name}
-                          onChange={(event) => updatePlayer(player.id, "name", event.target.value)}
-                          onPaste={idx === 0 ? (event) => {
-                            const text = event.clipboardData.getData("text");
-                            if (handlePastePlayers(text)) event.preventDefault();
-                          } : undefined}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`mini-league-ability-${player.id}`}>Ability rating</Label>
-                        <Select
-                          value={player.abilityRating}
-                          onValueChange={(value) => updatePlayer(player.id, "abilityRating", value)}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => setCsvImportOpen(true)}>
+                          <Upload className="h-4 w-4 mr-1" />
+                          CSV
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setInviteByNameExpanded(false)}
+                          aria-label="Collapse"
                         >
-                          <SelectTrigger id={`mini-league-ability-${player.id}`}>
-                            <SelectValue placeholder="Ability" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {abilityOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor={`mini-league-parent-name-${player.id}`}>Parent name optional</Label>
-                          <Input
-                            id={`mini-league-parent-name-${player.id}`}
-                            placeholder="Parent name"
-                            value={player.parentName}
-                            onChange={(event) => updatePlayer(player.id, "parentName", event.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`mini-league-parent-email-${player.id}`}>Parent email optional</Label>
-                          <Input
-                            id={`mini-league-parent-email-${player.id}`}
-                            type="email"
-                            placeholder="parent@email.com"
-                            value={player.parentEmail}
-                            onChange={(event) => updatePlayer(player.id, "parentEmail", event.target.value)}
-                          />
-                        </div>
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <Button variant="outline" className="w-full" onClick={addRow}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Another Player
-                </Button>
+                    <div className="space-y-4">
+                      {players.map((player, idx) => {
+                        const childSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "name"
+                          ? childMatchesFor(player.name)
+                          : [];
+                        const parentSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "parentName"
+                          ? parentResults
+                          : [];
+                        return (
+                          <div key={player.id} className="space-y-3 border-b border-border pb-4 last:border-b-0 last:pb-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-medium text-muted-foreground">Player {idx + 1}</p>
+                              {players.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={() => removeRow(player.id)}
+                                  aria-label={`Remove player ${idx + 1}`}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
 
-                <Button
-                  className="w-full"
-                  onClick={() => addPlayersMutation.mutate(undefined)}
-                  disabled={!players.some((player) => player.name.trim()) || isPending}
-                >
-                  {isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      {players.filter((player) => player.parentEmail.trim()).length > 0
-                        ? "Add & Send Invites"
-                        : "Add Players"}
-                    </>
-                  )}
-                </Button>
+                            <div className="space-y-2 relative">
+                              <Label htmlFor={`mini-league-player-name-${player.id}`}>Player name</Label>
+                              <Input
+                                id={`mini-league-player-name-${player.id}`}
+                                placeholder="Search or type a new name"
+                                value={player.name}
+                                onFocus={() => setActiveSearch({ rowId: player.id, field: "name" })}
+                                onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150)}
+                                onChange={(event) => updatePlayer(player.id, { name: event.target.value, existingChildId: undefined })}
+                                onPaste={idx === 0 ? (event) => {
+                                  const text = event.clipboardData.getData("text");
+                                  if (handlePastePlayers(text)) event.preventDefault();
+                                } : undefined}
+                              />
+                              {player.existingChildId && (
+                                <p className="text-xs text-primary flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> Linked to existing player
+                                </p>
+                              )}
+                              {childSuggestions.length > 0 && !player.existingChildId && (
+                                <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
+                                  {childSuggestions.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        updatePlayer(player.id, {
+                                          name: c.name,
+                                          existingChildId: c.id,
+                                          existingParentUserId: c.parent_id || undefined,
+                                          parentName: c.parent_name || "",
+                                        });
+                                        setActiveSearch(null);
+                                      }}
+                                    >
+                                      <p className="font-medium">{c.name}</p>
+                                      {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`mini-league-ability-${player.id}`}>Ability rating</Label>
+                              <Select
+                                value={player.abilityRating}
+                                onValueChange={(value) => updatePlayer(player.id, { abilityRating: value })}
+                              >
+                                <SelectTrigger id={`mini-league-ability-${player.id}`}>
+                                  <SelectValue placeholder="Ability" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {abilityOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-2 relative">
+                                <Label htmlFor={`mini-league-parent-name-${player.id}`}>Parent name optional</Label>
+                                <Input
+                                  id={`mini-league-parent-name-${player.id}`}
+                                  placeholder="Search existing or type"
+                                  value={player.parentName}
+                                  onFocus={() => {
+                                    setActiveSearch({ rowId: player.id, field: "parentName" });
+                                    setParentQuery(player.parentName);
+                                  }}
+                                  onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150)}
+                                  onChange={(event) => {
+                                    updatePlayer(player.id, { parentName: event.target.value, existingParentUserId: undefined });
+                                    setParentQuery(event.target.value);
+                                  }}
+                                />
+                                {player.existingParentUserId && (
+                                  <p className="text-xs text-primary flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> Linked to existing parent
+                                  </p>
+                                )}
+                                {parentSuggestions.length > 0 && !player.existingParentUserId && (
+                                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
+                                    {parentSuggestions.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          updatePlayer(player.id, {
+                                            parentName: p.display_name || "",
+                                            existingParentUserId: p.id,
+                                            parentEmail: "",
+                                          });
+                                          setActiveSearch(null);
+                                        }}
+                                      >
+                                        <p className="font-medium">{p.display_name || "Unknown"}</p>
+                                        {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`mini-league-parent-email-${player.id}`}>Parent email optional</Label>
+                                <Input
+                                  id={`mini-league-parent-email-${player.id}`}
+                                  type="email"
+                                  placeholder="parent@email.com"
+                                  value={player.parentEmail}
+                                  disabled={!!player.existingParentUserId}
+                                  onChange={(event) => updatePlayer(player.id, { parentEmail: event.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <Button variant="outline" className="w-full" onClick={addRow}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Another Player
+                    </Button>
+
+                    <Button
+                      className="w-full"
+                      onClick={() => addPlayersMutation.mutate(undefined)}
+                      disabled={!players.some((player) => player.name.trim()) || isPending}
+                    >
+                      {isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          {players.filter((player) => player.parentEmail.trim() && !player.existingParentUserId).length > 0
+                            ? "Add & Send Invites"
+                            : "Add Players"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -462,4 +663,9 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       />
     </>
   );
+}
+
+// helper to add to a Set when parameter ordering is awkward
+function childIdsadd(set: Set<string>, id: string) {
+  set.add(id);
 }
