@@ -911,8 +911,15 @@ export default function JoinTeamPage() {
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
-      // If parent role was added via a regular invite WITHOUT child metadata, show child step
-      if (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) {
+      // If parent role was added via a regular invite WITHOUT child metadata, show child step.
+      // Same flow for mini-league parent shareable join link (no preset child).
+      const isLeagueParentLink =
+        isPendingInvite &&
+        (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link";
+      if (
+        (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) ||
+        (isLeagueParentLink && rolesToAdd.includes("parent"))
+      ) {
         setShowChildStep(true);
       } else {
         setJoined(true);
