@@ -1186,14 +1186,36 @@ export default function VaultPage() {
 
       const clubId = searchParams.get("club");
       const teamId = searchParams.get("team");
+      const miniLeagueId = searchParams.get("miniLeague");
 
-      if (!clubId && !teamId) {
+      if (!clubId && !teamId && !miniLeagueId) {
         setInitialLoadComplete(true);
         return;
       }
 
       try {
-        if (teamId) {
+        if (miniLeagueId) {
+          // Navigate directly to mini-league vault folder
+          const { data: league } = await supabase
+            .from("mini_leagues")
+            .select("id, name, club_id")
+            .eq("id", miniLeagueId)
+            .maybeSingle();
+
+          if (league) {
+            const club = userClubs.find(c => c.id === league.club_id);
+            if (club) {
+              setCurrentView({
+                type: "mini-league",
+                clubId: league.club_id,
+                clubName: club.name,
+                miniLeagueId: league.id,
+                miniLeagueName: league.name,
+              });
+              setSearchParams({}, { replace: true });
+            }
+          }
+        } else if (teamId) {
           // Navigate directly to team vault
           const { data: team } = await supabase
             .from("teams")
