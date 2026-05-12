@@ -56,7 +56,7 @@ export function RsvpAuditLogSection({ eventId }: { eventId: string }) {
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return (data || []) as AuditRow[];
+      return ((data || []) as unknown) as AuditRow[];
     },
   });
 
