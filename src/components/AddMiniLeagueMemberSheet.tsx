@@ -433,6 +433,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
   const sheetStyle = {
     "--mini-league-keyboard-inset": `${keyboardInset}px`,
+    bottom: `${keyboardInset}px`,
   } as CSSProperties;
 
   return (
