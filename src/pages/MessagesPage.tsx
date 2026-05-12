@@ -1431,8 +1431,8 @@ export default function MessagesPage() {
           image_url: row.image_url ?? null,
           profiles: old?.profiles ?? null,
         }));
+        bumpUnread('broadcast', null);
       })
-      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
