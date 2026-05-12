@@ -1205,6 +1205,83 @@ export default function MessagesPage() {
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
     if (!isNative) return;
 
+    // Resolve an author display name without ever invalidating react-query.
+    // 1) "You" if it's the current user.
+    // 2) profileCache hit (sync, in-memory).
+    // 3) Queue the id; a coalesced batch lookup runs every 500ms and
+    //    re-patches the affected preview rows when names arrive.
+    type PendingTarget = { kind: 'team' | 'club' | 'group' | 'dm'; targetId: string };
+    const pendingByAuthor = new Map<string, PendingTarget[]>();
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const patchAuthor = (kind: PendingTarget['kind'], targetId: string, authorName: string) => {
+      const apply = (key: any[], idKey: string) => {
+        queryClient.setQueryData(key, (old: any) => {
+          if (!old?.latestMessages?.[targetId]) return old;
+          if (old.latestMessages[targetId].author === authorName) return old;
+          return {
+            ...old,
+            latestMessages: {
+              ...old.latestMessages,
+              [targetId]: { ...old.latestMessages[targetId], author: authorName },
+            },
+          };
+        });
+      };
+      if (kind === 'team') apply(["my-teams-with-messages", user.id], 'team_id');
+      else if (kind === 'club') apply(["member-clubs-with-messages", user.id], 'club_id');
+      else if (kind === 'group') apply(["my-chat-groups-with-messages", user.id], 'group_id');
+      else if (kind === 'dm') {
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === targetId);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          if (conv?.other_user?.display_name === authorName) return old;
+          const next = old.slice();
+          next[idx] = { ...conv, other_user: { ...(conv.other_user || { id: '' }), display_name: authorName } };
+          return next;
+        });
+      }
+    };
+
+    const flushPending = async () => {
+      flushTimer = null;
+      if (pendingByAuthor.size === 0) return;
+      const ids = Array.from(pendingByAuthor.keys());
+      const batch = new Map(pendingByAuthor);
+      pendingByAuthor.clear();
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", ids);
+        if (data && data.length) cacheProfiles(data);
+        const byId = new Map((data ?? []).map(p => [p.id, p.display_name || ""]));
+        batch.forEach((targets, authorId) => {
+          const name = byId.get(authorId);
+          if (!name) return;
+          targets.forEach(t => patchAuthor(t.kind, t.targetId, name));
+        });
+      } catch { /* silent — next 30s poll will fill it in */ }
+    };
+
+    const queueAuthor = (authorId: string, target: PendingTarget) => {
+      const list = pendingByAuthor.get(authorId) ?? [];
+      list.push(target);
+      pendingByAuthor.set(authorId, list);
+      if (!flushTimer) flushTimer = setTimeout(flushPending, 500);
+    };
+
+    const resolveAuthor = (authorId: string | undefined, target: PendingTarget): string => {
+      if (!authorId) return "";
+      if (authorId === user.id) return "You";
+      const cached = getProfileFromCache(authorId);
+      if (cached?.display_name) return cached.display_name;
+      queueAuthor(authorId, target);
+      return ""; // placeholder — patched in <500ms once batch resolves
+    };
+
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
@@ -1212,17 +1289,20 @@ export default function MessagesPage() {
         if (!row?.team_id) return;
         const ids = teamIdsRef.current;
         if (ids.size && !ids.has(row.team_id)) return;
+        const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+        const author = isAnnouncement
+          ? row.club_announcement_name
+          : resolveAuthor(row.author_id, { kind: 'team', targetId: row.team_id });
         queryClient.setQueryData(["my-teams-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.team_id];
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
           return {
             ...old,
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.team_id]: {
                 text: row.text ?? '',
-                author: isAnnouncement ? row.club_announcement_name : (row.author_id === user.id ? "You" : (prev?.author ?? "")),
+                author: author || (prev?.author ?? ""),
                 created_at: row.created_at,
                 image_url: row.image_url ?? null,
                 is_announcement: isAnnouncement,
@@ -1236,6 +1316,7 @@ export default function MessagesPage() {
         if (!row?.club_id) return;
         const ids = clubIdsRef.current;
         if (ids.size && !ids.has(row.club_id)) return;
+        const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
         queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.club_id];
@@ -1245,7 +1326,7 @@ export default function MessagesPage() {
               ...(old.latestMessages || {}),
               [row.club_id]: {
                 text: row.text ?? '',
-                author: row.author_id === user.id ? "You" : (prev?.author ?? ""),
+                author: author || (prev?.author ?? ""),
                 created_at: row.created_at,
                 image_url: row.image_url ?? null,
               },
@@ -1258,6 +1339,7 @@ export default function MessagesPage() {
         if (!row?.group_id) return;
         const ids = groupIdsRef.current;
         if (ids.size && !ids.has(row.group_id)) return;
+        const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
         queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.group_id];
@@ -1267,7 +1349,7 @@ export default function MessagesPage() {
               ...(old.latestMessages || {}),
               [row.group_id]: {
                 text: row.text ?? '',
-                author: row.author_id === user.id ? "You" : (prev?.author ?? ""),
+                author: author || (prev?.author ?? ""),
                 created_at: row.created_at,
                 image_url: row.image_url ?? null,
               },
@@ -1278,6 +1360,9 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
         if (!row?.conversation_id) return;
+        // For DMs, the "author name" surface is the other_user.display_name on
+        // the conversation row — already populated. Only queue a lookup if
+        // the other_user is missing (rare, e.g. brand-new convo arriving).
         queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
           if (!Array.isArray(old)) return old;
           const idx = old.findIndex((c: any) => c.id === row.conversation_id);
@@ -1293,12 +1378,19 @@ export default function MessagesPage() {
               author_id: row.author_id,
             },
           };
-          // Re-sort: move updated conv to the top (updated_at desc).
           const next = old.slice();
           next.splice(idx, 1);
           next.unshift(updated);
           return next;
         });
+        // If the other participant's name is unknown, queue a lookup.
+        const convs = queryClient.getQueryData<any[]>(["dm-conversations", user.id]);
+        const conv = convs?.find(c => c.id === row.conversation_id);
+        const otherId = conv?.other_user?.id
+          ?? (conv?.participant_1 === user.id ? conv?.participant_2 : conv?.participant_1);
+        if (otherId && otherId !== user.id && !conv?.other_user?.display_name) {
+          resolveAuthor(otherId, { kind: 'dm', targetId: row.conversation_id });
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1311,7 +1403,10 @@ export default function MessagesPage() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      if (flushTimer) clearTimeout(flushTimer);
+    };
   }, [user?.id, queryClient]);
 
   // Check if we have cached data to show immediately
