@@ -125,6 +125,29 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const clearMockPlayersMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_league_players")
+        .delete()
+        .eq("mini_league_id", league.id)
+        .is("child_id", null)
+        .is("parent_user_id", null)
+        .select("id");
+      if (error) throw error;
+      return data?.length ?? 0;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", league.id] });
+      if (count === 0) {
+        toast.info("No test players to clear");
+      } else {
+        toast.success(`${count} test player${count === 1 ? "" : "s"} cleared`);
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const handleOpenChange = (o: boolean) => {
     if (o) {
       setEditName(league.name);
@@ -456,6 +479,41 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
                     )}
                   </Button>
                 </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 -ml-2"
+                      disabled={clearMockPlayersMutation.isPending}
+                    >
+                      {clearMockPlayersMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Clear test players
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear test players?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes all generated test players (those with no linked parent or child) from this league. Real players linked to accounts won't be affected.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => clearMockPlayersMutation.mutate()}
+                      >
+                        Clear
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
 
               {/* Duplicate & Delete */}
