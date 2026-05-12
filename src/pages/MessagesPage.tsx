@@ -1139,6 +1139,13 @@ export default function MessagesPage() {
     //   - opening a thread (the thread itself stays fully realtime)
     // Web still gets the live channel.
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    // Native uses a separate, lightweight realtime block (below) that patches
+    // react-query caches in place via setQueryData — no invalidations, no
+    // refetch storm, no localStorage rewrites on the hot path. The freeze on
+    // /messages came from invalidateQueries chaining 4-6 parallel refetches
+    // that each parsed/merged/restringified the 100-500KB messages-page cache
+    // blob. Patching the in-memory query data directly lets previews stay
+    // live without any of that work.
     if (isNative) return;
 
     const rafState = { team: 0, club: 0, group: 0, dm: 0, unread: 0 } as Record<string, number>;
@@ -1184,6 +1191,126 @@ export default function MessagesPage() {
       supabase.removeChannel(channel);
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
+  }, [user?.id, queryClient]);
+
+  // Native-only: lightweight realtime that PATCHES react-query caches in
+  // place instead of invalidating them. This keeps inbox previews live
+  // (latest text, image hint, bubble-to-top sort) without triggering the
+  // refetch storm + cache rewrites that froze Android WebView for 11-26s.
+  // No unread-count bump here — counts refresh on 30s poll, foreground
+  // resume, reconnect, and on opening the thread.
+  useEffect(() => {
+    if (!user?.id) return;
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    if (!isNative) return;
+
+    const channel = supabase
+      .channel(`messages-inbox-light-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.team_id) return;
+        const ids = teamIdsRef.current;
+        if (ids.size && !ids.has(row.team_id)) return;
+        queryClient.setQueryData(["my-teams-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.team_id];
+          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.team_id]: {
+                text: row.text ?? '',
+                author: isAnnouncement ? row.club_announcement_name : (row.author_id === user.id ? "You" : (prev?.author ?? "")),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+                is_announcement: isAnnouncement,
+              },
+            },
+          };
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.club_id) return;
+        const ids = clubIdsRef.current;
+        if (ids.size && !ids.has(row.club_id)) return;
+        queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.club_id];
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.club_id]: {
+                text: row.text ?? '',
+                author: row.author_id === user.id ? "You" : (prev?.author ?? ""),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+              },
+            },
+          };
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.group_id) return;
+        const ids = groupIdsRef.current;
+        if (ids.size && !ids.has(row.group_id)) return;
+        queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
+          if (!old) return old;
+          const prev = old.latestMessages?.[row.group_id];
+          return {
+            ...old,
+            latestMessages: {
+              ...(old.latestMessages || {}),
+              [row.group_id]: {
+                text: row.text ?? '',
+                author: row.author_id === user.id ? "You" : (prev?.author ?? ""),
+                created_at: row.created_at,
+                image_url: row.image_url ?? null,
+              },
+            },
+          };
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+        const row = payload.new;
+        if (!row?.conversation_id) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          const updated = {
+            ...conv,
+            updated_at: row.created_at,
+            last_message: {
+              text: row.text ?? '',
+              image_url: row.image_url ?? null,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            },
+          };
+          // Re-sort: move updated conv to the top (updated_at desc).
+          const next = old.slice();
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+        const row = payload.new;
+        queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
+          text: row.text ?? '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+          profiles: old?.profiles ?? null,
+        }));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user?.id, queryClient]);
 
   // Check if we have cached data to show immediately
