@@ -1237,7 +1237,6 @@ export default function VaultPage() {
               setSearchParams({}, { replace: true });
             }
           }
-        }
         } else if (clubId) {
           // Navigate directly to club vault
           const club = userClubs.find(c => c.id === clubId);
