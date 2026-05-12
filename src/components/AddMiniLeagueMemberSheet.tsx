@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star, Search, CheckCircle2, ChevronUp } from "lucide-react";
+import { UserPlus, Loader2, X, Send, Plus, Upload } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
 import MiniLeagueParentJoinLinkCard from "@/components/mini-league/MiniLeagueParentJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +17,6 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -557,387 +555,146 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             />
           </div>
 
-          {!inviteByNameExpanded ? (
-            <button
-              type="button"
-              onClick={() => setInviteByNameExpanded(true)}
-              className="mt-3 w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-muted-foreground" />
-                Invite a specific player
-              </span>
-              <span className="text-xs text-muted-foreground">Name or email</span>
-            </button>
-          ) : (
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="flex-1 flex flex-col mt-4 min-h-0">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="space-y-0.5">
-                <h3 className="text-sm font-semibold">Invite by name</h3>
-                <p className="text-xs text-muted-foreground">Add a player and optionally link a parent.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInviteByNameExpanded(false)}
-                className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
-                aria-label="Collapse invite by name"
-              >
-                <ChevronUp className="h-4 w-4" />
-                Hide
-              </button>
-            </div>
-            <TabsList className="grid grid-cols-2 mb-4">
-              <TabsTrigger value="single" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Single
-              </TabsTrigger>
-              <TabsTrigger value="bulk" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Bulk
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="single" className="flex-1 overflow-auto space-y-4">
-              {/* Player Info */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Baby className="h-4 w-4" />
-                  Player Details
-                </h3>
-                <div className="space-y-2">
-                  <Label>Player Name *</Label>
-                  <Input
-                    placeholder="e.g. Tommy Smith"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    onPaste={(e) => {
-                      const text = e.clipboardData.getData("text");
-                      if (!looksLikeMultiRecipient(text)) return;
-                      const recipients = parseRecipients(text);
-                      if (recipients.length < 2) return;
-                      e.preventDefault();
-                      setBulkPlayers(recipients.map((r) => ({
-                        id: crypto.randomUUID(),
-                        name: r.name,
-                        abilityRating: "3",
-                        parentName: "",
-                        parentEmail: r.email,
-                      })));
-                      setMode("bulk");
-                      toast({
-                        title: `${recipients.length} players detected`,
-                        description: "Switched to Bulk. Review and add.",
-                      });
-                    }}
-                  />
-                  <p className="text-[11px] text-muted-foreground">You can paste multiple names to add many at once.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ability Rating</Label>
-                  <Select value={abilityRating} onValueChange={setAbilityRating}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {abilityOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <div className="flex items-center gap-2">
-                            {Array.from({ length: parseInt(opt.value) }).map((_, i) => (
-                              <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
-                            ))}
-                            <span className="ml-1">{opt.label}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Parent Info - with search or manual */}
-              <div className="space-y-3 border-t pt-4">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Link Parent (Optional)
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Search for an existing user or enter details to send an invite
-                </p>
-
-                {/* Mode toggle */}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={parentMode === "search" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setParentMode("search");
-                      setParentName("");
-                      setParentEmail("");
-                    }}
-                  >
-                    <Search className="h-3.5 w-3.5 mr-1.5" />
-                    Existing User
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={parentMode === "manual" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setParentMode("manual");
-                      setSelectedParent(null);
-                      setParentSearchQuery("");
-                    }}
-                  >
-                    <Mail className="h-3.5 w-3.5 mr-1.5" />
-                    New Invite
-                  </Button>
-                </div>
-
-                {parentMode === "search" ? (
-                  <div className="space-y-2">
-                    {selectedParent ? (
-                      <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={selectedParent.avatar_url || undefined} />
-                          <AvatarFallback className="text-xs">
-                            {selectedParent.display_name?.charAt(0)?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{selectedParent.display_name}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3 text-primary" />
-                            Will be linked as parent
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => {
-                            setSelectedParent(null);
-                            setParentSearchQuery("");
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search by name..."
-                            value={parentSearchQuery}
-                            onChange={(e) => setParentSearchQuery(e.target.value)}
-                            className="pl-9"
-                          />
-                        </div>
-                        {isSearchingParent && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Searching...
-                          </div>
-                        )}
-                        {parentSearchResults.length > 0 && (
-                          <div className="border rounded-lg divide-y max-h-48 overflow-auto">
-                            {parentSearchResults.map((result) => (
-                              <button
-                                key={result.id}
-                                className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
-                                onClick={() => {
-                                  setSelectedParent(result);
-                                  setParentSearchQuery("");
-                                }}
-                              >
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={result.avatar_url || undefined} />
-                                  <AvatarFallback className="text-xs">
-                                    {result.display_name?.charAt(0)?.toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex flex-col min-w-0">
-                                  <span className="text-sm font-medium truncate">{result.display_name}</span>
-                                  {(result as any).masked_email && (
-                                    <span className="text-xs text-muted-foreground truncate">{(result as any).masked_email}</span>
-                                  )}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {debouncedParentSearch.length >= 2 && !isSearchingParent && parentSearchResults.length === 0 && (
-                          <p className="text-xs text-muted-foreground p-2">
-                            No users found. Try "New Invite" to send an email instead.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Parent Name</Label>
-                    <Input
-                      placeholder="e.g. John Smith"
-                      value={parentName}
-                      onChange={(e) => setParentName(e.target.value)}
-                    />
-                    <Label>Parent Email</Label>
-                    <Input
-                      type="email"
-                      placeholder="parent@example.com"
-                      value={parentEmail}
-                      onChange={(e) => setParentEmail(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <Button
-                className="w-full"
-                onClick={() => addPlayerMutation.mutate()}
-                disabled={!playerName.trim() || isPending}
-              >
-                {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {selectedParent ? (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Player & Link Parent
-                  </>
-                ) : parentEmail.trim() ? (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Add Player & Send Invite
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Player
-                  </>
-                )}
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="bulk" className="flex-1 overflow-auto space-y-4">
-              {bulkResults.length > 0 ? (
-                <div className="flex flex-col h-full space-y-3">
-                  <h3 className="text-sm font-medium">Results</h3>
-                  <ScrollArea className="flex-1 h-[50vh]">
-                    <div className="space-y-2 pr-4">
-                      {bulkResults.map((result, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div>
-                            <p className="font-medium text-sm">{result.playerName}</p>
-                            {result.parentEmail && (
-                              <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
-                            )}
-                          </div>
-                          <Badge variant={result.parentEmail ? (result.sent ? "default" : "secondary") : "outline"}>
-                            {result.parentEmail 
-                              ? (result.sent ? "Email sent" : "Invite pending") 
-                              : "Added"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                  <Button variant="outline" className="w-full" onClick={handleClose}>
-                    Done
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Add Multiple Players</h3>
-                    <Button size="sm" variant="outline" onClick={() => setCsvImportOpen(true)}>
-                      <Upload className="h-4 w-4 mr-1" />
-                      Import CSV
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {bulkPlayers.map((player, idx) => (
-                      <div key={player.id} className="p-3 bg-muted/50 rounded-lg space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">Player {idx + 1}</Badge>
-                          {bulkPlayers.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => removeBulkRow(player.id)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+          <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
+            {bulkResults.length > 0 ? (
+              <div className="flex flex-col h-full space-y-3">
+                <h3 className="text-sm font-medium">Results</h3>
+                <ScrollArea className="flex-1 h-[50vh]">
+                  <div className="space-y-2 pr-4">
+                    {bulkResults.map((result, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div>
+                          <p className="font-medium text-sm">{result.playerName}</p>
+                          {result.parentEmail && (
+                            <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            placeholder="Player name *"
-                            value={player.name}
-                            onChange={(e) => updateBulkPlayer(player.id, "name", e.target.value)}
-                          />
-                          <Select
-                            value={player.abilityRating}
-                            onValueChange={(v) => updateBulkPlayer(player.id, "abilityRating", v)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Ability" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {abilityOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            placeholder="Parent name"
-                            value={player.parentName}
-                            onChange={(e) => updateBulkPlayer(player.id, "parentName", e.target.value)}
-                          />
-                          <Input
-                            type="email"
-                            placeholder="Parent email"
-                            value={player.parentEmail}
-                            onChange={(e) => updateBulkPlayer(player.id, "parentEmail", e.target.value)}
-                          />
-                        </div>
+                        <Badge variant={result.parentEmail ? (result.sent ? "default" : "secondary") : "outline"}>
+                          {result.parentEmail
+                            ? (result.sent ? "Email sent" : "Invite pending")
+                            : "Added"}
+                        </Badge>
                       </div>
                     ))}
                   </div>
-
-                  <Button variant="outline" className="w-full" onClick={addBulkRow}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Another Player
+                </ScrollArea>
+                <Button variant="outline" className="w-full" onClick={handleClose}>
+                  Done
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-semibold">Invite by name</h3>
+                    <p className="text-xs text-muted-foreground">Add players and optionally link a parent.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setCsvImportOpen(true)}>
+                    <Upload className="h-4 w-4 mr-1" />
+                    CSV
                   </Button>
+                </div>
 
-                  <Button
-                    className="w-full"
-                    onClick={() => addBulkPlayersMutation.mutate(undefined)}
-                    disabled={!bulkPlayers.some(p => p.name.trim()) || isPending}
-                  >
-                    {isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Adding Players...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Add Players & Send Invites
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
-            </TabsContent>
-          </Tabs>
-          )}
+                <div className="space-y-3">
+                  {bulkPlayers.map((player, idx) => (
+                    <div key={player.id} className="p-3 bg-muted/50 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">Player {idx + 1}</Badge>
+                        {bulkPlayers.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeBulkRow(player.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Player name *"
+                          value={player.name}
+                          onChange={(e) => updateBulkPlayer(player.id, "name", e.target.value)}
+                          onPaste={idx === 0 ? (e) => {
+                            const text = e.clipboardData.getData("text");
+                            if (!looksLikeMultiRecipient(text)) return;
+                            const recipients = parseRecipients(text);
+                            if (recipients.length < 2) return;
+                            e.preventDefault();
+                            setBulkPlayers(recipients.map((r) => ({
+                              id: crypto.randomUUID(),
+                              name: r.name,
+                              abilityRating: "3",
+                              parentName: "",
+                              parentEmail: r.email,
+                            })));
+                            toast({
+                              title: `${recipients.length} players detected`,
+                              description: "Review and add.",
+                            });
+                          } : undefined}
+                        />
+                        <Select
+                          value={player.abilityRating}
+                          onValueChange={(v) => updateBulkPlayer(player.id, "abilityRating", v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Ability" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {abilityOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Parent name (optional)"
+                          value={player.parentName}
+                          onChange={(e) => updateBulkPlayer(player.id, "parentName", e.target.value)}
+                        />
+                        <Input
+                          type="email"
+                          placeholder="Parent email (optional)"
+                          value={player.parentEmail}
+                          onChange={(e) => updateBulkPlayer(player.id, "parentEmail", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <Button variant="outline" className="w-full mt-3" onClick={addBulkRow}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Player
+                </Button>
+
+                <Button
+                  className="w-full mt-3"
+                  onClick={() => addBulkPlayersMutation.mutate(undefined)}
+                  disabled={!bulkPlayers.some(p => p.name.trim()) || isPending}
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      {bulkPlayers.filter(p => p.parentEmail.trim()).length > 0
+                        ? "Add & Send Invites"
+                        : "Add Players"}
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 
