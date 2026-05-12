@@ -1026,22 +1026,21 @@ export default function MessagesPage() {
     });
   }, [user?.id, teams, memberClubs, adminClubs, chatGroups, latestBroadcast, latestTeamMessages, latestClubMessages, latestGroupMessages]);
 
-  // Prefetch messages for all threads in the background (non-blocking)
+  // Prefetch messages for top N threads in the background (non-blocking).
+  // Capped via PREFETCH_THREAD_CAP to avoid the Android WebView freeze caused
+  // by fanning out a prefetch per team/club/group on /messages — which stalled
+  // the main thread for seconds after navigating away from a chat.
   useEffect(() => {
     if (!user) return;
-    // Android WebView freeze fix: do NOT fan out background prefetches for
-    // every team/club/group from the inbox. The latest field logs show the
-    // freeze happens after chat unmount with `activePages: none`, `liveRO: 0`,
-    // and low heap — i.e. not a chat observer leak, but /messages doing heavy
-    // background work while the user is navigating. Opening a thread already
-    // fetches that thread; native also has resume/reconnect refreshes.
-    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-    if (isNative) return;
 
     let cancelled = false;
     let idleHandle: number | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-    
+
+    const cappedTeams = (teams ?? []).slice(0, PREFETCH_THREAD_CAP);
+    const cappedClubs = (memberClubs ?? []).slice(0, PREFETCH_THREAD_CAP);
+    const cappedGroups = (chatGroups ?? []).slice(0, PREFETCH_THREAD_CAP);
+
     const prefetchAll = () => {
       if (cancelled) return;
       queryClient.prefetchQuery({
@@ -1061,7 +1060,7 @@ export default function MessagesPage() {
         staleTime: 1000 * 60,
       });
 
-      teams?.forEach((team) => {
+      cappedTeams.forEach((team) => {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
@@ -1082,7 +1081,7 @@ export default function MessagesPage() {
         });
       });
 
-      memberClubs?.forEach((club) => {
+      cappedClubs.forEach((club) => {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
@@ -1103,7 +1102,7 @@ export default function MessagesPage() {
         });
       });
 
-      chatGroups?.forEach((group) => {
+      cappedGroups.forEach((group) => {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
