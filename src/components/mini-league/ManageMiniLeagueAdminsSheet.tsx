@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import MiniLeagueAdminJoinLinkCard from "./MiniLeagueAdminJoinLinkCard";
 
 interface ManageMiniLeagueAdminsSheetProps {
   miniLeagueId: string;
