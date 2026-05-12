@@ -1364,6 +1364,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('club', row.club_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
