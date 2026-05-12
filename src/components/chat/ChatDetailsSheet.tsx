@@ -170,7 +170,9 @@ export function ChatDetailsSheet({
                 {(() => {
                   const resolvedTeamId = chatType === "team" ? chatId : teamId;
                   const resolvedClubId = chatType === "club" ? chatId : clubId;
-                  const vaultHref = resolvedTeamId
+                  const vaultHref = miniLeagueId
+                    ? `/vault?miniLeague=${miniLeagueId}`
+                    : resolvedTeamId
                     ? `/vault?team=${resolvedTeamId}`
                     : resolvedClubId
                     ? `/vault?club=${resolvedClubId}`
