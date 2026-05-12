@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, X, Send, Plus, Upload, ChevronDown, ChevronUp, Check } from "lucide-react";
@@ -88,6 +88,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const [parentQuery, setParentQuery] = useState("");
   const [debouncedParentQuery, setDebouncedParentQuery] = useState("");
   const [visualKeyboardInset, setVisualKeyboardInset] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedParentQuery(parentQuery), 250);
@@ -412,6 +413,24 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
   };
 
+  const keepFocusedInputVisible = (element: HTMLElement) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    window.setTimeout(() => {
+      const inputRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const keyboardTop = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      const visibleBottom = Math.min(containerRect.bottom, keyboardTop) - 24;
+
+      if (inputRect.bottom > visibleBottom) {
+        container.scrollBy({ top: inputRect.bottom - visibleBottom, behavior: "smooth" });
+      }
+    }, 120);
+  };
+
   const activePlayer = activeSearch ? players.find((player) => player.id === activeSearch.rowId) : undefined;
   const activeChildSuggestions = activeSearch?.field === "name" && activePlayer && !activePlayer.existingChildId
     ? childMatchesFor(activePlayer.name)
@@ -453,7 +472,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             </SheetDescription>
           </SheetHeader>
 
-          <div data-allow-scroll className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}>
+          <div ref={scrollContainerRef} data-allow-scroll className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 pb-24 overscroll-contain scroll-pb-32" style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch", paddingBottom: "calc(6rem + var(--mini-league-keyboard-inset))" }}>
             {results.length > 0 ? (
               <div className="flex flex-col h-full space-y-3">
                 <h3 className="text-sm font-medium">Results</h3>
@@ -547,7 +566,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 id={`mini-league-player-name-${player.id}`}
                                 placeholder="Search or type a new name"
                                 value={player.name}
-                                onFocus={() => setActiveSearch({ rowId: player.id, field: "name" })}
+                                onFocus={(event) => {
+                                  setActiveSearch({ rowId: player.id, field: "name" });
+                                  keepFocusedInputVisible(event.currentTarget);
+                                }}
                                 onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150)}
                                 onChange={(event) => updatePlayer(player.id, { name: event.target.value, existingChildId: undefined })}
                                 onPaste={idx === 0 ? (event) => {
@@ -614,9 +636,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   id={`mini-league-parent-name-${player.id}`}
                                   placeholder="Search existing or type"
                                   value={player.parentName}
-                                  onFocus={() => {
+                                  onFocus={(event) => {
                                     setActiveSearch({ rowId: player.id, field: "parentName" });
                                     setParentQuery(player.parentName);
+                                    keepFocusedInputVisible(event.currentTarget);
                                   }}
                                   onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150)}
                                   onChange={(event) => {
