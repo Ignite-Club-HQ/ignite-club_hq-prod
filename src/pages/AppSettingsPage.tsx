@@ -129,6 +129,27 @@ export default function AppSettingsPage() {
   const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
   const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
 
+  // Basic-mode chunk size — clamped 10–500, default 100.
+  const chunkRow = settings?.find(s => s.key === "chat_basic_chunk_size");
+  const savedChunkSize = (() => {
+    const raw = chunkRow?.value;
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return 100;
+    return Math.min(500, Math.max(10, Math.floor(n)));
+  })();
+  const [chunkInput, setChunkInput] = useState<string>(String(savedChunkSize));
+  useEffect(() => {
+    setChunkInput(String(savedChunkSize));
+  }, [savedChunkSize]);
+
+  const handleSaveChunkSize = () => {
+    const n = Math.min(500, Math.max(10, Math.floor(Number(chunkInput) || 0)));
+    setChunkInput(String(n));
+    if (n === savedChunkSize) return;
+    updateSettingMutation.mutate({ key: "chat_basic_chunk_size", value: n });
+  };
+
+
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
       {/* Header */}
