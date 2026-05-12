@@ -421,7 +421,47 @@ export default function JoinTeamPage() {
         return ["league_admin" as AppRole];
       }
 
-      // Handle mini-league invite where child already exists (skip children creation)
+      // Mini-league parent shareable join link: grant club-level parent role,
+      // keep token reusable, and let the child-add UI run after success.
+      if (
+        pendingInviteData.role === "parent" &&
+        metadata?.kind === "mini_league_parent_join_link" &&
+        metadata?.mini_league_id
+      ) {
+        const miniLeagueId = metadata.mini_league_id;
+        const targetClubId = (pendingInviteData as any).club_id;
+
+        if (targetClubId) {
+          const { data: existingRole } = await supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("club_id", targetClubId)
+            .is("team_id", null)
+            .eq("role", "parent")
+            .maybeSingle();
+          if (!existingRole) {
+            const { error: roleErr } = await supabase.from("user_roles").insert({
+              user_id: user.id,
+              club_id: targetClubId,
+              role: "parent",
+            });
+            if (roleErr && roleErr.code !== "23505" && !roleErr.message?.includes("duplicate")) {
+              throw new Error(`Failed to add parent role: ${roleErr.message}`);
+            }
+          }
+        }
+
+        // Notification (do NOT mark invite accepted — link is reusable)
+        await supabase.from("notifications").insert({
+          user_id: user.id,
+          type: "membership",
+          message: `You've joined ${inviteEntityName} as Parent`,
+          related_id: miniLeagueId,
+        });
+
+        return ["parent" as AppRole];
+      }
       if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
         const existingChildId = metadata.child_id;
         const miniLeagueId = metadata.mini_league_id;
