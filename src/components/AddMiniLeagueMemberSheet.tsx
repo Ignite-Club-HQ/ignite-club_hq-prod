@@ -141,6 +141,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     setParentMode("search");
     setBulkPlayers([{ id: crypto.randomUUID(), name: "", abilityRating: "3", parentName: "", parentEmail: "" }]);
     setBulkResults([]);
+    setInviteByNameExpanded(false);
+    setMode("single");
   };
 
   // Helper: ensure user has parent role in club
