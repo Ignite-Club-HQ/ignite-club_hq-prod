@@ -209,7 +209,7 @@ export default function MessagesPage() {
     queryKey: ["unread-message-counts", user?.id],
     queryFn: () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
-    refetchInterval: isNativeRuntime() ? false : INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -354,7 +354,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: isNativeRuntime() ? false : INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
   });
@@ -486,7 +486,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: isNativeRuntime() ? false : INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
@@ -754,7 +754,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
-    refetchInterval: isNativeRuntime() ? false : INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
   });
