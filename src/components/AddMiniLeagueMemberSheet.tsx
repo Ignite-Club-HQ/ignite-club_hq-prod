@@ -378,6 +378,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
   };
 
+  const activePlayer = activeSearch ? players.find((player) => player.id === activeSearch.rowId) : undefined;
+  const activeChildSuggestions = activeSearch?.field === "name" && activePlayer && !activePlayer.existingChildId
+    ? childMatchesFor(activePlayer.name)
+    : [];
+  const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
+    ? parentResults
+    : [];
+  const showSearchOverlay = activeChildSuggestions.length > 0 || activeParentSuggestions.length > 0;
+
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -407,6 +416,50 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               clubId={clubId}
             />
           </div>
+
+          {showSearchOverlay && activeSearch && (
+            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100000] bg-popover border border-border rounded-lg shadow-lg max-h-[38dvh] overflow-auto overscroll-contain">
+              {activeSearch.field === "name" && activeChildSuggestions.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    updatePlayer(activeSearch.rowId, {
+                      name: c.name,
+                      existingChildId: c.id,
+                      existingParentUserId: c.parent_id || undefined,
+                      parentName: c.parent_name || "",
+                    });
+                    setActiveSearch(null);
+                  }}
+                >
+                  <p className="font-medium">{c.name}</p>
+                  {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
+                </button>
+              ))}
+              {activeSearch.field === "parentName" && activeParentSuggestions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="w-full text-left px-3 py-3 hover:bg-accent text-sm border-b border-border last:border-b-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    updatePlayer(activeSearch.rowId, {
+                      parentName: p.display_name || "",
+                      existingParentUserId: p.id,
+                      parentEmail: "",
+                    });
+                    setActiveSearch(null);
+                  }}
+                >
+                  <p className="font-medium">{p.display_name || "Unknown"}</p>
+                  {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
             {results.length > 0 ? (
