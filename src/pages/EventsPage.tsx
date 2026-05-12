@@ -649,7 +649,8 @@ export default function EventsPage() {
   const broadcastTargetClubId = clubFilter && adminClubIds.includes(clubFilter)
     ? clubFilter
     : adminClubIds[0];
-  const broadcastTargetTeamId = teamFilter || null;
+  // Broadcast targets a real team only — mini-league selections (`ml:` prefix) are ignored here.
+  const broadcastTargetTeamId = teamFilter && !teamFilter.startsWith("ml:") ? teamFilter : null;
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
 
