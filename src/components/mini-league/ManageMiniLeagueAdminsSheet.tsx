@@ -165,6 +165,135 @@ export function ManageMiniLeagueAdminsSheet({
     },
   });
 
+
+  // Pending email invites for this league (league_admin role + matching mini_league_id in metadata)
+  const { data: pendingInvites } = useQuery({
+    queryKey: ["mini-league-pending-admin-invites", miniLeagueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, invited_email, invite_token, status, created_at, email_sent_at, metadata")
+        .eq("club_id", clubId)
+        .eq("role", "league_admin" as any)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).filter(
+        (r) => (r.metadata as any)?.mini_league_id === miniLeagueId,
+      );
+    },
+    enabled: open && !!miniLeagueId,
+  });
+
+  const sendInviteMutation = useMutation({
+    mutationFn: async () => {
+      const email = inviteEmail.trim().toLowerCase();
+      const name = inviteName.trim();
+      if (!email || !name) throw new Error("Name and email are required");
+      const inviteToken = crypto.randomUUID();
+
+      const { error: insertErr } = await supabase
+        .from("pending_invites")
+        .insert({
+          club_id: clubId,
+          role: "league_admin" as any,
+          invited_user_id: null,
+          invited_by_user_id: user!.id,
+          invited_label: name,
+          invited_email: email,
+          invite_token: inviteToken,
+          metadata: {
+            mini_league_id: miniLeagueId,
+            kind: "mini_league_admin_invite",
+          },
+        } as any);
+      if (insertErr) throw insertErr;
+
+      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      let emailSent = false;
+      let emailError: string | null = null;
+      try {
+        const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+          body: {
+            to: email,
+            subject: `You're invited as a League Admin for ${miniLeagueName}`,
+            template: "team-invite",
+            senderName: clubInfo?.name || undefined,
+            replyTo: (clubInfo as any)?.contact_email || undefined,
+            templateData: {
+              recipientName: name,
+              invitedEmail: email,
+              teamName: miniLeagueName,
+              clubName: clubInfo?.name || "The Club",
+              roleName: "League Admin",
+              inviteLink: link,
+              clubLogoUrl: clubInfo?.logo_url || undefined,
+            },
+          },
+        });
+        emailSent = !funcError && emailResult?.verified && emailResult?.success;
+        if (funcError) emailError = funcError.message;
+        else if (!emailSent) emailError = "Email not verified";
+      } catch (e: any) {
+        emailError = e?.message ?? "Failed to send email";
+      }
+
+      await supabase
+        .from("pending_invites")
+        .update({
+          email_sent_at: emailSent ? new Date().toISOString() : null,
+          email_error: emailError,
+        } as any)
+        .eq("invite_token", inviteToken);
+
+      return { emailSent, link };
+    },
+    onSuccess: ({ emailSent }) => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-pending-admin-invites", miniLeagueId] });
+      toast({
+        title: emailSent ? "Invite sent" : "Invite created",
+        description: emailSent
+          ? `Email sent to ${inviteEmail.trim()}`
+          : "Email couldn't be sent — copy the link below to share manually",
+      });
+      setInviteName("");
+      setInviteEmail("");
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Couldn't create invite",
+        description: err?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelPendingMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      const { error } = await supabase
+        .from("pending_invites")
+        .update({ status: "cancelled" } as any)
+        .eq("id", inviteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-pending-admin-invites", miniLeagueId] });
+      toast({ title: "Invite cancelled" });
+    },
+  });
+
+  const handleCopyLink = async (token: string) => {
+    const link = `${window.location.origin}/join/p/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 1500);
+      toast({ title: "Link copied" });
+    } catch {
+      toast({ title: "Couldn't copy link", variant: "destructive" });
+    }
+  };
+
   const currentIds = new Set((currentAdmins || []).map((a) => a.user_id));
   const filteredMembers = (clubMembers || [])
     .filter((m) => !currentIds.has(m.user_id))
@@ -174,6 +303,7 @@ export function ManageMiniLeagueAdminsSheet({
       return name.includes(debouncedSearch.toLowerCase());
     })
     .slice(0, 50);
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
