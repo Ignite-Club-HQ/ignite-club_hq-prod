@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -36,6 +37,17 @@ interface ClubMember {
   display_name: string | null;
   avatar_url: string | null;
 }
+
+type PendingInviteInsert = Database["public"]["Tables"]["pending_invites"]["Insert"];
+type PendingInviteUpdate = Database["public"]["Tables"]["pending_invites"]["Update"];
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+};
 
 export function ManageMiniLeagueAdminsSheet({
   miniLeagueId,
@@ -137,10 +149,10 @@ export function ManageMiniLeagueAdminsSheet({
       queryClient.invalidateQueries({ queryKey: ["mini-league-members"] });
       toast({ title: "League admin added" });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't add admin",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -159,10 +171,10 @@ export function ManageMiniLeagueAdminsSheet({
       queryClient.invalidateQueries({ queryKey: ["mini-league-members"] });
       toast({ title: "League admin removed" });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't remove admin",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -177,14 +189,15 @@ export function ManageMiniLeagueAdminsSheet({
         .from("pending_invites")
         .select("id, invited_label, invited_email, invite_token, status, created_at, email_sent_at, metadata")
         .eq("club_id", clubId)
-        .eq("role", "league_admin" as any)
+        .eq("role", "league_admin")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []).filter(
         (r) =>
-          (r.metadata as any)?.mini_league_id === miniLeagueId &&
-          (r.metadata as any)?.kind !== "league_admin_join_link",
+          typeof r.metadata === "object" && r.metadata !== null && !Array.isArray(r.metadata) &&
+          r.metadata.mini_league_id === miniLeagueId &&
+          r.metadata.kind !== "league_admin_join_link",
       );
     },
     enabled: open && !!miniLeagueId,
@@ -197,21 +210,22 @@ export function ManageMiniLeagueAdminsSheet({
       if (!email || !name) throw new Error("Name and email are required");
       const inviteToken = crypto.randomUUID();
 
+      const invitePayload: PendingInviteInsert = {
+        club_id: clubId,
+        role: "league_admin",
+        invited_user_id: null,
+        invited_by_user_id: user!.id,
+        invited_label: name,
+        invited_email: email,
+        invite_token: inviteToken,
+        metadata: {
+          mini_league_id: miniLeagueId,
+          kind: "mini_league_admin_invite",
+        } satisfies Json,
+      };
       const { error: insertErr } = await supabase
         .from("pending_invites")
-        .insert({
-          club_id: clubId,
-          role: "league_admin" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: name,
-          invited_email: email,
-          invite_token: inviteToken,
-          metadata: {
-            mini_league_id: miniLeagueId,
-            kind: "mini_league_admin_invite",
-          },
-        } as any);
+        .insert(invitePayload);
       if (insertErr) throw insertErr;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
@@ -224,7 +238,7 @@ export function ManageMiniLeagueAdminsSheet({
             subject: `You're invited as a League Admin for ${miniLeagueName}`,
             template: "team-invite",
             senderName: clubInfo?.name || undefined,
-            replyTo: (clubInfo as any)?.contact_email || undefined,
+            replyTo: clubInfo?.contact_email || undefined,
             templateData: {
               recipientName: name,
               invitedEmail: email,
@@ -239,8 +253,8 @@ export function ManageMiniLeagueAdminsSheet({
         emailSent = !funcError && emailResult?.verified && emailResult?.success;
         if (funcError) emailError = funcError.message;
         else if (!emailSent) emailError = "Email not verified";
-      } catch (e: any) {
-        emailError = e?.message ?? "Failed to send email";
+      } catch (e: unknown) {
+        emailError = getErrorMessage(e, "Failed to send email");
       }
 
       await supabase
@@ -248,7 +262,7 @@ export function ManageMiniLeagueAdminsSheet({
         .update({
           email_sent_at: emailSent ? new Date().toISOString() : null,
           email_error: emailError,
-        } as any)
+        } satisfies PendingInviteUpdate)
         .eq("invite_token", inviteToken);
 
       return { emailSent, link };
@@ -264,10 +278,10 @@ export function ManageMiniLeagueAdminsSheet({
       setInviteName("");
       setInviteEmail("");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't create invite",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -277,7 +291,7 @@ export function ManageMiniLeagueAdminsSheet({
     mutationFn: async (inviteId: string) => {
       const { error } = await supabase
         .from("pending_invites")
-        .update({ status: "cancelled" } as any)
+        .update({ status: "cancelled" } satisfies PendingInviteUpdate)
         .eq("id", inviteId);
       if (error) throw error;
     },
@@ -309,9 +323,9 @@ export function ManageMiniLeagueAdminsSheet({
         return;
       } catch {/* cancelled */}
     }
-    if (typeof navigator !== "undefined" && (navigator as any).share) {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
-        await (navigator as any).share({ title, text, url: link });
+        await navigator.share({ title, text, url: link });
         return;
       } catch {/* cancelled */}
     }
@@ -331,8 +345,8 @@ export function ManageMiniLeagueAdminsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] flex flex-col">
-        <SheetHeader className="text-left">
+      <SheetContent side="bottom" className="h-[85vh] max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-allow-scroll>
+        <SheetHeader className="text-left shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
             League Admins
@@ -343,13 +357,13 @@ export function ManageMiniLeagueAdminsSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 overflow-hidden flex flex-col mt-2">
-          <TabsList className="grid grid-cols-2 w-full">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 min-h-0 overflow-hidden flex flex-col mt-2">
+          <TabsList className="grid grid-cols-2 w-full shrink-0">
             <TabsTrigger value="existing">From club</TabsTrigger>
             <TabsTrigger value="invite">Invite</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="existing" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+          <TabsContent value="existing" className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 mt-3 pb-8 data-[state=inactive]:hidden" data-allow-scroll style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}>
             {/* Current admins */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
@@ -395,7 +409,7 @@ export function ManageMiniLeagueAdminsSheet({
             </div>
 
             {/* Picker */}
-            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+            <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
                 Add from club
               </p>
@@ -408,7 +422,7 @@ export function ManageMiniLeagueAdminsSheet({
                   className="pl-8"
                 />
               </div>
-              <ScrollArea className="flex-1 -mx-2 px-2">
+              <div className="-mx-2 px-2">
                 <div className="space-y-1.5 pb-4">
                   {filteredMembers.length === 0 ? (
                     <p className="text-sm text-muted-foreground px-1 py-4 text-center">
@@ -442,7 +456,7 @@ export function ManageMiniLeagueAdminsSheet({
                     ))
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </TabsContent>
 
