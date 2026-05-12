@@ -557,7 +557,35 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             />
           </div>
 
+          {!inviteByNameExpanded ? (
+            <button
+              type="button"
+              onClick={() => setInviteByNameExpanded(true)}
+              className="mt-3 w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
+            >
+              <span className="inline-flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                Invite a specific player
+              </span>
+              <span className="text-xs text-muted-foreground">Name or email</span>
+            </button>
+          ) : (
           <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="flex-1 flex flex-col mt-4 min-h-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold">Invite by name</h3>
+                <p className="text-xs text-muted-foreground">Add a player and optionally link a parent.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInviteByNameExpanded(false)}
+                className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
+                aria-label="Collapse invite by name"
+              >
+                <ChevronUp className="h-4 w-4" />
+                Hide
+              </button>
+            </div>
             <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="single" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
