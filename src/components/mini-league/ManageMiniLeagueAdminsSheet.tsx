@@ -319,102 +319,208 @@ export function ManageMiniLeagueAdminsSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4 mt-2">
-          {/* Current admins */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Current
-            </p>
-            {loadingCurrent ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (currentAdmins || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground px-1 py-2">
-                No per-league admins yet.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {(currentAdmins || []).map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center gap-3 p-2 rounded-lg bg-card border"
-                  >
-                    <Avatar className="h-8 w-8">
-                      {a.avatar_url && <AvatarImage src={a.avatar_url} />}
-                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                        {(a.display_name || "?").charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <p className="flex-1 text-sm font-medium truncate">
-                      {a.display_name || "Unknown"}
-                    </p>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => revokeMutation.mutate(a.id)}
-                      disabled={revokeMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 overflow-hidden flex flex-col mt-2">
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="existing">From club</TabsTrigger>
+            <TabsTrigger value="invite">Invite by email</TabsTrigger>
+          </TabsList>
 
-          {/* Picker */}
-          <div className="flex-1 flex flex-col min-h-0 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Add from club
-            </p>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search club members…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-            <ScrollArea className="flex-1 -mx-2 px-2">
-              <div className="space-y-1.5 pb-4">
-                {filteredMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-1 py-4 text-center">
-                    No matches.
-                  </p>
-                ) : (
-                  filteredMembers.map((m) => (
+          <TabsContent value="existing" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+            {/* Current admins */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Current
+              </p>
+              {loadingCurrent ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (currentAdmins || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground px-1 py-2">
+                  No per-league admins yet.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {(currentAdmins || []).map((a) => (
                     <div
-                      key={m.user_id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50"
+                      key={a.id}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-card border"
                     >
                       <Avatar className="h-8 w-8">
-                        {m.avatar_url && <AvatarImage src={m.avatar_url} />}
-                        <AvatarFallback className="bg-muted text-foreground text-sm">
-                          {(m.display_name || "?").charAt(0).toUpperCase()}
+                        {a.avatar_url && <AvatarImage src={a.avatar_url} />}
+                        <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                          {(a.display_name || "?").charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <p className="flex-1 text-sm truncate">
-                        {m.display_name || "Unknown"}
+                      <p className="flex-1 text-sm font-medium truncate">
+                        {a.display_name || "Unknown"}
                       </p>
                       <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => grantMutation.mutate(m.user_id)}
-                        disabled={grantMutation.isPending}
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => revokeMutation.mutate(a.id)}
+                        disabled={revokeMutation.isPending}
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Add
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Picker */}
+            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Add from club
+              </p>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search club members…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8"
+                />
               </div>
-            </ScrollArea>
-          </div>
-        </div>
+              <ScrollArea className="flex-1 -mx-2 px-2">
+                <div className="space-y-1.5 pb-4">
+                  {filteredMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                      No matches.
+                    </p>
+                  ) : (
+                    filteredMembers.map((m) => (
+                      <div
+                        key={m.user_id}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50"
+                      >
+                        <Avatar className="h-8 w-8">
+                          {m.avatar_url && <AvatarImage src={m.avatar_url} />}
+                          <AvatarFallback className="bg-muted text-foreground text-sm">
+                            {(m.display_name || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <p className="flex-1 text-sm truncate">
+                          {m.display_name || "Unknown"}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => grantMutation.mutate(m.user_id)}
+                          disabled={grantMutation.isPending}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="invite" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+            {/* Send new invite */}
+            <div className="space-y-3 rounded-lg border bg-card p-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Invite someone not on the app
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="ml-invite-name" className="text-xs">Their name</Label>
+                <Input
+                  id="ml-invite-name"
+                  placeholder="Jane Smith"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ml-invite-email" className="text-xs">Email</Label>
+                <Input
+                  id="ml-invite-email"
+                  type="email"
+                  inputMode="email"
+                  placeholder="jane@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <Button
+                onClick={() => sendInviteMutation.mutate()}
+                disabled={sendInviteMutation.isPending || !inviteName.trim() || !inviteEmail.trim()}
+                className="w-full gap-2"
+              >
+                {sendInviteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Send invite
+              </Button>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                They'll receive an email with a link. Once they sign up, they get
+                League Admin rights for {miniLeagueName} only.
+              </p>
+            </div>
+
+            {/* Pending list */}
+            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Pending invites
+              </p>
+              <ScrollArea className="flex-1 -mx-2 px-2">
+                <div className="space-y-1.5 pb-4">
+                  {(pendingInvites || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                      No pending invites.
+                    </p>
+                  ) : (
+                    (pendingInvites || []).map((inv) => (
+                      <div
+                        key={inv.id}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-card border"
+                      >
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{inv.invited_label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{inv.invited_email}</p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => inv.invite_token && handleCopyLink(inv.invite_token)}
+                          title="Copy invite link"
+                        >
+                          {copiedToken === inv.invite_token ? (
+                            <Check className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => cancelPendingMutation.mutate(inv.id)}
+                          disabled={cancelPendingMutation.isPending}
+                          title="Cancel invite"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
   );
