@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
 
 /**
  * Basic non-virtualised chat message list — emergency fallback used when an
