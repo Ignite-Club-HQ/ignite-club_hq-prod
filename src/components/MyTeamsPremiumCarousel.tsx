@@ -158,8 +158,8 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
           </div>
-          {showDots && (
-            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()}>
+          {(
+            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
               <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
                 <DropdownMenuTrigger asChild>
                   <button

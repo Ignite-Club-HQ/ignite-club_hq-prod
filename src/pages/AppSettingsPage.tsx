@@ -1,10 +1,12 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -45,10 +47,10 @@ export default function AppSettingsPage() {
   });
 
   const updateSettingMutation = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: boolean }) => {
+    mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
       const { error } = await supabase
         .from("app_settings")
-        .update({ value: value })
+        .update({ value: value as never })
         .eq("key", key);
       if (error) throw error;
     },
@@ -126,6 +128,27 @@ export default function AppSettingsPage() {
   // Default chat virtualisation to ON when the row is missing or unset.
   const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
   const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
+
+  // Basic-mode chunk size — clamped 10–500, default 100.
+  const chunkRow = settings?.find(s => s.key === "chat_basic_chunk_size");
+  const savedChunkSize = (() => {
+    const raw = chunkRow?.value;
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return 100;
+    return Math.min(500, Math.max(10, Math.floor(n)));
+  })();
+  const [chunkInput, setChunkInput] = useState<string>(String(savedChunkSize));
+  useEffect(() => {
+    setChunkInput(String(savedChunkSize));
+  }, [savedChunkSize]);
+
+  const handleSaveChunkSize = () => {
+    const n = Math.min(500, Math.max(10, Math.floor(Number(chunkInput) || 0)));
+    setChunkInput(String(n));
+    if (n === savedChunkSize) return;
+    updateSettingMutation.mutate({ key: "chat_basic_chunk_size", value: n });
+  };
+
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -243,6 +266,50 @@ export default function AppSettingsPage() {
                 disabled={updateSettingMutation.isPending}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListOrdered className="h-5 w-5 text-primary" />
+              Basic-mode chunk size
+            </CardTitle>
+            <CardDescription>
+              When chat virtualisation is OFF, this controls how many messages basic mode renders initially and reveals each time someone taps "Load earlier messages". Lower = safer on low-end Android, higher = fewer taps to reach older history. Allowed: 10–500.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-3">
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="chunk-size-input" className="text-base font-medium">
+                  Messages per chunk
+                </Label>
+                <Input
+                  id="chunk-size-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={10}
+                  max={500}
+                  step={10}
+                  value={chunkInput}
+                  onChange={(e) => setChunkInput(e.target.value)}
+                  disabled={updateSettingMutation.isPending}
+                />
+              </div>
+              <Button
+                onClick={handleSaveChunkSize}
+                disabled={
+                  updateSettingMutation.isPending ||
+                  String(savedChunkSize) === chunkInput.trim()
+                }
+              >
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Currently saved: {savedChunkSize}
+            </p>
           </CardContent>
         </Card>
 

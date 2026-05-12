@@ -3,16 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
-  ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
+  ArrowLeft, Users, Calendar as CalendarIcon, Plus, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
   UserPlus, CalendarDays, Shield, UserRound
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialog";
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+import { ManageMiniLeagueAdminsSheet } from "@/components/mini-league/ManageMiniLeagueAdminsSheet";
 
 interface MiniLeagueEvent {
   id: string;
@@ -43,6 +38,7 @@ export default function MiniLeagueDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
+  const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
 
   const { data: league, isLoading: leagueLoading } = useQuery({
     queryKey: ["mini-league", id],
@@ -86,16 +82,39 @@ export default function MiniLeagueDetailPage() {
   });
 
   const { data: canManageLeague } = useQuery({
-    queryKey: ["can-manage-league", league?.club_id, user?.id],
+    queryKey: ["can-manage-league", id, league?.club_id, user?.id],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
+      const clubWide = roles?.some(r =>
+        ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
+      ) ?? false;
+      if (clubWide) return true;
+
+      // Per-mini-league grant
+      const { data: scoped } = await supabase
+        .from("mini_league_admins")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!scoped;
+    },
+    enabled: !!league?.club_id && !!user && !!id,
+  });
+
+  const { data: isClubAdmin } = useQuery({
+    queryKey: ["is-club-admin", league?.club_id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user!.id)
         .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
-      return data?.some(r =>
-        ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
-      ) ?? false;
+      return data?.some(r => ['club_admin', 'app_admin'].includes(r.role)) ?? false;
     },
     enabled: !!league?.club_id && !!user,
   });
@@ -170,25 +189,31 @@ export default function MiniLeagueDetailPage() {
   const parentUserIds = [...new Set((players || []).map(p => p.parent_user_id).filter(Boolean) as string[])];
   
   const { data: leagueMembers } = useQuery({
-    queryKey: ["mini-league-members", league?.club_id, parentUserIds],
+    queryKey: ["mini-league-members", id, league?.club_id, parentUserIds],
     queryFn: async () => {
-      // Only show league admins for THIS mini-league's club. Team-level
-      // coaches must NOT appear here — there is no `coach ↔ mini_league`
-      // assignment in the schema, so including them would surface every
-      // coach in the entire club as a "coach" of this mini-league, which
-      // is incorrect (e.g. U8 Blue's coach showing up under Maxiroos).
-      // The mini-league surface is strictly: league admins (staff) +
-      // parents of players assigned to this mini-league.
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("club_id", league!.club_id)
-        .eq("role", "league_admin");
+      // Staff = club-wide league_admin holders + per-mini-league grants
+      // (mini_league_admins). Team-level coaches are NOT included — there
+      // is no `coach ↔ mini_league` link in the schema, so showing them
+      // here would surface every club coach as a coach of this league.
+      const [{ data: adminRoles }, { data: scopedAdmins }] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("club_id", league!.club_id)
+          .eq("role", "league_admin"),
+        supabase
+          .from("mini_league_admins")
+          .select("user_id")
+          .eq("mini_league_id", id!),
+      ]);
 
-      // Collect all user IDs we need profiles for
+      const clubWideIds = new Set((adminRoles || []).map(r => r.user_id));
+      const scopedIds = new Set((scopedAdmins || []).map(r => r.user_id));
+      const allAdminIds = new Set<string>([...clubWideIds, ...scopedIds]);
+
       const allUserIds = [...new Set([
         ...parentUserIds,
-        ...(adminRoles || []).map(r => r.user_id),
+        ...allAdminIds,
       ])];
 
       if (allUserIds.length === 0) return { parents: [], staff: [] };
@@ -199,35 +224,24 @@ export default function MiniLeagueDetailPage() {
         .in("id", allUserIds);
 
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-      const adminUserIds = new Set((adminRoles || []).map(r => r.user_id));
-      
-      // Build role map for staff
-      const roleMap = new Map<string, string>();
-      (adminRoles || []).forEach(r => {
-        const existing = roleMap.get(r.user_id);
-        const priority: Record<string, number> = { league_admin: 3, coach: 2 };
-        if (!existing || (priority[r.role] || 0) > (priority[existing] || 0)) {
-          roleMap.set(r.user_id, r.role);
-        }
-      });
 
       const parents = parentUserIds
-        .filter(uid => !adminUserIds.has(uid))
+        .filter(uid => !allAdminIds.has(uid))
         .map(uid => ({
           id: uid,
           ...profileMap.get(uid),
           role: "parent" as string,
         }));
 
-      const staff = [...adminUserIds].map(uid => ({
+      const staff = [...allAdminIds].map(uid => ({
         id: uid,
         ...profileMap.get(uid),
-        role: roleMap.get(uid) || "coach",
+        role: "league_admin" as string,
       }));
 
       return { parents, staff };
     },
-    enabled: !!league?.club_id && (parentUserIds.length > 0 || !!league?.club_id),
+    enabled: !!league?.club_id && !!id,
   });
 
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
@@ -369,19 +383,15 @@ export default function MiniLeagueDetailPage() {
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
         {canManageLeague && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Edit Settings
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 h-10 w-10"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Mini-league settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         )}
       </div>
 
@@ -505,7 +515,7 @@ export default function MiniLeagueDetailPage() {
       </div>
 
       {/* Members Section (Parents & Staff) — Team-page style */}
-      {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0) && (
+      {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0 || isClubAdmin) && (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Team</h2>
@@ -514,17 +524,30 @@ export default function MiniLeagueDetailPage() {
             </span>
           </div>
 
-          {/* Staff (Admins & Coaches) */}
-          {leagueMembers.staff.length > 0 && (
+          {/* Staff (League Admins) */}
+          {(leagueMembers.staff.length > 0 || isClubAdmin) && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground px-1">League Admins</p>
-              <div className="space-y-2">
-                {leagueMembers.staff.map((member: any) => {
-                  const roleLabels: Record<string, string> = {
-                    league_admin: "League Admin",
-                    coach: "Coach",
-                  };
-                  return (
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm font-medium text-muted-foreground">League Admins</p>
+                {isClubAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-primary"
+                    onClick={() => setManageAdminsOpen(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Manage
+                  </Button>
+                )}
+              </div>
+              {leagueMembers.staff.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-1 py-1">
+                  No league admins yet. Add one to delegate management of this mini-league.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {leagueMembers.staff.map((member: any) => (
                     <Card key={member.id}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -537,13 +560,13 @@ export default function MiniLeagueDetailPage() {
                           <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
                         </div>
                         <Badge variant="secondary" className="text-xs shrink-0">
-                          {roleLabels[member.role] || member.role}
+                          League Admin
                         </Badge>
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -716,6 +739,16 @@ export default function MiniLeagueDetailPage() {
           clubId={league.club_id}
           externalOpen={addPlayersOpen}
           onExternalOpenChange={setAddPlayersOpen}
+        />
+      )}
+
+      {isClubAdmin && (
+        <ManageMiniLeagueAdminsSheet
+          miniLeagueId={id!}
+          miniLeagueName={league.name}
+          clubId={league.club_id}
+          open={manageAdminsOpen}
+          onOpenChange={setManageAdminsOpen}
         />
       )}
     </div>

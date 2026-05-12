@@ -4513,6 +4513,38 @@ export type Database = {
         }
         Relationships: []
       }
+      mini_league_admins: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          mini_league_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          mini_league_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          mini_league_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_admins_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mini_league_group_duties: {
         Row: {
           assigned_to: string | null
