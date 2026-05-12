@@ -527,6 +527,15 @@ export function ManageMiniLeagueAdminsSheet({
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => inv.invite_token && handleShareLink(inv.invite_token, inv.invited_label)}
+                          title="Share invite link"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           className="h-8 w-8 text-destructive hover:text-destructive"
                           onClick={() => cancelPendingMutation.mutate(inv.id)}
                           disabled={cancelPendingMutation.isPending}
