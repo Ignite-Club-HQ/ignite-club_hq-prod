@@ -269,6 +269,50 @@ export default function AppSettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListOrdered className="h-5 w-5 text-primary" />
+              Basic-mode chunk size
+            </CardTitle>
+            <CardDescription>
+              When chat virtualisation is OFF, this controls how many messages basic mode renders initially and reveals each time someone taps "Load earlier messages". Lower = safer on low-end Android, higher = fewer taps to reach older history. Allowed: 10–500.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-3">
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="chunk-size-input" className="text-base font-medium">
+                  Messages per chunk
+                </Label>
+                <Input
+                  id="chunk-size-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={10}
+                  max={500}
+                  step={10}
+                  value={chunkInput}
+                  onChange={(e) => setChunkInput(e.target.value)}
+                  disabled={updateSettingMutation.isPending}
+                />
+              </div>
+              <Button
+                onClick={handleSaveChunkSize}
+                disabled={
+                  updateSettingMutation.isPending ||
+                  String(savedChunkSize) === chunkInput.trim()
+                }
+              >
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Currently saved: {savedChunkSize}
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="text-center text-sm text-muted-foreground pt-4">
           <p>Current status: {isClubCreationLocked ? "Only app admins can create clubs" : "Anyone can create clubs"}</p>
         </div>
