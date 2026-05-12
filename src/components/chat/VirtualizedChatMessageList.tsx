@@ -581,6 +581,31 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   }: Props<TMessage>,
   ref: React.Ref<VirtualizedChatMessageListHandle>,
 ) {
+  // App-admin kill-switch. When disabled in /admin/settings, every chat page
+  // falls back to the basic mapped scroller (last 100 messages) — used as an
+  // emergency lever if virtualisation is causing freezes on a device.
+  const virtualizationEnabled = useChatVirtualizationEnabled();
+  if (!virtualizationEnabled) {
+    return (
+      <BasicChatMessageList
+        ref={ref as React.Ref<any>}
+        messages={messages}
+        hasOlder={hasOlder}
+        isLoadingOlder={isLoadingOlder}
+        onLoadOlder={onLoadOlder}
+        renderItem={renderItem}
+        topPadding={topPadding}
+        bottomPadding={bottomPadding}
+        className={className}
+        style={style}
+        onAtBottomChange={onAtBottomChange}
+        scrollerRef={scrollerRef}
+        initialBottomPinned={initialBottomPinned}
+        currentUserId={currentUserId}
+      />
+    );
+  }
+
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const atBottomRef = useRef(true);
