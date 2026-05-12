@@ -517,7 +517,7 @@ export default function MiniLeagueDetailPage() {
           {/* Staff (Admins & Coaches) */}
           {leagueMembers.staff.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground px-1">Coaches & Admins</p>
+              <p className="text-sm font-medium text-muted-foreground px-1">League Admins</p>
               <div className="space-y-2">
                 {leagueMembers.staff.map((member: any) => {
                   const roleLabels: Record<string, string> = {
