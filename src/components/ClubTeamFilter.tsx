@@ -79,7 +79,7 @@ export function ClubTeamFilter({
 
   // Only show clear button if there are visible filters with active selections
   const showClubOption = showClubFilter && clubs.length > 1;
-  const showTeamOption = showTeamFilter && teams.length > 0;
+  const showTeamOption = showTeamFilter && (teams.length > 0 || miniLeagues.length > 0);
   const hasActiveFilters = (showClubOption && selectedClubId !== "all") || (showTeamOption && selectedTeamId !== "all");
 
   const handleClubSelect = (clubId: string) => {
