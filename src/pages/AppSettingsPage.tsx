@@ -47,10 +47,10 @@ export default function AppSettingsPage() {
   });
 
   const updateSettingMutation = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: boolean }) => {
+    mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
       const { error } = await supabase
         .from("app_settings")
-        .update({ value: value })
+        .update({ value: value as never })
         .eq("key", key);
       if (error) throw error;
     },
