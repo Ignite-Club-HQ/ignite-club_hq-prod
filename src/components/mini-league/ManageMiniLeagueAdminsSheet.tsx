@@ -331,8 +331,8 @@ export function ManageMiniLeagueAdminsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85vh] flex flex-col">
-        <SheetHeader className="text-left">
+      <SheetContent side="bottom" className="h-[85vh] max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-allow-scroll>
+        <SheetHeader className="text-left shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
             League Admins
@@ -343,13 +343,13 @@ export function ManageMiniLeagueAdminsSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 overflow-hidden flex flex-col mt-2">
-          <TabsList className="grid grid-cols-2 w-full">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "invite")} className="flex-1 min-h-0 overflow-hidden flex flex-col mt-2">
+          <TabsList className="grid grid-cols-2 w-full shrink-0">
             <TabsTrigger value="existing">From club</TabsTrigger>
             <TabsTrigger value="invite">Invite</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="existing" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
+          <TabsContent value="existing" className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 mt-3 pb-8 data-[state=inactive]:hidden" data-allow-scroll style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}>
             {/* Current admins */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
@@ -395,7 +395,7 @@ export function ManageMiniLeagueAdminsSheet({
             </div>
 
             {/* Picker */}
-            <div className="flex-1 flex flex-col min-h-0 space-y-2">
+            <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
                 Add from club
               </p>
@@ -408,7 +408,7 @@ export function ManageMiniLeagueAdminsSheet({
                   className="pl-8"
                 />
               </div>
-              <ScrollArea className="flex-1 -mx-2 px-2">
+              <div className="-mx-2 px-2">
                 <div className="space-y-1.5 pb-4">
                   {filteredMembers.length === 0 ? (
                     <p className="text-sm text-muted-foreground px-1 py-4 text-center">
@@ -442,7 +442,7 @@ export function ManageMiniLeagueAdminsSheet({
                     ))
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </TabsContent>
 
