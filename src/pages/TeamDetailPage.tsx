@@ -802,7 +802,7 @@ export default function TeamDetailPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Team options menu">
-                <Settings className="h-5 w-5" aria-hidden="true" />
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
