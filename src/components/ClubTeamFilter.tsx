@@ -194,8 +194,8 @@ export function ClubTeamFilter({
               )}
             >
               <Users className="h-4 w-4" />
-              <span className="max-w-[100px] truncate">
-                {selectedTeam ? selectedTeam.name : "All Teams"}
+              <span className="max-w-[140px] truncate">
+                {selectedLabel ?? "All Teams"}
               </span>
               <ChevronDown className="h-3 w-3" />
             </Button>
