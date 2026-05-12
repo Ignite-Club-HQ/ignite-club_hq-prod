@@ -839,12 +839,13 @@ export default function EventsPage() {
               <ClubTeamFilter
                 clubs={userClubs || []}
                 teams={userTeams || []}
+                miniLeagues={userMiniLeagues || []}
                 selectedClubId={clubFilter || "all"}
                 selectedTeamId={teamFilter || "all"}
                 onClubChange={handleClubChange}
                 onTeamChange={handleTeamChange}
                 showClubFilter={!activeClubFilter && (userClubs?.length || 0) > 1}
-                showTeamFilter={(userTeams?.length || 0) > 0}
+                showTeamFilter={((userTeams?.length || 0) + (userMiniLeagues?.length || 0)) > 0}
                 getSportEmoji={getSportEmoji}
               />
 
