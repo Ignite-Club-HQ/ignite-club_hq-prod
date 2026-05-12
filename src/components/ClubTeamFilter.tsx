@@ -31,9 +31,16 @@ interface Team {
   club_id?: string;
 }
 
+interface MiniLeague {
+  id: string;
+  name: string;
+  club_id?: string;
+}
+
 interface ClubTeamFilterProps {
   clubs: Club[];
   teams: Team[];
+  miniLeagues?: MiniLeague[];
   selectedClubId: string;
   selectedTeamId: string;
   onClubChange: (clubId: string) => void;
@@ -48,6 +55,7 @@ interface ClubTeamFilterProps {
 export function ClubTeamFilter({
   clubs,
   teams,
+  miniLeagues = [],
   selectedClubId,
   selectedTeamId,
   onClubChange,
@@ -63,7 +71,11 @@ export function ClubTeamFilter({
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
 
   const selectedClub = clubs.find((c) => c.id === selectedClubId);
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+  const selectedMiniLeague = selectedTeamId.startsWith("ml:")
+    ? miniLeagues.find((m) => `ml:${m.id}` === selectedTeamId)
+    : null;
+  const selectedTeam = selectedMiniLeague ? null : teams.find((t) => t.id === selectedTeamId);
+  const selectedLabel = selectedMiniLeague?.name ?? selectedTeam?.name ?? null;
 
   // Only show clear button if there are visible filters with active selections
   const showClubOption = showClubFilter && clubs.length > 1;
