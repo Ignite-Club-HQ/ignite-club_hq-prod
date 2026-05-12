@@ -751,6 +751,16 @@ export default function MiniLeagueDetailPage() {
           onExternalOpenChange={setAddPlayersOpen}
         />
       )}
+
+      {isClubAdmin && (
+        <ManageMiniLeagueAdminsSheet
+          miniLeagueId={id!}
+          miniLeagueName={league.name}
+          clubId={league.club_id}
+          open={manageAdminsOpen}
+          onOpenChange={setManageAdminsOpen}
+        />
+      )}
     </div>
   );
 }
