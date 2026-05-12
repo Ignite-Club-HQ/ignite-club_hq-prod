@@ -1253,9 +1253,9 @@ function VirtualizedChatMessageListSwitcher<TMessage extends { id: string }>(
 ) {
   const enabled = useChatVirtualizationEnabled();
   if (!enabled) {
-    return <BasicChatMessageList<TMessage> ref={ref as React.Ref<any>} {...props} />;
+    return <BasicChatMessageList ref={ref as React.Ref<any>} {...props} />;
   }
-  return <VirtuosoChatMessageList<TMessage> ref={ref} {...props} />;
+  return <VirtuosoChatMessageList ref={ref} {...props} />;
 }
 
 export const VirtualizedChatMessageList = forwardRef(VirtualizedChatMessageListSwitcher) as <
