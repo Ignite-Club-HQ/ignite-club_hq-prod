@@ -368,7 +368,23 @@ export default function EventsPage() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     placeholderData: (prev) => prev,
   });
-  const eventsScopeKey = useMemo(
+
+  // Mini-leagues the user can filter the schedule by — only ones they're actually a member of
+  // (parent of a player, mini_league_admin, or league_admin/app_admin for the club).
+  const { data: userMiniLeagues } = useQuery({
+    queryKey: ["user-mini-leagues-for-filter", user?.id, userMemberships?.miniLeagueIds, clubFilter],
+    queryFn: async () => {
+      const ids = userMemberships?.miniLeagueIds || [];
+      if (ids.length === 0) return [] as { id: string; name: string; club_id: string }[];
+      let query = supabase.from("mini_leagues").select("id, name, club_id").in("id", ids).order("name");
+      if (clubFilter) query = query.eq("club_id", clubFilter);
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user && !!userMemberships,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
     () => `${user?.id || "anon"}_${filter}_${teamFilter || "all"}_${clubFilter || "all"}`,
     [user?.id, filter, teamFilter, clubFilter]
   );
