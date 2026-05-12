@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2 } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, Settings, Image, MessageCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
