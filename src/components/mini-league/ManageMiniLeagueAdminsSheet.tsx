@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, Trash2, Shield, Mail, Send, Copy, Check, X } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, Shield, Mail, Send, Copy, Check, X, Share2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
