@@ -1186,8 +1186,9 @@ export default function VaultPage() {
 
       const clubId = searchParams.get("club");
       const teamId = searchParams.get("team");
+      const miniLeagueId = searchParams.get("miniLeague");
 
-      if (!clubId && !teamId) {
+      if (!clubId && !teamId && !miniLeagueId) {
         setInitialLoadComplete(true);
         return;
       }
