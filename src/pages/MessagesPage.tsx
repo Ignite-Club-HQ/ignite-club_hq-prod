@@ -1388,6 +1388,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('group', row.group_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1423,6 +1424,7 @@ export default function MessagesPage() {
         if (otherId && otherId !== user.id && !conv?.other_user?.display_name) {
           resolveAuthor(otherId, { kind: 'dm', targetId: row.conversation_id });
         }
+        bumpUnread('dm', row.conversation_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
         const row = payload.new;
