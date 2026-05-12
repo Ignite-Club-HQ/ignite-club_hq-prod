@@ -272,8 +272,10 @@ export default function EventsPage() {
           if (r.role === 'club_admin' || r.role === 'app_admin') {
             clubAdminClubIds.add(r.club_id);
           }
-          // Track club admin roles for league access
-          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+          // Track league admin roles for league access (per-club league_admin sees every league in that club).
+          // club_admin is intentionally excluded here — they only see mini-league events for leagues
+          // they're explicitly a member/admin of (matches mini-league chat scoping).
+          if (r.role === 'league_admin' || r.role === 'app_admin') {
             leagueAdminClubIds.add(r.club_id);
           }
         }
