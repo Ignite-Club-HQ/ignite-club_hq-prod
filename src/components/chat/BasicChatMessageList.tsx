@@ -218,7 +218,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
                 Loading…
               </>
             ) : (
-              <>Load earlier messages{truncatedCount > 0 ? ` (${truncatedCount} hidden)` : ""}</>
+              <>Load earlier messages</>
             )}
           </button>
         </div>
