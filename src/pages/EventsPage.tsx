@@ -317,32 +317,40 @@ export default function EventsPage() {
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
-      // Get mini league IDs where user is a parent (has a player)
+      // Mini-league membership: parent of a player in that league, OR explicit mini_league_admin,
+      // OR league_admin/app_admin for that club (covers every league in the club).
       step = performance.now();
-      const { data: playerLeagues, error: pLeaguesErr } = await supabase
-        .from("mini_league_players")
-        .select("mini_league_id")
-        .eq("parent_user_id", user!.id);
-      diagLog("memberships:mini_league_players", { ms: Math.round(performance.now() - step), count: playerLeagues?.length ?? null, error: pLeaguesErr?.message });
-      if (pLeaguesErr) throw pLeaguesErr;
-      
-      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
-      
-      // Also get mini leagues where user is league admin via club_admin role
-      step = performance.now();
-      const { data: adminLeagues, error: adminLeaguesErr } = await supabase
-        .from("mini_leagues")
-        .select("id")
-        .in("club_id", Array.from(leagueAdminClubIds));
-      diagLog("memberships:mini_leagues-admin", { ms: Math.round(performance.now() - step), count: adminLeagues?.length ?? null, error: adminLeaguesErr?.message });
-      if (adminLeaguesErr) throw adminLeaguesErr;
-      
-      // Add leagues where user is admin
-      adminLeagues?.forEach(l => {
-        if (!miniLeagueIds.includes(l.id)) {
-          miniLeagueIds.push(l.id);
-        }
+      const [playerLeaguesRes, mlaRes, adminLeaguesRes] = await Promise.all([
+        supabase
+          .from("mini_league_players")
+          .select("mini_league_id")
+          .eq("parent_user_id", user!.id),
+        supabase
+          .from("mini_league_admins")
+          .select("mini_league_id")
+          .eq("user_id", user!.id),
+        leagueAdminClubIds.size > 0
+          ? supabase
+              .from("mini_leagues")
+              .select("id")
+              .in("club_id", Array.from(leagueAdminClubIds))
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+      diagLog("memberships:mini_leagues", {
+        ms: Math.round(performance.now() - step),
+        playerLeagues: playerLeaguesRes.data?.length ?? null,
+        mlAdmins: mlaRes.data?.length ?? null,
+        clubAdminLeagues: adminLeaguesRes.data?.length ?? null,
       });
+      if (playerLeaguesRes.error) throw playerLeaguesRes.error;
+      if (mlaRes.error) throw mlaRes.error;
+      if (adminLeaguesRes.error) throw adminLeaguesRes.error;
+
+      const miniLeagueIds = Array.from(new Set([
+        ...((playerLeaguesRes.data || []).map((p: any) => p.mini_league_id).filter(Boolean) as string[]),
+        ...((mlaRes.data || []).map((m: any) => m.mini_league_id).filter(Boolean) as string[]),
+        ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
+      ]));
       
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
