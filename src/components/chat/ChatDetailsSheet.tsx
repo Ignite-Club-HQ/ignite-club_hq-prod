@@ -252,6 +252,7 @@ export function ChatDetailsSheet({
                   chatName={name}
                   teamId={teamId}
                   clubId={clubId}
+                  miniLeagueId={miniLeagueId}
                   groupAllowedRoles={groupAllowedRoles}
                   enabled={open}
                   onBeforeNavigate={close}
