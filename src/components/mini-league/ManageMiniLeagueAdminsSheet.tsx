@@ -446,9 +446,18 @@ export function ManageMiniLeagueAdminsSheet({
             </div>
           </TabsContent>
 
-          <TabsContent value="invite" className="flex-1 overflow-hidden flex flex-col gap-4 mt-3 data-[state=inactive]:hidden">
-            {/* Send new invite */}
-            <div className="space-y-3 rounded-lg border bg-card p-3">
+          <TabsContent value="invite" className="flex-1 overflow-hidden flex flex-col mt-3 data-[state=inactive]:hidden">
+            <ScrollArea className="flex-1 -mx-2 px-2">
+              <div className="space-y-4 pb-6">
+                {/* Shareable join link — primary CTA */}
+                <MiniLeagueAdminJoinLinkCard
+                  miniLeagueId={miniLeagueId}
+                  miniLeagueName={miniLeagueName}
+                  clubId={clubId}
+                />
+
+                {/* Email invite — for a specific person */}
+                <div className="space-y-3 rounded-lg border bg-card p-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Invite someone not on the app
               </p>
