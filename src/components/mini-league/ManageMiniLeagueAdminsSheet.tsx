@@ -210,21 +210,22 @@ export function ManageMiniLeagueAdminsSheet({
       if (!email || !name) throw new Error("Name and email are required");
       const inviteToken = crypto.randomUUID();
 
+      const invitePayload: PendingInviteInsert = {
+        club_id: clubId,
+        role: "league_admin",
+        invited_user_id: null,
+        invited_by_user_id: user!.id,
+        invited_label: name,
+        invited_email: email,
+        invite_token: inviteToken,
+        metadata: {
+          mini_league_id: miniLeagueId,
+          kind: "mini_league_admin_invite",
+        } satisfies Json,
+      };
       const { error: insertErr } = await supabase
         .from("pending_invites")
-        .insert({
-          club_id: clubId,
-          role: "league_admin" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: name,
-          invited_email: email,
-          invite_token: inviteToken,
-          metadata: {
-            mini_league_id: miniLeagueId,
-            kind: "mini_league_admin_invite",
-          },
-        } as any);
+        .insert(invitePayload);
       if (insertErr) throw insertErr;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
@@ -237,7 +238,7 @@ export function ManageMiniLeagueAdminsSheet({
             subject: `You're invited as a League Admin for ${miniLeagueName}`,
             template: "team-invite",
             senderName: clubInfo?.name || undefined,
-            replyTo: (clubInfo as any)?.contact_email || undefined,
+            replyTo: clubInfo?.contact_email || undefined,
             templateData: {
               recipientName: name,
               invitedEmail: email,
@@ -252,8 +253,8 @@ export function ManageMiniLeagueAdminsSheet({
         emailSent = !funcError && emailResult?.verified && emailResult?.success;
         if (funcError) emailError = funcError.message;
         else if (!emailSent) emailError = "Email not verified";
-      } catch (e: any) {
-        emailError = e?.message ?? "Failed to send email";
+      } catch (e: unknown) {
+        emailError = getErrorMessage(e, "Failed to send email");
       }
 
       await supabase
@@ -261,7 +262,7 @@ export function ManageMiniLeagueAdminsSheet({
         .update({
           email_sent_at: emailSent ? new Date().toISOString() : null,
           email_error: emailError,
-        } as any)
+        } satisfies PendingInviteUpdate)
         .eq("invite_token", inviteToken);
 
       return { emailSent, link };
@@ -277,10 +278,10 @@ export function ManageMiniLeagueAdminsSheet({
       setInviteName("");
       setInviteEmail("");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't create invite",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -290,7 +291,7 @@ export function ManageMiniLeagueAdminsSheet({
     mutationFn: async (inviteId: string) => {
       const { error } = await supabase
         .from("pending_invites")
-        .update({ status: "cancelled" } as any)
+        .update({ status: "cancelled" } satisfies PendingInviteUpdate)
         .eq("id", inviteId);
       if (error) throw error;
     },
