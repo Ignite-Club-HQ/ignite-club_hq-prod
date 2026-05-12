@@ -45,32 +45,42 @@ function getCache(): Map<string, CachedProfile> {
   return memoryCache;
 }
 
-// Save cache to localStorage (debounced to avoid frequent writes)
+// Save cache to localStorage (debounced + idle to keep main thread free).
+// On Android WebView, sync JSON.stringify of 500 profiles inline blocks UI;
+// schedule the write during idle time so it never lands on a render frame.
 let saveTimeout: number | null = null;
+let saveIdleHandle: number | null = null;
+function flushSaveNow() {
+  saveIdleHandle = null;
+  try {
+    const entries = Array.from(memoryCache.values());
+    if (entries.length > MAX_CACHE_SIZE) {
+      entries.sort((a, b) => b.cached_at - a.cached_at);
+      const trimmed = entries.slice(0, MAX_CACHE_SIZE);
+      memoryCache.clear();
+      trimmed.forEach(p => memoryCache.set(p.id, p));
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(Array.from(memoryCache.values())));
+  } catch {
+    try { localStorage.removeItem(CACHE_KEY); } catch {}
+  }
+}
 function saveCache(cache: Map<string, CachedProfile>) {
   // Update memory cache immediately
   cache.forEach((v, k) => memoryCache.set(k, v));
-  
-  // Debounce localStorage writes
+
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = window.setTimeout(() => {
-    try {
-      // Limit cache size by removing oldest entries
-      const entries = Array.from(memoryCache.values());
-      if (entries.length > MAX_CACHE_SIZE) {
-        entries.sort((a, b) => b.cached_at - a.cached_at);
-        const trimmed = entries.slice(0, MAX_CACHE_SIZE);
-        memoryCache.clear();
-        trimmed.forEach(p => memoryCache.set(p.id, p));
-      }
-      localStorage.setItem(CACHE_KEY, JSON.stringify(Array.from(memoryCache.values())));
-    } catch {
-      // localStorage might be full - clear old cache
-      try {
-        localStorage.removeItem(CACHE_KEY);
-      } catch {}
+    saveTimeout = null;
+    const ric = (typeof window !== 'undefined' && (window as any).requestIdleCallback) as
+      | undefined
+      | ((cb: () => void, opts?: { timeout: number }) => number);
+    if (ric) {
+      saveIdleHandle = ric(flushSaveNow, { timeout: 3000 });
+    } else {
+      setTimeout(flushSaveNow, 0);
     }
-  }, 1000); // Debounce 1 second
+  }, 1000);
 }
 
 // Check if a cached profile is still valid (fresh)
