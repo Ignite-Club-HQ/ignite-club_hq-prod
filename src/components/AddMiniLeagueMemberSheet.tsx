@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -246,22 +247,24 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
         if (player.parentEmail.trim() && !player.existingParentUserId) {
           const inviteToken = crypto.randomUUID();
-          const { error: inviteError } = await supabase.from("pending_invites").insert({
+          const inviteMetadata: Json = {
+            mini_league_id: miniLeagueId,
+            child_id: childId,
+            player_id: newPlayer?.id,
+            player_name: player.name.trim(),
+            children: [{ name: player.name.trim(), yearOfBirth: null }],
+          };
+          const invitePayload: Database["public"]["Tables"]["pending_invites"]["Insert"] = {
             club_id: clubId,
-            role: "parent" as any,
+            role: "parent",
             invited_user_id: null,
             invited_by_user_id: user!.id,
             invited_label: player.parentName.trim() || player.parentEmail.trim(),
             invited_email: player.parentEmail.trim().toLowerCase(),
             invite_token: inviteToken,
-            metadata: {
-              mini_league_id: miniLeagueId,
-              child_id: childId,
-              player_id: newPlayer?.id,
-              player_name: player.name.trim(),
-              children: [{ name: player.name.trim(), yearOfBirth: null }],
-            },
-          } as any);
+            metadata: inviteMetadata,
+          };
+          const { error: inviteError } = await supabase.from("pending_invites").insert(invitePayload);
 
           if (!inviteError) {
             try {
@@ -272,7 +275,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   subject: `You're invited to ${miniLeagueName}`,
                   template: "team-invite",
                   senderName: clubBranding?.name || undefined,
-                  replyTo: (clubBranding as any)?.contact_email || undefined,
+                  replyTo: clubBranding?.contact_email || undefined,
                   templateData: {
                     recipientName: player.parentName.trim() || player.parentEmail.trim(),
                     teamName: miniLeagueName,
@@ -293,7 +296,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   email_sent_at: sent ? new Date().toISOString() : null,
                   email_id: emailResult?.emailId || null,
                   email_error: funcError?.message || (!sent ? "Email not verified" : null),
-                } as any)
+                } satisfies Database["public"]["Tables"]["pending_invites"]["Update"])
                 .eq("invite_token", inviteToken);
             } catch (error) {
               console.error("Failed to send email:", error);
