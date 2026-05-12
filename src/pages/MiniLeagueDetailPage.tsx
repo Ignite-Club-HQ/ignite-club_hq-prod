@@ -88,16 +88,39 @@ export default function MiniLeagueDetailPage() {
   });
 
   const { data: canManageLeague } = useQuery({
-    queryKey: ["can-manage-league", league?.club_id, user?.id],
+    queryKey: ["can-manage-league", id, league?.club_id, user?.id],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
+      const clubWide = roles?.some(r =>
+        ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
+      ) ?? false;
+      if (clubWide) return true;
+
+      // Per-mini-league grant
+      const { data: scoped } = await supabase
+        .from("mini_league_admins")
+        .select("id")
+        .eq("mini_league_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!scoped;
+    },
+    enabled: !!league?.club_id && !!user && !!id,
+  });
+
+  const { data: isClubAdmin } = useQuery({
+    queryKey: ["is-club-admin", league?.club_id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user!.id)
         .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
-      return data?.some(r =>
-        ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
-      ) ?? false;
+      return data?.some(r => ['club_admin', 'app_admin'].includes(r.role)) ?? false;
     },
     enabled: !!league?.club_id && !!user,
   });
