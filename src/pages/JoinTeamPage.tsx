@@ -127,6 +127,9 @@ export default function JoinTeamPage() {
       return null;
     },
     enabled: !!token && !isPendingInvite,
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 0,
   });
 
   // Combine invite data based on type
