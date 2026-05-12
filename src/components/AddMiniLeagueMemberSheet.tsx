@@ -517,7 +517,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 </p>
                               )}
                               {childSuggestions.length > 0 && !player.existingChildId && (
-                                <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
+                                <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
                                   {childSuggestions.map((c) => (
                                     <button
                                       key={c.id}
@@ -584,7 +584,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   </p>
                                 )}
                                 {parentSuggestions.length > 0 && !player.existingParentUserId && (
-                                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
+                                  <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
                                     {parentSuggestions.map((p) => (
                                       <button
                                         key={p.id}
