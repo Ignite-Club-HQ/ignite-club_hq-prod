@@ -1020,8 +1020,21 @@ export default function MessagesPage() {
   // Prefetch messages for all threads in the background (non-blocking)
   useEffect(() => {
     if (!user) return;
+    // Android WebView freeze fix: do NOT fan out background prefetches for
+    // every team/club/group from the inbox. The latest field logs show the
+    // freeze happens after chat unmount with `activePages: none`, `liveRO: 0`,
+    // and low heap — i.e. not a chat observer leak, but /messages doing heavy
+    // background work while the user is navigating. Opening a thread already
+    // fetches that thread; native also has resume/reconnect refreshes.
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    if (isNative) return;
+
+    let cancelled = false;
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     
     const prefetchAll = () => {
+      if (cancelled) return;
       queryClient.prefetchQuery({
         queryKey: ["broadcast-messages"],
         queryFn: async () => {
@@ -1040,6 +1053,7 @@ export default function MessagesPage() {
       });
 
       teams?.forEach((team) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
           queryFn: async () => {
@@ -1060,6 +1074,7 @@ export default function MessagesPage() {
       });
 
       memberClubs?.forEach((club) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
           queryFn: async () => {
@@ -1080,6 +1095,7 @@ export default function MessagesPage() {
       });
 
       chatGroups?.forEach((group) => {
+        if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
           queryFn: async () => {
@@ -1101,10 +1117,18 @@ export default function MessagesPage() {
     };
 
     if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(prefetchAll, { timeout: 2000 });
+      idleHandle = (window as any).requestIdleCallback(prefetchAll, { timeout: 2000 });
     } else {
-      setTimeout(prefetchAll, 100);
+      timeoutHandle = setTimeout(prefetchAll, 100);
     }
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== null && 'cancelIdleCallback' in window) {
+        try { (window as any).cancelIdleCallback(idleHandle); } catch { /* ignore */ }
+      }
+      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+    };
   }, [user, teams, memberClubs, chatGroups, queryClient]);
 
   // Realtime: keep inbox previews + ordering fresh as new messages arrive.
