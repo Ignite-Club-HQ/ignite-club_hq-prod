@@ -698,6 +698,51 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id,
   });
 
+  // Mini-league players owned by current parent (for self-serve per-player RSVP)
+  const { data: myMiniLeaguePlayers } = useQuery({
+    queryKey: ["my-mini-league-players-for-event", event?.mini_league_id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_league_players")
+        .select("id, name, child_id")
+        .eq("mini_league_id", event!.mini_league_id!)
+        .eq("parent_user_id", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!event?.mini_league_id && !!user?.id,
+  });
+
+  const parentLeaguePlayerRsvpMutation = useMutation({
+    mutationFn: async ({ playerId, status }: { playerId: string; status: RsvpStatus }) => {
+      const existing = rsvps?.find((r) => r.mini_league_player_id === playerId);
+      if (existing) {
+        const { error } = await supabase
+          .from("rsvps")
+          .update({ status, source: "user" })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("rsvps").insert({
+          event_id: id!,
+          user_id: user!.id,
+          mini_league_player_id: playerId,
+          status,
+          source: "user",
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update RSVP", description: err.message, variant: "destructive" });
+    },
+  });
+
   // For social events, always show all members; for training/games, use toggle
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
