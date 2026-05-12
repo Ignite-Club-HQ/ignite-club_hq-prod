@@ -236,22 +236,34 @@ Deno.serve(async (req) => {
           .neq('user_id', authorId);
         memberIds = (members || []).map(m => m.user_id);
       } else if (groupData.mini_league_id) {
-        const [roleMembers, parentMembers] = await Promise.all([
-          supabase
-            .from('user_roles')
-            .select('user_id')
-            .eq('club_id', groupData.club_id!)
-            .in('role', ['league_admin', 'coach', 'club_admin', 'app_admin'])
-            .neq('user_id', authorId),
+        // Mini-league chats route ONLY to league members:
+        // - parents of players in this mini_league
+        // - mini_league_admins explicitly added to this league
+        // - league_admin role-holders for this club
+        // Club-wide coaches/club_admins are intentionally excluded.
+        const [parentMembers, leagueAdminMembers, roleAdminMembers] = await Promise.all([
           supabase
             .from('mini_league_players')
             .select('parent_user_id')
             .eq('mini_league_id', groupData.mini_league_id)
+            .not('parent_user_id', 'is', null)
             .neq('parent_user_id', authorId),
+          supabase
+            .from('mini_league_admins')
+            .select('user_id')
+            .eq('mini_league_id', groupData.mini_league_id)
+            .neq('user_id', authorId),
+          supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('club_id', groupData.club_id!)
+            .eq('role', 'league_admin')
+            .neq('user_id', authorId),
         ]);
-        const roleIds = (roleMembers.data || []).map(m => m.user_id);
         const parentIds = (parentMembers.data || []).map(m => m.parent_user_id);
-        memberIds = [...new Set([...roleIds, ...parentIds])];
+        const leagueAdminIds = (leagueAdminMembers.data || []).map(m => m.user_id);
+        const roleAdminIds = (roleAdminMembers.data || []).map(m => m.user_id);
+        memberIds = [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])];
       } else {
         let query = supabase
           .from('user_roles')
