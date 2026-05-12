@@ -245,6 +245,33 @@ export function ClubTeamFilter({
                         )}
                       </button>
                     ))}
+                    {miniLeagues.length > 0 && (
+                      <div className="pt-3 pb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                        Mini-leagues
+                      </div>
+                    )}
+                    {miniLeagues.map((ml) => {
+                      const value = `ml:${ml.id}`;
+                      return (
+                        <button
+                          key={ml.id}
+                          type="button"
+                          onClick={() => handleTeamSelect(value)}
+                          className={cn(
+                            "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
+                            "hover:bg-accent/50",
+                            selectedTeamId === value
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card"
+                          )}
+                        >
+                          <span className="text-base font-medium">🏆 {ml.name}</span>
+                          {selectedTeamId === value && (
+                            <Check className="h-5 w-5 text-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </DrawerContent>
