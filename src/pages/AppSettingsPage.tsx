@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play } from "lucide-react";
+import { ArrowLeft, Settings, Lock, Unlock, Loader2, Camera, Play, Zap, ZapOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -52,8 +52,11 @@ export default function AppSettingsPage() {
         .eq("key", key);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["appSettings"] });
+      // Also invalidate the targeted single-key cache used by hooks like
+      // useChatVirtualizationEnabled so the kill-switch propagates immediately.
+      queryClient.invalidateQueries({ queryKey: ["app-setting", vars.key] });
       toast({ title: "Setting updated" });
     },
     onError: (error: Error) => {
@@ -120,6 +123,9 @@ export default function AppSettingsPage() {
   }
 
   const isClubCreationLocked = getSetting("club_creation_locked");
+  // Default chat virtualisation to ON when the row is missing or unset.
+  const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
+  const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -201,6 +207,42 @@ export default function AppSettingsPage() {
               )}
               Run photo prompt now
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {isChatVirtEnabled ? (
+                <Zap className="h-5 w-5 text-green-500" />
+              ) : (
+                <ZapOff className="h-5 w-5 text-amber-500" />
+              )}
+              Chat virtualisation
+            </CardTitle>
+            <CardDescription>
+              Emergency kill-switch. When OFF, every chat page renders as a basic mapped list (most recent 100 messages only) instead of the virtualised scroller. Use only if virtualisation is causing freezes — turn back on once resolved. May take up to 5 min to propagate to active sessions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="chat-virt-toggle" className="text-base font-medium">
+                  Enable chat virtualisation
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {isChatVirtEnabled
+                    ? "Normal mode: full message history with virtualised scrolling."
+                    : "Fallback mode: basic scroller, last 100 messages only, no infinite scroll-up."}
+                </p>
+              </div>
+              <Switch
+                id="chat-virt-toggle"
+                checked={isChatVirtEnabled}
+                onCheckedChange={() => handleToggle("chat_virtualization_enabled", isChatVirtEnabled)}
+                disabled={updateSettingMutation.isPending}
+              />
+            </div>
           </CardContent>
         </Card>
 
