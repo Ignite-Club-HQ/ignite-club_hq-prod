@@ -2811,6 +2811,56 @@ export default function EventDetailPage() {
           </div>
           );
         })()}
+
+        {/* Mini-league: parent's per-player RSVP */}
+        {isMiniLeagueEvent && myMiniLeaguePlayers && myMiniLeaguePlayers.length > 0 && (
+          <div className="pt-2">
+            <Separator />
+            <div className="mt-3 rounded-xl border border-border/50 bg-muted/20 p-3 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Baby className="h-4 w-4 text-primary" />
+                Your players
+              </h3>
+              {myMiniLeaguePlayers.map((player: any) => {
+                const playerRsvp = rsvps?.find((r) => r.mini_league_player_id === player.id);
+                return (
+                  <div key={player.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                            {player.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{player.name}</span>
+                      </div>
+                      {playerRsvp && (
+                        <Badge variant={playerRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                          {playerRsvp.status === "going" ? "Going" : playerRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {rsvpOptions.map(({ value, label, icon }) => (
+                        <Button
+                          key={value}
+                          variant={playerRsvp?.status === value ? "default" : "outline"}
+                          size="sm"
+                          className="flex flex-col h-auto py-2"
+                          onClick={() => parentLeaguePlayerRsvpMutation.mutate({ playerId: player.id, status: value })}
+                          disabled={parentLeaguePlayerRsvpMutation.isPending}
+                        >
+                          <span>{icon}</span>
+                          <span className="text-xs">{label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Guest Management Section - only for social events with guests enabled */}
