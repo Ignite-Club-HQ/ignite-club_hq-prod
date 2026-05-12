@@ -23,10 +23,6 @@ import { isIgniteSupportUser } from "@/lib/systemUser";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
-
-const MESSAGES_PER_PAGE = 15;
-const INBOX_REFETCH_INTERVAL_MS = 30000;
-const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
@@ -59,6 +55,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { EyeOff } from "lucide-react";
+
+const MESSAGES_PER_PAGE = 15;
+const INBOX_REFETCH_INTERVAL_MS = 30000;
+const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
 
 
 // Skeleton component for message items while loading
