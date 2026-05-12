@@ -323,9 +323,9 @@ export function ManageMiniLeagueAdminsSheet({
         return;
       } catch {/* cancelled */}
     }
-    if (typeof navigator !== "undefined" && (navigator as any).share) {
+    if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
-        await (navigator as any).share({ title, text, url: link });
+        await navigator.share({ title, text, url: link });
         return;
       } catch {/* cancelled */}
     }
