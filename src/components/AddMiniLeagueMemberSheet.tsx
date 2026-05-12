@@ -430,6 +430,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     && activeChildSuggestions.length === 0
     && activeParentSuggestions.length === 0;
   const showSearchOverlay = !!activeSearch && !!activePlayer;
+  const keyboardInset = Math.max(nativeKeyboardHeight, visualKeyboardInset);
+  const sheetStyle = {
+    "--mini-league-keyboard-inset": `${keyboardInset}px`,
+  } as CSSProperties;
 
   return (
     <>
@@ -442,7 +446,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             </Button>
           </SheetTrigger>
         )}
-        <SheetContent side="bottom" className="h-[85vh] flex flex-col">
+        <SheetContent
+          side="bottom"
+          className="h-[min(85vh,calc(100dvh-var(--mini-league-keyboard-inset)))] flex flex-col transition-[bottom,height] duration-200 ease-out"
+          style={sheetStyle}
+        >
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
