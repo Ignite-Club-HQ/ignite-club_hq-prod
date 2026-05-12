@@ -1226,13 +1226,21 @@ export default function JoinTeamPage() {
     }
   };
 
-  // Add child step for parent role (regular invite links only)
+  // Detect mini-league parent shareable join link (no team_id, child assigns to mini league)
+  const leagueLinkMiniLeagueId =
+    isPendingInvite &&
+    (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link"
+      ? ((pendingInviteData?.metadata as any)?.mini_league_id as string | undefined) ?? null
+      : null;
+
+  // Add child step for parent role (regular invite links + league parent join link)
   const handleAddChild = async () => {
-    if (!user || !invite?.team_id) return;
+    if (!user) return;
+    if (!invite?.team_id && !leagueLinkMiniLeagueId) return;
     setAddingChild(true);
     try {
       if (linkExistingChildId) {
-        // Link existing child as guardian
+        // Link existing child as guardian (team flow only)
         const { error: guardErr } = await supabase.from("child_guardians").insert({
           child_id: linkExistingChildId,
           guardian_id: user.id,
@@ -1257,14 +1265,28 @@ export default function JoinTeamPage() {
         
         if (childErr) throw childErr;
         
-        // Assign to team
         if (newChild?.id) {
-          await supabase.from("child_team_assignments").insert({
-            child_id: newChild.id,
-            team_id: invite.team_id,
-          });
+          if (leagueLinkMiniLeagueId) {
+            // Assign to mini league
+            const { error: leagueErr } = await supabase
+              .from("child_mini_league_assignments")
+              .insert({
+                child_id: newChild.id,
+                mini_league_id: leagueLinkMiniLeagueId,
+                ability_rating: 3,
+              });
+            if (leagueErr && !leagueErr.message?.includes("duplicate")) {
+              console.error("[JoinTeam] Failed to assign child to league:", leagueErr.message);
+            }
+          } else if (invite?.team_id) {
+            // Assign to team
+            await supabase.from("child_team_assignments").insert({
+              child_id: newChild.id,
+              team_id: invite.team_id,
+            });
+          }
         }
-        toast({ title: `${childName.trim()} added to the team!` });
+        toast({ title: `${childName.trim()} added to ${inviteEntityName}!` });
       }
       setJoined(true);
       setShowChildStep(false);
@@ -1277,11 +1299,19 @@ export default function JoinTeamPage() {
   };
 
   const handleSkipChildStep = async () => {
-    await notifyAdminsOfUnlinkedParent();
-    toast({
-      title: "Team admins notified",
-      description: "They'll help link your child to the team.",
-    });
+    if (!leagueLinkMiniLeagueId) {
+      // Team flow: nudge admins to link the parent's child manually
+      await notifyAdminsOfUnlinkedParent();
+      toast({
+        title: "Team admins notified",
+        description: "They'll help link your child to the team.",
+      });
+    } else {
+      toast({
+        title: "You can add your child anytime",
+        description: "Tap your profile to add a child later.",
+      });
+    }
     setShowChildStep(false);
     setJoined(true);
   };
