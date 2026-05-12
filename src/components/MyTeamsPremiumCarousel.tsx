@@ -166,7 +166,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
                     className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
                     aria-label="Team actions"
                   >
-                    <MoreVertical className="h-4 w-4 text-foreground/70" />
+                    <Settings className="h-4 w-4 text-foreground/70" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
