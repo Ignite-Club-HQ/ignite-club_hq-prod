@@ -1436,6 +1436,7 @@ export default function MessagesPage() {
         }));
         bumpUnread('broadcast', null);
       })
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
