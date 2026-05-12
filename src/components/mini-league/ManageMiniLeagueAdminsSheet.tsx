@@ -501,66 +501,66 @@ export function ManageMiniLeagueAdminsSheet({
               </p>
             </div>
 
-            {/* Pending list */}
-            <div className="flex-1 flex flex-col min-h-0 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                Pending invites
-              </p>
-              <ScrollArea className="flex-1 -mx-2 px-2">
-                <div className="space-y-1.5 pb-4">
-                  {(pendingInvites || []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground px-1 py-4 text-center">
-                      No pending invites.
-                    </p>
-                  ) : (
-                    (pendingInvites || []).map((inv) => (
-                      <div
-                        key={inv.id}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-card border"
-                      >
-                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{inv.invited_label}</p>
-                          <p className="text-xs text-muted-foreground truncate">{inv.invited_email}</p>
+                {/* Pending list */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                    Pending email invites
+                  </p>
+                  <div className="space-y-1.5">
+                    {(pendingInvites || []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                        No pending email invites.
+                      </p>
+                    ) : (
+                      (pendingInvites || []).map((inv) => (
+                        <div
+                          key={inv.id}
+                          className="flex items-center gap-2 p-2 rounded-lg bg-card border"
+                        >
+                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{inv.invited_label}</p>
+                            <p className="text-xs text-muted-foreground truncate">{inv.invited_email}</p>
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => inv.invite_token && handleCopyLink(inv.invite_token)}
+                            title="Copy invite link"
+                          >
+                            {copiedToken === inv.invite_token ? (
+                              <Check className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => inv.invite_token && handleShareLink(inv.invite_token, inv.invited_label)}
+                            title="Share invite link"
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => cancelPendingMutation.mutate(inv.id)}
+                            disabled={cancelPendingMutation.isPending}
+                            title="Cancel invite"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => inv.invite_token && handleCopyLink(inv.invite_token)}
-                          title="Copy invite link"
-                        >
-                          {copiedToken === inv.invite_token ? (
-                            <Check className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => inv.invite_token && handleShareLink(inv.invite_token, inv.invited_label)}
-                          title="Share invite link"
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => cancelPendingMutation.mutate(inv.id)}
-                          disabled={cancelPendingMutation.isPending}
-                          title="Cancel invite"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </ScrollArea>
-            </div>
+              </div>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
       </SheetContent>
