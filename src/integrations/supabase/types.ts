@@ -6298,6 +6298,66 @@ export type Database = {
           },
         ]
       }
+      rsvp_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          club_id: string | null
+          created_at: string
+          event_id: string
+          id: string
+          mini_league_id: string | null
+          new_status: string | null
+          old_status: string | null
+          rsvp_id: string | null
+          source: string | null
+          subject_child_id: string | null
+          subject_kind: string
+          subject_label: string | null
+          subject_mini_league_player_id: string | null
+          subject_user_id: string | null
+          team_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          mini_league_id?: string | null
+          new_status?: string | null
+          old_status?: string | null
+          rsvp_id?: string | null
+          source?: string | null
+          subject_child_id?: string | null
+          subject_kind: string
+          subject_label?: string | null
+          subject_mini_league_player_id?: string | null
+          subject_user_id?: string | null
+          team_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          mini_league_id?: string | null
+          new_status?: string | null
+          old_status?: string | null
+          rsvp_id?: string | null
+          source?: string | null
+          subject_child_id?: string | null
+          subject_kind?: string
+          subject_label?: string | null
+          subject_mini_league_player_id?: string | null
+          subject_user_id?: string | null
+          team_id?: string | null
+        }
+        Relationships: []
+      }
       rsvps: {
         Row: {
           attendance_points_awarded: boolean
