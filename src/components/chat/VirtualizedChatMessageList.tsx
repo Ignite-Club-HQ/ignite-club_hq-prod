@@ -28,6 +28,8 @@ import {
   getCachedRowHeight,
   setCachedRowHeight,
 } from "./chatRowHeightCache";
+import { BasicChatMessageList } from "./BasicChatMessageList";
+import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 
 /**
  * Virtualised chat message list.
