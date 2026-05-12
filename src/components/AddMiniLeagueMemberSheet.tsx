@@ -527,12 +527,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
                     <div className="space-y-4">
                       {players.map((player, idx) => {
-                        const childSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "name"
-                          ? childMatchesFor(player.name)
-                          : [];
-                        const parentSuggestions = activeSearch?.rowId === player.id && activeSearch.field === "parentName"
-                          ? parentResults
-                          : [];
                         return (
                           <div key={player.id} className="space-y-3 border-b border-border pb-4 last:border-b-0 last:pb-0">
                             <div className="flex items-center justify-between gap-2">
@@ -568,30 +562,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                 <p className="text-xs text-primary flex items-center gap-1">
                                   <Check className="h-3 w-3" /> Linked to existing player
                                 </p>
-                              )}
-                              {childSuggestions.length > 0 && !player.existingChildId && (
-                                <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
-                                  {childSuggestions.map((c) => (
-                                    <button
-                                      key={c.id}
-                                      type="button"
-                                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        updatePlayer(player.id, {
-                                          name: c.name,
-                                          existingChildId: c.id,
-                                          existingParentUserId: c.parent_id || undefined,
-                                          parentName: c.parent_name || "",
-                                        });
-                                        setActiveSearch(null);
-                                      }}
-                                    >
-                                      <p className="font-medium">{c.name}</p>
-                                      {c.parent_name && <p className="text-xs text-muted-foreground">Parent: {c.parent_name}</p>}
-                                    </button>
-                                  ))}
-                                </div>
                               )}
                             </div>
 
@@ -635,29 +605,6 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   <p className="text-xs text-primary flex items-center gap-1">
                                     <Check className="h-3 w-3" /> Linked to existing parent
                                   </p>
-                                )}
-                                {parentSuggestions.length > 0 && !player.existingParentUserId && (
-                                  <div className="absolute z-10 left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-48 overflow-auto">
-                                    {parentSuggestions.map((p) => (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          updatePlayer(player.id, {
-                                            parentName: p.display_name || "",
-                                            existingParentUserId: p.id,
-                                            parentEmail: "",
-                                          });
-                                          setActiveSearch(null);
-                                        }}
-                                      >
-                                        <p className="font-medium">{p.display_name || "Unknown"}</p>
-                                        {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
-                                      </button>
-                                    ))}
-                                  </div>
                                 )}
                               </div>
                               <div className="space-y-2">
