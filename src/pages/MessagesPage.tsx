@@ -1340,6 +1340,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('team', row.team_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
