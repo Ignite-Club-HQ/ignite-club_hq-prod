@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, X, Send, Plus, Upload, ChevronDown, ChevronUp, Check } from "lucide-react";
@@ -27,6 +27,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useToast } from "@/hooks/use-toast";
 
 interface BulkPlayer {
@@ -67,6 +68,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const nativeKeyboardHeight = useNativeKeyboardHeight();
   const [internalOpen, setInternalOpen] = useState(false);
   const isExternallyControlled = externalOpen !== undefined;
   const open = isExternallyControlled ? externalOpen : internalOpen;
@@ -85,11 +87,40 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const [activeSearch, setActiveSearch] = useState<{ rowId: string; field: "name" | "parentName" } | null>(null);
   const [parentQuery, setParentQuery] = useState("");
   const [debouncedParentQuery, setDebouncedParentQuery] = useState("");
+  const [visualKeyboardInset, setVisualKeyboardInset] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedParentQuery(parentQuery), 250);
     return () => clearTimeout(t);
   }, [parentQuery]);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") {
+      setVisualKeyboardInset(0);
+      return;
+    }
+
+    const syncKeyboardInset = () => {
+      const viewport = window.visualViewport;
+      if (!viewport) {
+        setVisualKeyboardInset(0);
+        return;
+      }
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setVisualKeyboardInset(Math.round(inset));
+    };
+
+    syncKeyboardInset();
+    window.visualViewport?.addEventListener("resize", syncKeyboardInset);
+    window.visualViewport?.addEventListener("scroll", syncKeyboardInset);
+    window.addEventListener("resize", syncKeyboardInset);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", syncKeyboardInset);
+      window.visualViewport?.removeEventListener("scroll", syncKeyboardInset);
+      window.removeEventListener("resize", syncKeyboardInset);
+    };
+  }, [open]);
 
   const { data: clubBranding } = useQuery({
     queryKey: ["club-branding", clubId],
