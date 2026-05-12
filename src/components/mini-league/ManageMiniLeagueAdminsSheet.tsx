@@ -181,7 +181,9 @@ export function ManageMiniLeagueAdminsSheet({
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []).filter(
-        (r) => (r.metadata as any)?.mini_league_id === miniLeagueId,
+        (r) =>
+          (r.metadata as any)?.mini_league_id === miniLeagueId &&
+          (r.metadata as any)?.kind !== "league_admin_join_link",
       );
     },
     enabled: open && !!miniLeagueId,
