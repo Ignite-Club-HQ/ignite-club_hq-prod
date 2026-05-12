@@ -210,7 +210,7 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
             type="button"
             onClick={handleLoadEarlier}
             disabled={_isLoadingOlder}
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-foreground shadow-sm hover:bg-accent disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-4 py-2 text-xs font-medium text-secondary-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground disabled:opacity-60"
           >
             {_isLoadingOlder ? (
               <>
