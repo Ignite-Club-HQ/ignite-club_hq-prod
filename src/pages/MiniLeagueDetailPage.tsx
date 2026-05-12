@@ -195,25 +195,31 @@ export default function MiniLeagueDetailPage() {
   const parentUserIds = [...new Set((players || []).map(p => p.parent_user_id).filter(Boolean) as string[])];
   
   const { data: leagueMembers } = useQuery({
-    queryKey: ["mini-league-members", league?.club_id, parentUserIds],
+    queryKey: ["mini-league-members", id, league?.club_id, parentUserIds],
     queryFn: async () => {
-      // Only show league admins for THIS mini-league's club. Team-level
-      // coaches must NOT appear here — there is no `coach ↔ mini_league`
-      // assignment in the schema, so including them would surface every
-      // coach in the entire club as a "coach" of this mini-league, which
-      // is incorrect (e.g. U8 Blue's coach showing up under Maxiroos).
-      // The mini-league surface is strictly: league admins (staff) +
-      // parents of players assigned to this mini-league.
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("club_id", league!.club_id)
-        .eq("role", "league_admin");
+      // Staff = club-wide league_admin holders + per-mini-league grants
+      // (mini_league_admins). Team-level coaches are NOT included — there
+      // is no `coach ↔ mini_league` link in the schema, so showing them
+      // here would surface every club coach as a coach of this league.
+      const [{ data: adminRoles }, { data: scopedAdmins }] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("club_id", league!.club_id)
+          .eq("role", "league_admin"),
+        supabase
+          .from("mini_league_admins")
+          .select("user_id")
+          .eq("mini_league_id", id!),
+      ]);
 
-      // Collect all user IDs we need profiles for
+      const clubWideIds = new Set((adminRoles || []).map(r => r.user_id));
+      const scopedIds = new Set((scopedAdmins || []).map(r => r.user_id));
+      const allAdminIds = new Set<string>([...clubWideIds, ...scopedIds]);
+
       const allUserIds = [...new Set([
         ...parentUserIds,
-        ...(adminRoles || []).map(r => r.user_id),
+        ...allAdminIds,
       ])];
 
       if (allUserIds.length === 0) return { parents: [], staff: [] };
@@ -224,35 +230,24 @@ export default function MiniLeagueDetailPage() {
         .in("id", allUserIds);
 
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-      const adminUserIds = new Set((adminRoles || []).map(r => r.user_id));
-      
-      // Build role map for staff
-      const roleMap = new Map<string, string>();
-      (adminRoles || []).forEach(r => {
-        const existing = roleMap.get(r.user_id);
-        const priority: Record<string, number> = { league_admin: 3, coach: 2 };
-        if (!existing || (priority[r.role] || 0) > (priority[existing] || 0)) {
-          roleMap.set(r.user_id, r.role);
-        }
-      });
 
       const parents = parentUserIds
-        .filter(uid => !adminUserIds.has(uid))
+        .filter(uid => !allAdminIds.has(uid))
         .map(uid => ({
           id: uid,
           ...profileMap.get(uid),
           role: "parent" as string,
         }));
 
-      const staff = [...adminUserIds].map(uid => ({
+      const staff = [...allAdminIds].map(uid => ({
         id: uid,
         ...profileMap.get(uid),
-        role: roleMap.get(uid) || "coach",
+        role: "league_admin" as string,
       }));
 
       return { parents, staff };
     },
-    enabled: !!league?.club_id && (parentUserIds.length > 0 || !!league?.club_id),
+    enabled: !!league?.club_id && !!id,
   });
 
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
