@@ -28,6 +28,7 @@ interface ChatParticipantsListProps {
   chatName: string;
   teamId?: string;
   clubId?: string;
+  miniLeagueId?: string;
   groupAllowedRoles?: string[];
   enabled?: boolean;
   /** Called when a tap navigates away (so caller can close its sheet) */
