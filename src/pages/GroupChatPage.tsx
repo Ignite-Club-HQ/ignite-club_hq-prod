@@ -1725,7 +1725,9 @@ export default function GroupChatPage() {
     clubId: group?.club_id ?? null,
   });
 
-  const groupBaseSublabel = group?.team_id
+  const groupBaseSublabel = group?.mini_league_id
+    ? "Mini-league chat"
+    : group?.team_id
     ? "Team group"
     : group?.club_id
     ? "Club group"
@@ -1780,17 +1782,13 @@ export default function GroupChatPage() {
         chatType="group"
         chatId={groupId!}
         name={group.name}
-        sublabel={
-          group.team_id
-            ? "Team group"
-            : group.club_id
-            ? "Club group"
-            : "Personal group"
-        }
+        sublabel={groupBaseSublabel}
         teamId={group.team_id || undefined}
         clubId={group.club_id || undefined}
+        miniLeagueId={group.mini_league_id || undefined}
         groupAllowedRoles={group.allowed_roles}
       />
+
 
 
       {/* Notification Nudge */}
