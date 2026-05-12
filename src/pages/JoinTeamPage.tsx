@@ -394,7 +394,7 @@ export default function JoinTeamPage() {
           await supabase.from("mini_league_admins").insert({
             mini_league_id: miniLeagueId,
             user_id: user.id,
-            granted_by: pendingInviteData.invited_by_user_id ?? null,
+            granted_by: (pendingInviteData as any).invited_by_user_id ?? null,
           } as any);
         }
 
