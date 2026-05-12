@@ -1282,6 +1282,36 @@ export default function MessagesPage() {
       return ""; // placeholder — patched in <500ms once batch resolves
     };
 
+    // Lightweight unread bump: in-place setQueryData on the unread-counts
+    // cache, no invalidation (which would re-run the expensive RPC fanout
+    // and re-freeze Android WebView). Skips own messages and the currently
+    // open thread so badges don't flash.
+    const bumpUnread = (
+      kind: 'team' | 'club' | 'group' | 'dm' | 'broadcast',
+      targetId: string | null,
+      authorId?: string,
+    ) => {
+      if (authorId && authorId === user.id) return;
+      const path = window.location.pathname;
+      if (kind === 'team' && targetId && path === `/messages/${targetId}`) return;
+      if (kind === 'club' && targetId && path === `/messages/club/${targetId}`) return;
+      if (kind === 'group' && targetId && path === `/groups/${targetId}`) return;
+      if (kind === 'dm' && targetId && path === `/messages/dm/${targetId}`) return;
+      if (kind === 'broadcast' && path === '/messages/broadcast') return;
+      queryClient.setQueryData(["unread-message-counts", user.id], (old: any) => {
+        if (!old) return old;
+        if (kind === 'broadcast') return { ...old, broadcast: (old.broadcast ?? 0) + 1 };
+        if (!targetId) return old;
+        const bucket =
+          kind === 'team' ? 'teams' :
+          kind === 'club' ? 'clubs' :
+          kind === 'group' ? 'groups' : 'dms';
+        const map = { ...(old[bucket] || {}) };
+        map[targetId] = (map[targetId] ?? 0) + 1;
+        return { ...old, [bucket]: map };
+      });
+    };
+
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
@@ -1310,6 +1340,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('team', row.team_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1333,6 +1364,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('club', row.club_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1356,6 +1388,7 @@ export default function MessagesPage() {
             },
           };
         });
+        bumpUnread('group', row.group_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1391,6 +1424,7 @@ export default function MessagesPage() {
         if (otherId && otherId !== user.id && !conv?.other_user?.display_name) {
           resolveAuthor(otherId, { kind: 'dm', targetId: row.conversation_id });
         }
+        bumpUnread('dm', row.conversation_id, row.author_id);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
         const row = payload.new;
@@ -1400,6 +1434,7 @@ export default function MessagesPage() {
           image_url: row.image_url ?? null,
           profiles: old?.profiles ?? null,
         }));
+        bumpUnread('broadcast', null);
       })
       .subscribe();
 
