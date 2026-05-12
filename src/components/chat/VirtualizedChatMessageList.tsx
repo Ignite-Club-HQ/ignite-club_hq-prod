@@ -1234,7 +1234,31 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 }
 
-export const VirtualizedChatMessageList = forwardRef(VirtualizedChatMessageListInner) as <
+const VirtuosoChatMessageList = forwardRef(VirtualizedChatMessageListInner) as <
+  TMessage extends { id: string },
+>(
+  props: Props<TMessage> & { ref?: React.Ref<VirtualizedChatMessageListHandle> },
+) => React.ReactElement;
+
+/**
+ * Public wrapper that picks between the real Virtuoso-backed list and the
+ * basic mapped fallback based on the app-admin kill-switch flag. Splitting
+ * the choice at the component boundary (rather than via an early return
+ * inside the inner component) keeps the Rules of Hooks intact when the flag
+ * flips at runtime via cache invalidation.
+ */
+function VirtualizedChatMessageListSwitcher<TMessage extends { id: string }>(
+  props: Props<TMessage>,
+  ref: React.Ref<VirtualizedChatMessageListHandle>,
+) {
+  const enabled = useChatVirtualizationEnabled();
+  if (!enabled) {
+    return <BasicChatMessageList<TMessage> ref={ref as React.Ref<any>} {...props} />;
+  }
+  return <VirtuosoChatMessageList<TMessage> ref={ref} {...props} />;
+}
+
+export const VirtualizedChatMessageList = forwardRef(VirtualizedChatMessageListSwitcher) as <
   TMessage extends { id: string },
 >(
   props: Props<TMessage> & { ref?: React.Ref<VirtualizedChatMessageListHandle> },
