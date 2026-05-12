@@ -24,7 +24,7 @@ import { useChatBasicChunkSize } from "@/hooks/useChatBasicChunkSize";
  * use the two interchangeably without conditional ref logic.
  */
 
-const MAX_RENDERED = 100;
+const DEFAULT_CHUNK = 100;
 
 export interface BasicChatMessageListHandle {
   scrollToBottom: (behavior?: "auto" | "smooth") => void;
