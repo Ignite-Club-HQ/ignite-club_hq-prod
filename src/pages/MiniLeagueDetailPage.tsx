@@ -525,7 +525,7 @@ export default function MiniLeagueDetailPage() {
       </div>
 
       {/* Members Section (Parents & Staff) — Team-page style */}
-      {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0) && (
+      {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0 || isClubAdmin) && (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Team</h2>
@@ -534,17 +534,30 @@ export default function MiniLeagueDetailPage() {
             </span>
           </div>
 
-          {/* Staff (Admins & Coaches) */}
-          {leagueMembers.staff.length > 0 && (
+          {/* Staff (League Admins) */}
+          {(leagueMembers.staff.length > 0 || isClubAdmin) && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground px-1">League Admins</p>
-              <div className="space-y-2">
-                {leagueMembers.staff.map((member: any) => {
-                  const roleLabels: Record<string, string> = {
-                    league_admin: "League Admin",
-                    coach: "Coach",
-                  };
-                  return (
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm font-medium text-muted-foreground">League Admins</p>
+                {isClubAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-primary"
+                    onClick={() => setManageAdminsOpen(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Manage
+                  </Button>
+                )}
+              </div>
+              {leagueMembers.staff.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-1 py-1">
+                  No league admins yet. Add one to delegate management of this mini-league.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {leagueMembers.staff.map((member: any) => (
                     <Card key={member.id}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -557,13 +570,13 @@ export default function MiniLeagueDetailPage() {
                           <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
                         </div>
                         <Badge variant="secondary" className="text-xs shrink-0">
-                          {roleLabels[member.role] || member.role}
+                          League Admin
                         </Badge>
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
