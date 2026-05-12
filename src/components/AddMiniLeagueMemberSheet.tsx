@@ -438,10 +438,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
         )}
         <SheetContent
           side="bottom"
-          className="h-[min(85vh,calc(100dvh-var(--mini-league-keyboard-inset)))] flex flex-col transition-[bottom,height] duration-200 ease-out"
+          className="h-[min(85vh,calc(100dvh-var(--mini-league-keyboard-inset)))] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain transition-[bottom,height] duration-200 ease-out"
+          data-lock-keyboard-scroll="true"
+          data-allow-scroll
           style={sheetStyle}
         >
-          <SheetHeader>
+          <SheetHeader className="mb-3 shrink-0">
             <SheetTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
               Add Players
@@ -451,15 +453,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             </SheetDescription>
           </SheetHeader>
 
-          <div className="mt-4">
-            <MiniLeagueParentJoinLinkCard
-              miniLeagueId={miniLeagueId}
-              miniLeagueName={miniLeagueName}
-              clubId={clubId}
-            />
-          </div>
-
-          <div className="flex-1 flex flex-col mt-5 min-h-0 overflow-auto">
+          <div data-allow-scroll className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}>
             {results.length > 0 ? (
               <div className="flex flex-col h-full space-y-3">
                 <h3 className="text-sm font-medium">Results</h3>
@@ -488,6 +482,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               </div>
             ) : (
               <div className="space-y-4 pb-4">
+                <MiniLeagueParentJoinLinkCard
+                  miniLeagueId={miniLeagueId}
+                  miniLeagueName={miniLeagueName}
+                  clubId={clubId}
+                />
                 {!inviteByNameExpanded ? (
                   <button
                     type="button"
