@@ -204,11 +204,23 @@ function BasicChatMessageListInner<TMessage extends { id: string }>(
       }}
     >
       <div style={{ height: topPadding }} />
-      {(hasOlder || truncatedCount > 0) && (
-        <div className="px-4 py-2 text-center text-xs text-muted-foreground">
-          {truncatedCount > 0
-            ? `Showing the most recent ${visible.length} of ${messages.length} messages (basic mode).`
-            : "Older messages hidden in basic mode."}
+      {canRevealMore && (
+        <div className="flex justify-center px-4 py-3">
+          <button
+            type="button"
+            onClick={handleLoadEarlier}
+            disabled={_isLoadingOlder}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-foreground shadow-sm hover:bg-accent disabled:opacity-60"
+          >
+            {_isLoadingOlder ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              <>Load earlier messages{truncatedCount > 0 ? ` (${truncatedCount} hidden)` : ""}</>
+            )}
+          </button>
         </div>
       )}
       {visible.map((message, index) => (
