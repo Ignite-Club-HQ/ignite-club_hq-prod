@@ -149,10 +149,10 @@ export function ManageMiniLeagueAdminsSheet({
       queryClient.invalidateQueries({ queryKey: ["mini-league-members"] });
       toast({ title: "League admin added" });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't add admin",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -171,10 +171,10 @@ export function ManageMiniLeagueAdminsSheet({
       queryClient.invalidateQueries({ queryKey: ["mini-league-members"] });
       toast({ title: "League admin removed" });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Couldn't remove admin",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err, "Please try again"),
         variant: "destructive",
       });
     },
@@ -189,14 +189,15 @@ export function ManageMiniLeagueAdminsSheet({
         .from("pending_invites")
         .select("id, invited_label, invited_email, invite_token, status, created_at, email_sent_at, metadata")
         .eq("club_id", clubId)
-        .eq("role", "league_admin" as any)
+        .eq("role", "league_admin")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []).filter(
         (r) =>
-          (r.metadata as any)?.mini_league_id === miniLeagueId &&
-          (r.metadata as any)?.kind !== "league_admin_join_link",
+          typeof r.metadata === "object" && r.metadata !== null && !Array.isArray(r.metadata) &&
+          r.metadata.mini_league_id === miniLeagueId &&
+          r.metadata.kind !== "league_admin_join_link",
       );
     },
     enabled: open && !!miniLeagueId,
