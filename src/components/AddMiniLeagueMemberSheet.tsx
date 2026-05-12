@@ -610,7 +610,27 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                     placeholder="e.g. Tommy Smith"
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
+                    onPaste={(e) => {
+                      const text = e.clipboardData.getData("text");
+                      if (!looksLikeMultiRecipient(text)) return;
+                      const recipients = parseRecipients(text);
+                      if (recipients.length < 2) return;
+                      e.preventDefault();
+                      setBulkPlayers(recipients.map((r) => ({
+                        id: crypto.randomUUID(),
+                        name: r.name,
+                        abilityRating: "3",
+                        parentName: "",
+                        parentEmail: r.email,
+                      })));
+                      setMode("bulk");
+                      toast({
+                        title: `${recipients.length} players detected`,
+                        description: "Switched to Bulk. Review and add.",
+                      });
+                    }}
                   />
+                  <p className="text-[11px] text-muted-foreground">You can paste multiple names to add many at once.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Ability Rating</Label>
