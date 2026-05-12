@@ -75,6 +75,7 @@ import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
+import { RsvpAuditLogSection } from "@/components/event/RsvpAuditLogSection";
 import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
