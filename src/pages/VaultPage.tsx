@@ -1194,7 +1194,28 @@ export default function VaultPage() {
       }
 
       try {
-        if (teamId) {
+        if (miniLeagueId) {
+          // Navigate directly to mini-league vault folder
+          const { data: league } = await supabase
+            .from("mini_leagues")
+            .select("id, name, club_id")
+            .eq("id", miniLeagueId)
+            .maybeSingle();
+
+          if (league) {
+            const club = userClubs.find(c => c.id === league.club_id);
+            if (club) {
+              setCurrentView({
+                type: "mini-league",
+                clubId: league.club_id,
+                clubName: club.name,
+                miniLeagueId: league.id,
+                miniLeagueName: league.name,
+              });
+              setSearchParams({}, { replace: true });
+            }
+          }
+        } else if (teamId) {
           // Navigate directly to team vault
           const { data: team } = await supabase
             .from("teams")
@@ -1216,6 +1237,7 @@ export default function VaultPage() {
               setSearchParams({}, { replace: true });
             }
           }
+        }
         } else if (clubId) {
           // Navigate directly to club vault
           const club = userClubs.find(c => c.id === clubId);
