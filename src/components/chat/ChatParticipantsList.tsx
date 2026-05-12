@@ -201,8 +201,60 @@ export function ChatParticipantsList({
   });
 
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId, teamId, clubId],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId],
     queryFn: async () => {
+      // Mini-league chat: union of league admins, per-league grants, and parents of players
+      if (chatType === "group" && miniLeagueId) {
+        const [leagueRow, perLeagueAdmins, players] = await Promise.all([
+          supabase.from("mini_leagues").select("club_id").eq("id", miniLeagueId).maybeSingle(),
+          supabase.from("mini_league_admins").select("user_id").eq("mini_league_id", miniLeagueId),
+          supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", miniLeagueId)
+            .not("parent_user_id", "is", null),
+        ]);
+        const mlClubId = leagueRow.data?.club_id;
+        const roleMap = new Map<string, string>();
+        if (mlClubId) {
+          const { data: clubRoles } = await supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .eq("club_id", mlClubId)
+            .in("role", ["league_admin", "club_admin"]);
+          for (const r of clubRoles || []) {
+            // Prioritise more specific role label
+            if (!roleMap.has(r.user_id) || r.role === "league_admin") {
+              roleMap.set(r.user_id, r.role);
+            }
+          }
+        }
+        for (const a of perLeagueAdmins.data || []) {
+          if (!roleMap.has(a.user_id)) roleMap.set(a.user_id, "league_admin");
+        }
+        for (const p of players.data || []) {
+          if (p.parent_user_id && !roleMap.has(p.parent_user_id)) {
+            roleMap.set(p.parent_user_id, "parent");
+          }
+        }
+        const userIds = Array.from(roleMap.keys());
+        if (userIds.length === 0) return [] as Member[];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+        return userIds.map((id) => {
+          const profile = profileMap.get(id);
+          return {
+            id,
+            display_name: profile?.display_name || null,
+            avatar_url: profile?.avatar_url || null,
+            role: roleMap.get(id),
+          } as Member;
+        });
+      }
+
       if (chatType === "group" && !teamId && !clubId) {
         const { data: groupMembers, error } = await supabase
           .from("group_members")
