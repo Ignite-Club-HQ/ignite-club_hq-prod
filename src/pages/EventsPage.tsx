@@ -385,6 +385,7 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+  const eventsScopeKey = useMemo(
     () => `${user?.id || "anon"}_${filter}_${teamFilter || "all"}_${clubFilter || "all"}`,
     [user?.id, filter, teamFilter, clubFilter]
   );
