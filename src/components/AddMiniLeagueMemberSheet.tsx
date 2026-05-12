@@ -937,6 +937,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               )}
             </TabsContent>
           </Tabs>
+          )}
         </SheetContent>
       </Sheet>
 
