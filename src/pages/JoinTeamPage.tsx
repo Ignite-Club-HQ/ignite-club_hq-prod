@@ -377,8 +377,48 @@ export default function JoinTeamPage() {
         player_id?: string;
         second_parent_user_id?: string;
         linked_invite_token?: string;
+        kind?: string;
       } | null;
-      
+
+      // Mini-league admin invite: grant per-league admin rights and short-circuit team logic
+      if (pendingInviteData.role === "league_admin" && metadata?.mini_league_id) {
+        const miniLeagueId = metadata.mini_league_id;
+        // Idempotent grant
+        const { data: existingGrant } = await supabase
+          .from("mini_league_admins")
+          .select("id")
+          .eq("mini_league_id", miniLeagueId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!existingGrant) {
+          await supabase.from("mini_league_admins").insert({
+            mini_league_id: miniLeagueId,
+            user_id: user.id,
+            granted_by: pendingInviteData.invited_by_user_id ?? null,
+          } as any);
+        }
+
+        // Mark invite accepted
+        await supabase
+          .from("pending_invites")
+          .update({
+            status: "accepted",
+            accepted_at: new Date().toISOString(),
+            invited_user_id: user.id,
+          })
+          .eq("id", pendingInviteData.id);
+
+        // Notification
+        await supabase.from("notifications").insert({
+          user_id: user.id,
+          type: "membership",
+          message: `You've joined ${inviteEntityName} as League Admin`,
+          related_id: miniLeagueId,
+        });
+
+        return ["league_admin" as AppRole];
+      }
+
       // Handle mini-league invite where child already exists (skip children creation)
       if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
         const existingChildId = metadata.child_id;
