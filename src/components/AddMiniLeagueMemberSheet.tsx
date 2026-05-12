@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star, Search, CheckCircle2 } from "lucide-react";
+import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star, Search, CheckCircle2, ChevronUp } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
 import MiniLeagueParentJoinLinkCard from "@/components/mini-league/MiniLeagueParentJoinLinkCard";
+import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,6 +70,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     }
   };
   const [mode, setMode] = useState<"single" | "bulk">("single");
+  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
   
   // Single input state
   const [playerName, setPlayerName] = useState("");
@@ -139,6 +141,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     setParentMode("search");
     setBulkPlayers([{ id: crypto.randomUUID(), name: "", abilityRating: "3", parentName: "", parentEmail: "" }]);
     setBulkResults([]);
+    setInviteByNameExpanded(false);
+    setMode("single");
   };
 
   // Helper: ensure user has parent role in club
@@ -553,7 +557,35 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
             />
           </div>
 
+          {!inviteByNameExpanded ? (
+            <button
+              type="button"
+              onClick={() => setInviteByNameExpanded(true)}
+              className="mt-3 w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
+            >
+              <span className="inline-flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                Invite a specific player
+              </span>
+              <span className="text-xs text-muted-foreground">Name or email</span>
+            </button>
+          ) : (
           <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="flex-1 flex flex-col mt-4 min-h-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold">Invite by name</h3>
+                <p className="text-xs text-muted-foreground">Add a player and optionally link a parent.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInviteByNameExpanded(false)}
+                className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
+                aria-label="Collapse invite by name"
+              >
+                <ChevronUp className="h-4 w-4" />
+                Hide
+              </button>
+            </div>
             <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="single" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
@@ -578,7 +610,27 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                     placeholder="e.g. Tommy Smith"
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
+                    onPaste={(e) => {
+                      const text = e.clipboardData.getData("text");
+                      if (!looksLikeMultiRecipient(text)) return;
+                      const recipients = parseRecipients(text);
+                      if (recipients.length < 2) return;
+                      e.preventDefault();
+                      setBulkPlayers(recipients.map((r) => ({
+                        id: crypto.randomUUID(),
+                        name: r.name,
+                        abilityRating: "3",
+                        parentName: "",
+                        parentEmail: r.email,
+                      })));
+                      setMode("bulk");
+                      toast({
+                        title: `${recipients.length} players detected`,
+                        description: "Switched to Bulk. Review and add.",
+                      });
+                    }}
                   />
+                  <p className="text-[11px] text-muted-foreground">You can paste multiple names to add many at once.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Ability Rating</Label>
@@ -885,6 +937,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               )}
             </TabsContent>
           </Tabs>
+          )}
         </SheetContent>
       </Sheet>
 
