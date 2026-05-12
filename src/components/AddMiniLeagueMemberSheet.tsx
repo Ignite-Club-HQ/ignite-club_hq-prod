@@ -413,6 +413,24 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
   };
 
+  const keepFocusedInputVisible = (element: HTMLElement) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    window.setTimeout(() => {
+      const inputRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const keyboardTop = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      const visibleBottom = Math.min(containerRect.bottom, keyboardTop) - 24;
+
+      if (inputRect.bottom > visibleBottom) {
+        container.scrollBy({ top: inputRect.bottom - visibleBottom, behavior: "smooth" });
+      }
+    }, 120);
+  };
+
   const activePlayer = activeSearch ? players.find((player) => player.id === activeSearch.rowId) : undefined;
   const activeChildSuggestions = activeSearch?.field === "name" && activePlayer && !activePlayer.existingChildId
     ? childMatchesFor(activePlayer.name)
