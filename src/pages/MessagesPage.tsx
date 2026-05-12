@@ -1126,6 +1126,21 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!user?.id) return;
 
+    // HARD-STOP PERF GUARD (native): the inbox realtime fanout was the single
+    // largest source of long-task storms / 26s freezes on Android WebView.
+    // Every INSERT to team/club/group/dm/broadcast tables would invalidate
+    // 1-2 large queries AND the unread-counts query, which on accounts with
+    // many threads chained dozens of long tasks together and froze the UI.
+    //
+    // On native we now rely on:
+    //   - 30s refetchInterval on each query
+    //   - foreground resume + reconnect refetches (reactQueryNativeAdapter)
+    //   - pull-to-refresh
+    //   - opening a thread (the thread itself stays fully realtime)
+    // Web still gets the live channel.
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+    if (isNative) return;
+
     const rafState = { team: 0, club: 0, group: 0, dm: 0, unread: 0 } as Record<string, number>;
     const schedule = (key: keyof typeof rafState, fn: () => void) => {
       if (rafState[key]) return;
