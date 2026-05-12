@@ -5,6 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -36,6 +37,17 @@ interface ClubMember {
   display_name: string | null;
   avatar_url: string | null;
 }
+
+type PendingInviteInsert = Database["public"]["Tables"]["pending_invites"]["Insert"];
+type PendingInviteUpdate = Database["public"]["Tables"]["pending_invites"]["Update"];
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+};
 
 export function ManageMiniLeagueAdminsSheet({
   miniLeagueId,
