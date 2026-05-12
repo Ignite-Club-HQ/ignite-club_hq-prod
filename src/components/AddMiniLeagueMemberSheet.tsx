@@ -388,7 +388,17 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const activeParentSuggestions = activeSearch?.field === "parentName" && activePlayer && !activePlayer.existingParentUserId
     ? parentResults
     : [];
-  const showSearchOverlay = activeChildSuggestions.length > 0 || activeParentSuggestions.length > 0;
+  const activeSearchValue = activeSearch?.field === "parentName"
+    ? activePlayer?.parentName ?? ""
+    : activePlayer?.name ?? "";
+  const activeSearchLabel = activeSearch?.field === "parentName" ? "Parent name" : "Player name";
+  const activeSearchPlaceholder = activeSearch?.field === "parentName" ? "Search parent" : "Search player";
+  const hasActiveSearchText = activeSearchValue.trim().length > 0;
+  const showNoMatches = hasActiveSearchText
+    && activeSearchValue.trim().length >= 2
+    && activeChildSuggestions.length === 0
+    && activeParentSuggestions.length === 0;
+  const showSearchOverlay = !!activeSearch && !!activePlayer && (hasActiveSearchText || activeChildSuggestions.length > 0 || activeParentSuggestions.length > 0);
 
   return (
     <>
@@ -422,6 +432,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
 
           {showSearchOverlay && activeSearch && (
             <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100000] bg-popover border border-border rounded-lg shadow-lg max-h-[38dvh] overflow-auto overscroll-contain">
+              <div className="sticky top-0 bg-popover border-b border-border px-3 py-2">
+                <p className="text-xs font-medium text-muted-foreground">{activeSearchLabel}</p>
+                <p className="text-base font-semibold truncate">{activeSearchValue || activeSearchPlaceholder}</p>
+              </div>
               {activeSearch.field === "name" && activeChildSuggestions.map((c) => (
                 <button
                   key={c.id}
@@ -461,6 +475,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   {p.masked_email && <p className="text-xs text-muted-foreground">{p.masked_email}</p>}
                 </button>
               ))}
+              {showNoMatches && (
+                <div className="px-3 py-3 text-sm text-muted-foreground">
+                  No existing matches
+                </div>
+              )}
             </div>
           )}
 
