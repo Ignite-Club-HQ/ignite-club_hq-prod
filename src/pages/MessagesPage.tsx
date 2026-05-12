@@ -57,8 +57,15 @@ import {
 import { EyeOff } from "lucide-react";
 
 const MESSAGES_PER_PAGE = 15;
-const INBOX_REFETCH_INTERVAL_MS = 30000;
 const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
+// Web polls aggressively (30s); native uses a longer interval to reduce
+// background work on low-end Android WebViews while still keeping the inbox
+// reasonably fresh between realtime events / resume refetches.
+const INBOX_REFETCH_INTERVAL_MS = isNativeRuntime() ? 120000 : 30000;
+// Cap background prefetch fanout. Without a cap, /messages prefetches every
+// thread the user belongs to, which on Android WebView can stall the main
+// thread for seconds after navigating away.
+const PREFETCH_THREAD_CAP = isNativeRuntime() ? 5 : 15;
 
 
 // Skeleton component for message items while loading
