@@ -305,6 +305,18 @@ export default function JoinTeamPage() {
     }
   }, [joined]);
 
+  // Surface a "Taking Too Long" screen if the invite RPC hangs (network drop, cold start, etc.)
+  // Without this, isLoading stays true indefinitely and the user only sees a spinner — which they
+  // typically describe as "timed out". 15s gives slow networks a chance before showing the retry UI.
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimeout(false);
+      return;
+    }
+    const t = setTimeout(() => setLoadingTimeout(true), 15000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
+
   // All invite types now use a fixed role — no role selection UI needed
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
