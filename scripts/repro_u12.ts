@@ -25,7 +25,7 @@ const players = [
 ];
 players[1].assignedPositions = ["GK","DEF","MID","FWD"]; // Emery can GK 2H
 
-const halfSec = 20*60;
+const halfSec = 10*60; // total match 20 min, target 13.8 = 9*20/13
 const plan = createSubPlan(players as any, 9, halfSec, 2, false, false, true, 0, 1, "Emery", 5);
 console.log("subs:", plan.length);
 plan.forEach(s => console.log(`  H${s.half} ${s.time}s: OUT ${s.playerOut.id} → IN ${s.playerIn.id}`));
