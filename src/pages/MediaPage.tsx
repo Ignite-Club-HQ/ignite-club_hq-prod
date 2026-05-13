@@ -1426,100 +1426,98 @@ export default function MediaPage() {
                     photoRefs.current.set(photo.id, el);
                   }
                 }}
-                className={`overflow-hidden transition-all duration-300 cv-auto-card ${
+                className={`overflow-hidden transition-all duration-300 cv-auto-card border-x-0 sm:border-x rounded-none sm:rounded-lg ${
                   isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
                 } ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
               >
-                {/* Header */}
-                <div className="flex items-center gap-3 p-3 border-b">
-                  <Avatar className="h-8 w-8">
+                {/* Header — tighter alignment, clearer author identity */}
+                <div className="flex items-center gap-2.5 px-3 py-2">
+                  <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={avatarUrl || undefined} />
                     <AvatarFallback>
                       {displayName?.[0]?.toUpperCase() || <Loader2 className="h-3 w-3 animate-spin" />}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{displayName || <Skeleton className="h-3 w-20 inline-block" />}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {photo.mini_leagues?.name 
-                        ? `${photo.mini_leagues?.clubs?.name || photo.clubs?.name} ${photo.mini_leagues.name}`
-                        : photo.teams?.name 
-                          ? `${photo.teams?.clubs?.name || photo.clubs?.name} ${photo.teams.name}`
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <p className="text-sm font-semibold truncate">
+                      {displayName || <Skeleton className="h-3 w-20 inline-block" />}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {photo.mini_leagues?.name
+                        ? `${photo.mini_leagues?.clubs?.name || photo.clubs?.name} · ${photo.mini_leagues.name}`
+                        : photo.teams?.name
+                          ? `${photo.teams?.clubs?.name || photo.clubs?.name} · ${photo.teams.name}`
                           : photo.clubs?.name}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {canSharePhoto(photo) && (
-                      <SharePhotoButton 
+                  {canSharePhoto(photo) && (
+                    <div className="text-muted-foreground -mr-1 opacity-70">
+                      <SharePhotoButton
                         photoId={photo.id}
-                        imageUrl={photo.file_url || photo.image_url} 
+                        imageUrl={photo.file_url || photo.image_url}
                         title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Image with lazy loading. Long-press opens the action menu
-                    (Delete / Report / Block). The kebab dropdown was removed
-                    because it was being tapped accidentally during scroll. */}
-                <div 
-                  ref={observeView(photo.id)}
-                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer select-none"
-                  style={{ WebkitTouchCallout: "none" }}
-                  onClick={() => {
-                    if (isDeleting) return;
-                    if (longPressFiredRef.current) {
-                      // Suppress click that follows a long-press release.
-                      longPressFiredRef.current = false;
-                      return;
-                    }
-                    recordView(photo.id);
-                    setLightboxIndex(index);
-                  }}
-                  onTouchStart={(e) => {
-                    if (isDeleting) return;
-                    const t = e.touches[0];
-                    if (!t) return;
-                    startLongPress(photo.id, t.clientX, t.clientY);
-                  }}
-                  onTouchMove={(e) => {
-                    const t = e.touches[0];
-                    if (!t) return;
-                    moveLongPress(t.clientX, t.clientY);
-                  }}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onContextMenu={(e) => {
-                    // Suppress native long-press context menu — we provide our own.
-                    e.preventDefault();
-                  }}
-                >
-                  <LazyImage
-                    src={photo.file_url || photo.image_url}
-                    alt={photoText || "Photo"}
+                {/* Inline album carousel — horizontal swipe, dots, and 1/N pill.
+                    Long-press still opens the action menu (Delete/Report/Block). */}
+                <div ref={observeView(photo.id)}>
+                  <AlbumCarousel
+                    photos={photo._albumPhotos && photo._albumPhotos.length > 1 ? photo._albumPhotos : [photo]}
                     priority={index < 2}
-                  />
-                  {photo._albumCount > 1 && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-0">
-                      <ImageIcon className="h-3 w-3" />
-                      <span>{photo._albumCount}</span>
-                    </div>
-                  )}
-                  {isDeleting && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Deleting...</span>
+                    showSwipeHintOnMount={!albumHintShown && index === 0 && (photo._albumCount ?? 1) > 1}
+                    onIndexChange={(i) => {
+                      albumIndexByPhotoIdRef.current.set(photo.id, i);
+                      if (!albumHintShown) {
+                        setAlbumHintShown(true);
+                        try { localStorage.setItem("media:albumHintShown", "1"); } catch {}
+                      }
+                    }}
+                    onTap={(i) => {
+                      if (isDeleting) return;
+                      if (longPressFiredRef.current) {
+                        longPressFiredRef.current = false;
+                        return;
+                      }
+                      recordView(photo.id);
+                      const album = photo._albumPhotos && photo._albumPhotos.length > 1 ? photo._albumPhotos : null;
+                      if (album) {
+                        setLightboxAlbum({ photos: album, index: i });
+                      } else {
+                        setLightboxIndex(index);
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      if (isDeleting) return;
+                      const t = e.touches[0];
+                      if (!t) return;
+                      startLongPress(photo.id, t.clientX, t.clientY);
+                    }}
+                    onTouchMove={(e) => {
+                      const t = e.touches[0];
+                      if (!t) return;
+                      moveLongPress(t.clientX, t.clientY);
+                    }}
+                    onTouchEnd={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    overlay={isDeleting ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Deleting...</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ) : null}
+                  />
                 </div>
 
-                {/* Actions */}
-                <div className="p-3 space-y-2">
-                  <div className="flex items-center gap-4">
+                {/* Actions + caption — tighter rhythm */}
+                <div className="px-3 pt-2 pb-3 space-y-1">
+                  <div className="flex items-center gap-3">
                     <EmojiReactions
                       reactions={reactions}
                       currentUserId={user?.id}
@@ -1535,7 +1533,7 @@ export default function MediaPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setActiveCommentPhotoId(photo.id)}
-                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
+                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto text-muted-foreground"
                           >
                             <MessageCircle className="h-5 w-5" />
                             <span
@@ -1566,24 +1564,24 @@ export default function MediaPage() {
                   </div>
 
                   {photoText && (
-                    <p className="text-sm">
-                      <span className="font-medium">{displayName}</span>{" "}
+                    <p className="text-sm leading-snug">
+                      <span className="font-semibold">{displayName}</span>{" "}
                       {photoText}
                     </p>
                   )}
 
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimeShort(photo.created_at)}
-                  </p>
-
                   {comments.length > 0 && (
-                    <button 
+                    <button
                       onClick={() => setActiveCommentPhotoId(photo.id)}
-                      className="text-sm text-muted-foreground"
+                      className="block text-xs text-muted-foreground hover:text-foreground"
                     >
                       View all {comments.length} comment{comments.length !== 1 ? "s" : ""}
                     </button>
                   )}
+
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+                    {formatTimeShort(photo.created_at)}
+                  </p>
                 </div>
               </Card>
             );
