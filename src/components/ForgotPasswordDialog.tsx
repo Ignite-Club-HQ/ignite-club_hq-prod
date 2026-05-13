@@ -94,6 +94,14 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
   };
 
   const verifyCode = async (token: string) => {
+    const validation = emailSchema.safeParse(email);
+    if (!validation.success) {
+      toast({
+        title: "Enter your email",
+        description: "We need your email to verify the code.",
+      });
+      return;
+    }
     setVerifying(true);
     const { error } = await supabase.auth.verifyOtp({
       email,
@@ -119,7 +127,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
 
   const handleCodeChange = (value: string) => {
     setCode(value);
-    if (value.length === 6 && !verifying) {
+    if (value.length === 6 && !verifying && emailSchema.safeParse(email).success) {
       void verifyCode(value);
     }
   };
