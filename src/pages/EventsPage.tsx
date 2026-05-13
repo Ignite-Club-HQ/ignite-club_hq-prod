@@ -411,11 +411,13 @@ export default function EventsPage() {
       }
 
       // Window: last 30 days for context, configurable upper bound ahead.
-      // M2 perf: narrow to ~45 days by default to shrink Schedule payload.
-      // Flip USE_NARROW_SCHEDULE_WINDOW to false to revert to the previous
-      // 120-day window instantly with no other code changes required.
+      // List view stays narrow (~45 days) to shrink payload; calendar view
+      // needs a much wider window so users can browse months ahead and still
+      // see future fixtures (e.g. a full season).
       const USE_NARROW_SCHEDULE_WINDOW = true;
-      const upperDays = USE_NARROW_SCHEDULE_WINDOW ? 45 : 120;
+      const upperDays = viewMode === "calendar"
+        ? 240
+        : (USE_NARROW_SCHEDULE_WINDOW ? 45 : 120);
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const upperBound = new Date();
