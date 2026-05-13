@@ -328,6 +328,113 @@ const inferredPitchPosition = (player: Pick<Player, "currentPitchPosition" | "as
   return inferredOutfieldPosition(player);
 };
 
+/**
+ * STARVATION GUARANTEE — final post-pass.
+ *
+ * Some upstream branches (high min-shift overrides, single-half matches, GK
+ * protection eating sub windows) can leave a healthy bench player with 0
+ * scheduled minutes. The Riverside U12 case (9v9 +4, 20-min match) hit this:
+ * only 4 sub events were generated, and the same bench player got recycled
+ * so 2 others sat the whole match.
+ *
+ * This pass simulates the plan, finds outfield-eligible players with 0
+ * minutes, and rewires existing sub events so each starved player comes ON
+ * at least once — by replacing the `playerIn` of a sub whose original IN is
+ * the most over-served. We never invent new windows, change OUT, or alter
+ * timings; we only redirect who comes on. Position eligibility is honoured.
+ *
+ * If a starved player is structurally unsubbable (no compatible OUT
+ * position in any existing window), they're left alone — better to surface
+ * the issue in the diagnostics panel than to break the lineup.
+ */
+function ensureNoStarvedPlayers(
+  plan: SubstitutionEvent[],
+  players: Player[],
+  halfDurationSeconds: number,
+): SubstitutionEvent[] {
+  if (plan.length === 0 || players.length === 0) return plan;
+
+  const eligible = (p: Player) =>
+    !p.isInjured &&
+    !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK");
+
+  const canPlay = (p: Player, pos?: PitchPosition) =>
+    !pos || !p.assignedPositions?.length || p.assignedPositions.includes(pos);
+
+  const totalSec = halfDurationSeconds * 2;
+  const absTime = (s: SubstitutionEvent) =>
+    s.half === 1 ? s.time : halfDurationSeconds + s.time;
+
+  const simulate = (): Map<string, number> => {
+    const onPitch = new Set(players.filter(p => p.position).map(p => p.id));
+    const totals = new Map<string, number>(players.map(p => [p.id, 0]));
+    const sorted = [...plan].sort((a, b) => absTime(a) - absTime(b));
+    let last = 0;
+    for (const ev of sorted) {
+      const t = absTime(ev);
+      onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (t - last)));
+      last = t;
+      onPitch.delete(ev.playerOut.id);
+      onPitch.add(ev.playerIn.id);
+    }
+    onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (totalSec - last)));
+    return totals;
+  };
+
+  // Up to N rounds — each pass can only rescue starvation visible after the
+  // previous swap, so iterate but cap to keep this O(n²) bounded.
+  const MAX_ROUNDS = 4;
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const totals = simulate();
+    const starved = players
+      .filter(p => eligible(p))
+      .filter(p => (totals.get(p.id) ?? 0) === 0)
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    if (starved.length === 0) break;
+
+    let progressed = false;
+    for (const victim of starved) {
+      // Candidate subs: existing IN can be replaced by `victim`.
+      // Position must be playable; victim mustn't already be on pitch in that
+      // window (would be a no-op or yo-yo).
+      const candidates = plan
+        .map((s, idx) => ({ s, idx }))
+        .filter(({ s }) => {
+          if (s.playerIn.id === victim.id) return false;
+          if (s.playerOut.id === victim.id) return false;
+          if (!canPlay(victim, s.playerOut.currentPitchPosition)) return false;
+          // Prevent yo-yo: if victim is already swapped out in same window, skip.
+          const sameWindowYoyo = plan.some(
+            o => o !== s && absTime(o) === absTime(s) && o.playerOut.id === victim.id,
+          );
+          if (sameWindowYoyo) return false;
+          // Avoid stealing a slot from another currently-starved player.
+          const inIsAlsoStarved = starved.some(p => p.id === s.playerIn.id);
+          if (inIsAlsoStarved) return false;
+          return true;
+        })
+        .map(({ s, idx }) => ({
+          s,
+          idx,
+          inTotal: totals.get(s.playerIn.id) ?? 0,
+        }))
+        // Prefer rewiring the sub whose IN is most over-served.
+        .sort((a, b) => b.inTotal - a.inTotal);
+
+      if (candidates.length === 0) continue;
+
+      const target = candidates[0];
+      plan[target.idx] = { ...target.s, playerIn: victim };
+      progressed = true;
+    }
+
+    if (!progressed) break;
+  }
+
+  return plan;
+}
+
 export function isPlanPlayableFromPlayers(
   players: Pick<Player, "id" | "position">[],
   plan: Pick<SubstitutionEvent, "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped">[],
@@ -1093,10 +1200,11 @@ export function createSubPlan(
       plan.splice(bestRemoval.index, 1);
     }
 
-    return plan.sort((a, b) =>
+    const sortedStandard = plan.sort((a, b) =>
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
     );
+    return ensureNoStarvedPlayers(sortedStandard, playerData, halfDurationSeconds);
   }
   // ===========================================================================
   // BALANCED / FREQUENT MODES — fairness-driven planner below.
@@ -1975,7 +2083,7 @@ export function createSubPlan(
     return 0;
   });
 
-  return plan;
+  return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
@@ -2586,7 +2694,7 @@ export function createSubPlan(
 
   sortPlan();
 
-  return plan;
+  return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }
 
 // Generate per-team plans for mini-league mode and merge them
