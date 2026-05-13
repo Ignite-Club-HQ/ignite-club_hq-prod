@@ -1650,12 +1650,16 @@ export function createSubPlan(
       .filter(p => !currentIds.has(p.id))
       .filter(p => isAvailableForInterval(p, absoluteSeconds, nextAbsoluteSeconds))
       .sort((a, b) => {
-        if (capBreached) {
-          // Override: bring on the player with the largest shortfall first.
-          const aS = shortfallsNow.get(a.id) ?? 0;
-          const bS = shortfallsNow.get(b.id) ?? 0;
-          if (Math.abs(aS - bS) > 15) return bS - aS;
-        }
+        // PHASE 5: shortfall is always the primary criterion. The bench
+        // player furthest below their fair-share total comes on first. FIFO
+        // (longest-waiting) only acts as a tiebreaker inside a small
+        // deadband to keep the queue stable when shortfalls are essentially
+        // equal. The previous capBreached gate is retained as a stronger
+        // override for clearly-breaching situations.
+        const aS = shortfallsNow.get(a.id) ?? 0;
+        const bS = shortfallsNow.get(b.id) ?? 0;
+        const deadband = capBreached ? 15 : 30;
+        if (Math.abs(aS - bS) > deadband) return bS - aS;
         // GK protection: bring protected players on first when both still owe minutes.
         const aGk = isGkProtectedFreq(a.id) ? 1 : 0;
         const bGk = isGkProtectedFreq(b.id) ? 1 : 0;
@@ -1665,7 +1669,7 @@ export function createSubPlan(
           if (aGk && aProj < gkCeilingTotal - 30) return -1;
           if (bGk && bProj < gkCeilingTotal - 30) return 1;
         }
-        // Default: pure FIFO queue order — longest-waiting bench player first.
+        // Tiebreaker: pure FIFO — longest-waiting bench player first.
         return (lastOffAt.get(a.id) ?? 0) - (lastOffAt.get(b.id) ?? 0);
       });
 
@@ -1693,12 +1697,13 @@ export function createSubPlan(
           !previousRotationPlayerInIds.has(playerOut!.id)
         )
         .sort((a, b) => {
-          if (capBreached) {
-            // Pull off the player with the SMALLEST shortfall (most over their fair share).
-            const aS = shortfallsNow.get(a.playerOut!.id) ?? 0;
-            const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
-            if (Math.abs(aS - bS) > 15) return aS - bS;
-          }
+          // PHASE 5: shortfall-gradient pull-off. Player with the SMALLEST
+          // shortfall (most over their fair share) comes off first. FIFO
+          // (longest currently-on-pitch) only tiebreaks inside the deadband.
+          const aS = shortfallsNow.get(a.playerOut!.id) ?? 0;
+          const bS = shortfallsNow.get(b.playerOut!.id) ?? 0;
+          const deadband = capBreached ? 15 : 30;
+          if (Math.abs(aS - bS) > deadband) return aS - bS;
           // GK protection: never pull a protected player off until they reach
           // gkCeilingTotal — pull non-protected players first.
           const aGk = isGkProtectedFreq(a.playerOut!.id) ? 1 : 0;
@@ -1709,7 +1714,7 @@ export function createSubPlan(
             if (aGk && aProj < gkCeilingTotal - 30) return 1;
             if (bGk && bProj < gkCeilingTotal - 30) return -1;
           }
-          // Default: queue order — longest currently-on-pitch first.
+          // Tiebreaker: queue order — longest currently-on-pitch first.
           return (lastOnAt.get(a.playerOut!.id) ?? 0) - (lastOnAt.get(b.playerOut!.id) ?? 0);
         });
 
