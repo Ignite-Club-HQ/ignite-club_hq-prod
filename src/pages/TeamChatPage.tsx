@@ -1693,6 +1693,8 @@ export default function TeamChatPage() {
                       isPublishingToGallery={publishingIds.has(msg.id)}
                       isPublishedToGallery={publishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
