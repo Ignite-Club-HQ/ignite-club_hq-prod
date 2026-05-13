@@ -2694,7 +2694,7 @@ export function createSubPlan(
 
   sortPlan();
 
-  return plan;
+  return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }
 
 // Generate per-team plans for mini-league mode and merge them
