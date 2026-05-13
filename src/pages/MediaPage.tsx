@@ -1545,11 +1545,11 @@ export default function MediaPage() {
                           </Button>
                           {showViews && (
                             <div
-                              className="flex items-center gap-1 text-muted-foreground"
+                              className="flex items-center gap-1 text-muted-foreground shrink-0"
                               title={`${viewCount} view${viewCount === 1 ? "" : "s"}`}
                               aria-label={`${viewCount} views`}
                             >
-                              <Eye className="h-5 w-5" />
+                              <Eye className="h-5 w-5 shrink-0" />
                               <span
                                 className="text-xs tabular-nums"
                                 style={{ visibility: viewCount > 0 ? "visible" : "hidden" }}
