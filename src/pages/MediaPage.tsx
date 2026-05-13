@@ -1252,24 +1252,25 @@ export default function MediaPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-4 sm:gap-2">
-          <Button 
-            variant={hasActiveFilters ? "default" : "outline"} 
+        <div className="flex items-center gap-2">
+          <Button
+            variant={hasActiveFilters ? "secondary" : "ghost"}
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className="h-12 w-12 sm:h-9 sm:w-auto sm:px-3 relative"
+            className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative text-muted-foreground hover:text-foreground"
+            aria-label="Filter"
           >
-            <Filter className="h-6 w-6 sm:h-4 sm:w-4" /> 
+            <Filter className="h-5 w-5 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline ml-1">Filter</span>
             {hasActiveFilters && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary sm:hidden" />
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary sm:hidden" />
             )}
             {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 px-1.5 hidden sm:inline-flex">!</Badge>}
           </Button>
           {hasProAccess && (
             <>
-              <Button size="icon" onClick={() => setUploadDialogOpen(true)} className="h-12 w-12 sm:h-9 sm:w-auto sm:px-3">
-                <Plus className="h-6 w-6 sm:h-4 sm:w-4" />
+              <Button size="icon" onClick={() => setUploadDialogOpen(true)} className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3" aria-label="Add photo">
+                <Plus className="h-5 w-5 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline ml-1">Add Photo</span>
               </Button>
               <UploadPhotoSheet 
