@@ -421,7 +421,7 @@ export function UploadPhotoSheet({
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string): Promise<{ url: string; photoId: string }> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string, albumId: string | null): Promise<{ url: string; photoId: string }> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
@@ -460,6 +460,7 @@ export function UploadPhotoSheet({
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
+      album_id: albumId,
     }).select("id").single();
 
     if (insertError || !insertedPhoto) {
