@@ -696,7 +696,35 @@ export function UploadPhotoSheet({
     let firstErrorMessage: string | null = null;
     const uploadedUrls: string[] = [];
     const uploadedPhotoIds: string[] = [];
-    
+
+    // Multi-photo upload session → create a single album so the feed shows
+    // one card per upload session (with +N badge) instead of N separate
+    // cards each duplicating the same caption.
+    let albumId: string | null = null;
+    if (photosToUpload.length > 1) {
+      try {
+        const { data: album, error: albumErr } = await supabase
+          .from("photo_albums")
+          .insert({
+            uploader_id: user!.id,
+            club_id: clubId || null,
+            team_id: teamId || null,
+            mini_league_id: miniLeagueId || null,
+            event_id: eventId || null,
+            caption: photoCaption || null,
+          })
+          .select("id")
+          .single();
+        if (albumErr) {
+          console.warn("[upload] album creation failed, falling back to ungrouped photos:", albumErr);
+        } else {
+          albumId = album?.id ?? null;
+        }
+      } catch (e) {
+        console.warn("[upload] album creation threw:", e);
+      }
+    }
+
     for (let i = 0; i < photosToUpload.length; i++) {
       const photo = photosToUpload[i];
       
@@ -707,7 +735,7 @@ export function UploadPhotoSheet({
       );
       
       try {
-        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption, albumId);
         uploadedUrls.push(url);
         uploadedPhotoIds.push(photoId);
         successCount++;
