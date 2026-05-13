@@ -706,6 +706,28 @@ export default function MediaPage() {
       });
     }
     
+    // Group photos uploaded together (same album_id) into a single feed
+    // entry: keep the cover (first/oldest by created_at, but since the
+    // server returns DESC we keep the most recent — both work as a stable
+    // representative) and attach an `_albumCount` so the grid can render a
+    // "+N" badge. Cards with no album_id are kept as-is.
+    if (!cardId) {
+      const seenAlbums = new Set<string>();
+      const albumCounts = new Map<string, number>();
+      filtered.forEach((p: any) => {
+        if (p.album_id) albumCounts.set(p.album_id, (albumCounts.get(p.album_id) ?? 0) + 1);
+      });
+      filtered = filtered.filter((p: any) => {
+        if (!p.album_id) return true;
+        if (seenAlbums.has(p.album_id)) return false;
+        seenAlbums.add(p.album_id);
+        return true;
+      }).map((p: any) => p.album_id
+        ? { ...p, _albumCount: albumCounts.get(p.album_id) ?? 1 }
+        : p
+      );
+    }
+
     return filtered;
   }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
