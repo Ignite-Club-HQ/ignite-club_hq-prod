@@ -2083,7 +2083,7 @@ export function createSubPlan(
     return 0;
   });
 
-  return plan;
+  return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
