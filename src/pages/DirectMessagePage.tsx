@@ -1322,7 +1322,7 @@ export default function DirectMessagePage() {
       {/* Header */}
       <ChatHeaderShell
         type={isIgniteSupportConversation ? "support" : "dm"}
-        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User"))}
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
@@ -1344,7 +1344,7 @@ export default function DirectMessagePage() {
         onOpenChange={setDetailsOpen}
         chatType={isIgniteSupportConversation ? "support" : "dm"}
         chatId={conversationId!}
-        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User"))}
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         otherUserId={otherUserId || undefined}
