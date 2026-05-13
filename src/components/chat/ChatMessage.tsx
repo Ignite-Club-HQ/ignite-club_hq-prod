@@ -890,7 +890,7 @@ function ChatMessageInner({
             >
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
-                  text={text} 
+                  text={displayText} 
                   imageUrl={imageUrl} 
                   searchQuery={searchQuery} 
                   showPreviews={false}
