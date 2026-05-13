@@ -343,7 +343,7 @@ export default function DirectMessagePage() {
   }, [isIgniteSupportConversation, replyTo, editingMessage]);
 
   // Fetch other participant's profile
-  const { data: otherUser } = useQuery({
+  const { data: otherUser, isLoading: otherUserLoading } = useQuery({
     queryKey: ["dm-other-user", otherUserId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1290,7 +1290,7 @@ export default function DirectMessagePage() {
               <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
+              <h1 className="font-semibold">{otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User")}</h1>
             </div>
           </div>
         </div>
@@ -1322,7 +1322,7 @@ export default function DirectMessagePage() {
       {/* Header */}
       <ChatHeaderShell
         type={isIgniteSupportConversation ? "support" : "dm"}
-        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User"))}
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
@@ -1344,7 +1344,7 @@ export default function DirectMessagePage() {
         onOpenChange={setDetailsOpen}
         chatType={isIgniteSupportConversation ? "support" : "dm"}
         chatId={conversationId!}
-        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User"))}
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         otherUserId={otherUserId || undefined}
