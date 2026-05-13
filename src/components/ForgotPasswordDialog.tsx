@@ -205,12 +205,27 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               </p>
             </div>
 
+            <div className="w-full space-y-2">
+              <Label htmlFor="reset-code-email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="reset-code-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  className="pl-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
             <InputOTP
               maxLength={6}
               value={code}
               onChange={handleCodeChange}
               disabled={verifying}
-              autoFocus
+              autoFocus={!!email}
             >
               <InputOTPGroup>
                 <InputOTPSlot index={0} />
