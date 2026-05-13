@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2, UserPlus } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,6 +72,7 @@ export default function EditEventPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<EventType>("training");
@@ -640,6 +641,15 @@ export default function EditEventPage() {
 
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
+
+      // Refresh event-derived caches so the pitch board picks up the new
+      // start_time / opponent / title without waiting for staleTime.
+      queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch"] });
+      queryClient.invalidateQueries({ queryKey: ["pitch-board-going-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: ["event", id] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
 
       navigate(`/events/${id}`);
     } catch (error: any) {
