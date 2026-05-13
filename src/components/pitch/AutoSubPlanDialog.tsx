@@ -2901,10 +2901,7 @@ function AdvancedSettingsPanel({
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
           <p className="text-[11px] leading-snug text-muted-foreground">
-            These dials fine-tune <span className="font-medium text-foreground">how often</span> the
-            planner subs players and <span className="font-medium text-foreground">how equal</span>{" "}
-            their playing time ends up. Defaults work for most teams — only change them if the
-            generated plan feels too busy, too sparse, or too unfair.
+            Only adjust these if Basic or Frequent mode creates an uneven or awkward plan.
           </p>
           {readOnly && (
             <p className="text-[11px] text-muted-foreground italic">
@@ -2912,11 +2909,44 @@ function AdvancedSettingsPanel({
             </p>
           )}
 
+          {/* Troubleshooting card */}
+          <div className="rounded-md border border-border bg-background/60 p-3 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Common problems
+            </p>
+            <ul className="space-y-1.5 text-[11px] leading-snug text-foreground">
+              <li>
+                <span className="font-medium">Plan looks uneven?</span>{" "}
+                <span className="text-muted-foreground">Lower “How often to suggest subs” to give the planner more chances to balance game time.</span>
+              </li>
+              <li>
+                <span className="font-medium">Plan feels too busy?</span>{" "}
+                <span className="text-muted-foreground">Increase “Minimum gap between sub moments” to reduce interruptions.</span>
+              </li>
+              <li>
+                <span className="font-medium">Players coming off too quickly?</span>{" "}
+                <span className="text-muted-foreground">Increase “Minimum time on field.”</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Balance game time */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fairness</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Balance game time
+            </p>
+            <NumberRow
+              label="How often to suggest subs"
+              hint="Lower = fairer minutes, more interruptions. Higher = fewer interruptions, less precise balancing."
+              value={v.standardTargetIntervalSec}
+              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
+              min={180} max={900} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardTargetIntervalSec", n)}
+            />
             <NumberRow
               label="Max playing-time spread"
-              hint="The biggest acceptable gap between your most-played and least-played outfielder by full-time. Tighter = fairer minutes but more subs; looser = fewer subs but bench players may finish well behind."
+              hint="The biggest acceptable gap between your most-played and least-played outfielder by full-time. Tighter = fairer minutes but more subs."
               value={v.maxSpreadOverrideSec}
               defaultValue={defaultMaxSpreadSec}
               min={120} max={720} step={30}
@@ -2925,33 +2955,23 @@ function AdvancedSettingsPanel({
             />
           </div>
 
+          {/* Prevent awkward timing */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Standard mode</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Prevent awkward timing
+            </p>
             <NumberRow
-              label="Target time between subs"
-              hint="How long the planner aims to wait between sub windows in Standard mode. Shorter = more frequent rotations; longer = fewer interruptions but harder to keep minutes even."
-              value={v.standardTargetIntervalSec}
-              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
-              min={180} max={900} step={30}
-              disabled={readOnly}
-              onChange={(n) => set("standardTargetIntervalSec", n)}
-            />
-            <NumberRow
-              label="Shortest allowed gap between subs"
-              hint="A safety floor — windows will never sit closer together than this, even with a big bench. Stops the plan from churning subs every couple of minutes."
+              label="Minimum gap between sub moments"
+              hint="Stops the app creating substitution moments too close together. Lower = fairer minutes, more interruptions."
               value={v.standardIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
               min={120} max={600} step={30}
               disabled={readOnly}
               onChange={(n) => set("standardIntervalFloorSec", n)}
             />
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Frequent mode</p>
             <NumberRow
-              label="Shortest allowed gap between subs"
-              hint="Frequent mode rotates aggressively; this is the tightest the planner is allowed to go. Lower = more rotations and shorter shifts; higher = closer to Standard."
+              label="Minimum gap in Frequent mode"
+              hint="Used only when Frequent mode is selected. Lower values create more rotations but may feel busier."
               value={v.frequentIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
               min={60} max={420} step={15}
@@ -2960,26 +2980,44 @@ function AdvancedSettingsPanel({
             />
           </div>
 
+          {/* Player shift protection */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Both modes</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Player shift protection
+            </p>
             <NumberRow
-              label="Minimum shift before a player can be pulled"
-              hint="Once a player goes on, they're protected from being subbed off again until at least this long has passed. Prevents bench players getting yo-yo'd back off after a 1-minute cameo."
+              label="Minimum time on field"
+              hint="Prevents a player being subbed on and then pulled off almost immediately. Higher = fewer cameo shifts."
               value={v.minShiftSeconds}
               defaultValue={ADV_DEFAULTS.minShiftSeconds}
               min={60} max={360} step={15}
               disabled={readOnly}
               onChange={(n) => set("minShiftSeconds", n)}
             />
+          </div>
+
+          {/* Halftime protection */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Halftime protection
+            </p>
             <NumberRow
-              label="Quiet zone around halftime"
-              hint="When the planner is already swapping the keeper at HT, it avoids stacking another regular sub window inside this many minutes of the break. Keeps halftime calm."
+              label="Avoid subs near halftime"
+              hint="Stops regular substitutions clashing with halftime or planned goalkeeper swaps."
               value={v.halftimeGuardSeconds}
               defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
               min={0} max={420} step={15}
               disabled={readOnly}
               onChange={(n) => set("halftimeGuardSeconds", n)}
             />
+          </div>
+
+          {/* Compact tuning summary */}
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+            <span className="font-medium text-foreground">Current tuning:</span>{" "}
+            subs roughly every {Math.round(v.standardTargetIntervalSec / 60)} min,
+            minimum {Math.round(v.standardIntervalFloorSec / 60)} min between sub moments,
+            players stay on at least {Math.round(v.minShiftSeconds / 60)} min.
           </div>
 
           {!readOnly && overrideCount > 0 && (
