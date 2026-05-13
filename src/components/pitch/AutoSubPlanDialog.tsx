@@ -272,6 +272,10 @@ export interface AutoSubAdvancedOverrides {
   /** Halftime guard: no interval-driven sub windows within this many sec of HT
    *  (when a halftime GK swap is scheduled). Default = the active interval floor. */
   halftimeGuardSeconds?: number;
+  /** Override the Max-Spread cap (sec) coming from the parent settings. When
+   *  set, replaces the `maxSpreadMinutes` prop value. Lower = stricter
+   *  fairness (planner sacrifices queue order sooner). */
+  maxSpreadOverrideSec?: number;
 }
 
 interface AutoSubPlanDialogProps {
@@ -2290,12 +2294,17 @@ function DialogInner({
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
   
+  // Effective max-spread: panel override (in seconds) wins over the prop.
+  const effectiveMaxSpreadMinutes = effectiveOverrides.maxSpreadOverrideSec !== undefined
+    ? effectiveOverrides.maxSpreadOverrideSec / 60
+    : maxSpreadMinutes;
+
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -2329,7 +2338,7 @@ function DialogInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     rotationSpeed,
-    maxSpreadMinutes,
+    effectiveMaxSpreadMinutes,
     minutesPerHalf,
     disablePositionSwaps,
     disableBatchSubs,
@@ -2421,7 +2430,7 @@ function DialogInner({
     );
   }
   
-  if (isGenerating) {
+  if (isGenerating && !plan) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -2582,6 +2591,7 @@ function DialogInner({
         overrides={effectiveOverrides}
         readOnly={!!advancedOverrides}
         onChange={persistLocal}
+        defaultMaxSpreadMinutes={maxSpreadMinutes}
       />
 
       <div className="flex gap-2 justify-end mt-4">
@@ -2764,20 +2774,23 @@ function NumberRow({
 }
 
 function AdvancedSettingsPanel({
-  open, onToggle, overrides, readOnly, onChange,
+  open, onToggle, overrides, readOnly, onChange, defaultMaxSpreadMinutes,
 }: {
   open: boolean;
   onToggle: () => void;
   overrides: AutoSubAdvancedOverrides;
   readOnly: boolean;
   onChange: (next: AutoSubAdvancedOverrides) => void;
+  defaultMaxSpreadMinutes: number;
 }) {
+  const defaultMaxSpreadSec = Math.round(defaultMaxSpreadMinutes * 60);
   const v = {
     standardTargetIntervalSec: overrides.standardTargetIntervalSec ?? ADV_DEFAULTS.standardTargetIntervalSec,
     standardIntervalFloorSec: overrides.standardIntervalFloorSec ?? ADV_DEFAULTS.standardIntervalFloorSec,
     frequentIntervalFloorSec: overrides.frequentIntervalFloorSec ?? ADV_DEFAULTS.frequentIntervalFloorSec,
     minShiftSeconds: overrides.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds,
     halftimeGuardSeconds: overrides.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds,
+    maxSpreadOverrideSec: overrides.maxSpreadOverrideSec ?? defaultMaxSpreadSec,
   };
   const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
     .filter(k => overrides[k] !== undefined).length;
@@ -2814,6 +2827,12 @@ function AdvancedSettingsPanel({
 
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            These dials fine-tune <span className="font-medium text-foreground">how often</span> the
+            planner subs players and <span className="font-medium text-foreground">how equal</span>{" "}
+            their playing time ends up. Defaults work for most teams — only change them if the
+            generated plan feels too busy, too sparse, or too unfair.
+          </p>
           {readOnly && (
             <p className="text-[11px] text-muted-foreground italic">
               These thresholds are controlled by the parent screen and can't be changed here.
@@ -2821,10 +2840,23 @@ function AdvancedSettingsPanel({
           )}
 
           <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fairness</p>
+            <NumberRow
+              label="Max playing-time spread"
+              hint="The biggest acceptable gap between your most-played and least-played outfielder by full-time. Tighter = fairer minutes but more subs; looser = fewer subs but bench players may finish well behind."
+              value={v.maxSpreadOverrideSec}
+              defaultValue={defaultMaxSpreadSec}
+              min={120} max={720} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("maxSpreadOverrideSec", n)}
+            />
+          </div>
+
+          <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Standard mode</p>
             <NumberRow
-              label="Target sub-window cadence"
-              hint="Maximum gap between sub windows. Planner shrinks below this if needed to fit a full rotation."
+              label="Target time between subs"
+              hint="How long the planner aims to wait between sub windows in Standard mode. Shorter = more frequent rotations; longer = fewer interruptions but harder to keep minutes even."
               value={v.standardTargetIntervalSec}
               defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
               min={180} max={900} step={30}
@@ -2832,8 +2864,8 @@ function AdvancedSettingsPanel({
               onChange={(n) => set("standardTargetIntervalSec", n)}
             />
             <NumberRow
-              label="Sub-window floor"
-              hint="Hard lower bound — windows never get tighter than this even with a large bench."
+              label="Shortest allowed gap between subs"
+              hint="A safety floor — windows will never sit closer together than this, even with a big bench. Stops the plan from churning subs every couple of minutes."
               value={v.standardIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
               min={120} max={600} step={30}
@@ -2845,8 +2877,8 @@ function AdvancedSettingsPanel({
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Frequent mode</p>
             <NumberRow
-              label="Sub-window floor"
-              hint="Minimum gap between sub windows in Frequent mode. Lower = more rotations, shorter shifts."
+              label="Shortest allowed gap between subs"
+              hint="Frequent mode rotates aggressively; this is the tightest the planner is allowed to go. Lower = more rotations and shorter shifts; higher = closer to Standard."
               value={v.frequentIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
               min={60} max={420} step={15}
@@ -2858,8 +2890,8 @@ function AdvancedSettingsPanel({
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Both modes</p>
             <NumberRow
-              label="Minimum shift on pitch"
-              hint="A player can't be pulled until they've been on at least this long. Prevents 'phantom' short shifts."
+              label="Minimum shift before a player can be pulled"
+              hint="Once a player goes on, they're protected from being subbed off again until at least this long has passed. Prevents bench players getting yo-yo'd back off after a 1-minute cameo."
               value={v.minShiftSeconds}
               defaultValue={ADV_DEFAULTS.minShiftSeconds}
               min={60} max={360} step={15}
@@ -2867,8 +2899,8 @@ function AdvancedSettingsPanel({
               onChange={(n) => set("minShiftSeconds", n)}
             />
             <NumberRow
-              label="Halftime guard window"
-              hint="When a halftime GK swap is scheduled, no interval-driven sub windows are placed within this window of HT."
+              label="Quiet zone around halftime"
+              hint="When the planner is already swapping the keeper at HT, it avoids stacking another regular sub window inside this many minutes of the break. Keeps halftime calm."
               value={v.halftimeGuardSeconds}
               defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
               min={0} max={420} step={15}
