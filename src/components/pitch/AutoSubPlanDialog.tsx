@@ -8,6 +8,7 @@ import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, C
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
+import { buildSubWindows } from "./planner/windows";
 
 
 interface PlayerTimeForecast {
@@ -637,11 +638,9 @@ export function createSubPlan(
       return false;
     };
 
-    const baseWindowTimes: number[] = [];
-    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - noSubAfterSeconds; t += intervalSec) {
-      if (isInBlackout(t)) continue;
-      baseWindowTimes.push(Math.floor(t));
-    }
+    // Forced and extra window collectors (consumed by buildSubWindows below).
+    const forcedWindowTimes: number[] = [];
+    const extraWindowTimes: number[] = [];
     // GOALKEEPER RULE: GKs may ONLY be swapped at halftime (the GK position
     // itself can only change at start-of-game or halftime). However, the
     // nominated 2H GK can play OUTFIELD in 1H — they're just a normal field
@@ -652,70 +651,62 @@ export function createSubPlan(
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
     if (halftimeGkIn && needsProtectedOutfieldRun(halftimeGkIn.id) && startHalf === 1 && halfDurationSeconds > 12 * 60) {
-      // Bring the 2H GK on outfield as early as possible in 1H and keep them
-      // on as long as possible (sub off ~2 min before HT). This pushes them
-      // toward the top of the allowed spread without breaching it.
       const tinySquad = outfieldOnBench.length <= 2;
-      // GK-protected players are exempt from the bench-once rule and should
-      // sit at the top of the spread. Push the 2H GK's 1H outfield run as
-      // close to halftime as possible (HT-2 for tiny squads, HT-3 otherwise).
       const h1GkOn = noSubBeforeSeconds;
       const h1GkOffOffset = tinySquad ? noSubAfterSeconds : Math.max(noSubAfterSeconds, Math.min(3 * 60, intervalSec));
       const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
-      // Forced GK windows bypass blackout: GK-protected runs take priority
-      // over normal blackout windows so they can land at the top of the spread.
       [h1GkOn, h1GkOff].forEach(gkTime => {
-        if (gkTime > startAbs) baseWindowTimes.push(Math.floor(gkTime));
+        if (gkTime > startAbs) forcedWindowTimes.push(Math.floor(gkTime));
       });
-      if (h1GkOn > startAbs) {
-        forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
-      }
-      if (h1GkOff > startAbs) {
-        forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
-      }
+      if (h1GkOn > startAbs) forcedInByWindow.set(Math.floor(h1GkOn), halftimeGkIn.id);
+      if (h1GkOff > startAbs) forcedOutByWindow.set(Math.floor(h1GkOff), halftimeGkIn.id);
     }
     // Mirror window in H2 for the 1H GK so they get outfield time toward the
-    // top of the allowed spread. Bring them on shortly after HT; let the
-    // normal scheduler decide when they come off (no forced-out) so other
-    // outfielders still get adequate rotation in H2.
+    // top of the allowed spread.
     if (includeStartingGkInRotation && gkOnPitch && needsProtectedOutfieldRun(gkOnPitch.id) && halfDurationSeconds > 12 * 60) {
-      // GK-protected: bring 1H GK on outfield as soon as the post-HT blackout
-      // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
-      // banks more outfield minutes and finishes near the top of the spread.
       const tinySquad = outfieldOnBench.length <= 2;
       const h2GkOnOffset = tinySquad ? Math.min(2 * 60, noSubBeforeSeconds) : noSubBeforeSeconds;
       const h2GkOn = halfDurationSeconds + h2GkOnOffset;
       if (h2GkOn > startAbs) {
-        baseWindowTimes.push(Math.floor(h2GkOn));
+        forcedWindowTimes.push(Math.floor(h2GkOn));
         forcedInByWindow.set(Math.floor(h2GkOn), gkOnPitch.id);
       }
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
       const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
       if (h2FairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2FairnessRescue)) {
-        baseWindowTimes.push(Math.floor(h2FairnessRescue));
+        extraWindowTimes.push(Math.floor(h2FairnessRescue));
       }
       const h2LateFairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.72);
       if (h2LateFairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2LateFairnessRescue)) {
-        baseWindowTimes.push(Math.floor(h2LateFairnessRescue));
+        extraWindowTimes.push(Math.floor(h2LateFairnessRescue));
       }
     }
-    // Tiny squads (≤2 bench): the forced 2H-GK 1H window already eats 2 of the
-    // sub slots. Add a single extra rescue window in 2H (~50%) so the FWDs
-    // who play full 1H still get pulled off in 2H.
+    // Tiny squads (≤2 bench): extra mid-2H rescue window so 1H FWDs get pulled.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
       const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
       if (h2R < endAbs - noSubAfterSeconds && !isInBlackout(h2R)) {
-        baseWindowTimes.push(h2R);
+        extraWindowTimes.push(h2R);
       }
     }
-    const protectedGkWindows = [...forcedInByWindow.keys()];
-    const deDuplicatedWindowTimes = [...new Set(baseWindowTimes)]
-      .filter(t => forcedInByWindow.has(t) || forcedOutByWindow.has(t) || !protectedGkWindows.some(gt => Math.abs(gt - t) <= PRACTICAL_GK_WINDOW_BUFFER_SECONDS))
-      .sort((a, b) => a - b);
-    baseWindowTimes.splice(0, baseWindowTimes.length, ...deDuplicatedWindowTimes);
-    baseWindowTimes.sort((a, b) => a - b);
+
+    // Unified window builder — single source of truth for cadence, blackouts,
+    // and forced-time merging across Standard / Frequent / Advanced.
+    const baseWindowTimes = buildSubWindows({
+      startAbs,
+      endAbs,
+      halfDurationSeconds,
+      targetIntervalSec: intervalSec,
+      intervalFloorSec: PRACTICAL_MIN_INTERVAL,
+      noSubBeforeSec: noSubBeforeSeconds,
+      noSubAfterSec: noSubAfterSeconds,
+      halftimeGuardSec: halftimeBlackoutSeconds,
+      halftimeGuardActive: true,
+      forcedTimes: forcedWindowTimes,
+      extraTimes: extraWindowTimes,
+      forcedBufferSec: PRACTICAL_GK_WINDOW_BUFFER_SECONDS,
+    });
 
     const onPitchOrder: string[] = outfieldOnPitch.map(p => p.id);
     const benchOrder: string[] = outfieldOnBench.map(p => p.id);
@@ -1393,19 +1384,26 @@ export function createSubPlan(
   // otherwise a player can come on at window N and be forced off at HT, producing
   // a sub-1-min "shift" that's impossible for the optimizer to remove because
   // the HT event is fixed.
-  const halftimeGuardActive =
-    startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn;
-  for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
-    if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
-    if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
-    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < halftimeGuardWindow) continue;
-    directEventTimes.add(Math.floor(t));
-  }
-  if (halftimeGuardActive) {
-    directEventTimes.add(halfDurationSeconds);
-  }
+  const halftimeGuardActive = !!(
+    startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn
+  );
 
-  const sortedDirectEventTimes = Array.from(directEventTimes).sort((a, b) => a - b);
+  // Unified window builder — same helper Standard uses, just with Frequent's
+  // numbers. Frequent has no settling-in window and a 45 s edge buffer.
+  const sortedDirectEventTimes = buildSubWindows({
+    startAbs: startAbsoluteSeconds,
+    endAbs: endAbsoluteSeconds,
+    halfDurationSeconds,
+    targetIntervalSec: maxIntervalSeconds,
+    intervalFloorSec: maxIntervalSeconds,
+    noSubBeforeSec: 0,
+    noSubAfterSec: 45,
+    halftimeGuardSec: halftimeGuardWindow,
+    halftimeGuardActive,
+    edgeBufferSec: 45,
+    includeHalftimeWhenGuardActive: true,
+  });
+
 
   const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
     if (player.isInjured) return false;

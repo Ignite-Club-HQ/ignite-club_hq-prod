@@ -1,106 +1,75 @@
-# Fairness-first substitution planner — phased rewrite
+## Phase 3 — Unified window builder
 
-The current planner is already partially fairness-aware but its logic is spread across ~700 lines of `createSubPlan` with mode-specific branches (Standard / Frequent / Light Frequent), bench-aware cadence shrinking, GK-protected runs, spread escalation, and anti-yo-yo guards. A safe rewrite needs to land in phases so each step is testable against the existing 12-scenario suite.
+### Goal
 
-## Goal
+Replace the two separate window-time generators (Standard ~lines 540–710, Frequent ~1380–1410) with a single `buildSubWindows(settings, context)` function so all three modes (Basic, Frequent, Advanced) flow through identical timing logic, driven only by the `eff` settings already resolved at the top of `createSubPlan`.
 
-A single planner core that:
+After Phase 3, the only real difference between modes is the values of `eff.*`, not the algorithm.
 
-1. Optimises **final outfield minutes fairness first**, smoothness second.
-2. Uses Basic / Frequent / Advanced settings as **inputs to the same algorithm** — the only difference between modes is the values fed in, not the logic.
-3. Produces deterministic plans for identical inputs.
-4. Keeps GK halftime swap, mid-game starts, mini-league per-team plans, position swaps, and minimum-shift protection intact.
+### What changes
 
-## Algorithm shape
+**1. New helper `buildSubWindows(...)` (in `src/components/pitch/planner/windows.ts`, re-exported from `AutoSubPlanDialog.tsx`).**
 
-```text
-target = (outfieldSlots × matchSeconds) / outfieldSquadSize
+Inputs:
+- `startAbs`, `endAbs`, `halfDurationSeconds`
+- `targetIntervalSec`, `intervalFloorSec`
+- `noSubBeforeSec`, `noSubAfterSec`
+- `halftimeGuardSec`, `halftimeGuardActive`
+- `forcedTimes: number[]` (e.g. GK-protected windows, halftime swap, fairness rescues)
 
-windows = evenly spaced by targetIntervalSec, snapped to floor,
-          excluding opening / closing / halftime guard zones,
-          shrunk if rotation cycle won't fit
+Output: `number[]` of absolute window times, deduped, sorted, blackout-filtered, with forced times always preserved.
 
-for each window:
-  advance minutesPlayed for everyone currently on pitch
-  pick batchSize subs:
-    OFF = on-pitch player with HIGHEST projected minutes,
-          who has been on ≥ minShift
-    ON  = bench-eligible player with LOWEST projected minutes
-    resolve position: direct match → swap chain → mismatch
-  escalate batchSize when current spread > maxSpread
-```
+Logic (single source of truth):
+1. Spread interval-driven candidates evenly between `startAbs + max(intervalFloor, 60)` and `endAbs - noSubAfter`, stepping by `targetInterval`.
+2. Drop any candidate inside settling-in (`< noSubBefore`) or end-of-half (`> halfDur - noSubAfter`) blackouts.
+3. Drop any candidate within `halftimeGuardSec` of HT when `halftimeGuardActive`.
+4. Add `forcedTimes` (unchanged — they bypass blackouts on purpose, like today's GK windows).
+5. Sort + dedupe within `intervalFloor / 2`.
 
-GK rotation runs as a separate fixed event at the start of H2 and is excluded from the outfield rotation pool except for the explicit "starting-GK plays outfield in H2" / "2H-GK plays outfield in H1" protected runs.
+**2. Effective settings table per mode.**
 
-## Phase plan
+Map current behaviour into the same `eff` shape so calls into `buildSubWindows` differ only in numbers:
 
-### Phase 1 — Extract & test the current planner (no behaviour change)
+| Setting | Standard (mode 1) | Frequent (mode 2) | Advanced |
+|---|---|---|---|
+| `targetIntervalSec` | `eff.standardTargetInterval` (default 420) | `max(eff.frequentIntervalFloor, totalRemaining / (targetWindowsTotal+1))` (default ~180–240) | user value |
+| `intervalFloorSec` | `eff.standardIntervalFloor` (default 240) | `eff.frequentIntervalFloor` (default 180) | user value |
+| `noSubBeforeSec` | 5 min (existing) | 2 min | user value |
+| `noSubAfterSec` | 2.5 min (existing) | 45 s | user value |
+| `halftimeGuardSec` | `eff.halftimeGuardSeconds ?? intervalFloor` | same | user value |
 
-- Move `createSubPlan` and its helpers into `src/components/pitch/planner/` (`createSubPlan.ts`, `selection.ts`, `windows.ts`, `gkRotation.ts`).
-- Re-export from `AutoSubPlanDialog.tsx` so callers/tests don't move.
-- Confirms baseline: 12/12 tests still green.
+`noSubBeforeSec` / `noSubAfterSec` become real fields on `AutoSubAdvancedOverrides` (they already exist as constants) so Advanced mode can tune them. Defaults preserve current Standard / Frequent behaviour exactly.
 
-### Phase 2 — Add a fairness-first core (`fairnessCore.ts`)
+**3. Wire-in points.**
 
-- New `pickSubsForWindow(state, settings)` that returns the OFF/ON pairs for a given window using projected-minutes scoring.
-- Wire it into the existing `createSubPlan` only for the per-window selection step. Keep the existing window construction, GK handling, and post-processing.
-- Re-run the 12 tests + the fairness matrix; tighten `spread ≤ 0.55 × matchMin` once Frequent-mode 5-a-side improves.
+- Standard branch: replace the `for (let t = …)` window loop (~lines 641–710 incl. GK rescue insertions) with `buildSubWindows(...)` plus the existing forced-GK time list passed in via `forcedTimes`. Bench-everyone synthetic windows (~line 990) stay where they are — they're a post-hoc patch on selection, not initial timing.
+- Frequent branch: replace `directEventTimes` construction (~lines 1389–1406) with the same call.
 
-### Phase 3 — Unified window builder
+**4. Tests.**
 
-- Replace the three mode-specific window blocks with one builder driven by settings:
-  - `targetIntervalSec` (mode-mapped)
-  - `intervalFloorSec` (mode-mapped: standard floor for Basic, frequent floor for Frequent)
-  - `noSubBeforeSec`, `noSubAfterSec`, `halftimeGuardSec`
-- Apply bench-aware shrink to the cycle that needs to fit, capped at floor.
-- Mode mapping table:
-  ```text
-  Basic:    target = standardTargetIntervalSec, floor = standardIntervalFloorSec, batch = 1–2
-  Frequent: target = max(frequentIntervalFloorSec × 1.5, standardTargetIntervalSec / 2),
-            floor  = frequentIntervalFloorSec, batch = 2
-  ```
+Add `src/components/pitch/planner/windows.test.ts`:
+- Settling-in / end-of-half blackouts respected.
+- Halftime guard suppresses windows within `halftimeGuardSec` of HT only when active.
+- Forced times always survive blackouts and dedupe.
+- `intervalFloor > targetInterval` is clamped (interval can never go below floor).
+- Snapshot the window list for 5v5 / 7v7 / 9v9 / 11v11 at 25/30/35/45-min halves under both Standard and Frequent — must match the windows produced by today's code (within ±5 s tolerance) so the existing 12 planner tests still pass.
 
-### Phase 4 — Spread-driven batch escalation
+### Out of scope (kept for later phases)
 
-- Compute `currentSpread` after each window.
-- If `currentSpread > maxSpreadSec` and remaining windows can't fix it, add either an extra sub at the current window (batch +1) or insert a rescue window halfway to the next planned window (respecting floor + HT guard).
-- Ensures the diagnostic "Uneven plan" warning rarely fires for normal squads.
+- Player selection inside each window (still uses today's queue + fairness logic — Phase 2 already touched this).
+- Spread-driven extra-window injection (Phase 4).
+- Diagnostic "why" string (Phase 5).
+- Test matrix expansion (Phase 6).
 
-### Phase 5 — Diagnostic feedback loop
+### Risk & rollback
 
-- After plan generation, surface the same projected min/max/spread back into the existing `FairnessDiagnostics` panel, plus a one-line "why" string from the planner explaining the binding constraint (e.g. "halftime guard prevented 1 sub", "minShift prevented 2 swaps").
-- Wire planner-emitted warnings into the panel.
+- `createSubPlan` signature unchanged; dialog/editor/simulator untouched.
+- If snapshot tests for Standard/Frequent diverge by more than ±5 s, revert to the per-mode loops behind a `USE_UNIFIED_WINDOWS = true` flag and ship Standard-only first.
+- All 12 existing planner tests + the fairness matrix from Phase 2 must stay green before merge.
 
-### Phase 6 — Test matrix expansion
+### Deliverables
 
-- Extend the existing fairness matrix to the full grid the previous turn requested:
-  - on-field: 4, 5, 6, 7, 8, 9, 10, 11
-  - bench: +0, +1, +2, +3, +4, +5
-  - half lengths: 10, 15, 20, 25, 30, 35, 45 minutes
-  - modes: Basic, Frequent
-  - GK swap: on / off
-- For each: assert no zero-minute players, spread within achievable bound, minShift respected, no duplicate on-pitch entries, no events outside match time.
-
-### Phase 7 — Settings consistency
-
-- Verify Basic and Frequent flows pass the same effective settings into the planner so coach changes in Advanced behave identically regardless of mode.
-- Add a small contract test: `createSubPlan(... mode 1, advancedOverrides X) === createSubPlan(... mode 1, undefined)` when `X` matches defaults.
-
-## Out of scope for this rewrite
-
-- Locked players / unavailable players (no schema for these today).
-- Position-rule presets beyond the existing `assignedPositions` list.
-- Court-board (basketball/netball) planner — separate code path.
-
-## Risk & rollout
-
-- Each phase keeps `createSubPlan`'s public signature intact, so the dialog, the editor, the simulator, and the existing tests stay valid.
-- After Phase 2 we can ship behind a feature check (`localStorage` flag) for a few days of real-coach validation before deleting the old per-window selection code in Phase 4.
-- Estimated work: 2–3 focused sessions per phase. Phase 6 alone adds ~200 test cases that need an order of magnitude more compute per CI run; we'll need to mark the full grid as a separate `vitest` project so it doesn't slow normal runs.
-
-## Asking before I start
-
-This is a multi-session refactor. Two questions:
-
-1. Are you OK with shipping Phase 1 + Phase 2 first (extraction + fairness-first per-window selection), behind no flag, validated by the existing tests? That's the smallest change that already produces "fairness-first" behaviour.
-2. Do you want the full Phase 6 test matrix (~200 cases) added as a separate slow test project, or keep the current 12-case sweep and rely on real-game feedback?
+1. `src/components/pitch/planner/windows.ts` (new).
+2. `src/components/pitch/planner/windows.test.ts` (new).
+3. `AutoSubPlanDialog.tsx` — Standard window loop and Frequent `directEventTimes` block both replaced with `buildSubWindows` calls; two new optional fields on `AutoSubAdvancedOverrides` (`noSubBeforeSec`, `noSubAfterSec`).
+4. No UI changes in this phase — Advanced sliders for the two new fields land in Phase 5 alongside the diagnostic string.
