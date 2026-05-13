@@ -1483,6 +1483,12 @@ export default function MediaPage() {
                     alt={photoText || "Photo"}
                     priority={index < 2}
                   />
+                  {photo._albumCount > 1 && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-0">
+                      <ImageIcon className="h-3 w-3" />
+                      <span>{photo._albumCount}</span>
+                    </div>
+                  )}
                   {isDeleting && (
                     <div className="absolute inset-0 flex items-center justify-center bg-background/50">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
