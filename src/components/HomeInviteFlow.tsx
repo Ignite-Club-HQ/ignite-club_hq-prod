@@ -227,9 +227,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   const showPicker =
     open &&
     (needsClubPick ||
-      filteredTeams.length > 1 ||
-      filteredLeagues.length > 1 ||
-      (filteredTeams.length >= 1 && filteredLeagues.length >= 1) ||
+      totalFiltered > 1 ||
       clubSelectedNoTargets);
 
   return (
