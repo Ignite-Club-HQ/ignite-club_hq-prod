@@ -2317,8 +2317,12 @@ function DialogInner({
   miniLeagueTeams?: MiniLeagueTeams;
   advancedOverrides?: AutoSubAdvancedOverrides;
 }) {
-  // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
-  const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
+  const isExistingPlanPlayable = !!existingPlan?.some(s => !s.executed && !s.skipped) &&
+    isPlanPlayableFromPlayers(players, existingPlan, minutesPerHalf * 60);
+  // Treat empty/stale existing plans as no plan so auto-generation kicks in.
+  // A stale plan can reference an impossible state after lineup changes, which
+  // made the forecast show bench players stuck on 0 minutes.
+  const effectiveExistingPlan = isExistingPlanPlayable ? existingPlan : undefined;
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
@@ -2415,8 +2419,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
-  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
+    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
 
   // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
   useEffect(() => { setFairnessReport(null); }, [plan]);
