@@ -161,7 +161,12 @@ export function ChatDetailsSheet({
                     }
                   />
                 )}
-                {(clubId || chatType === "club") && (
+                {miniLeagueId ? (
+                  <NavRow
+                    label="View mini-league page"
+                    onClick={() => handleNavigate(`/mini-leagues/${miniLeagueId}`)}
+                  />
+                ) : (clubId || chatType === "club") && (
                   <NavRow
                     label="View club page"
                     onClick={() => handleNavigate(`/clubs/${chatType === "club" ? chatId : clubId}`)}

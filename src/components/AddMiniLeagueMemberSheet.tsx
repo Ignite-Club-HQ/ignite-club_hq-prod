@@ -89,6 +89,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   const [debouncedParentQuery, setDebouncedParentQuery] = useState("");
   const [visualKeyboardInset, setVisualKeyboardInset] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const focusedInputRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedParentQuery(parentQuery), 250);
@@ -413,23 +414,42 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     return clubChildren.filter(c => c.name?.toLowerCase().includes(query)).slice(0, 6);
   };
 
-  const keepFocusedInputVisible = (element: HTMLElement) => {
+  const scrollFocusedInputIntoView = (element: HTMLElement | null) => {
+    const target = element ?? focusedInputRef.current;
     const container = scrollContainerRef.current;
-    if (!container) return;
+    if (!target || !container) return;
 
-    window.setTimeout(() => {
-      const inputRect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const keyboardTop = window.visualViewport
-        ? window.visualViewport.offsetTop + window.visualViewport.height
-        : window.innerHeight;
-      const visibleBottom = Math.min(containerRect.bottom, keyboardTop) - 24;
+    const inputRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const keyboardTop = window.visualViewport
+      ? window.visualViewport.offsetTop + window.visualViewport.height
+      : window.innerHeight;
+    const visibleBottom = Math.min(containerRect.bottom, keyboardTop) - 24;
 
-      if (inputRect.bottom > visibleBottom) {
-        container.scrollBy({ top: inputRect.bottom - visibleBottom, behavior: "smooth" });
-      }
-    }, 120);
+    if (inputRect.bottom > visibleBottom) {
+      container.scrollBy({ top: inputRect.bottom - visibleBottom, behavior: "smooth" });
+    }
   };
+
+  const keepFocusedInputVisible = (element: HTMLElement) => {
+    focusedInputRef.current = element;
+    // Multiple attempts because Android keyboard + viewport resize can take
+    // several hundred ms after focus before the visible area stabilises.
+    [60, 220, 450, 750].forEach((delay) => {
+      window.setTimeout(() => {
+        if (focusedInputRef.current === element) scrollFocusedInputIntoView(element);
+      }, delay);
+    });
+  };
+
+  // Re-scroll the focused input back into view whenever the keyboard
+  // inset changes (e.g. Android viewport resize, iOS visualViewport).
+  useEffect(() => {
+    if (!focusedInputRef.current) return;
+    const id = window.setTimeout(() => scrollFocusedInputIntoView(null), 50);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visualKeyboardInset, nativeKeyboardHeight]);
 
   const activePlayer = activeSearch ? players.find((player) => player.id === activeSearch.rowId) : undefined;
   const activeChildSuggestions = activeSearch?.field === "name" && activePlayer && !activePlayer.existingChildId
@@ -570,7 +590,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   setActiveSearch({ rowId: player.id, field: "name" });
                                   keepFocusedInputVisible(event.currentTarget);
                                 }}
-                                onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150)}
+                                onBlur={(event) => {
+                                  if (focusedInputRef.current === event.currentTarget) focusedInputRef.current = null;
+                                  setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150);
+                                }}
                                 onChange={(event) => updatePlayer(player.id, { name: event.target.value, existingChildId: undefined })}
                                 onPaste={idx === 0 ? (event) => {
                                   const text = event.clipboardData.getData("text");
@@ -641,7 +664,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                     setParentQuery(player.parentName);
                                     keepFocusedInputVisible(event.currentTarget);
                                   }}
-                                  onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150)}
+                                  onBlur={(event) => {
+                                    if (focusedInputRef.current === event.currentTarget) focusedInputRef.current = null;
+                                    setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150);
+                                  }}
                                   onChange={(event) => {
                                     updatePlayer(player.id, { parentName: event.target.value, existingParentUserId: undefined });
                                     setParentQuery(event.target.value);
