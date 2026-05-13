@@ -170,7 +170,6 @@ describe("createSubPlan — full fairness matrix (Phase 6)", () => {
                 `${label} yo-yo count exceeded tolerance`,
               ).toBeLessThanOrEqual(1);
             });
-            });
           }
         }
       }
