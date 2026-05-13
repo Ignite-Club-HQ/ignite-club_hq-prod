@@ -2300,7 +2300,11 @@ export function createSubPlan(
   // - Direct position match preferred; falls back to a 3rd-player swap.
   // - Each insertion must reduce the simulated spread.
   // ============================================================
-  const SPREAD_INJECTION_THRESHOLD = FAIRNESS_TOLERANCE * 2;
+  // Only inject when spread exceeds the user-set cap. The rebalance loop
+  // above already handles tighter (≥5 s) refinements via in-place swaps.
+  // Injection is heavier (adds a real sub event) so we reserve it for cases
+  // where the user's max-spread preference is actually being violated.
+  const SPREAD_INJECTION_THRESHOLD = Math.max(FAIRNESS_TOLERANCE * 4, maxSpreadMinutes * 60);
   const SPREAD_INJECTION_MIN_GAP_SEC = 90;
   const SPREAD_INJECTION_MAX_INSERTIONS = 4;
 
