@@ -1393,8 +1393,14 @@ export default function DirectMessagePage() {
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
             renderRow={(msg, index, arr) => {
+              const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = index === 0 ||
-                !isSameDay(new Date(msg.created_at), new Date(arr[index - 1]?.created_at));
+                !isSameDay(new Date(msg.created_at), new Date(prevMessage?.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(new Date(msg.created_at), new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
