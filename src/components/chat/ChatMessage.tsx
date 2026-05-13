@@ -826,7 +826,7 @@ function ChatMessageInner({
             messages so late profile hydration on first-ever open of a thread
             does not cause cumulative vertical layout shift (which the chat
             scroll-pin hook can never fully race — visible as a "jolt up"). */}
-        {isClubAnnouncement ? (
+        {isClubAnnouncement && !groupedWithPrev ? (
           <button
             type="button"
             onClick={(e) => {
@@ -838,7 +838,7 @@ function ChatMessageInner({
           >
             {displayName || "Club"}
           </button>
-        ) : !isOwn ? (
+        ) : !isOwn && !isClubAnnouncement && !groupedWithPrev ? (
           <button
             type="button"
             onClick={(e) => {
