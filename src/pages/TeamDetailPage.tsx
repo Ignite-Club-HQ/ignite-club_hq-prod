@@ -951,28 +951,6 @@ export default function TeamDetailPage() {
         />
       )}
 
-      {/* Team Leaderboard Rank */}
-      {teamLeaderboardRow && (
-        <Link to="/leaderboard" aria-label="View team leaderboard" className="block">
-          <Card className="border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 to-transparent hover:border-yellow-500/40 transition-colors" role="button">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="text-lg font-bold w-10 text-center tabular-nums shrink-0">
-                {teamLeaderboardRow.rank === 1 ? "🥇" : teamLeaderboardRow.rank === 2 ? "🥈" : teamLeaderboardRow.rank === 3 ? "🥉" : `#${teamLeaderboardRow.rank}`}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{teamLeaderboardRow.team_name}</p>
-                <p className="text-xs text-muted-foreground">Ranked {teamLeaderboardRow.rank === 1 ? "1st" : teamLeaderboardRow.rank === 2 ? "2nd" : teamLeaderboardRow.rank === 3 ? "3rd" : `${teamLeaderboardRow.rank}th`} in club</p>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Trophy className="h-4 w-4 text-yellow-500" aria-hidden="true" />
-                <span className="text-sm font-bold tabular-nums">{teamLeaderboardRow.points}</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </CardContent>
-          </Card>
-        </Link>
-      )}
-
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
