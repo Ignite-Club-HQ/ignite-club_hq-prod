@@ -2282,11 +2282,185 @@ export function createSubPlan(
     plan[bestEdit.index] = bestEdit.replacement;
   }
 
-  plan.sort((a, b) => {
-    if (a.half !== b.half) return a.half - b.half;
-    return a.time - b.time;
-  });
-  
+  // ============================================================
+  // PHASE 4 — Spread-driven extra-window injection.
+  // ------------------------------------------------------------
+  // The rebalance loop above can only REPLACE existing sub events. When the
+  // residual spread is caused by an under-played player who never appears as
+  // a candidate `playerIn` in any existing window (e.g. a bench player whose
+  // assigned positions don't overlap with anyone currently being subbed off),
+  // no swap can fix them. Here we try to INSERT a brand-new sub event in a
+  // quiet gap so the under-played player gets on the pitch.
+  //
+  // Constraints:
+  // - Only fires when residual spread > 2× FAIRNESS_TOLERANCE (≥10 s today).
+  // - New window must respect a 90-s minimum gap from neighbouring subs.
+  // - New window must not cross the half boundary.
+  // - The over-played player must actually be on pitch in the candidate gap.
+  // - Direct position match preferred; falls back to a 3rd-player swap.
+  // - Each insertion must reduce the simulated spread.
+  // ============================================================
+  // Only inject when spread exceeds the user-set cap. The rebalance loop
+  // above already handles tighter (≥5 s) refinements via in-place swaps.
+  // Injection is heavier (adds a real sub event) so we reserve it for cases
+  // where the user's max-spread preference is actually being violated.
+  const SPREAD_INJECTION_THRESHOLD = Math.max(FAIRNESS_TOLERANCE * 4, maxSpreadMinutes * 60 * 1.5);
+  const SPREAD_INJECTION_MIN_GAP_SEC = 90;
+  const SPREAD_INJECTION_MAX_INSERTIONS = 4;
+
+  const subAbsSeconds = (s: SubstitutionEvent) =>
+    s.half === 1 ? s.time : halfDurationSeconds + s.time;
+
+  for (let inj = 0; inj < SPREAD_INJECTION_MAX_INSERTIONS; inj++) {
+    sortPlan();
+    const sim = simulateOutfieldPlan(plan);
+    if (!sim.valid) break;
+    const ftimes = fairnessTargets.map(p => ({ id: p.id, t: totalProjectedSeconds(sim.times, p.id) }));
+    if (ftimes.length < 2) break;
+    ftimes.sort((a, b) => b.t - a.t);
+    const over = ftimes[0];
+    const under = ftimes[ftimes.length - 1];
+    const currentSpread = over.t - under.t;
+    if (currentSpread <= SPREAD_INJECTION_THRESHOLD) break;
+
+    const overPlayer = getPlayer(over.id);
+    const underPlayer = getPlayer(under.id);
+    if (!overPlayer || !underPlayer) break;
+
+    // Build the list of candidate gaps from existing sub timings. Each gap is
+    // [prevAbs, nextAbs] within the same half, plus a synthetic final gap up
+    // to end-of-game and an initial gap from start.
+    type Gap = { startAbs: number; endAbs: number; insertAfterIndex: number; half: 1 | 2; pitchBefore: Map<string, PitchPosition> };
+    const gaps: Gap[] = [];
+    const startAbsLocal = startHalf === 1 ? startElapsedSeconds : halfDurationSeconds + startElapsedSeconds;
+    const endAbsLocal = halfDurationSeconds * 2;
+
+    // Initial pitch state at startAbs — read from sim's first snapshot if any,
+    // otherwise reconstruct from outfieldOnPitch.
+    const initialPitch = new Map<string, PitchPosition>();
+    outfieldOnPitch.forEach(p => initialPitch.set(p.id, p.currentPitchPosition as PitchPosition));
+
+    let prevAbs = startAbsLocal;
+    let prevHalf: 1 | 2 = startHalf;
+    let prevPitch = new Map(initialPitch);
+    for (let i = 0; i <= sim.snapshots.length; i++) {
+      const snap = sim.snapshots[i];
+      const nextAbs = snap ? subAbsSeconds(snap.sub) : endAbsLocal;
+      const nextHalf = snap ? snap.sub.half : (2 as const);
+      // Only consider intra-half gaps (avoid HT crossings — too fiddly).
+      if (prevHalf === nextHalf && nextAbs - prevAbs >= SPREAD_INJECTION_MIN_GAP_SEC * 2 + 30) {
+        gaps.push({
+          startAbs: prevAbs,
+          endAbs: nextAbs,
+          insertAfterIndex: i - 1, // -1 means insert at front
+          half: prevHalf,
+          pitchBefore: new Map(prevPitch),
+        });
+      }
+      if (snap) {
+        prevAbs = subAbsSeconds(snap.sub);
+        prevHalf = snap.sub.half;
+        // Apply this sub to pitch state for the next gap.
+        const outPos = prevPitch.get(snap.sub.playerOut.id);
+        prevPitch.delete(snap.sub.playerOut.id);
+        if (snap.sub.positionSwap && outPos) {
+          const swapFromPos = prevPitch.get(snap.sub.positionSwap.player.id);
+          if (swapFromPos) {
+            prevPitch.set(snap.sub.playerIn.id, swapFromPos);
+            prevPitch.set(snap.sub.positionSwap.player.id, outPos);
+          }
+        } else if (outPos) {
+          prevPitch.set(snap.sub.playerIn.id, outPos);
+        }
+      }
+    }
+
+    let bestInsertion: { sub: SubstitutionEvent; insertAfterIndex: number; spread: number } | null = null;
+
+    for (const gap of gaps) {
+      // Need over on pitch and under NOT on pitch in this gap.
+      const overPos = gap.pitchBefore.get(over.id);
+      if (!overPos) continue;
+      if (gap.pitchBefore.has(under.id)) continue;
+
+      // Pick midpoint, snap to integer, respect min-gap from both ends.
+      const tAbs = Math.floor((gap.startAbs + gap.endAbs) / 2);
+      if (tAbs - gap.startAbs < SPREAD_INJECTION_MIN_GAP_SEC) continue;
+      if (gap.endAbs - tAbs < SPREAD_INJECTION_MIN_GAP_SEC) continue;
+      const tInHalf = gap.half === 1 ? tAbs : tAbs - halfDurationSeconds;
+      if (tInHalf <= 0) continue;
+
+      const candidates: SubstitutionEvent[] = [];
+      // Direct match.
+      if (canPlayPosition(underPlayer, overPos)) {
+        candidates.push({
+          time: tInHalf,
+          half: gap.half,
+          playerOut: overPlayer,
+          playerIn: underPlayer,
+          executed: false,
+        });
+      }
+      // Swap fallback via a 3rd on-pitch player.
+      if (!disablePositionSwaps) {
+        for (const [qId, qPos] of gap.pitchBefore.entries()) {
+          if (qId === over.id || qId === under.id) continue;
+          if (!canPlayPosition(underPlayer, qPos)) continue;
+          const qPlayer = getPlayer(qId);
+          if (!qPlayer || !canPlayPosition(qPlayer, overPos)) continue;
+          candidates.push({
+            time: tInHalf,
+            half: gap.half,
+            playerOut: overPlayer,
+            playerIn: underPlayer,
+            executed: false,
+            positionSwap: { player: qPlayer, fromPosition: qPos, toPosition: overPos },
+          });
+        }
+      }
+
+      for (const cand of candidates) {
+        const trialPlan = [...plan, cand];
+        trialPlan.sort((a, b) => {
+          if (a.half !== b.half) return a.half - b.half;
+          if (a.time !== b.time) return a.time - b.time;
+          if (isHalftimeGkSwapSub(a) !== isHalftimeGkSwapSub(b)) {
+            return isHalftimeGkSwapSub(a) ? -1 : 1;
+          }
+          return 0;
+        });
+        const trial = simulateOutfieldPlan(trialPlan);
+        if (!trial.valid) continue;
+        const trialSpread = fairnessSpread(trial.times);
+        // Hard guard: no individual fairness target may lose more than 60 s
+        // of projected playing time as a side effect. Without this, the
+        // injection can solve "high vs zero" by quietly downgrading an
+        // already-fine middle player below the 75 % floor.
+        const REGRESSION_LIMIT = 60;
+        let regressed = false;
+        for (const p of fairnessTargets) {
+          const before = totalProjectedSeconds(sim.times, p.id);
+          const after = totalProjectedSeconds(trial.times, p.id);
+          if (after < before - REGRESSION_LIMIT) {
+            regressed = true;
+            break;
+          }
+        }
+        if (regressed) continue;
+        // Only commit if injection brings spread inside the user cap AND
+        // strictly improves the current best.
+        if (trialSpread <= maxSpreadMinutes * 60 && trialSpread < (bestInsertion?.spread ?? currentSpread)) {
+          bestInsertion = { sub: cand, insertAfterIndex: gap.insertAfterIndex, spread: trialSpread };
+        }
+      }
+    }
+
+    if (!bestInsertion) break;
+    plan.push(bestInsertion.sub);
+  }
+
+  sortPlan();
+
   return plan;
 }
 
