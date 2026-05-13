@@ -1290,7 +1290,7 @@ export default function DirectMessagePage() {
               <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
+              <h1 className="font-semibold">{otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User")}</h1>
             </div>
           </div>
         </div>
