@@ -2294,12 +2294,17 @@ function DialogInner({
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
   
+  // Effective max-spread: panel override (in seconds) wins over the prop.
+  const effectiveMaxSpreadMinutes = effectiveOverrides.maxSpreadOverrideSec !== undefined
+    ? effectiveOverrides.maxSpreadOverrideSec / 60
+    : maxSpreadMinutes;
+
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, maxSpreadMinutes, effectiveOverrides);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -2333,7 +2338,7 @@ function DialogInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     rotationSpeed,
-    maxSpreadMinutes,
+    effectiveMaxSpreadMinutes,
     minutesPerHalf,
     disablePositionSwaps,
     disableBatchSubs,
