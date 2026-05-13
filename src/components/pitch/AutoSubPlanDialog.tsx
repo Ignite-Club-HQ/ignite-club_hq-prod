@@ -487,11 +487,23 @@ export function createSubPlan(
     const cadenceForCycle = totalRemainingSeconds > 0 && cycleWindowsNeeded > 0
       ? Math.floor(totalRemainingSeconds / (cycleWindowsNeeded + 1))
       : eff.standardTargetInterval;
-    const PRACTICAL_MIN_INTERVAL = eff.standardIntervalFloor; // floor for Standard windows
+    const PRACTICAL_MIN_INTERVAL = Math.min(
+      eff.standardIntervalFloor,
+      Math.max(90, Math.floor(cadenceForCycle || eff.standardIntervalFloor)),
+    ); // Short games / large benches must not be starved by a fixed 4-min floor.
     const intervalSec = Math.max(
       PRACTICAL_MIN_INTERVAL,
       Math.min(eff.standardTargetInterval, cadenceForCycle)
     );
+    const noSubBeforeSeconds = Math.min(
+      PRACTICAL_NO_SUB_BEFORE_SECONDS,
+      Math.max(60, Math.floor(halfDurationSeconds * 0.2)),
+    );
+    const noSubAfterSeconds = Math.min(
+      PRACTICAL_NO_SUB_AFTER_SECONDS,
+      Math.max(45, Math.floor(halfDurationSeconds * 0.12)),
+    );
+    const halftimeBlackoutSeconds = Math.min(90, Math.max(30, Math.floor(intervalSec * 0.5)));
 
     // ---- Fairness model ------------------------------------------------------
     // targetSec = (gameDuration × playersOnField) / totalPlayers
@@ -521,7 +533,7 @@ export function createSubPlan(
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
-    outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
+    outfieldPlayers.forEach(p => projected.set(p.id, p.minutesPlayed || 0));
     if (gkOnPitch && startHalf === 1) {
       projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
     }
@@ -542,6 +554,10 @@ export function createSubPlan(
     };
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
+    const needsProtectedOutfieldRun = (id: string) => {
+      const guaranteedGkSeconds = id === gkOnPitch?.id || id === halftimeGkIn?.id ? halfDurationSeconds : 0;
+      return guaranteedGkSeconds < targetSecPerPlayer - (maxSpreadMinutes * 60) / 2;
+    };
     // GKs already get a guaranteed 20 min in goal — that's the priority. Do
     // NOT add an additional outfield bonus on top, or their total minutes
     // balloon past the cap and starve bench players (creating large spreads).
@@ -560,22 +576,22 @@ export function createSubPlan(
     // Rules: no subs before minute 5 from kickoff, none in last ~2.5 min of
     // each half, none right around halftime. ~7 min cadence keeps things
     // predictable and lands us in the 8–14 total subs sweet spot.
-    const earliestAbs = Math.max(startAbs + 60, PRACTICAL_NO_SUB_BEFORE_SECONDS);
+    const earliestAbs = Math.max(startAbs + 60, noSubBeforeSeconds);
     const isInBlackout = (t: number) => {
       // Last N seconds of half 1
-      if (t > halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && t <= halfDurationSeconds) return true;
+      if (t > halfDurationSeconds - noSubAfterSeconds && t <= halfDurationSeconds) return true;
       // Last N seconds of half 2
-      if (t > endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS) return true;
+      if (t > endAbs - noSubAfterSeconds) return true;
       // Right around halftime
-      if (Math.abs(t - halfDurationSeconds) < 90) return true;
+      if (Math.abs(t - halfDurationSeconds) < halftimeBlackoutSeconds) return true;
       // Before settling-in window in either half
-      if (t < PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
-      if (t > halfDurationSeconds && t < halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
+      if (t < noSubBeforeSeconds) return true;
+      if (t > halfDurationSeconds && t < halfDurationSeconds + noSubBeforeSeconds) return true;
       return false;
     };
 
     const baseWindowTimes: number[] = [];
-    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS; t += intervalSec) {
+    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - noSubAfterSeconds; t += intervalSec) {
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
@@ -588,7 +604,7 @@ export function createSubPlan(
     const forcedInByWindow = new Map<number, string>();
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
-    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
+    if (halftimeGkIn && needsProtectedOutfieldRun(halftimeGkIn.id) && startHalf === 1 && halfDurationSeconds > 12 * 60) {
       // Bring the 2H GK on outfield as early as possible in 1H and keep them
       // on as long as possible (sub off ~2 min before HT). This pushes them
       // toward the top of the allowed spread without breaching it.
@@ -596,8 +612,8 @@ export function createSubPlan(
       // GK-protected players are exempt from the bench-once rule and should
       // sit at the top of the spread. Push the 2H GK's 1H outfield run as
       // close to halftime as possible (HT-2 for tiny squads, HT-3 otherwise).
-      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOffOffset = tinySquad ? 2 * 60 : 3 * 60;
+      const h1GkOn = noSubBeforeSeconds;
+      const h1GkOffOffset = tinySquad ? noSubAfterSeconds : Math.max(noSubAfterSeconds, Math.min(3 * 60, intervalSec));
       const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       // Forced GK windows bypass blackout: GK-protected runs take priority
@@ -616,12 +632,12 @@ export function createSubPlan(
     // top of the allowed spread. Bring them on shortly after HT; let the
     // normal scheduler decide when they come off (no forced-out) so other
     // outfielders still get adequate rotation in H2.
-    if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
+    if (includeStartingGkInRotation && gkOnPitch && needsProtectedOutfieldRun(gkOnPitch.id) && halfDurationSeconds > 12 * 60) {
       // GK-protected: bring 1H GK on outfield as soon as the post-HT blackout
       // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
       // banks more outfield minutes and finishes near the top of the spread.
       const tinySquad = outfieldOnBench.length <= 2;
-      const h2GkOnOffset = tinySquad ? 2 * 60 : PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h2GkOnOffset = tinySquad ? Math.min(2 * 60, noSubBeforeSeconds) : noSubBeforeSeconds;
       const h2GkOn = halfDurationSeconds + h2GkOnOffset;
       if (h2GkOn > startAbs) {
         baseWindowTimes.push(Math.floor(h2GkOn));
@@ -630,8 +646,12 @@ export function createSubPlan(
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
       const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
-      if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
+      if (h2FairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2FairnessRescue)) {
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
+      }
+      const h2LateFairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.72);
+      if (h2LateFairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2LateFairnessRescue)) {
+        baseWindowTimes.push(Math.floor(h2LateFairnessRescue));
       }
     }
     // Tiny squads (≤2 bench): the forced 2H-GK 1H window already eats 2 of the
@@ -639,7 +659,7 @@ export function createSubPlan(
     // who play full 1H still get pulled off in 2H.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
       const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
-      if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
+      if (h2R < endAbs - noSubAfterSeconds && !isInBlackout(h2R)) {
         baseWindowTimes.push(h2R);
       }
     }
@@ -739,7 +759,7 @@ export function createSubPlan(
         // non-GK-protected player off so the GK-protected one keeps banking
         // outfield minutes toward the top of the spread.
         const gkProtectedOnPitchBelowCeiling = onPitchOrder.some(
-          id => isGkProtected(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
+          id => isGkProtected(id) && needsProtectedOutfieldRun(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
         );
 
         const overCap = onPitchOrder
@@ -755,7 +775,7 @@ export function createSubPlan(
           // Don't pull a GK-protected player off via over-cap until they've
           // reached the top of the allowed spread (gkCeilingSec). Their
           // outfield run should land them at equal-highest minutes.
-          .filter(id => !isGkProtected(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
+          .filter(id => !isGkProtected(id) || !needsProtectedOutfieldRun(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
             // GK-protected promotion: prefer pulling non-GK-protected first
@@ -801,7 +821,7 @@ export function createSubPlan(
               if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
               // Don't sub off a GK-protected player while they're still below
               // their ceiling — they need to finish at the top of the spread.
-              if (isGkProtected(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
+              if (isGkProtected(candidate) && needsProtectedOutfieldRun(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
               if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
               if (!allowRecentSub) {
                 const onAt = lastSubbedOnAbs.get(candidate);
@@ -932,8 +952,8 @@ export function createSubPlan(
         const lastScheduled = pendingWindows.length > 0 ? pendingWindows[pendingWindows.length - 1] : t;
         for (let k = 1; k <= deficit; k++) {
           const extra = Math.min(
-            lastScheduled + k * 2 * 60,
-            endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS,
+            lastScheduled + k * Math.max(90, Math.min(2 * 60, intervalSec)),
+            endAbs - noSubAfterSeconds,
           );
           if (extra > t && !pendingWindows.includes(extra)) {
             pendingWindows.push(extra);
@@ -1291,8 +1311,8 @@ export function createSubPlan(
     // LIGHT FREQUENT: cap escalation tighter so we don't pile on extra cycles.
     // Frequent (speed=2) tops out at +1 cycle; Fast (speed=3) keeps the higher
     // ceiling for tight-spread scenarios.
-    const escalationCeiling = rotationSpeed === 3 ? 6 : 3;
-    const escalationBoost = rotationSpeed === 3 ? 2 : 1;
+    const escalationCeiling = rotationSpeed === 3 ? 6 : 2;
+    const escalationBoost = rotationSpeed === 3 ? 2 : 0;
     cycleMultiplier = Math.min(
       escalationCeiling,
       Math.max(cycleMultiplier, Math.ceil(estimatedResidualSpread / targetSpreadSeconds) + escalationBoost)
@@ -1313,9 +1333,11 @@ export function createSubPlan(
   // LIGHT FREQUENT: raise the floor for speed=2 from 120s to 180s so shifts
   // are noticeably longer than current Frequent (~3 min vs ~2 min) while
   // still rotating much more often than Standard (~5 min).
-  const minIntervalFloor = rotationSpeed === 3 ? 90 : eff.frequentIntervalFloor;
-  const halftimeGuardWindow = eff.halftimeGuardSeconds ?? minIntervalFloor;
   const intervalFromWindows = totalRemainingSeconds / (targetWindowsTotal + 1);
+  const minIntervalFloor = rotationSpeed === 3
+    ? 90
+    : Math.min(eff.frequentIntervalFloor, Math.max(60, Math.floor(intervalFromWindows)));
+  const halftimeGuardWindow = eff.halftimeGuardSeconds ?? minIntervalFloor;
   const maxIntervalSeconds = Math.max(minIntervalFloor, Math.floor(intervalFromWindows));
   const directEventTimes = new Set<number>();
 
