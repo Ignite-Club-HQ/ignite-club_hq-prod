@@ -87,6 +87,13 @@ export interface ChatMessageProps {
   isPublishedToGallery?: boolean;
   isPublishingToGallery?: boolean;
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
+  /** True when the previous message is from the same author within the
+   *  grouping window — drop avatar/name and flatten the top corner. */
+  groupedWithPrev?: boolean;
+  /** True when the next message is from the same author within the
+   *  grouping window — flatten the bottom corner and hide the per-bubble
+   *  timestamp / read-receipt strip until the last message in the group. */
+  groupedWithNext?: boolean;
 }
 
 function ChatMessageInner({
