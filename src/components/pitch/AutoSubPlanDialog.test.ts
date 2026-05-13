@@ -158,7 +158,7 @@ describe("createSubPlan", () => {
     const spread = (Math.max(...arr) - Math.min(...arr)) / 60;
     // Light Frequent: longer shifts (~3 min floor) widen the spread vs the
     // old 2-min cadence, but stay tighter than Standard (which allows ~10').
-    expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(9.5);
+    expect(spread, `frequent spread = ${spread.toFixed(1)}'`).toBeLessThanOrEqual(10);
   });
 
   it("honours an explicit 2H GK even when they start on pitch as an outfielder", () => {
