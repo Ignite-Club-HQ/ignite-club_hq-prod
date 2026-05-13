@@ -128,15 +128,21 @@ export function AlbumCarousel({
           "flex w-full overflow-x-auto overflow-y-hidden",
           "snap-x snap-mandatory scroll-smooth",
           "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-          "touch-pan-x",
         )}
-        style={{ scrollSnapType: "x mandatory" }}
+        style={{
+          scrollSnapType: "x mandatory",
+          // Allow both axes — browser axis-locks the gesture so vertical feed
+          // scroll still works when the touch starts on the image.
+          touchAction: "pan-x pan-y",
+          overscrollBehaviorX: "contain",
+          WebkitOverflowScrolling: "touch",
+        }}
       >
         {photos.map((p, i) => (
           <div
             key={p.id}
-            className="relative shrink-0 basis-full snap-center aspect-square bg-muted cursor-pointer"
-            style={{ scrollSnapAlign: "center" }}
+            className="relative shrink-0 w-full snap-center aspect-square bg-muted cursor-pointer"
+            style={{ scrollSnapAlign: "center", minWidth: "100%" }}
           >
             <LazyImage
               src={p.file_url || p.image_url}
