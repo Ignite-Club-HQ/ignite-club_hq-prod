@@ -1200,10 +1200,11 @@ export function createSubPlan(
       plan.splice(bestRemoval.index, 1);
     }
 
-    return plan.sort((a, b) =>
+    const sortedStandard = plan.sort((a, b) =>
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
     );
+    return ensureNoStarvedPlayers(sortedStandard, playerData, halfDurationSeconds);
   }
   // ===========================================================================
   // BALANCED / FREQUENT MODES — fairness-driven planner below.
