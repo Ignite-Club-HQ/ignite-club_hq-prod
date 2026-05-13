@@ -645,6 +645,8 @@ export default function EditEventPage() {
       // Refresh event-derived caches so the pitch board picks up the new
       // start_time / opponent / title without waiting for staleTime.
       queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch"] });
+      queryClient.invalidateQueries({ queryKey: ["pitch-board-going-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["event", id] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
