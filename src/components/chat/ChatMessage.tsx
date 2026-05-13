@@ -1055,26 +1055,33 @@ function ChatMessageInner({
           onReactionClick={handleReactionClick}
         />
         
-        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
-          {isPending && (
-            <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
-              <Clock className="h-3 w-3" />
-            </span>
-          )}
-          {timestamp}
-          {!isPending && !isLastMessage && isOwn && readCount > 0 && (
-            messageType === "dm" ? (
-              <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-            ) : (
-              <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
-                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+        {/* Per-bubble timestamp / inline read-state. Hidden on grouped
+            follow-ups (groupedWithNext) so only the LAST bubble in a
+            sender's burst carries the metadata — keeps the thread quiet
+            and content-first. The standalone "isLastMessage" frontier
+            block below still always renders for the chat tail. */}
+        {!groupedWithNext && (
+          <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
+            {isPending && (
+              <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
+                <Clock className="h-3 w-3" />
               </span>
-            )
-          )}
-          {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
-            <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
-          )}
-        </p>
+            )}
+            {timestamp}
+            {!isPending && !isLastMessage && isOwn && readCount > 0 && (
+              messageType === "dm" ? (
+                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+              ) : (
+                <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                  <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                </span>
+              )
+            )}
+            {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
+              <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+            )}
+          </p>
+        )}
         {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
           readFrontierReaders.length > 0
             ? (messageType === "dm"
