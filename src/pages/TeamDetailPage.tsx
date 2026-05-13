@@ -570,24 +570,6 @@ export default function TeamDetailPage() {
   const showWatchLive =
     !!activeGame && (liveSport === "basketball" || liveSport === "netball") && !showPitchBoard;
 
-  // Fetch team leaderboard rank within the club
-  const { data: teamLeaderboardRow } = useQuery({
-    queryKey: ["team-leaderboard-rank", team?.club_id, id],
-    queryFn: async () => {
-      if (!team?.club_id || !id) return null;
-      const { data, error } = await supabase.rpc("get_teams_leaderboard", {
-        _club_id: team.club_id,
-        _window: "all",
-        _limit: 50,
-      });
-      if (error) throw error;
-      return (data ?? []).find((r: any) => r.team_id === id) as { rank: number; team_id: string; team_name: string; points: number } | undefined ?? null;
-    },
-    enabled: !!team?.club_id && !!id,
-    staleTime: 5 * 60 * 1000,
-  });
-
-
   // Fetch pending invites for this team
   const { data: pendingInvites = [] } = useQuery({
     queryKey: ["pending-invites", id, null],
