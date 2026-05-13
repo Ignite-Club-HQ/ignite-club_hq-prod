@@ -53,17 +53,32 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       const allClubIds = [...new Set(roles.map(r => r.club_id).filter(Boolean))] as string[];
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
-      // Clubs where user can manage mini-league members (league_admin / app_admin)
+      // Clubs where user can manage mini-league members club-wide
+      // (mirrors MiniLeagueDetailPage.canManageLeague club-wide check)
+      const MANAGE_ROLES = new Set([
+        "club_admin",
+        "league_admin",
+        "coach",
+        "committee_member",
+        "app_admin",
+      ]);
       const leagueAdminClubIds = [
         ...new Set(
           roles
-            .filter(r => r.role === "league_admin" || r.role === "app_admin")
+            .filter(r => MANAGE_ROLES.has(r.role as string))
             .map(r => r.club_id)
             .filter(Boolean)
         ),
       ] as string[];
 
-      const [teamsRes, clubsRes, leaguesRes] = await Promise.all([
+      // Per-league grants from mini_league_admins
+      const { data: scopedAdmins } = await supabase
+        .from("mini_league_admins")
+        .select("mini_league_id")
+        .eq("user_id", user!.id);
+      const scopedLeagueIds = (scopedAdmins || []).map(r => r.mini_league_id).filter(Boolean) as string[];
+
+      const [teamsRes, clubsRes, clubLeaguesRes, scopedLeaguesRes] = await Promise.all([
         teamIds.length
           ? supabase
               .from("teams")
@@ -79,11 +94,37 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               .select("id, name, club_id")
               .in("club_id", leagueAdminClubIds)
           : Promise.resolve({ data: [] as any[] }),
+        scopedLeagueIds.length
+          ? supabase
+              .from("mini_leagues")
+              .select("id, name, club_id")
+              .in("id", scopedLeagueIds)
+          : Promise.resolve({ data: [] as any[] }),
       ]);
 
       const teams = (teamsRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
       const clubs = (clubsRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
-      const miniLeagues = (leaguesRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const leagueMap = new Map<string, any>();
+      [...(clubLeaguesRes.data || []), ...(scopedLeaguesRes.data || [])].forEach((l: any) => {
+        leagueMap.set(l.id, l);
+      });
+      const miniLeagues = [...leagueMap.values()].sort((a: any, b: any) =>
+        a.name.localeCompare(b.name)
+      );
+
+      // Ensure clubs list includes any club referenced by an accessible mini-league
+      const knownClubIds = new Set(clubs.map((c: any) => c.id));
+      const missingClubIds = miniLeagues
+        .map(l => l.club_id)
+        .filter((cid): cid is string => !!cid && !knownClubIds.has(cid));
+      if (missingClubIds.length) {
+        const { data: extraClubs } = await supabase
+          .from("clubs")
+          .select("id, name")
+          .in("id", [...new Set(missingClubIds)]);
+        (extraClubs || []).forEach((c: any) => clubs.push(c));
+        clubs.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      }
 
       return { teams, clubs, miniLeagues };
     },
