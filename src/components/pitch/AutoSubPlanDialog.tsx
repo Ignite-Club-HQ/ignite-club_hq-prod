@@ -2604,6 +2604,17 @@ function DialogInner({
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
               </p>
 
+              {/* Always-on fairness diagnostics derived from forecasts */}
+              <FairnessDiagnostics
+                forecasts={forecasts}
+                teamSize={teamSize}
+                squadSize={players.length}
+                matchMinutes={minutesPerHalf * 2}
+                minShiftSeconds={effectiveOverrides.minShiftSeconds ?? 180}
+                rotateGkAtHalftime={rotateGkAtHalftime ?? true}
+                mode={rotationSpeed === 2 ? "Frequent" : "Standard"}
+              />
+
               {/* Fairness Simulator — one-click preview of plan quality */}
               <FairnessSimulatorPanel
                 report={fairnessReport}
