@@ -186,4 +186,41 @@ describe("createSubPlan", () => {
     expect(halftimeSwap?.playerIn.id).toBe("Tom");
     expect(halftimeSwap?.playerIn.id).not.toBe("Maximus");
   });
+
+  it("prevents short-game large-bench plans from leaving players barely used", () => {
+    const players = [
+      makePlayer("Ellis", "GK"),
+      makePlayer("Emery", "DEF"),
+      makePlayer("Finley", "DEF"),
+      makePlayer("P4", "MID"),
+      makePlayer("Harper", "MID"),
+      makePlayer("Haven", null),
+      makePlayer("Hayden", null),
+      makePlayer("Indigo", null),
+      makePlayer("P9", "FWD"),
+      makePlayer("P10", "FWD"),
+      makePlayer("Jordan H", null),
+      makePlayer("Jordan W", null),
+      makePlayer("Jordan T", null),
+    ];
+    players.forEach(p => {
+      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
+        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+      }
+    });
+    players[1].assignedPositions = ["GK", "DEF", "MID", "FWD"] as PitchPosition[];
+
+    const halfSec = 10 * 60;
+    for (const speed of [1, 2]) {
+      const plan = createSubPlan(players as any, 7, halfSec, speed, false, false, true, 0, 1, "Emery", 5);
+      const totals = simulateTotals(players, plan, halfSec);
+      const values = [...totals.values()];
+      const min = Math.min(...values);
+      const spread = Math.max(...values) - min;
+
+      expect(min, `mode ${speed} minimum minutes`).toBeGreaterThanOrEqual(8 * 60);
+      expect(spread / 60, `mode ${speed} spread`).toBeLessThanOrEqual(6);
+      expect([...totals.entries()].filter(([, sec]) => sec === 0)).toEqual([]);
+    }
+  });
 });
