@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
+import { Image, Image as ImageIcon, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -506,7 +506,7 @@ export default function MediaPage() {
       diagLog("photos:start", { pageParam });
       let query = supabase
         .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, album_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null);
 
@@ -706,6 +706,28 @@ export default function MediaPage() {
       });
     }
     
+    // Group photos uploaded together (same album_id) into a single feed
+    // entry: keep the cover (first/oldest by created_at, but since the
+    // server returns DESC we keep the most recent — both work as a stable
+    // representative) and attach an `_albumCount` so the grid can render a
+    // "+N" badge. Cards with no album_id are kept as-is.
+    if (!cardId) {
+      const seenAlbums = new Set<string>();
+      const albumCounts = new Map<string, number>();
+      filtered.forEach((p: any) => {
+        if (p.album_id) albumCounts.set(p.album_id, (albumCounts.get(p.album_id) ?? 0) + 1);
+      });
+      filtered = filtered.filter((p: any) => {
+        if (!p.album_id) return true;
+        if (seenAlbums.has(p.album_id)) return false;
+        seenAlbums.add(p.album_id);
+        return true;
+      }).map((p: any) => p.album_id
+        ? { ...p, _albumCount: albumCounts.get(p.album_id) ?? 1 }
+        : p
+      );
+    }
+
     return filtered;
   }, [allPhotos, selectedClubId, selectedTeamId, dateRange, cardId, cardPhotoIds, urlEventId]);
 
@@ -1461,6 +1483,12 @@ export default function MediaPage() {
                     alt={photoText || "Photo"}
                     priority={index < 2}
                   />
+                  {photo._albumCount > 1 && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-0">
+                      <ImageIcon className="h-3 w-3" />
+                      <span>{photo._albumCount}</span>
+                    </div>
+                  )}
                   {isDeleting && (
                     <div className="absolute inset-0 flex items-center justify-center bg-background/50">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
