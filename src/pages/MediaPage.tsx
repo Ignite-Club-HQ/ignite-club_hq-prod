@@ -707,25 +707,31 @@ export default function MediaPage() {
     }
     
     // Group photos uploaded together (same album_id) into a single feed
-    // entry: keep the cover (first/oldest by created_at, but since the
-    // server returns DESC we keep the most recent — both work as a stable
-    // representative) and attach an `_albumCount` so the grid can render a
-    // "+N" badge. Cards with no album_id are kept as-is.
+    // entry. Keep the cover (first occurrence in DESC order) and attach
+    // `_albumPhotos` so the card can render an inline swipeable carousel.
     if (!cardId) {
       const seenAlbums = new Set<string>();
-      const albumCounts = new Map<string, number>();
+      const albumPhotos = new Map<string, any[]>();
       filtered.forEach((p: any) => {
-        if (p.album_id) albumCounts.set(p.album_id, (albumCounts.get(p.album_id) ?? 0) + 1);
+        if (!p.album_id) return;
+        const arr = albumPhotos.get(p.album_id) ?? [];
+        arr.push(p);
+        albumPhotos.set(p.album_id, arr);
+      });
+      // Sort album members by created_at ASC so swipe order = upload order.
+      albumPhotos.forEach((arr) => {
+        arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       });
       filtered = filtered.filter((p: any) => {
         if (!p.album_id) return true;
         if (seenAlbums.has(p.album_id)) return false;
         seenAlbums.add(p.album_id);
         return true;
-      }).map((p: any) => p.album_id
-        ? { ...p, _albumCount: albumCounts.get(p.album_id) ?? 1 }
-        : p
-      );
+      }).map((p: any) => {
+        if (!p.album_id) return p;
+        const members = albumPhotos.get(p.album_id) ?? [p];
+        return { ...p, _albumCount: members.length, _albumPhotos: members };
+      });
     }
 
     return filtered;
