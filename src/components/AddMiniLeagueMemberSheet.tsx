@@ -590,7 +590,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                   setActiveSearch({ rowId: player.id, field: "name" });
                                   keepFocusedInputVisible(event.currentTarget);
                                 }}
-                                onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150)}
+                                onBlur={(event) => {
+                                  if (focusedInputRef.current === event.currentTarget) focusedInputRef.current = null;
+                                  setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "name" ? null : s), 150);
+                                }}
                                 onChange={(event) => updatePlayer(player.id, { name: event.target.value, existingChildId: undefined })}
                                 onPaste={idx === 0 ? (event) => {
                                   const text = event.clipboardData.getData("text");
@@ -661,7 +664,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                                     setParentQuery(player.parentName);
                                     keepFocusedInputVisible(event.currentTarget);
                                   }}
-                                  onBlur={() => setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150)}
+                                  onBlur={(event) => {
+                                    if (focusedInputRef.current === event.currentTarget) focusedInputRef.current = null;
+                                    setTimeout(() => setActiveSearch((s) => s?.rowId === player.id && s.field === "parentName" ? null : s), 150);
+                                  }}
                                   onChange={(event) => {
                                     updatePlayer(player.id, { parentName: event.target.value, existingParentUserId: undefined });
                                     setParentQuery(event.target.value);
