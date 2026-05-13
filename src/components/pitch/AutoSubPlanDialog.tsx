@@ -8,6 +8,7 @@ import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, C
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
+import { buildSubWindows } from "./planner/windows";
 
 
 interface PlayerTimeForecast {
