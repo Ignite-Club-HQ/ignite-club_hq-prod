@@ -25,9 +25,14 @@ function calculateTimeForecasts(
   minutesPerHalf: number,
   preferredSecondHalfGkId?: string,
   rotateGkAtHalftime: boolean = true,
-  currentHalf: 1 | 2 = 1
+  currentHalf: 1 | 2 = 1,
+  currentElapsedSeconds: number = 0,
 ): PlayerTimeForecast[] {
   const totalGameMinutes = minutesPerHalf * 2;
+  const halfSec = minutesPerHalf * 60;
+  const startAbs = currentHalf === 1
+    ? Math.min(currentElapsedSeconds, halfSec)
+    : halfSec + Math.min(currentElapsedSeconds, halfSec);
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
   
@@ -43,7 +48,11 @@ function calculateTimeForecasts(
   
   // Track who's on pitch at any moment
   const currentOnPitch = new Set(playersOnPitch.map(p => p.id));
-  
+
+  playersOnPitch.forEach(player => {
+    timeOnPitch.set(player.id, player.minutesPlayed || 0);
+  });
+
   // Determine GK roles
   const startingGk = playersOnPitch.find(p => p.currentPitchPosition === "GK");
   // Find the halftime GK swap (a sub at time 0 in half 2 involving the starting GK)
@@ -67,30 +76,27 @@ function calculateTimeForecasts(
     }
   }
   
-  // Process each half
-  for (const half of [1, 2]) {
-    const halfSubs = plan.filter(s => s.half === half).sort((a, b) => a.time - b.time);
-    let lastTime = 0;
-    
-    for (const sub of halfSubs) {
-      // Add time elapsed since last event for players on pitch
-      const elapsed = sub.time - lastTime;
-      currentOnPitch.forEach(playerId => {
-        timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + elapsed);
-      });
-      
-      // Execute substitution
-      currentOnPitch.delete(sub.playerOut.id);
-      currentOnPitch.add(sub.playerIn.id);
-      lastTime = sub.time;
-    }
-    
-    // Add remaining time in the half
-    const remainingInHalf = (minutesPerHalf * 60) - lastTime;
+  const orderedPlan = [...plan]
+    .filter(sub => !sub.executed && !sub.skipped)
+    .map(sub => ({ sub, abs: sub.half === 1 ? sub.time : halfSec + sub.time }))
+    .filter(item => item.abs >= startAbs)
+    .sort((a, b) => a.abs - b.abs);
+  let lastTime = startAbs;
+
+  for (const { sub, abs } of orderedPlan) {
+    const elapsed = Math.max(0, abs - lastTime);
     currentOnPitch.forEach(playerId => {
-      timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + remainingInHalf);
+      timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + elapsed);
     });
+    currentOnPitch.delete(sub.playerOut.id);
+    currentOnPitch.add(sub.playerIn.id);
+    lastTime = abs;
   }
+
+  const remaining = Math.max(0, halfSec * 2 - lastTime);
+  currentOnPitch.forEach(playerId => {
+    timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + remaining);
+  });
   
   // Convert to forecast objects
   return players.map(player => ({
