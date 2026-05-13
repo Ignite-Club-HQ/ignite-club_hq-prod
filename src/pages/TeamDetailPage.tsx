@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
+import { TeamRankCard } from "@/components/team/TeamRankCard";
 import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -1311,9 +1312,14 @@ export default function TeamDetailPage() {
         <TeamNextStepsCard teamId={id!} onInvite={() => setHeaderInviteOpen(true)} />
       )}
 
-      {/* Next Event Card - no label, card speaks for itself */}
+      {/* Next Event Card - highest visual priority */}
       {isMember && (
         <TeamNextEventCard teamId={id!} clubId={team.club_id} />
+      )}
+
+      {/* Compact rank module — secondary emphasis, includes "ways to improve" */}
+      {isMember && (
+        <TeamRankCard teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Watch Live banner — shown to ALL team members when a coach is running
