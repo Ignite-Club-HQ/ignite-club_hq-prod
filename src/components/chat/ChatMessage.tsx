@@ -1196,7 +1196,9 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.pinLimitReached !== next.pinLimitReached ||
     prev.canPublishToGallery !== next.canPublishToGallery ||
     prev.isPublishedToGallery !== next.isPublishedToGallery ||
-    prev.isPublishingToGallery !== next.isPublishingToGallery
+    prev.isPublishingToGallery !== next.isPublishingToGallery ||
+    prev.groupedWithPrev !== next.groupedWithPrev ||
+    prev.groupedWithNext !== next.groupedWithNext
   ) {
     return false;
   }
