@@ -676,7 +676,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
         {/* Footer with action button - matches CreateGroupDialog pattern */}
         {selectedUsers.length > 0 && (
-          <ResponsiveDialogFooter>
+          <ResponsiveDialogFooter className="sticky bottom-0 -mx-1 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] bg-background border-t border-border z-10">
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
               Cancel
             </Button>
