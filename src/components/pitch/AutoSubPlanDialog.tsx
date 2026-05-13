@@ -2432,9 +2432,14 @@ export function createSubPlan(
         const trial = simulateOutfieldPlan(trialPlan);
         if (!trial.valid) continue;
         const trialSpread = fairnessSpread(trial.times);
+        // Compute new min across fairness targets — must not drop below the
+        // existing min (otherwise we'd be solving over-played at the cost of
+        // pushing a different mid-pack player below the floor).
+        const trialMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(trial.times, p.id)));
+        const currentMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(sim.times, p.id)));
+        if (trialMin < currentMin - FAIRNESS_TOLERANCE) continue;
         // Only commit if the injection brings spread inside the user cap AND
-        // strictly improves the current best — otherwise we risk dragging
-        // mid-pack players down without resolving the cap violation.
+        // strictly improves the current best.
         if (trialSpread <= maxSpreadMinutes * 60 && trialSpread < (bestInsertion?.spread ?? currentSpread)) {
           bestInsertion = { sub: cand, insertAfterIndex: gap.insertAfterIndex, spread: trialSpread };
         }
