@@ -1014,6 +1014,85 @@ export function createSubPlan(
       });
     }
 
+    // ===========================================================================
+    // STANDARD-MODE REMOVAL PASS — drop late "churn" subs that demote the
+    // already-lowest player. The fill loop above can schedule a sub like
+    // `Louie -> Hugo` right before full time even when Louie is already the
+    // most-underplayed player on the field; benching them at the death just
+    // makes the spread worse. We delete a sub iff the resulting plan is still
+    // playable AND the lowest projected total strictly improves while spread
+    // does not get worse.
+    // ===========================================================================
+    const subAbs = (s: SubstitutionEvent) =>
+      s.half === 1 ? s.time : halfDurationSeconds + s.time;
+    const isHtGkSwap = (s: SubstitutionEvent) =>
+      !!gkOnPitch && s.half === 2 && s.time === 0 && s.playerOut.id === gkOnPitch.id;
+    const standardGkDuty = (id: string) => {
+      let duty = 0;
+      if (startingGkWillRotate && gkOnPitch && id === gkOnPitch.id) {
+        duty += Math.max(0, halfDurationSeconds - startElapsedSeconds);
+      }
+      if (halftimeGkIn && id === halftimeGkIn.id) duty += halfDurationSeconds;
+      return duty;
+    };
+    const standardSimulate = (candidatePlan: SubstitutionEvent[]) => {
+      const onP = new Set<string>(outfieldOnPitch.map(p => p.id));
+      const totals = new Map<string, number>();
+      outfieldPlayers.forEach(p => totals.set(p.id, p.minutesPlayed || 0));
+      const sorted = [...candidatePlan].sort((a, b) => subAbs(a) - subAbs(b));
+      let last = startAbs;
+      let valid = true;
+      for (const ev of sorted) {
+        const t = subAbs(ev);
+        if (t < last) valid = false;
+        const elapsed = Math.max(0, t - last);
+        onP.forEach(id => totals.set(id, (totals.get(id) || 0) + elapsed));
+        last = t;
+        if (isHtGkSwap(ev)) { onP.delete(ev.playerIn.id); continue; }
+        if (!onP.has(ev.playerOut.id) || onP.has(ev.playerIn.id)) valid = false;
+        onP.delete(ev.playerOut.id);
+        onP.add(ev.playerIn.id);
+      }
+      const tail = Math.max(0, endAbs - last);
+      onP.forEach(id => totals.set(id, (totals.get(id) || 0) + tail));
+      const projected = new Map<string, number>();
+      for (const p of outfieldPlayers) {
+        projected.set(p.id, (totals.get(p.id) || 0) + standardGkDuty(p.id));
+      }
+      return { projected, valid };
+    };
+    const STANDARD_REMOVAL_TOLERANCE = 5;
+    for (let pass = 0; pass < 6; pass++) {
+      const sim = standardSimulate(plan);
+      if (!sim.valid) break;
+      const values = [...sim.projected.values()];
+      if (values.length < 2) break;
+      const baseMin = Math.min(...values);
+      const baseSpread = Math.max(...values) - baseMin;
+
+      let bestRemoval: { index: number; min: number; spread: number } | null = null;
+      for (let i = 0; i < plan.length; i++) {
+        if (isHtGkSwap(plan[i])) continue;
+        const trialPlan = plan.filter((_, j) => j !== i);
+        const trial = standardSimulate(trialPlan);
+        if (!trial.valid) continue;
+        const tv = [...trial.projected.values()];
+        const trialMin = Math.min(...tv);
+        const trialSpread = Math.max(...tv) - trialMin;
+        if (trialMin > baseMin + STANDARD_REMOVAL_TOLERANCE && trialSpread <= baseSpread) {
+          if (
+            !bestRemoval ||
+            trialMin > bestRemoval.min ||
+            (trialMin === bestRemoval.min && trialSpread < bestRemoval.spread)
+          ) {
+            bestRemoval = { index: i, min: trialMin, spread: trialSpread };
+          }
+        }
+      }
+      if (!bestRemoval) break;
+      plan.splice(bestRemoval.index, 1);
+    }
+
     return plan.sort((a, b) =>
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
