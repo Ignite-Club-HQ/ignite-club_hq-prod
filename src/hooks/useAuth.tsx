@@ -891,6 +891,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       supabase.removeChannel(channel);
+      Object.keys(inboxRefreshState).forEach((k) => {
+        if (inboxRefreshState[k]) cancelAnimationFrame(inboxRefreshState[k]);
+      });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
