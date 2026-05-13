@@ -72,6 +72,7 @@ export default function EditEventPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<EventType>("training");
