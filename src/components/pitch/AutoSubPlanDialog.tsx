@@ -2888,7 +2888,7 @@ function AdvancedSettingsPanel({
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Settings2 className="h-4 w-4" />
-          Advanced settings
+          Advanced substitution tuning
           {overrideCount > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
               {overrideCount} custom
