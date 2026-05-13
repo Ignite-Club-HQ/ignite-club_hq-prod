@@ -2432,13 +2432,22 @@ export function createSubPlan(
         const trial = simulateOutfieldPlan(trialPlan);
         if (!trial.valid) continue;
         const trialSpread = fairnessSpread(trial.times);
-        // Compute new min across fairness targets — must not drop below the
-        // existing min (otherwise we'd be solving over-played at the cost of
-        // pushing a different mid-pack player below the floor).
-        const trialMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(trial.times, p.id)));
-        const currentMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(sim.times, p.id)));
-        if (trialMin < currentMin - FAIRNESS_TOLERANCE) continue;
-        // Only commit if the injection brings spread inside the user cap AND
+        // Hard guard: no individual fairness target may lose more than 60 s
+        // of projected playing time as a side effect. Without this, the
+        // injection can solve "high vs zero" by quietly downgrading an
+        // already-fine middle player below the 75 % floor.
+        const REGRESSION_LIMIT = 60;
+        let regressed = false;
+        for (const p of fairnessTargets) {
+          const before = totalProjectedSeconds(sim.times, p.id);
+          const after = totalProjectedSeconds(trial.times, p.id);
+          if (after < before - REGRESSION_LIMIT) {
+            regressed = true;
+            break;
+          }
+        }
+        if (regressed) continue;
+        // Only commit if injection brings spread inside the user cap AND
         // strictly improves the current best.
         if (trialSpread <= maxSpreadMinutes * 60 && trialSpread < (bestInsertion?.spread ?? currentSpread)) {
           bestInsertion = { sub: cand, insertAfterIndex: gap.insertAfterIndex, spread: trialSpread };
