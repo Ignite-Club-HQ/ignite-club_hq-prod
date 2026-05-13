@@ -1444,6 +1444,8 @@ export default function DirectMessagePage() {
                       pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
                       onPin={isIgniteSupportConversation ? undefined : pinMessage}
                       onUnpin={isIgniteSupportConversation ? undefined : unpinMessage}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
