@@ -316,6 +316,17 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+const inferredOutfieldPosition = (player: Pick<Player, "currentPitchPosition" | "assignedPositions">): PitchPosition => {
+  if (player.currentPitchPosition && player.currentPitchPosition !== "GK") return player.currentPitchPosition;
+  return player.assignedPositions?.find(pos => pos !== "GK") || "MID";
+};
+
+const inferredPitchPosition = (player: Pick<Player, "currentPitchPosition" | "assignedPositions">): PitchPosition => {
+  if (player.currentPitchPosition) return player.currentPitchPosition;
+  if (player.assignedPositions?.length === 1 && player.assignedPositions[0] === "GK") return "GK";
+  return inferredOutfieldPosition(player);
+};
+
 export function isPlanPlayableFromPlayers(
   players: Pick<Player, "id" | "position">[],
   plan: Pick<SubstitutionEvent, "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped">[],
