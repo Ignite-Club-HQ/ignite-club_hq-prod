@@ -703,22 +703,22 @@ export function UploadPhotoSheet({
     let albumId: string | null = null;
     if (photosToUpload.length > 1) {
       try {
-        const { data: album, error: albumErr } = await supabase
-          .from("photo_albums")
-          .insert({
-            uploader_id: user!.id,
-            club_id: clubId || null,
-            team_id: teamId || null,
-            mini_league_id: miniLeagueId || null,
-            event_id: eventId || null,
-            caption: photoCaption || null,
-          })
-          .select("id")
-          .single();
+        // Use SECURITY DEFINER RPC to bypass RLS edge cases where a stale
+        // auth.uid() vs user.id mismatch silently rejects the direct insert.
+        const { data: newAlbumId, error: albumErr } = await supabase.rpc(
+          "create_photo_album",
+          {
+            _club_id: clubId || null,
+            _team_id: teamId || null,
+            _mini_league_id: miniLeagueId || null,
+            _event_id: eventId || null,
+            _caption: photoCaption || null,
+          },
+        );
         if (albumErr) {
           console.warn("[upload] album creation failed, falling back to ungrouped photos:", albumErr);
         } else {
-          albumId = album?.id ?? null;
+          albumId = (newAlbumId as string) ?? null;
         }
       } catch (e) {
         console.warn("[upload] album creation threw:", e);
