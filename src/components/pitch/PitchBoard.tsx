@@ -5944,8 +5944,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           disableBatchSubs={disableBatchSubs}
           rotateGkAtHalftime={rotateGkAtHalftime}
           maxSpreadMinutes={maxSpreadMinutes}
-          currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-          currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+          currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
+          currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
           showStepper={autoSubFromPreGame}
           miniLeagueTeams={miniLeagueTeams}
           preferredSecondHalfGkId={preferredSecondHalfGkId}
@@ -7465,8 +7465,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
         maxSpreadMinutes={maxSpreadMinutes}
-        currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-        currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+        currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
+        currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
         showStepper={autoSubFromPreGame}
         miniLeagueTeams={miniLeagueTeams}
         preferredSecondHalfGkId={preferredSecondHalfGkId}
