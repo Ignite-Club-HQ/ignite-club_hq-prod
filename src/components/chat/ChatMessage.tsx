@@ -920,6 +920,11 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
+            {inlineRsvpMatch && (
+              <div className="mt-2">
+                <InlineRsvpActions eventId={inlineRsvpMatch[1]} messageId={id} />
+              </div>
+            )}
             {/* Inline "Add to gallery" chip — only on own image messages.
                 Reserve a fixed-height slot whenever this is an own image
                 message that isn't queued, so that the chip appearing once
