@@ -2283,6 +2283,47 @@ export function createSubPlan(
   }
 
   // ============================================================
+  // REMOVAL PASS — drop redundant subs that hurt fairness.
+  // ------------------------------------------------------------
+  // The fill loop can leave "tail" subs at the end of a half that bench an
+  // already-low player to bring on a similar-time player. Removing such
+  // subs both reduces churn and tightens the spread. We delete a sub only
+  // when the resulting plan is still valid AND the new fairness min is
+  // strictly higher (no other player gets demoted as a side effect).
+  // ============================================================
+  for (let pass = 0; pass < 6; pass++) {
+    sortPlan();
+    const sim = simulateOutfieldPlan(plan);
+    if (!sim.valid) break;
+    const baseSpread = fairnessSpread(sim.times);
+    const baseMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(sim.times, p.id)));
+
+    let bestRemoval: { index: number; spread: number; min: number } | null = null;
+    for (let i = 0; i < plan.length; i++) {
+      const sub = plan[i];
+      if (isHalftimeGkSwapSub(sub)) continue;
+      const trialPlan = plan.filter((_, j) => j !== i);
+      const trial = simulateOutfieldPlan(trialPlan);
+      if (!trial.valid) continue;
+      const trialMin = Math.min(...fairnessTargets.map(p => totalProjectedSeconds(trial.times, p.id)));
+      const trialSpread = fairnessSpread(trial.times);
+      // Accept removal only if the lowest player strictly improves AND spread
+      // does not get worse. This prevents removing useful subs that happen to
+      // have a neutral effect on the min.
+      if (trialMin > baseMin + FAIRNESS_TOLERANCE && trialSpread <= baseSpread) {
+        if (
+          !bestRemoval ||
+          trialMin > bestRemoval.min ||
+          (trialMin === bestRemoval.min && trialSpread < bestRemoval.spread)
+        ) {
+          bestRemoval = { index: i, spread: trialSpread, min: trialMin };
+        }
+      }
+    }
+    if (!bestRemoval) break;
+    plan.splice(bestRemoval.index, 1);
+  }
+  // ============================================================
   // PHASE 4 — Spread-driven extra-window injection.
   // ------------------------------------------------------------
   // The rebalance loop above can only REPLACE existing sub events. When the
