@@ -295,37 +295,28 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                 />
               )}
 
-              {/* Team picker */}
-              {!needsClubPick && filteredTeams.length > 0 && (
+              {/* Combined target picker */}
+              {!needsClubPick && totalFiltered > 0 && (
                 <MobileCardSelect
                   value=""
-                  onValueChange={handleTeamSelect}
-                  options={filteredTeams.map(t => ({
-                    value: t.id,
-                    label: t.name,
-                  }))}
-                  label="Teams"
-                  placeholder="Choose a team..."
-                  searchable={filteredTeams.length > 5}
-                  searchPlaceholder="Search teams..."
-                  emptyMessage="No teams found."
-                />
-              )}
-
-              {/* Mini-league picker */}
-              {!needsClubPick && filteredLeagues.length > 0 && (
-                <MobileCardSelect
-                  value=""
-                  onValueChange={handleLeagueSelect}
-                  options={filteredLeagues.map(l => ({
-                    value: l.id,
-                    label: l.name,
-                  }))}
-                  label="Mini-Leagues"
-                  placeholder="Choose a mini-league..."
-                  searchable={filteredLeagues.length > 5}
-                  searchPlaceholder="Search mini-leagues..."
-                  emptyMessage="No mini-leagues found."
+                  onValueChange={handleTargetSelect}
+                  options={[
+                    ...filteredTeams.map(t => ({
+                      value: `team:${t.id}`,
+                      label: t.name,
+                      description: "Team",
+                    })),
+                    ...filteredLeagues.map(l => ({
+                      value: `mini_league:${l.id}`,
+                      label: l.name,
+                      description: "Mini-League",
+                    })),
+                  ]}
+                  label="Select Team or Mini-League"
+                  placeholder="Choose where to invite..."
+                  searchable={totalFiltered > 5}
+                  searchPlaceholder="Search..."
+                  emptyMessage="Nothing to invite to."
                 />
               )}
             </div>
