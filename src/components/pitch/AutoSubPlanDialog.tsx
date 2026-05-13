@@ -637,11 +637,10 @@ export function createSubPlan(
       return false;
     };
 
-    const baseWindowTimes: number[] = [];
-    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - noSubAfterSeconds; t += intervalSec) {
-      if (isInBlackout(t)) continue;
-      baseWindowTimes.push(Math.floor(t));
-    }
+    // Interval-driven candidate windows are produced by the unified builder
+    // (see planner/windows.ts). Forced GK and rescue times are merged in below
+    // after they're computed, then we re-run the builder to apply the GK-window
+    // suppression buffer in one pass.
     // GOALKEEPER RULE: GKs may ONLY be swapped at halftime (the GK position
     // itself can only change at start-of-game or halftime). However, the
     // nominated 2H GK can play OUTFIELD in 1H — they're just a normal field
