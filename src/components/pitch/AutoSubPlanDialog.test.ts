@@ -223,4 +223,64 @@ describe("createSubPlan", () => {
       expect([...totals.entries()].filter(([, sec]) => sec === 0)).toEqual([]);
     }
   });
+
+  // Fairness matrix: a representative sweep across team sizes, bench sizes,
+  // half lengths and modes. We don't assert perfect equality (the planner has
+  // halftime/GK constraints) but we DO assert no player is starved of minutes
+  // and the spread is bounded.
+  const positionsForIdx = (i: number, teamSize: number): PitchPosition => {
+    if (i === 0) return "GK";
+    const slots = teamSize - 1;
+    const def = Math.max(1, Math.floor(slots / 3));
+    const mid = Math.max(1, Math.floor(slots / 3));
+    if (i <= def) return "DEF";
+    if (i <= def + mid) return "MID";
+    return "FWD";
+  };
+
+  const matrix: Array<{ teamSize: number; benchSize: number; halfMin: number; mode: 1 | 2 }> = [
+    { teamSize: 5, benchSize: 2, halfMin: 15, mode: 1 },
+    { teamSize: 5, benchSize: 4, halfMin: 20, mode: 2 },
+    { teamSize: 7, benchSize: 1, halfMin: 20, mode: 1 },
+    { teamSize: 7, benchSize: 3, halfMin: 25, mode: 1 },
+    { teamSize: 7, benchSize: 5, halfMin: 20, mode: 2 },
+    { teamSize: 9, benchSize: 3, halfMin: 30, mode: 1 },
+    { teamSize: 11, benchSize: 3, halfMin: 35, mode: 1 },
+    { teamSize: 11, benchSize: 5, halfMin: 45, mode: 2 },
+  ];
+
+  for (const { teamSize, benchSize, halfMin, mode } of matrix) {
+    const label = `${teamSize}-a-side, +${benchSize} bench, ${halfMin}min halves, mode ${mode}`;
+    it(`fairness matrix: ${label}`, () => {
+      const players = [] as ReturnType<typeof makePlayer>[];
+      for (let i = 0; i < teamSize; i++) {
+        const pos = positionsForIdx(i, teamSize);
+        players.push(makePlayer(`P${i}`, pos, 50, 50));
+      }
+      for (let i = 0; i < benchSize; i++) {
+        const p = makePlayer(`B${i}`, null);
+        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+        players.push(p);
+      }
+
+      const halfSec = halfMin * 60;
+      const plan = createSubPlan(players as any, teamSize, halfSec, mode, false, false, true, 0, 1, undefined, 5);
+      const totals = simulateTotals(players, plan, halfSec);
+      const values = [...totals.values()];
+
+      values.forEach(v => {
+        expect(v, `${label} negative minutes`).toBeGreaterThanOrEqual(0);
+        expect(v, `${label} over-match minutes`).toBeLessThanOrEqual(halfSec * 2);
+      });
+
+      const matchMin = halfMin * 2;
+      const targetMin = (teamSize * matchMin) / players.length;
+      const minMin = Math.min(...values) / 60;
+      expect(minMin, `${label} starved player`).toBeGreaterThan(0);
+      expect(minMin, `${label} lowest below floor`).toBeGreaterThanOrEqual(Math.max(2, targetMin * 0.4));
+
+      const spreadMin = (Math.max(...values) - Math.min(...values)) / 60;
+      expect(spreadMin, `${label} spread too large`).toBeLessThanOrEqual(matchMin * 0.55);
+    });
+  }
 });
