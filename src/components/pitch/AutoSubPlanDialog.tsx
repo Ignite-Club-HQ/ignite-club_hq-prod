@@ -2432,7 +2432,10 @@ export function createSubPlan(
         const trial = simulateOutfieldPlan(trialPlan);
         if (!trial.valid) continue;
         const trialSpread = fairnessSpread(trial.times);
-        if (trialSpread < (bestInsertion?.spread ?? currentSpread)) {
+        // Only commit if the injection brings spread inside the user cap AND
+        // strictly improves the current best — otherwise we risk dragging
+        // mid-pack players down without resolving the cap violation.
+        if (trialSpread <= maxSpreadMinutes * 60 && trialSpread < (bestInsertion?.spread ?? currentSpread)) {
           bestInsertion = { sub: cand, insertAfterIndex: gap.insertAfterIndex, spread: trialSpread };
         }
       }
