@@ -824,12 +824,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         .from("events")
         .select("id, opponent, title, start_time")
         .eq("id", linkedEventId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: !!linkedEventId,
-    staleTime: 5 * 60 * 1000,
+    // Always refetch when the board mounts/regains focus so edits made on
+    // the event page (e.g. kickoff time changes) flow through immediately.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Extract opponent name from linked event
