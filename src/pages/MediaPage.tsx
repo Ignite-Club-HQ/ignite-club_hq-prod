@@ -35,6 +35,7 @@ import { EmojiReactions } from "@/components/EmojiReactions";
 import { MediaCommentSheet } from "@/components/MediaCommentSheet";
 import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
+import { AlbumCarousel } from "@/components/AlbumCarousel";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
@@ -106,6 +107,16 @@ export default function MediaPage() {
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Optional album-scoped lightbox: when set, the lightbox shows just the
+  // album's photos rather than the feed-level entries. Cleared on close.
+  const [lightboxAlbum, setLightboxAlbum] = useState<{ photos: any[]; index: number } | null>(null);
+  // Track which feed cards have an active inline album swipe index, so the
+  // tap-to-open lightbox starts at the right photo within the album.
+  const albumIndexByPhotoIdRef = useRef<Map<string, number>>(new Map());
+  // Show a one-time swipe hint on the first album the user sees.
+  const [albumHintShown, setAlbumHintShown] = useState<boolean>(() => {
+    try { return localStorage.getItem("media:albumHintShown") === "1"; } catch { return false; }
+  });
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
   // Long-press action sheet — opens Delete/Report/Block when the user holds
@@ -707,25 +718,31 @@ export default function MediaPage() {
     }
     
     // Group photos uploaded together (same album_id) into a single feed
-    // entry: keep the cover (first/oldest by created_at, but since the
-    // server returns DESC we keep the most recent — both work as a stable
-    // representative) and attach an `_albumCount` so the grid can render a
-    // "+N" badge. Cards with no album_id are kept as-is.
+    // entry. Keep the cover (first occurrence in DESC order) and attach
+    // `_albumPhotos` so the card can render an inline swipeable carousel.
     if (!cardId) {
       const seenAlbums = new Set<string>();
-      const albumCounts = new Map<string, number>();
+      const albumPhotos = new Map<string, any[]>();
       filtered.forEach((p: any) => {
-        if (p.album_id) albumCounts.set(p.album_id, (albumCounts.get(p.album_id) ?? 0) + 1);
+        if (!p.album_id) return;
+        const arr = albumPhotos.get(p.album_id) ?? [];
+        arr.push(p);
+        albumPhotos.set(p.album_id, arr);
+      });
+      // Sort album members by created_at ASC so swipe order = upload order.
+      albumPhotos.forEach((arr) => {
+        arr.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       });
       filtered = filtered.filter((p: any) => {
         if (!p.album_id) return true;
         if (seenAlbums.has(p.album_id)) return false;
         seenAlbums.add(p.album_id);
         return true;
-      }).map((p: any) => p.album_id
-        ? { ...p, _albumCount: albumCounts.get(p.album_id) ?? 1 }
-        : p
-      );
+      }).map((p: any) => {
+        if (!p.album_id) return p;
+        const members = albumPhotos.get(p.album_id) ?? [p];
+        return { ...p, _albumCount: members.length, _albumPhotos: members };
+      });
     }
 
     return filtered;
@@ -1235,24 +1252,25 @@ export default function MediaPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-4 sm:gap-2">
-          <Button 
-            variant={hasActiveFilters ? "default" : "outline"} 
+        <div className="flex items-center gap-2">
+          <Button
+            variant={hasActiveFilters ? "secondary" : "ghost"}
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className="h-12 w-12 sm:h-9 sm:w-auto sm:px-3 relative"
+            className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative text-muted-foreground hover:text-foreground"
+            aria-label="Filter"
           >
-            <Filter className="h-6 w-6 sm:h-4 sm:w-4" /> 
+            <Filter className="h-5 w-5 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline ml-1">Filter</span>
             {hasActiveFilters && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary sm:hidden" />
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary sm:hidden" />
             )}
             {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 px-1.5 hidden sm:inline-flex">!</Badge>}
           </Button>
           {hasProAccess && (
             <>
-              <Button size="icon" onClick={() => setUploadDialogOpen(true)} className="h-12 w-12 sm:h-9 sm:w-auto sm:px-3">
-                <Plus className="h-6 w-6 sm:h-4 sm:w-4" />
+              <Button size="icon" onClick={() => setUploadDialogOpen(true)} className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3" aria-label="Add photo">
+                <Plus className="h-5 w-5 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline ml-1">Add Photo</span>
               </Button>
               <UploadPhotoSheet 
@@ -1408,100 +1426,98 @@ export default function MediaPage() {
                     photoRefs.current.set(photo.id, el);
                   }
                 }}
-                className={`overflow-hidden transition-all duration-300 cv-auto-card ${
+                className={`overflow-hidden transition-all duration-300 cv-auto-card border-x-0 sm:border-x rounded-none sm:rounded-lg ${
                   isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
                 } ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
               >
-                {/* Header */}
-                <div className="flex items-center gap-3 p-3 border-b">
-                  <Avatar className="h-8 w-8">
+                {/* Header — tighter alignment, clearer author identity */}
+                <div className="flex items-center gap-2.5 px-3 py-2">
+                  <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={avatarUrl || undefined} />
                     <AvatarFallback>
                       {displayName?.[0]?.toUpperCase() || <Loader2 className="h-3 w-3 animate-spin" />}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{displayName || <Skeleton className="h-3 w-20 inline-block" />}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {photo.mini_leagues?.name 
-                        ? `${photo.mini_leagues?.clubs?.name || photo.clubs?.name} ${photo.mini_leagues.name}`
-                        : photo.teams?.name 
-                          ? `${photo.teams?.clubs?.name || photo.clubs?.name} ${photo.teams.name}`
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <p className="text-sm font-semibold truncate">
+                      {displayName || <Skeleton className="h-3 w-20 inline-block" />}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {photo.mini_leagues?.name
+                        ? `${photo.mini_leagues?.clubs?.name || photo.clubs?.name} · ${photo.mini_leagues.name}`
+                        : photo.teams?.name
+                          ? `${photo.teams?.clubs?.name || photo.clubs?.name} · ${photo.teams.name}`
                           : photo.clubs?.name}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {canSharePhoto(photo) && (
-                      <SharePhotoButton 
+                  {canSharePhoto(photo) && (
+                    <div className="text-muted-foreground -mr-1 opacity-70">
+                      <SharePhotoButton
                         photoId={photo.id}
-                        imageUrl={photo.file_url || photo.image_url} 
+                        imageUrl={photo.file_url || photo.image_url}
                         title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Image with lazy loading. Long-press opens the action menu
-                    (Delete / Report / Block). The kebab dropdown was removed
-                    because it was being tapped accidentally during scroll. */}
-                <div 
-                  ref={observeView(photo.id)}
-                  className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer select-none"
-                  style={{ WebkitTouchCallout: "none" }}
-                  onClick={() => {
-                    if (isDeleting) return;
-                    if (longPressFiredRef.current) {
-                      // Suppress click that follows a long-press release.
-                      longPressFiredRef.current = false;
-                      return;
-                    }
-                    recordView(photo.id);
-                    setLightboxIndex(index);
-                  }}
-                  onTouchStart={(e) => {
-                    if (isDeleting) return;
-                    const t = e.touches[0];
-                    if (!t) return;
-                    startLongPress(photo.id, t.clientX, t.clientY);
-                  }}
-                  onTouchMove={(e) => {
-                    const t = e.touches[0];
-                    if (!t) return;
-                    moveLongPress(t.clientX, t.clientY);
-                  }}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onContextMenu={(e) => {
-                    // Suppress native long-press context menu — we provide our own.
-                    e.preventDefault();
-                  }}
-                >
-                  <LazyImage
-                    src={photo.file_url || photo.image_url}
-                    alt={photoText || "Photo"}
+                {/* Inline album carousel — horizontal swipe, dots, and 1/N pill.
+                    Long-press still opens the action menu (Delete/Report/Block). */}
+                <div ref={observeView(photo.id)}>
+                  <AlbumCarousel
+                    photos={photo._albumPhotos && photo._albumPhotos.length > 1 ? photo._albumPhotos : [photo]}
                     priority={index < 2}
-                  />
-                  {photo._albumCount > 1 && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-0">
-                      <ImageIcon className="h-3 w-3" />
-                      <span>{photo._albumCount}</span>
-                    </div>
-                  )}
-                  {isDeleting && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Deleting...</span>
+                    showSwipeHintOnMount={!albumHintShown && index === 0 && (photo._albumCount ?? 1) > 1}
+                    onIndexChange={(i) => {
+                      albumIndexByPhotoIdRef.current.set(photo.id, i);
+                      if (!albumHintShown) {
+                        setAlbumHintShown(true);
+                        try { localStorage.setItem("media:albumHintShown", "1"); } catch {}
+                      }
+                    }}
+                    onTap={(i) => {
+                      if (isDeleting) return;
+                      if (longPressFiredRef.current) {
+                        longPressFiredRef.current = false;
+                        return;
+                      }
+                      recordView(photo.id);
+                      const album = photo._albumPhotos && photo._albumPhotos.length > 1 ? photo._albumPhotos : null;
+                      if (album) {
+                        setLightboxAlbum({ photos: album, index: i });
+                      } else {
+                        setLightboxIndex(index);
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      if (isDeleting) return;
+                      const t = e.touches[0];
+                      if (!t) return;
+                      startLongPress(photo.id, t.clientX, t.clientY);
+                    }}
+                    onTouchMove={(e) => {
+                      const t = e.touches[0];
+                      if (!t) return;
+                      moveLongPress(t.clientX, t.clientY);
+                    }}
+                    onTouchEnd={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    overlay={isDeleting ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Deleting...</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ) : null}
+                  />
                 </div>
 
-                {/* Actions */}
-                <div className="p-3 space-y-2">
-                  <div className="flex items-center gap-4">
+                {/* Actions + caption — tighter rhythm */}
+                <div className="px-3 pt-2 pb-3 space-y-1">
+                  <div className="flex items-center gap-3">
                     <EmojiReactions
                       reactions={reactions}
                       currentUserId={user?.id}
@@ -1517,7 +1533,7 @@ export default function MediaPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setActiveCommentPhotoId(photo.id)}
-                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
+                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto text-muted-foreground"
                           >
                             <MessageCircle className="h-5 w-5" />
                             <span
@@ -1548,24 +1564,24 @@ export default function MediaPage() {
                   </div>
 
                   {photoText && (
-                    <p className="text-sm">
-                      <span className="font-medium">{displayName}</span>{" "}
+                    <p className="text-sm leading-snug">
+                      <span className="font-semibold">{displayName}</span>{" "}
                       {photoText}
                     </p>
                   )}
 
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimeShort(photo.created_at)}
-                  </p>
-
                   {comments.length > 0 && (
-                    <button 
+                    <button
                       onClick={() => setActiveCommentPhotoId(photo.id)}
-                      className="text-sm text-muted-foreground"
+                      className="block text-xs text-muted-foreground hover:text-foreground"
                     >
                       View all {comments.length} comment{comments.length !== 1 ? "s" : ""}
                     </button>
                   )}
+
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+                    {formatTimeShort(photo.created_at)}
+                  </p>
                 </div>
               </Card>
             );
@@ -1685,23 +1701,37 @@ export default function MediaPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Photo Lightbox */}
-      <PhotoLightbox
-        isOpen={lightboxIndex !== null}
-        onClose={() => setLightboxIndex(null)}
-        photos={photos}
-        currentIndex={lightboxIndex ?? 0}
-        onNavigate={(idx) => {
-          const navPhoto = photos[idx];
-          if (navPhoto) recordView(navPhoto.id);
-          setLightboxIndex(idx);
-        }}
-        onDelete={(photoId) => {
-          setLightboxIndex(null);
-          setTimeout(() => setDeletePhotoId(photoId), 100);
-        }}
-        canDelete={lightboxIndex !== null && photos[lightboxIndex] ? canDeletePhoto(photos[lightboxIndex]) : false}
-      />
+      {/* Photo Lightbox — uses album-scoped photos when launched from an
+          album swipe, otherwise the feed-level photos. */}
+      {(() => {
+        const usingAlbum = lightboxAlbum !== null;
+        const lbPhotos = usingAlbum ? lightboxAlbum!.photos : photos;
+        const lbIndex = usingAlbum ? lightboxAlbum!.index : (lightboxIndex ?? 0);
+        const lbOpen = usingAlbum || lightboxIndex !== null;
+        const close = () => {
+          if (usingAlbum) setLightboxAlbum(null);
+          else setLightboxIndex(null);
+        };
+        return (
+          <PhotoLightbox
+            isOpen={lbOpen}
+            onClose={close}
+            photos={lbPhotos}
+            currentIndex={lbIndex}
+            onNavigate={(idx) => {
+              const navPhoto = lbPhotos[idx];
+              if (navPhoto) recordView(navPhoto.id);
+              if (usingAlbum) setLightboxAlbum({ photos: lbPhotos, index: idx });
+              else setLightboxIndex(idx);
+            }}
+            onDelete={(photoId) => {
+              close();
+              setTimeout(() => setDeletePhotoId(photoId), 100);
+            }}
+            canDelete={lbOpen && lbPhotos[lbIndex] ? canDeletePhoto(lbPhotos[lbIndex]) : false}
+          />
+        );
+      })()}
 
       {/* Report Photo Dialog */}
       <ReportPhotoDialog
