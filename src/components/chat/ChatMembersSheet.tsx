@@ -57,6 +57,7 @@ export function ChatMembersSheet({
   chatName,
   teamId,
   clubId,
+  miniLeagueId,
   groupAllowedRoles,
   externalOpen,
   onExternalOpenChange,
@@ -530,7 +531,7 @@ export function ChatMembersSheet({
                 <Separator className="mt-2" />
               </div>
             )}
-            {chatType === "group" && (teamId || clubId) && (
+            {chatType === "group" && (teamId || clubId || miniLeagueId) && (
               <div className="mb-3">
                 {teamId && (
                   <button
@@ -542,7 +543,16 @@ export function ChatMembersSheet({
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </button>
                 )}
-                {clubId && (
+                {miniLeagueId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateToPage(`/mini-leagues/${miniLeagueId}`)}
+                    className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+                  >
+                    <span className="text-sm text-muted-foreground">View mini-league page</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                ) : clubId && (
                   <button
                     type="button"
                     onClick={() => handleNavigateToPage(`/clubs/${clubId}`)}
