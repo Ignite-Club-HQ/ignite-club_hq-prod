@@ -343,7 +343,7 @@ export default function DirectMessagePage() {
   }, [isIgniteSupportConversation, replyTo, editingMessage]);
 
   // Fetch other participant's profile
-  const { data: otherUser } = useQuery({
+  const { data: otherUser, isLoading: otherUserLoading } = useQuery({
     queryKey: ["dm-other-user", otherUserId],
     queryFn: async () => {
       const { data, error } = await supabase
