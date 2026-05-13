@@ -1477,6 +1477,8 @@ export default function ClubChatPage() {
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
