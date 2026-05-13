@@ -310,6 +310,30 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+export function isPlanPlayableFromPlayers(
+  players: Pick<Player, "id" | "position">[],
+  plan: Pick<SubstitutionEvent, "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped">[],
+  halfDurationSeconds: number,
+): boolean {
+  const playerIds = new Set(players.map(p => p.id));
+  const onPitch = new Set(players.filter(p => p.position !== null).map(p => p.id));
+  const remainingPlan = plan
+    .filter(sub => !sub.executed && !sub.skipped)
+    .sort((a, b) =>
+      (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
+      (b.half === 1 ? b.time : halfDurationSeconds + b.time)
+    );
+
+  for (const sub of remainingPlan) {
+    if (!playerIds.has(sub.playerOut.id) || !playerIds.has(sub.playerIn.id)) return false;
+    if (!onPitch.has(sub.playerOut.id) || onPitch.has(sub.playerIn.id)) return false;
+    onPitch.delete(sub.playerOut.id);
+    onPitch.add(sub.playerIn.id);
+  }
+
+  return true;
+}
+
 /**
  * Rotation modes (rotation_speed integer):
  * - 1 = Standard (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
