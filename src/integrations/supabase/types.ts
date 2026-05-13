@@ -8604,6 +8604,16 @@ export type Database = {
         }
         Returns: string
       }
+      create_photo_album: {
+        Args: {
+          _caption: string
+          _club_id: string
+          _event_id: string
+          _mini_league_id: string
+          _team_id: string
+        }
+        Returns: string
+      }
       create_season_from_template: {
         Args: {
           _end_date: string
