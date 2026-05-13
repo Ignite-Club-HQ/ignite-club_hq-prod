@@ -14,86 +14,114 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { getCachedRoles } from "@/lib/rolesCache";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 
 interface HomeInviteFlowProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+type Target =
+  | { kind: "team"; id: string; name: string; clubId: string }
+  | { kind: "mini_league"; id: string; name: string; clubId: string };
+
 export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
 
   // Effective club filter: use activeClubFilter if set, otherwise the manually selected club
   const effectiveClubId = activeClubFilter || selectedClubId;
 
-  const { data: teamsAndClubs, isLoading: teamsLoading, isFetching: teamsFetching } = useQuery({
-    queryKey: ["home-invite-teams-clubs", user?.id],
-    // Prefetch as soon as the user is known so the dialog opens instantly on first tap.
+  const { data: invitables, isLoading: invitablesLoading, isFetching: invitablesFetching } = useQuery({
+    queryKey: ["home-invite-targets", user?.id],
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("team_id, club_id")
+        .select("team_id, club_id, role")
         .eq("user_id", user!.id);
 
-      if (!roles || roles.length === 0) return { teams: [], clubs: [] };
+      if (!roles || roles.length === 0) {
+        return { teams: [], clubs: [], miniLeagues: [] };
+      }
 
-      // Get unique club IDs from ALL roles (not just team-based ones)
       const allClubIds = [...new Set(roles.map(r => r.club_id).filter(Boolean))] as string[];
-
-      // Get teams
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
-      let teams: any[] = [];
-      let clubs: any[] = [];
+      // Clubs where user can manage mini-league members (league_admin / app_admin)
+      const leagueAdminClubIds = [
+        ...new Set(
+          roles
+            .filter(r => r.role === "league_admin" || r.role === "app_admin")
+            .map(r => r.club_id)
+            .filter(Boolean)
+        ),
+      ] as string[];
 
-      if (teamIds.length > 0) {
-        const { data } = await supabase
-          .from("teams")
-          .select("id, name, club_id, clubs(id, name)")
-          .in("id", teamIds);
-        teams = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
-      }
+      const [teamsRes, clubsRes, leaguesRes] = await Promise.all([
+        teamIds.length
+          ? supabase
+              .from("teams")
+              .select("id, name, club_id, clubs(id, name)")
+              .in("id", teamIds)
+          : Promise.resolve({ data: [] as any[] }),
+        allClubIds.length
+          ? supabase.from("clubs").select("id, name").in("id", allClubIds)
+          : Promise.resolve({ data: [] as any[] }),
+        leagueAdminClubIds.length
+          ? supabase
+              .from("mini_leagues")
+              .select("id, name, club_id")
+              .in("club_id", leagueAdminClubIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
 
-      if (allClubIds.length > 0) {
-        const { data } = await supabase
-          .from("clubs")
-          .select("id, name")
-          .in("id", allClubIds);
-        clubs = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
-      }
+      const teams = (teamsRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const clubs = (clubsRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const miniLeagues = (leaguesRes.data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-      return { teams, clubs };
+      return { teams, clubs, miniLeagues };
     },
   });
 
-  const allTeams = teamsAndClubs?.teams || [];
-  const clubs = teamsAndClubs?.clubs || [];
+  const allTeams = invitables?.teams || [];
+  const clubs = invitables?.clubs || [];
+  const allLeagues = invitables?.miniLeagues || [];
 
-  // Filter teams by effective club
+  // Filter by effective club
   const filteredTeams = effectiveClubId
     ? allTeams.filter(t => t.club_id === effectiveClubId)
     : allTeams;
+  const filteredLeagues = effectiveClubId
+    ? allLeagues.filter(l => l.club_id === effectiveClubId)
+    : allLeagues;
+
+  const totalFiltered = filteredTeams.length + filteredLeagues.length;
 
   // Determine what step to show
   const needsClubPick = !activeClubFilter && clubs.length > 1 && !selectedClubId;
 
-  // Auto-select if only one team after filtering
+  // Auto-select if only one option after filtering
   useEffect(() => {
-    if (!open || selectedTeamId) return;
+    if (!open || target) return;
     if (needsClubPick) return;
-    if (filteredTeams.length === 1) {
-      setSelectedTeamId(filteredTeams[0].id);
+    if (totalFiltered === 1) {
+      if (filteredTeams.length === 1) {
+        const t = filteredTeams[0];
+        setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
+      } else {
+        const l = filteredLeagues[0];
+        setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+      }
       onOpenChange(false);
       setInviteSheetOpen(true);
     }
-  }, [filteredTeams, open, selectedTeamId, needsClubPick, onOpenChange]);
+  }, [filteredTeams, filteredLeagues, totalFiltered, open, target, needsClubPick, onOpenChange]);
 
   // Auto-select club if only one club
   useEffect(() => {
@@ -105,11 +133,20 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
 
   const handleClubSelect = (clubId: string) => {
     setSelectedClubId(clubId);
-    // Don't close dialog — teams will re-filter and either auto-select or show team picker
   };
 
   const handleTeamSelect = (teamId: string) => {
-    setSelectedTeamId(teamId);
+    const t = filteredTeams.find(x => x.id === teamId);
+    if (!t) return;
+    setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
+    onOpenChange(false);
+    setInviteSheetOpen(true);
+  };
+
+  const handleLeagueSelect = (leagueId: string) => {
+    const l = filteredLeagues.find(x => x.id === leagueId);
+    if (!l) return;
+    setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
     onOpenChange(false);
     setInviteSheetOpen(true);
   };
@@ -117,38 +154,39 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   const handleInviteSheetChange = (isOpen: boolean) => {
     setInviteSheetOpen(isOpen);
     if (!isOpen) {
-      setSelectedTeamId(null);
+      setTarget(null);
       setSelectedClubId(null);
     }
   };
 
   const handleClose = (v: boolean) => {
     if (!v) {
-      setSelectedTeamId(null);
+      setTarget(null);
       setSelectedClubId(null);
     }
     onOpenChange(v);
   };
 
-  const selectedTeam = allTeams.find(t => t.id === selectedTeamId);
-
   const canBulkInvite = useMemo(() => {
-    if (!selectedTeamId) return false;
+    if (!target || target.kind !== "team") return false;
     const roles = getCachedRoles();
     if (!roles) return false;
     return roles.some(r =>
       ['club_admin', 'team_admin', 'coach', 'app_admin'].includes(r.role) &&
-      (r.team_id === selectedTeamId || (selectedTeam && r.club_id === selectedTeam.club_id))
+      (r.team_id === target.id || r.club_id === target.clubId)
     );
-  }, [selectedTeamId, selectedTeam]);
+  }, [target]);
 
-  // Show dialog when: needs club pick, or needs team pick (multiple filtered teams),
-  // or club is selected but has no teams (show message)
-  const clubSelectedNoTeams = !needsClubPick && selectedClubId && filteredTeams.length === 0 && !activeClubFilter;
-  // Show an instant loading dialog on first tap so the action feels responsive
-  // even when the teams/clubs query is still cold.
-  const isInitialLoading = open && !teamsAndClubs && (teamsLoading || teamsFetching);
-  const showPicker = open && (needsClubPick || filteredTeams.length > 1 || clubSelectedNoTeams);
+  const clubSelectedNoTargets =
+    !needsClubPick && selectedClubId && totalFiltered === 0 && !activeClubFilter;
+  const isInitialLoading = open && !invitables && (invitablesLoading || invitablesFetching);
+  const showPicker =
+    open &&
+    (needsClubPick ||
+      filteredTeams.length > 1 ||
+      filteredLeagues.length > 1 ||
+      (filteredTeams.length >= 1 && filteredLeagues.length >= 1) ||
+      clubSelectedNoTargets);
 
   return (
     <>
@@ -158,10 +196,10 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5" />
-                Invite to Team
+                Invite Members
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                Loading your teams…
+                Loading your teams and mini-leagues…
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             <div className="flex items-center justify-center py-8">
@@ -177,30 +215,32 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5" />
-                Invite to Team
+                Invite Members
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
                 {needsClubPick
-                  ? "Choose a club first, then select a team."
-                  : clubSelectedNoTeams
-                    ? "This club has no teams yet. Select a different club or create a team first."
-                    : "Choose a team to invite someone to."}
+                  ? "Choose a club first, then select a team or mini-league."
+                  : clubSelectedNoTargets
+                    ? "This club has no teams or mini-leagues you can invite to yet."
+                    : "Choose a team or mini-league to invite someone to."}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
             <div className="pt-2 pb-6 space-y-3">
-              {/* Club picker — only when no active club filter and multiple clubs */}
+              {/* Club picker */}
               {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
                   value={selectedClubId || ""}
                   onValueChange={handleClubSelect}
                   options={clubs.map(c => {
-                    const hasTeams = allTeams.some(t => t.club_id === c.id);
+                    const hasAny =
+                      allTeams.some(t => t.club_id === c.id) ||
+                      allLeagues.some(l => l.club_id === c.id);
                     return {
                       value: c.id,
                       label: c.name,
-                      description: !hasTeams ? "No teams" : undefined,
-                      disabled: !hasTeams,
+                      description: !hasAny ? "Nothing to invite to" : undefined,
+                      disabled: !hasAny,
                     };
                   })}
                   label="Select Club"
@@ -211,8 +251,8 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                 />
               )}
 
-              {/* Team picker — only after club is resolved and multiple teams */}
-              {!needsClubPick && filteredTeams.length > 1 && (
+              {/* Team picker */}
+              {!needsClubPick && filteredTeams.length > 0 && (
                 <MobileCardSelect
                   value=""
                   onValueChange={handleTeamSelect}
@@ -220,11 +260,28 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                     value: t.id,
                     label: t.name,
                   }))}
-                  label="Select Team"
+                  label="Teams"
                   placeholder="Choose a team..."
                   searchable={filteredTeams.length > 5}
                   searchPlaceholder="Search teams..."
                   emptyMessage="No teams found."
+                />
+              )}
+
+              {/* Mini-league picker */}
+              {!needsClubPick && filteredLeagues.length > 0 && (
+                <MobileCardSelect
+                  value=""
+                  onValueChange={handleLeagueSelect}
+                  options={filteredLeagues.map(l => ({
+                    value: l.id,
+                    label: l.name,
+                  }))}
+                  label="Mini-Leagues"
+                  placeholder="Choose a mini-league..."
+                  searchable={filteredLeagues.length > 5}
+                  searchPlaceholder="Search mini-leagues..."
+                  emptyMessage="No mini-leagues found."
                 />
               )}
             </div>
@@ -232,14 +289,23 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         </ResponsiveDialog>
       )}
 
-      {/* AddTeamMemberSheet — the full invite flow with name capture */}
-      {selectedTeam && (
+      {target?.kind === "team" && (
         <AddTeamMemberSheet
-          teamId={selectedTeam.id}
-          teamName={selectedTeam.name}
-          clubId={selectedTeam.club_id || (selectedTeam.clubs as any)?.id || ""}
+          teamId={target.id}
+          teamName={target.name}
+          clubId={target.clubId}
           canBulkInvite={canBulkInvite}
           triggerVariant="none"
+          externalOpen={inviteSheetOpen}
+          onExternalOpenChange={handleInviteSheetChange}
+        />
+      )}
+
+      {target?.kind === "mini_league" && (
+        <AddMiniLeagueMemberSheet
+          miniLeagueId={target.id}
+          miniLeagueName={target.name}
+          clubId={target.clubId}
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
