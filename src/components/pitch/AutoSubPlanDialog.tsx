@@ -2430,7 +2430,7 @@ function DialogInner({
     );
   }
   
-  if (isGenerating) {
+  if (isGenerating && !plan) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
