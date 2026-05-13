@@ -2294,6 +2294,109 @@ function createMiniLeagueSubPlan(
   return merged;
 }
 
+// ===========================================================================
+// FairnessDiagnostics — always-visible "Game time fairness" summary derived
+// directly from the forecast minutes. Shows target vs actual min/max/spread,
+// plus a plain-English message and constraint warnings.
+// ===========================================================================
+function FairnessDiagnostics({
+  forecasts,
+  teamSize,
+  squadSize,
+  matchMinutes,
+  minShiftSeconds,
+  rotateGkAtHalftime,
+  mode,
+}: {
+  forecasts: Array<{ player: { id: string }; predictedMinutes: number; gkRole?: 'full' | '1h' | '2h' | null }>;
+  teamSize: number;
+  squadSize: number;
+  matchMinutes: number;
+  minShiftSeconds: number;
+  rotateGkAtHalftime: boolean;
+  mode: 'Standard' | 'Frequent';
+}) {
+  if (!forecasts.length || squadSize <= teamSize) return null;
+
+  // Target uses outfield slots × match length / outfield squad size. We treat
+  // a "full game" GK as out of the rotation pool to avoid skewing the target.
+  const fullGameGkIds = new Set(forecasts.filter(f => f.gkRole === 'full').map(f => f.player.id));
+  const outfieldSlots = Math.max(0, teamSize - (fullGameGkIds.size > 0 ? 1 : 0));
+  const outfieldSquad = squadSize - fullGameGkIds.size;
+  const outfieldForecasts = forecasts.filter(f => !fullGameGkIds.has(f.player.id));
+  if (outfieldSquad <= 0 || outfieldSlots <= 0 || outfieldForecasts.length === 0) return null;
+
+  const target = (outfieldSlots * matchMinutes) / outfieldSquad;
+  const mins = outfieldForecasts.map(f => f.predictedMinutes);
+  const min = Math.min(...mins);
+  const max = Math.max(...mins);
+  const spread = max - min;
+
+  const mathematicalMinSpread = matchMinutes - Math.floor(target) - Math.floor(target);
+  // Bench size relative to outfield slots — flags large benches that need more rotations.
+  const benchSize = squadSize - teamSize;
+  const isLargeBench = benchSize >= Math.ceil(teamSize / 2);
+  const minShiftMin = minShiftSeconds / 60;
+  const constrainedByMinShift = spread > 3 && target < minShiftMin * 1.5;
+
+  let tone: 'good' | 'warn' | 'info' = 'good';
+  let message = `Fair plan: all players are within ${Math.ceil(spread)} min of each other.`;
+  if (spread <= 3) {
+    tone = 'good';
+    message = `Fair plan: all outfielders are within ${Math.ceil(spread)} min of target game time.`;
+  } else if (spread <= 6) {
+    tone = 'info';
+    message = `Slightly uneven: spread of ${spread.toFixed(1)} min between most- and least-played outfielder.`;
+    if (constrainedByMinShift) {
+      message += ' Minimum time on field is preventing a tighter rotation.';
+    } else if (isLargeBench && mode === 'Standard') {
+      message += ' Try Frequent mode or lower “How often to suggest subs”.';
+    }
+  } else {
+    tone = 'warn';
+    message = `Uneven plan: ${spread.toFixed(1)} min between most- and least-played outfielder.`;
+    if (isLargeBench) {
+      message += ' Large bench — try Frequent mode or lower “How often to suggest subs”.';
+    } else if (constrainedByMinShift) {
+      message += ' Lower “Minimum time on field” to allow shorter shifts.';
+    } else {
+      message += ' Lower “Minimum gap between sub moments” to allow more rotations.';
+    }
+  }
+
+  const toneClasses =
+    tone === 'good' ? 'border-emerald-500/40 bg-emerald-500/5' :
+    tone === 'warn' ? 'border-amber-500/40 bg-amber-500/5' :
+    'border-border bg-muted/30';
+
+  return (
+    <div className={cn('rounded-lg border p-3 space-y-2 mb-2', toneClasses)}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-foreground">Game time fairness</p>
+        <span className="text-[11px] text-muted-foreground">{mode} mode</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+        <span className="text-muted-foreground">Target per player</span>
+        <span className="text-right tabular-nums font-medium text-foreground">{target.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Highest</span>
+        <span className="text-right tabular-nums text-foreground">{max.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Lowest</span>
+        <span className="text-right tabular-nums text-foreground">{min.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Spread</span>
+        <span className={cn(
+          'text-right tabular-nums font-medium',
+          tone === 'good' ? 'text-emerald-600' : tone === 'warn' ? 'text-amber-600' : 'text-foreground'
+        )}>{spread.toFixed(1)} min</span>
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">{message}</p>
+      {rotateGkAtHalftime && fullGameGkIds.size === 0 && forecasts.some(f => f.gkRole === '1h' || f.gkRole === '2h') && (
+        <p className="text-[10px] leading-snug text-muted-foreground italic">
+          Goalkeeper is being swapped at halftime — outfield minutes shown exclude GK time.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function DialogInner({ 
   players, 
@@ -2482,6 +2585,41 @@ function DialogInner({
     }
   };
   
+  const squadSize = players.length;
+  const squadEqualsOnField = !miniLeagueTeams && squadSize === teamSize && playersOnPitch.length === teamSize;
+  const squadBelowOnField = !miniLeagueTeams && squadSize < teamSize;
+
+  if (squadBelowOnField) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <AlertTriangle className="h-12 w-12 text-red-500" />
+        <p className="text-center text-foreground font-medium">
+          Not enough players to start a {teamSize}-a-side game.
+        </p>
+        <p className="text-center text-sm text-muted-foreground">
+          You have {squadSize} player{squadSize === 1 ? '' : 's'} available — at least {teamSize} are required on the pitch.
+        </p>
+        <Button onClick={onClose} className="gap-2 mt-2">Go back</Button>
+      </div>
+    );
+  }
+
+  if (squadEqualsOnField) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <Clock className="h-12 w-12 text-primary" />
+        <p className="text-center text-foreground font-medium">No substitutions needed.</p>
+        <p className="text-center text-sm text-muted-foreground">
+          Your squad of {squadSize} matches the {teamSize} players on the pitch — every player is on for the full match.
+        </p>
+        <Button onClick={onClose} className="gap-2 mt-2">
+          <Play className="h-4 w-4" />
+          Continue to Pitch Board
+        </Button>
+      </div>
+    );
+  }
+
    if (!hasEnoughPlayers) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
@@ -2568,6 +2706,17 @@ function DialogInner({
               <p className="text-xs text-muted-foreground mb-3">
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
               </p>
+
+              {/* Always-on fairness diagnostics derived from forecasts */}
+              <FairnessDiagnostics
+                forecasts={forecasts}
+                teamSize={teamSize}
+                squadSize={players.length}
+                matchMinutes={minutesPerHalf * 2}
+                minShiftSeconds={effectiveOverrides.minShiftSeconds ?? 180}
+                rotateGkAtHalftime={rotateGkAtHalftime ?? true}
+                mode={rotationSpeed === 2 ? "Frequent" : "Standard"}
+              />
 
               {/* Fairness Simulator — one-click preview of plan quality */}
               <FairnessSimulatorPanel
@@ -2888,7 +3037,7 @@ function AdvancedSettingsPanel({
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Settings2 className="h-4 w-4" />
-          Advanced settings
+          Advanced substitution tuning
           {overrideCount > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
               {overrideCount} custom
@@ -2901,10 +3050,7 @@ function AdvancedSettingsPanel({
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
           <p className="text-[11px] leading-snug text-muted-foreground">
-            These dials fine-tune <span className="font-medium text-foreground">how often</span> the
-            planner subs players and <span className="font-medium text-foreground">how equal</span>{" "}
-            their playing time ends up. Defaults work for most teams — only change them if the
-            generated plan feels too busy, too sparse, or too unfair.
+            Only adjust these if Basic or Frequent mode creates an uneven or awkward plan.
           </p>
           {readOnly && (
             <p className="text-[11px] text-muted-foreground italic">
@@ -2912,11 +3058,44 @@ function AdvancedSettingsPanel({
             </p>
           )}
 
+          {/* Troubleshooting card */}
+          <div className="rounded-md border border-border bg-background/60 p-3 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Common problems
+            </p>
+            <ul className="space-y-1.5 text-[11px] leading-snug text-foreground">
+              <li>
+                <span className="font-medium">Plan looks uneven?</span>{" "}
+                <span className="text-muted-foreground">Lower “How often to suggest subs” to give the planner more chances to balance game time.</span>
+              </li>
+              <li>
+                <span className="font-medium">Plan feels too busy?</span>{" "}
+                <span className="text-muted-foreground">Increase “Minimum gap between sub moments” to reduce interruptions.</span>
+              </li>
+              <li>
+                <span className="font-medium">Players coming off too quickly?</span>{" "}
+                <span className="text-muted-foreground">Increase “Minimum time on field.”</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Balance game time */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fairness</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Balance game time
+            </p>
+            <NumberRow
+              label="How often to suggest subs"
+              hint="Lower = fairer minutes, more interruptions. Higher = fewer interruptions, less precise balancing."
+              value={v.standardTargetIntervalSec}
+              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
+              min={180} max={900} step={30}
+              disabled={readOnly}
+              onChange={(n) => set("standardTargetIntervalSec", n)}
+            />
             <NumberRow
               label="Max playing-time spread"
-              hint="The biggest acceptable gap between your most-played and least-played outfielder by full-time. Tighter = fairer minutes but more subs; looser = fewer subs but bench players may finish well behind."
+              hint="The biggest acceptable gap between your most-played and least-played outfielder by full-time. Tighter = fairer minutes but more subs."
               value={v.maxSpreadOverrideSec}
               defaultValue={defaultMaxSpreadSec}
               min={120} max={720} step={30}
@@ -2925,33 +3104,23 @@ function AdvancedSettingsPanel({
             />
           </div>
 
+          {/* Prevent awkward timing */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Standard mode</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Prevent awkward timing
+            </p>
             <NumberRow
-              label="Target time between subs"
-              hint="How long the planner aims to wait between sub windows in Standard mode. Shorter = more frequent rotations; longer = fewer interruptions but harder to keep minutes even."
-              value={v.standardTargetIntervalSec}
-              defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
-              min={180} max={900} step={30}
-              disabled={readOnly}
-              onChange={(n) => set("standardTargetIntervalSec", n)}
-            />
-            <NumberRow
-              label="Shortest allowed gap between subs"
-              hint="A safety floor — windows will never sit closer together than this, even with a big bench. Stops the plan from churning subs every couple of minutes."
+              label="Minimum gap between sub moments"
+              hint="Stops the app creating substitution moments too close together. Lower = fairer minutes, more interruptions."
               value={v.standardIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
               min={120} max={600} step={30}
               disabled={readOnly}
               onChange={(n) => set("standardIntervalFloorSec", n)}
             />
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Frequent mode</p>
             <NumberRow
-              label="Shortest allowed gap between subs"
-              hint="Frequent mode rotates aggressively; this is the tightest the planner is allowed to go. Lower = more rotations and shorter shifts; higher = closer to Standard."
+              label="Minimum gap in Frequent mode"
+              hint="Used only when Frequent mode is selected. Lower values create more rotations but may feel busier."
               value={v.frequentIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
               min={60} max={420} step={15}
@@ -2960,26 +3129,44 @@ function AdvancedSettingsPanel({
             />
           </div>
 
+          {/* Player shift protection */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Both modes</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Player shift protection
+            </p>
             <NumberRow
-              label="Minimum shift before a player can be pulled"
-              hint="Once a player goes on, they're protected from being subbed off again until at least this long has passed. Prevents bench players getting yo-yo'd back off after a 1-minute cameo."
+              label="Minimum time on field"
+              hint="Prevents a player being subbed on and then pulled off almost immediately. Higher = fewer cameo shifts."
               value={v.minShiftSeconds}
               defaultValue={ADV_DEFAULTS.minShiftSeconds}
               min={60} max={360} step={15}
               disabled={readOnly}
               onChange={(n) => set("minShiftSeconds", n)}
             />
+          </div>
+
+          {/* Halftime protection */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Halftime protection
+            </p>
             <NumberRow
-              label="Quiet zone around halftime"
-              hint="When the planner is already swapping the keeper at HT, it avoids stacking another regular sub window inside this many minutes of the break. Keeps halftime calm."
+              label="Avoid subs near halftime"
+              hint="Stops regular substitutions clashing with halftime or planned goalkeeper swaps."
               value={v.halftimeGuardSeconds}
               defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
               min={0} max={420} step={15}
               disabled={readOnly}
               onChange={(n) => set("halftimeGuardSeconds", n)}
             />
+          </div>
+
+          {/* Compact tuning summary */}
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+            <span className="font-medium text-foreground">Current tuning:</span>{" "}
+            subs roughly every {Math.round(v.standardTargetIntervalSec / 60)} min,
+            minimum {Math.round(v.standardIntervalFloorSec / 60)} min between sub moments,
+            players stay on at least {Math.round(v.minShiftSeconds / 60)} min.
           </div>
 
           {!readOnly && overrideCount > 0 && (
