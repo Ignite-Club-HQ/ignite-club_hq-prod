@@ -381,6 +381,26 @@ function ensureNoStarvedPlayers(
     return totals;
   };
 
+  // Walk the plan to know who is on the pitch and at which position throughout
+  // the match. Used by both the rewire pass and the injection pass.
+  const buildTimeline = () => {
+    const sorted = [...plan].sort((a, b) => absTime(a) - absTime(b));
+    const onPitch = new Map<string, PitchPosition | undefined>();
+    players.filter(p => p.position).forEach(p => onPitch.set(p.id, p.currentPitchPosition));
+    // Snapshot of who's on pitch at each event (BEFORE applying the event).
+    const segments: { from: number; to: number; onPitch: Map<string, PitchPosition | undefined> }[] = [];
+    let last = 0;
+    for (const ev of sorted) {
+      const t = absTime(ev);
+      if (t > last) segments.push({ from: last, to: t, onPitch: new Map(onPitch) });
+      onPitch.delete(ev.playerOut.id);
+      onPitch.set(ev.playerIn.id, ev.playerOut.currentPitchPosition);
+      last = t;
+    }
+    if (totalSec > last) segments.push({ from: last, to: totalSec, onPitch: new Map(onPitch) });
+    return segments;
+  };
+
   // Up to N rounds — each pass can only rescue starvation visible after the
   // previous swap, so iterate but cap to keep this O(n²) bounded.
   const MAX_ROUNDS = 4;
@@ -395,31 +415,22 @@ function ensureNoStarvedPlayers(
 
     let progressed = false;
     for (const victim of starved) {
-      // Candidate subs: existing IN can be replaced by `victim`.
-      // Position must be playable; victim mustn't already be on pitch in that
-      // window (would be a no-op or yo-yo).
       const candidates = plan
         .map((s, idx) => ({ s, idx }))
         .filter(({ s }) => {
+          if (s.positionSwap) return false; // don't corrupt position-swap chains
           if (s.playerIn.id === victim.id) return false;
           if (s.playerOut.id === victim.id) return false;
           if (!canPlay(victim, s.playerOut.currentPitchPosition)) return false;
-          // Prevent yo-yo: if victim is already swapped out in same window, skip.
           const sameWindowYoyo = plan.some(
             o => o !== s && absTime(o) === absTime(s) && o.playerOut.id === victim.id,
           );
           if (sameWindowYoyo) return false;
-          // Avoid stealing a slot from another currently-starved player.
           const inIsAlsoStarved = starved.some(p => p.id === s.playerIn.id);
           if (inIsAlsoStarved) return false;
           return true;
         })
-        .map(({ s, idx }) => ({
-          s,
-          idx,
-          inTotal: totals.get(s.playerIn.id) ?? 0,
-        }))
-        // Prefer rewiring the sub whose IN is most over-served.
+        .map(({ s, idx }) => ({ s, idx, inTotal: totals.get(s.playerIn.id) ?? 0 }))
         .sort((a, b) => b.inTotal - a.inTotal);
 
       if (candidates.length === 0) continue;
@@ -432,6 +443,73 @@ function ensureNoStarvedPlayers(
     if (!progressed) break;
   }
 
+  // ---- Final injection pass --------------------------------------------------
+  // Anyone still at 0 minutes after rewiring gets a brand-new sub event injected
+  // mid-match. Pulls the most over-served on-pitch player they can replace.
+  for (let inject = 0; inject < 6; inject++) {
+    const totals = simulate();
+    const stillStarved = players
+      .filter(p => eligible(p))
+      .filter(p => (totals.get(p.id) ?? 0) === 0)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (stillStarved.length === 0) break;
+
+    let injectedAny = false;
+    for (const victim of stillStarved) {
+      const segments = buildTimeline();
+      // Prefer the longest segment in H2 mid-half (avoids near-half-end edges).
+      const ranked = segments
+        .map(seg => ({ seg, dur: seg.to - seg.from }))
+        .filter(r => r.dur >= 60) // need at least 1 min stint to matter
+        .sort((a, b) => b.dur - a.dur);
+
+      let placed = false;
+      for (const { seg } of ranked) {
+        // Find an over-served field player at this segment that victim can replace.
+        const victimPos = victim.currentPitchPosition;
+        const candidatesOut = [...seg.onPitch.entries()]
+          .filter(([id]) => id !== victim.id)
+          .filter(([id]) => {
+            const p = players.find(pp => pp.id === id);
+            if (!p) return false;
+            if (p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK") return false;
+            return true;
+          })
+          .filter(([, pos]) => canPlay(victim, pos))
+          .map(([id, pos]) => ({ id, pos, total: totals.get(id) ?? 0 }))
+          .sort((a, b) => b.total - a.total);
+
+        if (candidatesOut.length === 0) continue;
+
+        const out = candidatesOut[0];
+        const playerOut = players.find(p => p.id === out.id);
+        if (!playerOut) continue;
+
+        // Insertion time: one-third into the segment (away from boundaries).
+        const insertAbs = Math.floor(seg.from + Math.max(60, (seg.to - seg.from) / 3));
+        const half: 1 | 2 = insertAbs < halfDurationSeconds ? 1 : 2;
+        const time = half === 1 ? insertAbs : insertAbs - halfDurationSeconds;
+
+        const newEvent: SubstitutionEvent = {
+          half,
+          time,
+          executed: false,
+          playerOut: { ...playerOut, currentPitchPosition: out.pos } as Player,
+          playerIn: { ...victim, currentPitchPosition: out.pos } as Player,
+        };
+        plan.push(newEvent);
+        injectedAny = true;
+        placed = true;
+        break;
+      }
+      if (!placed) {
+        // Last-ditch: skip this victim; loop will terminate on no-progress.
+      }
+    }
+    if (!injectedAny) break;
+  }
+
+  plan.sort((a, b) => absTime(a) - absTime(b));
   return plan;
 }
 
