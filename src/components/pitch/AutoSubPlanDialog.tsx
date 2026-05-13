@@ -1384,19 +1384,26 @@ export function createSubPlan(
   // otherwise a player can come on at window N and be forced off at HT, producing
   // a sub-1-min "shift" that's impossible for the optimizer to remove because
   // the HT event is fixed.
-  const halftimeGuardActive =
-    startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn;
-  for (let t = startAbsoluteSeconds + maxIntervalSeconds; t < endAbsoluteSeconds - 45; t += maxIntervalSeconds) {
-    if (t < halfDurationSeconds && halfDurationSeconds - t <= 45) continue;
-    if (t > halfDurationSeconds && t - halfDurationSeconds <= 45) continue;
-    if (halftimeGuardActive && Math.abs(t - halfDurationSeconds) < halftimeGuardWindow) continue;
-    directEventTimes.add(Math.floor(t));
-  }
-  if (halftimeGuardActive) {
-    directEventTimes.add(halfDurationSeconds);
-  }
+  const halftimeGuardActive = !!(
+    startAbsoluteSeconds < halfDurationSeconds && rotateGkAtHalftime && gkOnPitch && halftimeGkIn
+  );
 
-  const sortedDirectEventTimes = Array.from(directEventTimes).sort((a, b) => a - b);
+  // Unified window builder — same helper Standard uses, just with Frequent's
+  // numbers. Frequent has no settling-in window and a 45 s edge buffer.
+  const sortedDirectEventTimes = buildSubWindows({
+    startAbs: startAbsoluteSeconds,
+    endAbs: endAbsoluteSeconds,
+    halfDurationSeconds,
+    targetIntervalSec: maxIntervalSeconds,
+    intervalFloorSec: maxIntervalSeconds,
+    noSubBeforeSec: 0,
+    noSubAfterSec: 45,
+    halftimeGuardSec: halftimeGuardWindow,
+    halftimeGuardActive,
+    edgeBufferSec: 45,
+    includeHalftimeWhenGuardActive: true,
+  });
+
 
   const isAvailableForInterval = (player: Player, intervalStart: number, intervalEnd: number) => {
     if (player.isInjured) return false;
