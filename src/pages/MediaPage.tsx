@@ -1533,9 +1533,9 @@ export default function MediaPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setActiveCommentPhotoId(photo.id)}
-                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto text-muted-foreground"
+                            className="gap-1 p-0 h-auto hover:bg-transparent ml-auto text-muted-foreground shrink-0"
                           >
-                            <MessageCircle className="h-5 w-5" />
+                            <MessageCircle className="h-5 w-5 shrink-0" />
                             <span
                               className="text-xs tabular-nums"
                               style={{ visibility: comments.length > 0 ? "visible" : "hidden" }}
