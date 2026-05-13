@@ -395,7 +395,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-medium">{displayName}</span>
+            {!isOwnMessage && (
+              <span className="text-xs font-medium">{displayName}</span>
+            )}
             {msg.id.startsWith("queued-") && (
               <span className="flex items-center text-amber-500" title="Pending sync">
                 <Clock className="h-3 w-3" />
