@@ -604,7 +604,7 @@ export function createSubPlan(
     const forcedInByWindow = new Map<number, string>();
     const forcedOutByWindow = new Map<number, string>();
     let halftimeGkBenchByAbs: number | null = null;
-    if (halftimeGkIn && startHalf === 1 && halfDurationSeconds > 12 * 60) {
+    if (halftimeGkIn && needsProtectedOutfieldRun(halftimeGkIn.id) && startHalf === 1 && halfDurationSeconds > 12 * 60) {
       // Bring the 2H GK on outfield as early as possible in 1H and keep them
       // on as long as possible (sub off ~2 min before HT). This pushes them
       // toward the top of the allowed spread without breaching it.
@@ -632,7 +632,7 @@ export function createSubPlan(
     // top of the allowed spread. Bring them on shortly after HT; let the
     // normal scheduler decide when they come off (no forced-out) so other
     // outfielders still get adequate rotation in H2.
-    if (includeStartingGkInRotation && gkOnPitch && halfDurationSeconds > 12 * 60) {
+    if (includeStartingGkInRotation && gkOnPitch && needsProtectedOutfieldRun(gkOnPitch.id) && halfDurationSeconds > 12 * 60) {
       // GK-protected: bring 1H GK on outfield as soon as the post-HT blackout
       // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
       // banks more outfield minutes and finishes near the top of the spread.
