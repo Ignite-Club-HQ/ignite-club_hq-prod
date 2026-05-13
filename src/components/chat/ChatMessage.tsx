@@ -87,6 +87,13 @@ export interface ChatMessageProps {
   isPublishedToGallery?: boolean;
   isPublishingToGallery?: boolean;
   onPublishToGallery?: (messageId: string, imageUrl: string) => void;
+  /** True when the previous message is from the same author within the
+   *  grouping window — drop avatar/name and flatten the top corner. */
+  groupedWithPrev?: boolean;
+  /** True when the next message is from the same author within the
+   *  grouping window — flatten the bottom corner and hide the per-bubble
+   *  timestamp / read-receipt strip until the last message in the group. */
+  groupedWithNext?: boolean;
 }
 
 function ChatMessageInner({
@@ -126,6 +133,8 @@ function ChatMessageInner({
   isPublishedToGallery = false,
   isPublishingToGallery = false,
   onPublishToGallery,
+  groupedWithPrev = false,
+  groupedWithNext = false,
 }: ChatMessageProps) {
   const navigate = useNavigate();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -749,7 +758,7 @@ function ChatMessageInner({
   const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
 
   return (
-    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`} style={{ overflowAnchor: 'none' }}>
+    <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""} ${groupedWithPrev ? "-mt-3" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
@@ -777,10 +786,22 @@ function ChatMessageInner({
         />,
         document.body
       )}
-      {isClubAnnouncement && !authorAvatar ? (
-        <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
-          <Megaphone className="h-4 w-4 text-primary-foreground" />
-        </div>
+      {isOwn && !isClubAnnouncement ? (
+        // Outgoing messages never show the sender avatar — modern messaging
+        // apps rely on right-alignment + bubble colour for ownership cues.
+        null
+      ) : isClubAnnouncement && !authorAvatar ? (
+        groupedWithPrev ? (
+          <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+        ) : (
+          <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
+            <Megaphone className="h-4 w-4 text-primary-foreground" />
+          </div>
+        )
+      ) : groupedWithPrev ? (
+        // Incoming follow-up message in a group: reserve the avatar slot
+        // so bubbles stay vertically aligned, but don't repeat the avatar.
+        <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       ) : (
         <button
           type="button"
@@ -805,7 +826,7 @@ function ChatMessageInner({
             messages so late profile hydration on first-ever open of a thread
             does not cause cumulative vertical layout shift (which the chat
             scroll-pin hook can never fully race — visible as a "jolt up"). */}
-        {isClubAnnouncement ? (
+        {isClubAnnouncement && !groupedWithPrev ? (
           <button
             type="button"
             onClick={(e) => {
@@ -817,7 +838,7 @@ function ChatMessageInner({
           >
             {displayName || "Club"}
           </button>
-        ) : !isOwn ? (
+        ) : !isOwn && !isClubAnnouncement && !groupedWithPrev ? (
           <button
             type="button"
             onClick={(e) => {
@@ -872,8 +893,8 @@ function ChatMessageInner({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
-                  ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
-                  : "bg-muted rounded-bl-sm"
+                  ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
+                  : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
               } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
@@ -1034,26 +1055,33 @@ function ChatMessageInner({
           onReactionClick={handleReactionClick}
         />
         
-        <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
-          {isPending && (
-            <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
-              <Clock className="h-3 w-3" />
-            </span>
-          )}
-          {timestamp}
-          {!isPending && !isLastMessage && isOwn && readCount > 0 && (
-            messageType === "dm" ? (
-              <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
-            ) : (
-              <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
-                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+        {/* Per-bubble timestamp / inline read-state. Hidden on grouped
+            follow-ups (groupedWithNext) so only the LAST bubble in a
+            sender's burst carries the metadata — keeps the thread quiet
+            and content-first. The standalone "isLastMessage" frontier
+            block below still always renders for the chat tail. */}
+        {!groupedWithNext && (
+          <p className={`text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden ${isOwn ? "justify-end" : ""}`}>
+            {isPending && (
+              <span className="flex items-center gap-0.5 text-amber-500" title="Pending sync">
+                <Clock className="h-3 w-3" />
               </span>
-            )
-          )}
-          {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
-            <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
-          )}
-        </p>
+            )}
+            {timestamp}
+            {!isPending && !isLastMessage && isOwn && readCount > 0 && (
+              messageType === "dm" ? (
+                <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+              ) : (
+                <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+                  <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                </span>
+              )
+            )}
+            {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
+              <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+            )}
+          </p>
+        )}
         {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
           readFrontierReaders.length > 0
             ? (messageType === "dm"
@@ -1168,7 +1196,9 @@ function arePropsEqual(prev: ChatMessageProps, next: ChatMessageProps) {
     prev.pinLimitReached !== next.pinLimitReached ||
     prev.canPublishToGallery !== next.canPublishToGallery ||
     prev.isPublishedToGallery !== next.isPublishedToGallery ||
-    prev.isPublishingToGallery !== next.isPublishingToGallery
+    prev.isPublishingToGallery !== next.isPublishingToGallery ||
+    prev.groupedWithPrev !== next.groupedWithPrev ||
+    prev.groupedWithNext !== next.groupedWithNext
   ) {
     return false;
   }

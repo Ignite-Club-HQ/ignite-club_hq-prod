@@ -40,6 +40,7 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
@@ -1424,7 +1425,12 @@ export default function ClubChatPage() {
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(currentDate, new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
@@ -1471,6 +1477,8 @@ export default function ClubChatPage() {
                       isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                       isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                       onPublishToGallery={handlePublishToGallery}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
