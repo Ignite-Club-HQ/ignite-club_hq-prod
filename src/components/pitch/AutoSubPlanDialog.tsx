@@ -25,9 +25,14 @@ function calculateTimeForecasts(
   minutesPerHalf: number,
   preferredSecondHalfGkId?: string,
   rotateGkAtHalftime: boolean = true,
-  currentHalf: 1 | 2 = 1
+  currentHalf: 1 | 2 = 1,
+  currentElapsedSeconds: number = 0,
 ): PlayerTimeForecast[] {
   const totalGameMinutes = minutesPerHalf * 2;
+  const halfSec = minutesPerHalf * 60;
+  const startAbs = currentHalf === 1
+    ? Math.min(currentElapsedSeconds, halfSec)
+    : halfSec + Math.min(currentElapsedSeconds, halfSec);
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
   
@@ -43,9 +48,13 @@ function calculateTimeForecasts(
   
   // Track who's on pitch at any moment
   const currentOnPitch = new Set(playersOnPitch.map(p => p.id));
-  
+
+  playersOnPitch.forEach(player => {
+    timeOnPitch.set(player.id, player.minutesPlayed || 0);
+  });
+
   // Determine GK roles
-  const startingGk = playersOnPitch.find(p => p.currentPitchPosition === "GK");
+  const startingGk = playersOnPitch.find(p => inferredPitchPosition(p) === "GK");
   // Find the halftime GK swap (a sub at time 0 in half 2 involving the starting GK)
   const gkSwapSub = startingGk 
     ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
@@ -67,30 +76,27 @@ function calculateTimeForecasts(
     }
   }
   
-  // Process each half
-  for (const half of [1, 2]) {
-    const halfSubs = plan.filter(s => s.half === half).sort((a, b) => a.time - b.time);
-    let lastTime = 0;
-    
-    for (const sub of halfSubs) {
-      // Add time elapsed since last event for players on pitch
-      const elapsed = sub.time - lastTime;
-      currentOnPitch.forEach(playerId => {
-        timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + elapsed);
-      });
-      
-      // Execute substitution
-      currentOnPitch.delete(sub.playerOut.id);
-      currentOnPitch.add(sub.playerIn.id);
-      lastTime = sub.time;
-    }
-    
-    // Add remaining time in the half
-    const remainingInHalf = (minutesPerHalf * 60) - lastTime;
+  const orderedPlan = [...plan]
+    .filter(sub => !sub.executed && !sub.skipped)
+    .map(sub => ({ sub, abs: sub.half === 1 ? sub.time : halfSec + sub.time }))
+    .filter(item => item.abs >= startAbs)
+    .sort((a, b) => a.abs - b.abs);
+  let lastTime = startAbs;
+
+  for (const { sub, abs } of orderedPlan) {
+    const elapsed = Math.max(0, abs - lastTime);
     currentOnPitch.forEach(playerId => {
-      timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + remainingInHalf);
+      timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + elapsed);
     });
+    currentOnPitch.delete(sub.playerOut.id);
+    currentOnPitch.add(sub.playerIn.id);
+    lastTime = abs;
   }
+
+  const remaining = Math.max(0, halfSec * 2 - lastTime);
+  currentOnPitch.forEach(playerId => {
+    timeOnPitch.set(playerId, (timeOnPitch.get(playerId) || 0) + remaining);
+  });
   
   // Convert to forecast objects
   return players.map(player => ({
@@ -310,6 +316,41 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+const inferredOutfieldPosition = (player: Pick<Player, "currentPitchPosition" | "assignedPositions">): PitchPosition => {
+  if (player.currentPitchPosition && player.currentPitchPosition !== "GK") return player.currentPitchPosition;
+  return player.assignedPositions?.find(pos => pos !== "GK") || "MID";
+};
+
+const inferredPitchPosition = (player: Pick<Player, "currentPitchPosition" | "assignedPositions">): PitchPosition => {
+  if (player.currentPitchPosition) return player.currentPitchPosition;
+  if (player.assignedPositions?.length === 1 && player.assignedPositions[0] === "GK") return "GK";
+  return inferredOutfieldPosition(player);
+};
+
+export function isPlanPlayableFromPlayers(
+  players: Pick<Player, "id" | "position">[],
+  plan: Pick<SubstitutionEvent, "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped">[],
+  halfDurationSeconds: number,
+): boolean {
+  const playerIds = new Set(players.map(p => p.id));
+  const onPitch = new Set(players.filter(p => p.position !== null).map(p => p.id));
+  const remainingPlan = plan
+    .filter(sub => !sub.executed && !sub.skipped)
+    .sort((a, b) =>
+      (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
+      (b.half === 1 ? b.time : halfDurationSeconds + b.time)
+    );
+
+  for (const sub of remainingPlan) {
+    if (!playerIds.has(sub.playerOut.id) || !playerIds.has(sub.playerIn.id)) return false;
+    if (!onPitch.has(sub.playerOut.id) || onPitch.has(sub.playerIn.id)) return false;
+    onPitch.delete(sub.playerOut.id);
+    onPitch.add(sub.playerIn.id);
+  }
+
+  return true;
+}
+
 /**
  * Rotation modes (rotation_speed integer):
  * - 1 = Standard (DEFAULT) — FIFO queue, ~6–8 min between subs, 1–2 swaps per
@@ -380,6 +421,12 @@ export function createSubPlan(
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
     return [];
   }
+
+  playerData = playerData.map(p =>
+    p.position !== null && !p.currentPitchPosition
+      ? { ...p, currentPitchPosition: inferredPitchPosition(p) }
+      : p
+  );
   
   const playersOnPitch = playerData.filter(p => p.position !== null);
   const benchPlayers = playerData.filter(p => p.position === null);
@@ -2287,8 +2334,12 @@ function DialogInner({
   miniLeagueTeams?: MiniLeagueTeams;
   advancedOverrides?: AutoSubAdvancedOverrides;
 }) {
-  // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
-  const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
+  const isExistingPlanPlayable = !!existingPlan?.some(s => !s.executed && !s.skipped) &&
+    isPlanPlayableFromPlayers(players, existingPlan, minutesPerHalf * 60);
+  // Treat empty/stale existing plans as no plan so auto-generation kicks in.
+  // A stale plan can reference an impossible state after lineup changes, which
+  // made the forecast show bench players stuck on 0 minutes.
+  const effectiveExistingPlan = isExistingPlanPlayable ? existingPlan : undefined;
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
@@ -2385,8 +2436,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf);
-  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf]);
+    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
 
   // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
   useEffect(() => { setFairnessReport(null); }, [plan]);
