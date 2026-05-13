@@ -844,6 +844,8 @@ export default function ClubAdminChatPage() {
                         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);
                       }}
                       onEdit={handleEdit}
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
