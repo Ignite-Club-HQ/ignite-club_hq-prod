@@ -176,18 +176,21 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     setSelectedClubId(clubId);
   };
 
-  const handleTeamSelect = (teamId: string) => {
-    const t = filteredTeams.find(x => x.id === teamId);
-    if (!t) return;
-    setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
-    onOpenChange(false);
-    setInviteSheetOpen(true);
-  };
-
-  const handleLeagueSelect = (leagueId: string) => {
-    const l = filteredLeagues.find(x => x.id === leagueId);
-    if (!l) return;
-    setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+  const handleTargetSelect = (value: string) => {
+    const sep = value.indexOf(":");
+    const kind = value.slice(0, sep);
+    const id = value.slice(sep + 1);
+    if (kind === "team") {
+      const t = filteredTeams.find(x => x.id === id);
+      if (!t) return;
+      setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
+    } else if (kind === "mini_league") {
+      const l = filteredLeagues.find(x => x.id === id);
+      if (!l) return;
+      setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+    } else {
+      return;
+    }
     onOpenChange(false);
     setInviteSheetOpen(true);
   };
