@@ -576,22 +576,22 @@ export function createSubPlan(
     // Rules: no subs before minute 5 from kickoff, none in last ~2.5 min of
     // each half, none right around halftime. ~7 min cadence keeps things
     // predictable and lands us in the 8–14 total subs sweet spot.
-    const earliestAbs = Math.max(startAbs + 60, PRACTICAL_NO_SUB_BEFORE_SECONDS);
+    const earliestAbs = Math.max(startAbs + 60, noSubBeforeSeconds);
     const isInBlackout = (t: number) => {
       // Last N seconds of half 1
-      if (t > halfDurationSeconds - PRACTICAL_NO_SUB_AFTER_SECONDS && t <= halfDurationSeconds) return true;
+      if (t > halfDurationSeconds - noSubAfterSeconds && t <= halfDurationSeconds) return true;
       // Last N seconds of half 2
-      if (t > endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS) return true;
+      if (t > endAbs - noSubAfterSeconds) return true;
       // Right around halftime
-      if (Math.abs(t - halfDurationSeconds) < 90) return true;
+      if (Math.abs(t - halfDurationSeconds) < halftimeBlackoutSeconds) return true;
       // Before settling-in window in either half
-      if (t < PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
-      if (t > halfDurationSeconds && t < halfDurationSeconds + PRACTICAL_NO_SUB_BEFORE_SECONDS) return true;
+      if (t < noSubBeforeSeconds) return true;
+      if (t > halfDurationSeconds && t < halfDurationSeconds + noSubBeforeSeconds) return true;
       return false;
     };
 
     const baseWindowTimes: number[] = [];
-    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS; t += intervalSec) {
+    for (let t = Math.max(earliestAbs, startAbs + intervalSec); t < endAbs - noSubAfterSeconds; t += intervalSec) {
       if (isInBlackout(t)) continue;
       baseWindowTimes.push(Math.floor(t));
     }
@@ -612,8 +612,8 @@ export function createSubPlan(
       // GK-protected players are exempt from the bench-once rule and should
       // sit at the top of the spread. Push the 2H GK's 1H outfield run as
       // close to halftime as possible (HT-2 for tiny squads, HT-3 otherwise).
-      const h1GkOn = PRACTICAL_NO_SUB_BEFORE_SECONDS;
-      const h1GkOffOffset = tinySquad ? 2 * 60 : 3 * 60;
+      const h1GkOn = noSubBeforeSeconds;
+      const h1GkOffOffset = tinySquad ? noSubAfterSeconds : Math.max(noSubAfterSeconds, Math.min(3 * 60, intervalSec));
       const h1GkOff = Math.max(h1GkOn + 9 * 60, halfDurationSeconds - h1GkOffOffset);
       halftimeGkBenchByAbs = Math.floor(h1GkOff);
       // Forced GK windows bypass blackout: GK-protected runs take priority
@@ -637,7 +637,7 @@ export function createSubPlan(
       // allows. For tiny squads, shorten the post-HT delay to HT+2 so the GK
       // banks more outfield minutes and finishes near the top of the spread.
       const tinySquad = outfieldOnBench.length <= 2;
-      const h2GkOnOffset = tinySquad ? 2 * 60 : PRACTICAL_NO_SUB_BEFORE_SECONDS;
+      const h2GkOnOffset = tinySquad ? Math.min(2 * 60, noSubBeforeSeconds) : noSubBeforeSeconds;
       const h2GkOn = halfDurationSeconds + h2GkOnOffset;
       if (h2GkOn > startAbs) {
         baseWindowTimes.push(Math.floor(h2GkOn));
@@ -646,7 +646,7 @@ export function createSubPlan(
     }
     if (startAbs < halfTimeAbs && halfDurationSeconds > 18 * 60 && outfieldOnBench.length >= 3) {
       const h2FairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
-      if (h2FairnessRescue < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2FairnessRescue)) {
+      if (h2FairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2FairnessRescue)) {
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
     }
@@ -655,7 +655,7 @@ export function createSubPlan(
     // who play full 1H still get pulled off in 2H.
     if (outfieldOnBench.length <= 2 && halfDurationSeconds > 14 * 60) {
       const h2R = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.5);
-      if (h2R < endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS && !isInBlackout(h2R)) {
+      if (h2R < endAbs - noSubAfterSeconds && !isInBlackout(h2R)) {
         baseWindowTimes.push(h2R);
       }
     }
