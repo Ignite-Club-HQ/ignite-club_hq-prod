@@ -2482,6 +2482,41 @@ function DialogInner({
     }
   };
   
+  const squadSize = players.length;
+  const squadEqualsOnField = !miniLeagueTeams && squadSize === teamSize && playersOnPitch.length === teamSize;
+  const squadBelowOnField = !miniLeagueTeams && squadSize < teamSize;
+
+  if (squadBelowOnField) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <AlertTriangle className="h-12 w-12 text-red-500" />
+        <p className="text-center text-foreground font-medium">
+          Not enough players to start a {teamSize}-a-side game.
+        </p>
+        <p className="text-center text-sm text-muted-foreground">
+          You have {squadSize} player{squadSize === 1 ? '' : 's'} available — at least {teamSize} are required on the pitch.
+        </p>
+        <Button onClick={onClose} className="gap-2 mt-2">Go back</Button>
+      </div>
+    );
+  }
+
+  if (squadEqualsOnField) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <Clock className="h-12 w-12 text-primary" />
+        <p className="text-center text-foreground font-medium">No substitutions needed.</p>
+        <p className="text-center text-sm text-muted-foreground">
+          Your squad of {squadSize} matches the {teamSize} players on the pitch — every player is on for the full match.
+        </p>
+        <Button onClick={onClose} className="gap-2 mt-2">
+          <Play className="h-4 w-4" />
+          Continue to Pitch Board
+        </Button>
+      </div>
+    );
+  }
+
    if (!hasEnoughPlayers) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
