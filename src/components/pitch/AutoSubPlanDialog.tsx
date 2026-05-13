@@ -649,6 +649,10 @@ export function createSubPlan(
       if (h2FairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2FairnessRescue)) {
         baseWindowTimes.push(Math.floor(h2FairnessRescue));
       }
+      const h2LateFairnessRescue = halfDurationSeconds + Math.floor(halfDurationSeconds * 0.72);
+      if (h2LateFairnessRescue < endAbs - noSubAfterSeconds && !isInBlackout(h2LateFairnessRescue)) {
+        baseWindowTimes.push(Math.floor(h2LateFairnessRescue));
+      }
     }
     // Tiny squads (≤2 bench): the forced 2H-GK 1H window already eats 2 of the
     // sub slots. Add a single extra rescue window in 2H (~50%) so the FWDs
