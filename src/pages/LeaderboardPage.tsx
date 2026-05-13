@@ -62,7 +62,7 @@ export default function LeaderboardPage() {
       if (!user?.id) return [];
       const { data, error } = await supabase
         .from("user_roles")
-        .select("club_id, clubs:club_id(id, name)")
+        .select("club_id, clubs:club_id(id, name, deleted_at)")
         .eq("user_id", user.id)
         .not("club_id", "is", null);
       if (error) throw error;
@@ -70,7 +70,7 @@ export default function LeaderboardPage() {
       const out: { id: string; name: string }[] = [];
       (data ?? []).forEach((r: any) => {
         const c = r.clubs;
-        if (c && !seen.has(c.id)) {
+        if (c && !c.deleted_at && !seen.has(c.id)) {
           seen.add(c.id);
           out.push({ id: c.id, name: c.name });
         }
