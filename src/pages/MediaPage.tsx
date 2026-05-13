@@ -1701,23 +1701,37 @@ export default function MediaPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Photo Lightbox */}
-      <PhotoLightbox
-        isOpen={lightboxIndex !== null}
-        onClose={() => setLightboxIndex(null)}
-        photos={photos}
-        currentIndex={lightboxIndex ?? 0}
-        onNavigate={(idx) => {
-          const navPhoto = photos[idx];
-          if (navPhoto) recordView(navPhoto.id);
-          setLightboxIndex(idx);
-        }}
-        onDelete={(photoId) => {
-          setLightboxIndex(null);
-          setTimeout(() => setDeletePhotoId(photoId), 100);
-        }}
-        canDelete={lightboxIndex !== null && photos[lightboxIndex] ? canDeletePhoto(photos[lightboxIndex]) : false}
-      />
+      {/* Photo Lightbox — uses album-scoped photos when launched from an
+          album swipe, otherwise the feed-level photos. */}
+      {(() => {
+        const usingAlbum = lightboxAlbum !== null;
+        const lbPhotos = usingAlbum ? lightboxAlbum!.photos : photos;
+        const lbIndex = usingAlbum ? lightboxAlbum!.index : (lightboxIndex ?? 0);
+        const lbOpen = usingAlbum || lightboxIndex !== null;
+        const close = () => {
+          if (usingAlbum) setLightboxAlbum(null);
+          else setLightboxIndex(null);
+        };
+        return (
+          <PhotoLightbox
+            isOpen={lbOpen}
+            onClose={close}
+            photos={lbPhotos}
+            currentIndex={lbIndex}
+            onNavigate={(idx) => {
+              const navPhoto = lbPhotos[idx];
+              if (navPhoto) recordView(navPhoto.id);
+              if (usingAlbum) setLightboxAlbum({ photos: lbPhotos, index: idx });
+              else setLightboxIndex(idx);
+            }}
+            onDelete={(photoId) => {
+              close();
+              setTimeout(() => setDeletePhotoId(photoId), 100);
+            }}
+            canDelete={lbOpen && lbPhotos[lbIndex] ? canDeletePhoto(lbPhotos[lbIndex]) : false}
+          />
+        );
+      })()}
 
       {/* Report Photo Dialog */}
       <ReportPhotoDialog
