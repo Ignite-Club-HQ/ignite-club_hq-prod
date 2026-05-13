@@ -786,10 +786,22 @@ function ChatMessageInner({
         />,
         document.body
       )}
-      {isClubAnnouncement && !authorAvatar ? (
-        <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
-          <Megaphone className="h-4 w-4 text-primary-foreground" />
-        </div>
+      {isOwn && !isClubAnnouncement ? (
+        // Outgoing messages never show the sender avatar — modern messaging
+        // apps rely on right-alignment + bubble colour for ownership cues.
+        null
+      ) : isClubAnnouncement && !authorAvatar ? (
+        groupedWithPrev ? (
+          <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+        ) : (
+          <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
+            <Megaphone className="h-4 w-4 text-primary-foreground" />
+          </div>
+        )
+      ) : groupedWithPrev ? (
+        // Incoming follow-up message in a group: reserve the avatar slot
+        // so bubbles stay vertically aligned, but don't repeat the avatar.
+        <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       ) : (
         <button
           type="button"
