@@ -893,8 +893,8 @@ function ChatMessageInner({
                 ref={bubbleRef}
                 className={`relative max-w-full rounded-2xl px-4 py-2 select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
-                  ? "bg-chat-bubble-own text-chat-bubble-own-foreground rounded-br-sm"
-                  : "bg-muted rounded-bl-sm"
+                  ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
+                  : `bg-muted ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
               } ${tapFlash ? "ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
