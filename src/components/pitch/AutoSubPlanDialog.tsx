@@ -755,7 +755,7 @@ export function createSubPlan(
         // non-GK-protected player off so the GK-protected one keeps banking
         // outfield minutes toward the top of the spread.
         const gkProtectedOnPitchBelowCeiling = onPitchOrder.some(
-          id => isGkProtected(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
+          id => isGkProtected(id) && needsProtectedOutfieldRun(id) && !isActiveGk(id) && (projected.get(id) || 0) < gkCeilingSec - 30
         );
 
         const overCap = onPitchOrder
@@ -771,7 +771,7 @@ export function createSubPlan(
           // Don't pull a GK-protected player off via over-cap until they've
           // reached the top of the allowed spread (gkCeilingSec). Their
           // outfield run should land them at equal-highest minutes.
-          .filter(id => !isGkProtected(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
+          .filter(id => !isGkProtected(id) || !needsProtectedOutfieldRun(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
           .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
             // GK-protected promotion: prefer pulling non-GK-protected first
@@ -817,7 +817,7 @@ export function createSubPlan(
               if (candidate === halftimeGkIn?.id && halftimeGkBenchByAbs !== null && t < halftimeGkBenchByAbs) continue;
               // Don't sub off a GK-protected player while they're still below
               // their ceiling — they need to finish at the top of the spread.
-              if (isGkProtected(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
+              if (isGkProtected(candidate) && needsProtectedOutfieldRun(candidate) && (projected.get(candidate) || 0) < gkCeilingSec - 30) continue;
               if (isKeeperRotationPlayer(candidate) && (projected.get(candidate) || 0) < effectiveMinSec(candidate)) continue;
               if (!allowRecentSub) {
                 const onAt = lastSubbedOnAbs.get(candidate);
@@ -948,8 +948,8 @@ export function createSubPlan(
         const lastScheduled = pendingWindows.length > 0 ? pendingWindows[pendingWindows.length - 1] : t;
         for (let k = 1; k <= deficit; k++) {
           const extra = Math.min(
-            lastScheduled + k * 2 * 60,
-            endAbs - PRACTICAL_NO_SUB_AFTER_SECONDS,
+            lastScheduled + k * Math.max(90, Math.min(2 * 60, intervalSec)),
+            endAbs - noSubAfterSeconds,
           );
           if (extra > t && !pendingWindows.includes(extra)) {
             pendingWindows.push(extra);
