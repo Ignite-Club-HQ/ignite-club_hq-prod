@@ -44,6 +44,7 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
