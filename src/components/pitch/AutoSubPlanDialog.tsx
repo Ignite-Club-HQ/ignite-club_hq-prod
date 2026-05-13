@@ -2193,8 +2193,12 @@ export function createSubPlan(
   // matching `playerIn`/`playerOut`. Here we inspect the actual pitch state at
   // each sub window and replace that window with `overplayed off, underplayed on`.
   const fairnessTargets = outfieldPlayers;
-  const FAIRNESS_TOLERANCE = 30; // avoids rounded forecasts still showing a multi-minute gap
-  const MAX_REBALANCE_ITERATIONS = 24;
+  // Tolerance lowered (was 30s) so the loop keeps searching for improving
+  // swaps until the spread is within ~5 seconds. The loop still exits early
+  // when no swap can improve, so this only burns iterations when there's
+  // actual room to tighten fairness.
+  const FAIRNESS_TOLERANCE = 5;
+  const MAX_REBALANCE_ITERATIONS = 32;
 
   const fairnessSpread = (times: Map<string, number>) => {
     const values = fairnessTargets.map(p => totalProjectedSeconds(times, p.id));
@@ -2225,23 +2229,54 @@ export function createSubPlan(
       if (!snapshot.before.has(over.id) || snapshot.before.has(under.id)) continue;
 
       const overPosition = snapshot.before.get(over.id);
-      if (!canPlayPosition(underPlayer, overPosition)) continue;
+      if (!overPosition) continue;
 
-      const replacement: SubstitutionEvent = {
-        ...sub,
-        playerOut: overPlayer,
-        playerIn: underPlayer,
-        positionSwap: undefined,
-      };
+      // Build candidate replacements for this snapshot:
+      //  1. DIRECT MATCH — under can take over's position straight up.
+      //  2. POSITION SWAP — find a 3rd on-pitch player Q whose slot under can
+      //     play and who can move into over's slot. This unlocks a much wider
+      //     pool of fairness swaps when assigned positions don't overlap.
+      const candidateReplacements: SubstitutionEvent[] = [];
 
-      const original = plan[snapshot.index];
-      plan[snapshot.index] = replacement;
-      const trial = simulateOutfieldPlan(plan);
-      const spread = trial.valid ? fairnessSpread(trial.times) : currentSpread;
-      plan[snapshot.index] = original;
+      if (canPlayPosition(underPlayer, overPosition)) {
+        candidateReplacements.push({
+          ...sub,
+          playerOut: overPlayer,
+          playerIn: underPlayer,
+          positionSwap: undefined,
+        });
+      }
 
-      if (trial.valid && spread < (bestEdit?.spread ?? currentSpread)) {
-        bestEdit = { index: snapshot.index, replacement, spread };
+      if (!disablePositionSwaps) {
+        for (const [qId, qPos] of snapshot.before.entries()) {
+          if (qId === over.id || qId === under.id || qId === overPlayer.id) continue;
+          if (!canPlayPosition(underPlayer, qPos)) continue;
+          if (!canPlayPosition({ assignedPositions: getPlayer(qId)?.assignedPositions } as Player, overPosition)) continue;
+          const qPlayer = getPlayer(qId);
+          if (!qPlayer) continue;
+          candidateReplacements.push({
+            ...sub,
+            playerOut: overPlayer,
+            playerIn: underPlayer,
+            positionSwap: {
+              player: qPlayer,
+              fromPosition: qPos,
+              toPosition: overPosition,
+            },
+          });
+        }
+      }
+
+      for (const replacement of candidateReplacements) {
+        const original = plan[snapshot.index];
+        plan[snapshot.index] = replacement;
+        const trial = simulateOutfieldPlan(plan);
+        const spread = trial.valid ? fairnessSpread(trial.times) : currentSpread;
+        plan[snapshot.index] = original;
+
+        if (trial.valid && spread < (bestEdit?.spread ?? currentSpread)) {
+          bestEdit = { index: snapshot.index, replacement, spread };
+        }
       }
     }
 
