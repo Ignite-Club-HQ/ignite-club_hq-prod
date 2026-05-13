@@ -54,7 +54,7 @@ function calculateTimeForecasts(
   });
 
   // Determine GK roles
-  const startingGk = playersOnPitch.find(p => p.currentPitchPosition === "GK");
+  const startingGk = playersOnPitch.find(p => inferredPitchPosition(p) === "GK");
   // Find the halftime GK swap (a sub at time 0 in half 2 involving the starting GK)
   const gkSwapSub = startingGk 
     ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
@@ -421,6 +421,12 @@ export function createSubPlan(
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
     return [];
   }
+
+  playerData = playerData.map(p =>
+    p.position !== null && !p.currentPitchPosition
+      ? { ...p, currentPitchPosition: inferredPitchPosition(p) }
+      : p
+  );
   
   const playersOnPitch = playerData.filter(p => p.position !== null);
   const benchPlayers = playerData.filter(p => p.position === null);
