@@ -1180,7 +1180,7 @@ export function UploadPhotoSheet({
             )}
 
             {/* Form Fields */}
-            <div className="px-4 pb-6 space-y-6">
+            <div className="px-4 pt-4 pb-6 space-y-6">
               {/* Club Selection */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium flex items-center gap-2">
