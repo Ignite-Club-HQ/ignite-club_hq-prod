@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, UserPlus } from "lucide-react";
+import { ChevronRight, Loader2, Trophy, UserPlus, Users } from "lucide-react";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import {
   ResponsiveDialog,
@@ -143,6 +143,21 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     : allLeagues;
 
   const totalFiltered = filteredTeams.length + filteredLeagues.length;
+
+  const targetOptions = useMemo(() => [
+    ...filteredTeams.map(t => ({
+      value: `team:${t.id}`,
+      label: t.name,
+      description: "Team",
+      icon: Users,
+    })),
+    ...filteredLeagues.map(l => ({
+      value: `mini_league:${l.id}`,
+      label: l.name,
+      description: "Mini-league",
+      icon: Trophy,
+    })),
+  ].sort((a, b) => a.label.localeCompare(b.label)), [filteredTeams, filteredLeagues]);
 
   // Determine what step to show
   const needsClubPick = !activeClubFilter && clubs.length > 1 && !selectedClubId;
@@ -295,27 +310,33 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
 
               {/* Combined target picker */}
               {!needsClubPick && totalFiltered > 0 && (
-                <MobileCardSelect
-                  value=""
-                  onValueChange={handleTargetSelect}
-                  options={[
-                    ...filteredTeams.map(t => ({
-                      value: `team:${t.id}`,
-                      label: t.name,
-                      description: "Team",
-                    })),
-                    ...filteredLeagues.map(l => ({
-                      value: `mini_league:${l.id}`,
-                      label: l.name,
-                      description: "Mini-League",
-                    })),
-                  ]}
-                  label="Select Team or Mini-League"
-                  placeholder="Choose where to invite..."
-                  searchable={totalFiltered > 5}
-                  searchPlaceholder="Search..."
-                  emptyMessage="Nothing to invite to."
-                />
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground px-1">Teams & mini-leagues</p>
+                  <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+                    {targetOptions.map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleTargetSelect(option.value)}
+                          className="w-full flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-all hover:bg-accent/50 active:bg-accent active:scale-[0.99]"
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                              <Icon className="h-4 w-4 text-muted-foreground" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-base font-medium text-foreground">{option.label}</span>
+                              <span className="block text-xs text-muted-foreground">{option.description}</span>
+                            </span>
+                          </span>
+                          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </ResponsiveDialogContent>
