@@ -272,6 +272,10 @@ export interface AutoSubAdvancedOverrides {
   /** Halftime guard: no interval-driven sub windows within this many sec of HT
    *  (when a halftime GK swap is scheduled). Default = the active interval floor. */
   halftimeGuardSeconds?: number;
+  /** Override the Max-Spread cap (sec) coming from the parent settings. When
+   *  set, replaces the `maxSpreadMinutes` prop value. Lower = stricter
+   *  fairness (planner sacrifices queue order sooner). */
+  maxSpreadOverrideSec?: number;
 }
 
 interface AutoSubPlanDialogProps {
