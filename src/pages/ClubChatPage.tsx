@@ -1424,7 +1424,12 @@ export default function ClubChatPage() {
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(currentDate, new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
