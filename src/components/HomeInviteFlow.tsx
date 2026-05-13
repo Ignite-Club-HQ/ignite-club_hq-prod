@@ -176,18 +176,21 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     setSelectedClubId(clubId);
   };
 
-  const handleTeamSelect = (teamId: string) => {
-    const t = filteredTeams.find(x => x.id === teamId);
-    if (!t) return;
-    setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
-    onOpenChange(false);
-    setInviteSheetOpen(true);
-  };
-
-  const handleLeagueSelect = (leagueId: string) => {
-    const l = filteredLeagues.find(x => x.id === leagueId);
-    if (!l) return;
-    setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+  const handleTargetSelect = (value: string) => {
+    const sep = value.indexOf(":");
+    const kind = value.slice(0, sep);
+    const id = value.slice(sep + 1);
+    if (kind === "team") {
+      const t = filteredTeams.find(x => x.id === id);
+      if (!t) return;
+      setTarget({ kind: "team", id: t.id, name: t.name, clubId: t.club_id });
+    } else if (kind === "mini_league") {
+      const l = filteredLeagues.find(x => x.id === id);
+      if (!l) return;
+      setTarget({ kind: "mini_league", id: l.id, name: l.name, clubId: l.club_id });
+    } else {
+      return;
+    }
     onOpenChange(false);
     setInviteSheetOpen(true);
   };
@@ -224,9 +227,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   const showPicker =
     open &&
     (needsClubPick ||
-      filteredTeams.length > 1 ||
-      filteredLeagues.length > 1 ||
-      (filteredTeams.length >= 1 && filteredLeagues.length >= 1) ||
+      totalFiltered > 1 ||
       clubSelectedNoTargets);
 
   return (
@@ -292,37 +293,28 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                 />
               )}
 
-              {/* Team picker */}
-              {!needsClubPick && filteredTeams.length > 0 && (
+              {/* Combined target picker */}
+              {!needsClubPick && totalFiltered > 0 && (
                 <MobileCardSelect
                   value=""
-                  onValueChange={handleTeamSelect}
-                  options={filteredTeams.map(t => ({
-                    value: t.id,
-                    label: t.name,
-                  }))}
-                  label="Teams"
-                  placeholder="Choose a team..."
-                  searchable={filteredTeams.length > 5}
-                  searchPlaceholder="Search teams..."
-                  emptyMessage="No teams found."
-                />
-              )}
-
-              {/* Mini-league picker */}
-              {!needsClubPick && filteredLeagues.length > 0 && (
-                <MobileCardSelect
-                  value=""
-                  onValueChange={handleLeagueSelect}
-                  options={filteredLeagues.map(l => ({
-                    value: l.id,
-                    label: l.name,
-                  }))}
-                  label="Mini-Leagues"
-                  placeholder="Choose a mini-league..."
-                  searchable={filteredLeagues.length > 5}
-                  searchPlaceholder="Search mini-leagues..."
-                  emptyMessage="No mini-leagues found."
+                  onValueChange={handleTargetSelect}
+                  options={[
+                    ...filteredTeams.map(t => ({
+                      value: `team:${t.id}`,
+                      label: t.name,
+                      description: "Team",
+                    })),
+                    ...filteredLeagues.map(l => ({
+                      value: `mini_league:${l.id}`,
+                      label: l.name,
+                      description: "Mini-League",
+                    })),
+                  ]}
+                  label="Select Team or Mini-League"
+                  placeholder="Choose where to invite..."
+                  searchable={totalFiltered > 5}
+                  searchPlaceholder="Search..."
+                  emptyMessage="Nothing to invite to."
                 />
               )}
             </div>
