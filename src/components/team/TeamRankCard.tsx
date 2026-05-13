@@ -57,6 +57,11 @@ export function TeamRankCard({ teamId, clubId }: TeamRankCardProps) {
   const pointsToNext = above ? Math.max(0, above.points - me.points) : 0;
   const totalRanked = leaderboard.length;
 
+  // Soften the framing for teams in the bottom quartile so the card never
+  // reads like a "last place" callout. Only suppress when there are enough
+  // teams for a quartile to be meaningful.
+  const isBottomQuartile = totalRanked >= 4 && me.rank > Math.ceil(totalRanked * 0.75);
+
   // Progress toward next rank: how close my points are to the team above
   const progressPct = above && above.points > 0
     ? Math.min(100, Math.round((me.points / above.points) * 100))
@@ -77,13 +82,21 @@ export function TeamRankCard({ teamId, clubId }: TeamRankCardProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium leading-tight">
-              Club Rank {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)}
-              <span className="text-muted-foreground font-normal"> of {totalRanked}</span>
+              {isBottomQuartile ? (
+                "Climbing the leaderboard"
+              ) : (
+                <>
+                  Club Rank {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)}
+                  <span className="text-muted-foreground font-normal"> of {totalRanked}</span>
+                </>
+              )}
             </p>
             <p className="text-xs text-muted-foreground leading-tight mt-0.5">
               <span className="tabular-nums font-medium text-foreground/80">{me.points} pts</span>
               {above ? (
-                <> · {pointsToNext} to #{above.rank}</>
+                isBottomQuartile
+                  ? <> · {pointsToNext} pts to climb</>
+                  : <> · {pointsToNext} to #{above.rank}</>
               ) : me.rank === 1 ? (
                 <> · Top of the club 🎉</>
               ) : null}
