@@ -1109,6 +1109,8 @@ export default function BroadcastChatPage() {
                       isLastMessage={index === arr.length - 1}
                       isPending={msg.id.startsWith("queued-")}
                       contextId="broadcast"
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>
