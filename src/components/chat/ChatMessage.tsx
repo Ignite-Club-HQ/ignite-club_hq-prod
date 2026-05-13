@@ -742,6 +742,12 @@ function ChatMessageInner({
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
+  // Detect [rsvp:<eventId>] token in any message (e.g. auto-rsvp DM cron sends
+  // these as regular DMs from the club bot). Strip from displayed text and
+  // render Going / Maybe / Out pills under the bubble.
+  const inlineRsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
+  const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
+
   return (
     <div ref={rowRef} className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`} style={{ overflowAnchor: 'none' }}>
       {isInteracting && createPortal(
@@ -884,7 +890,7 @@ function ChatMessageInner({
             >
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
-                  text={text} 
+                  text={displayText} 
                   imageUrl={imageUrl} 
                   searchQuery={searchQuery} 
                   showPreviews={false}
@@ -914,6 +920,11 @@ function ChatMessageInner({
                 anchorRef={bubbleRef}
               />
             </div>
+            {inlineRsvpMatch && (
+              <div className="mt-2">
+                <InlineRsvpActions eventId={inlineRsvpMatch[1]} messageId={id} />
+              </div>
+            )}
             {/* Inline "Add to gallery" chip — only on own image messages.
                 Reserve a fixed-height slot whenever this is an own image
                 message that isn't queued, so that the chip appearing once
