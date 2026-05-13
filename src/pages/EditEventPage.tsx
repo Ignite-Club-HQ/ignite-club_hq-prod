@@ -642,6 +642,13 @@ export default function EditEventPage() {
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
 
+      // Refresh event-derived caches so the pitch board picks up the new
+      // start_time / opponent / title without waiting for staleTime.
+      queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", id] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: ["event", id] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+
       navigate(`/events/${id}`);
     } catch (error: any) {
       console.error("Error updating event:", error);
