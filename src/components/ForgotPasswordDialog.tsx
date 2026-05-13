@@ -175,17 +175,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                const validation = emailSchema.safeParse(email);
-                if (!validation.success) {
-                  toast({
-                    title: "Enter your email first",
-                    description: "We need your email to verify the code you received.",
-                  });
-                  return;
-                }
-                setStep("code");
-              }}
+              onClick={() => setStep("code")}
               className="w-full text-muted-foreground"
             >
               I already have a code
