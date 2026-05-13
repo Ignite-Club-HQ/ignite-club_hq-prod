@@ -487,11 +487,23 @@ export function createSubPlan(
     const cadenceForCycle = totalRemainingSeconds > 0 && cycleWindowsNeeded > 0
       ? Math.floor(totalRemainingSeconds / (cycleWindowsNeeded + 1))
       : eff.standardTargetInterval;
-    const PRACTICAL_MIN_INTERVAL = eff.standardIntervalFloor; // floor for Standard windows
+    const PRACTICAL_MIN_INTERVAL = Math.min(
+      eff.standardIntervalFloor,
+      Math.max(90, Math.floor(cadenceForCycle || eff.standardIntervalFloor)),
+    ); // Short games / large benches must not be starved by a fixed 4-min floor.
     const intervalSec = Math.max(
       PRACTICAL_MIN_INTERVAL,
       Math.min(eff.standardTargetInterval, cadenceForCycle)
     );
+    const noSubBeforeSeconds = Math.min(
+      PRACTICAL_NO_SUB_BEFORE_SECONDS,
+      Math.max(60, Math.floor(halfDurationSeconds * 0.2)),
+    );
+    const noSubAfterSeconds = Math.min(
+      PRACTICAL_NO_SUB_AFTER_SECONDS,
+      Math.max(45, Math.floor(halfDurationSeconds * 0.12)),
+    );
+    const halftimeBlackoutSeconds = Math.min(90, Math.max(30, Math.floor(intervalSec * 0.5)));
 
     // ---- Fairness model ------------------------------------------------------
     // targetSec = (gameDuration × playersOnField) / totalPlayers
@@ -521,7 +533,7 @@ export function createSubPlan(
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
     const projected = new Map<string, number>();
-    outfieldPlayers.forEach(p => projected.set(p.id, (p.minutesPlayed || 0) * 60));
+    outfieldPlayers.forEach(p => projected.set(p.id, p.minutesPlayed || 0));
     if (gkOnPitch && startHalf === 1) {
       projected.set(gkOnPitch.id, (projected.get(gkOnPitch.id) || 0) + halfDurationSeconds);
     }
@@ -542,6 +554,10 @@ export function createSubPlan(
     };
 
     const isKeeperRotationPlayer = (id: string) => id === gkOnPitch?.id || id === halftimeGkIn?.id;
+    const needsProtectedOutfieldRun = (id: string) => {
+      const guaranteedGkSeconds = id === gkOnPitch?.id || id === halftimeGkIn?.id ? halfDurationSeconds : 0;
+      return guaranteedGkSeconds < targetSecPerPlayer - (maxSpreadMinutes * 60) / 2;
+    };
     // GKs already get a guaranteed 20 min in goal — that's the priority. Do
     // NOT add an additional outfield bonus on top, or their total minutes
     // balloon past the cap and starve bench players (creating large spreads).
