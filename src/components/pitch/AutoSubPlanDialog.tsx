@@ -434,6 +434,8 @@ function ensureNoStarvedPlayers(
 
   return plan;
 }
+
+export function isPlanPlayableFromPlayers(
   players: Pick<Player, "id" | "position">[],
   plan: Pick<SubstitutionEvent, "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped">[],
   halfDurationSeconds: number,
