@@ -3849,89 +3849,20 @@ function DialogInner({
                   const distFromHt = ev.half === 1 ? halfSec - ev.time : ev.time;
                   return distFromHt < guard;
                 });
-                const benchSize = players.filter(p => p.position === null).length;
-                const isLargeBench = benchSize >= Math.ceil(teamSize / 2);
-                const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
-                const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
                 const spreadMin = autoFair.spreadSeconds / 60;
-                const constrainedByMinShift = spreadMin > 3 && target < minShiftMin * 1.5;
-                const liveFixes = buildPlanFixes({
-                  spreadMin,
-                  shortShifts: autoFair.totalShortShifts,
-                  bounceBacks: autoFair.totalBounceBacks,
-                  totalSubs: autoFair.totalSubs,
-                  isLargeBench,
-                  constrainedByMinShift,
-                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
-                  overrides: effectiveOverrides,
-                  hasHalftimeClash,
-                });
-                const stickyFixes = buildPlanFixes({
-                  spreadMin: 999, shortShifts: 999, bounceBacks: 999,
-                  totalSubs: 999, isLargeBench: true,
-                  constrainedByMinShift: true,
-                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
-                  overrides: effectiveOverrides,
-                  hasHalftimeClash: true,
-                });
-                const seen = new Set<string>();
-                const fixes: PlanFix[] = [];
-                for (const f of liveFixes) { if (!seen.has(f.id)) { seen.add(f.id); fixes.push(f); } }
-                // Keep the active priority in the list even if the planner no
-                // longer flags it as a relevant suggestion, so the coach can
-                // still see "Current" and switch away from it.
-                if (activeFixId) {
-                  for (const f of stickyFixes) {
-                    if (!seen.has(f.id) && f.id === activeFixId) { seen.add(f.id); fixes.push(f); }
-                  }
-                }
-                const recommended = pickRecommendedFix(fixes, {
-                  hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
-                  bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
-                });
-                // Promote the active priority to the top slot if one is set;
-                // otherwise show the planner's recommendation.
-                const promoted = (activeFixId && fixes.find((f) => f.id === activeFixId)) || recommended;
-                // Capture baseline metrics before any priority is applied.
-                if (!activeFixId) {
-                  baselineMetricsRef.current = {
-                    totalSubs: autoFair.totalSubs,
-                    spreadMin,
-                    shortShifts: autoFair.totalShortShifts,
-                    hasHalftimeClash,
-                  };
-                }
                 return (
                   <>
-                    {/* 1. Plain-English status card */}
                     <PlanStatusCard
                       totalSubs={autoFair.totalSubs}
                       spreadMin={spreadMin}
                       shortShifts={autoFair.totalShortShifts}
                       hasHalftimeClash={hasHalftimeClash}
                     />
-
-                    {/* 2. Mutually-exclusive priority picker */}
-                    <PlanFixSuggestions
-                      fixes={fixes}
-                      promoted={promoted}
+                    <PlanPriorityToggles
                       activeFixId={activeFixId}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
                     />
-
-                    {/* 3. Impact preview — only for the currently active priority */}
-                    {activeFixId && (
-                      <PlanImpactPreview
-                        overrides={effectiveOverrides}
-                        defaultMaxSpreadMinutes={maxSpreadMinutes}
-                        baseline={baselineMetricsRef.current}
-                        totalSubs={autoFair.totalSubs}
-                        spreadMin={spreadMin}
-                        shortShifts={autoFair.totalShortShifts}
-                        hasHalftimeClash={hasHalftimeClash}
-                      />
-                    )}
                   </>
                 );
               })()}
