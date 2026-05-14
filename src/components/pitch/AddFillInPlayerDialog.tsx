@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PitchPosition } from "./PositionBadge";
 import {
   ResponsiveDialog,
@@ -31,6 +32,7 @@ export default function AddFillInPlayerDialog({
   externalOpen,
   onExternalOpenChange,
 }: AddFillInPlayerDialogProps) {
+  const isMobile = useIsMobile();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = (v: boolean) => {
@@ -102,7 +104,7 @@ export default function AddFillInPlayerDialog({
                 placeholder="Enter player name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                autoFocus
+                autoFocus={!isMobile}
                 className="h-11"
               />
             </div>
