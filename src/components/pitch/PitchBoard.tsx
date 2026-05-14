@@ -3292,6 +3292,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setZoom(1);
   };
 
+  const handleUnlinkEvent = useCallback(async () => {
+    setLinkedEventId(null);
+    onUnlinkEvent?.();
+
+    savePitchState(teamId, {
+      players,
+      teamSize,
+      selectedFormation,
+      ballPosition,
+      autoSubPlan,
+      autoSubActive,
+      autoSubPaused,
+      mockMode,
+      linkedEventId: null,
+      goals,
+    });
+
+    if (user?.id) {
+      await supabase
+        .from("active_games")
+        .update({ is_active: false })
+        .eq("team_id", teamId)
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["team-active-game", teamId] });
+    toast({
+      title: "Game Unlinked",
+      description: "This board is no longer linked to the match.",
+    });
+  }, [autoSubActive, autoSubPaused, autoSubPlan, ballPosition, goals, mockMode, onUnlinkEvent, players, queryClient, selectedFormation, teamId, teamSize, toast, user?.id]);
+
   // Reset game - clears all player minutes, timer, and positions
   const handleResetGame = useCallback((silent = false) => {
     // Stop the timer first
