@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2998,14 +2998,14 @@ function buildPlanFixes(args: {
     }
   }
 
-  // Stop players coming off too quickly — when short cameos detected.
+  // Reduce short shifts — when short cameos detected.
   if (args.shortShifts > 0) {
     const cur = o.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds;
     if (cur < SLIDER_RANGES.minShiftSeconds.max) {
       fixes.push({
         id: "protect-shifts",
-        title: "Stop players coming off too quickly",
-        tradeoff: "Protects players from cameo shifts, but the spread between most- and least-played may grow.",
+        title: "Reduce short shifts",
+        tradeoff: "Keeps players on for longer turns. The minutes difference between players may grow a little.",
         apply: (c) => bumpOverride(c, "minShiftSeconds", 30),
       });
     }
@@ -3134,7 +3134,7 @@ function PlanFixSuggestions({
         onClick={() => onApply(recommended)}
       >
         {recommendedApplied ? <Check className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
-        {recommendedApplied ? "Apply again" : "Apply recommended fix"}
+        {recommendedApplied ? "Apply again" : "Fix this plan"}
       </Button>
       {others.length > 0 && (
         <div className="pt-1 border-t border-primary/20">
@@ -3143,7 +3143,7 @@ function PlanFixSuggestions({
             onClick={() => setShowOthers((v) => !v)}
             className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
-            <span>Other fixes ({others.length})</span>
+            <span>More options ({others.length})</span>
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showOthers ? "rotate-180" : "")} />
           </button>
           {showOthers && (
@@ -3205,68 +3205,59 @@ function PlanStatusCard({
   shortShifts: number;
   hasHalftimeClash: boolean;
 }) {
+  // Pick the dominant issue and describe it in plain English.
   let tone: "good" | "info" | "warn" = "good";
-  let headline = "Plan looks good";
-  if (shortShifts >= 3) { tone = "warn"; headline = "Too many short shifts"; }
-  else if (spreadMin > 6) { tone = "warn"; headline = "Plan is uneven"; }
-  else if (hasHalftimeClash || shortShifts > 0 || spreadMin > 3) { tone = "info"; headline = "Plan needs review"; }
+  let headline = "This plan looks balanced.";
+  let subline = "Every player gets a fair share of the game.";
+  if (hasHalftimeClash) {
+    tone = "warn";
+    headline = "Some subs land too close to halftime.";
+    subline = "Players may not get a clean break.";
+  } else if (shortShifts >= 1) {
+    tone = "warn";
+    headline = `This plan has ${shortShifts} very short turn${shortShifts === 1 ? "" : "s"}.`;
+    subline = "Some players may come off too quickly.";
+  } else if (spreadMin > 6) {
+    tone = "warn";
+    headline = "Some players get a lot more game time than others.";
+    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
+  } else if (spreadMin > 3) {
+    tone = "info";
+    headline = "This plan is mostly fair.";
+    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
+  }
 
-  // Fairness score: 100 when spread = 0, drops to 0 at spread = 12 min.
-  // Penalise short shifts and halftime clashes.
-  const spreadScore = Math.max(0, 100 - (spreadMin / 12) * 100);
-  const penalty = Math.min(40, shortShifts * 8) + (hasHalftimeClash ? 10 : 0);
-  const fairnessScore = Math.max(0, Math.round(spreadScore - penalty));
-  const fairnessLabel =
-    fairnessScore >= 80 ? "Good" :
-    fairnessScore >= 55 ? "Needs improving" :
-    "Poor";
-  const fairnessTone =
-    fairnessScore >= 80 ? { text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" } :
-    fairnessScore >= 55 ? { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" } :
-    { text: "text-red-600 dark:text-red-400", bar: "bg-red-500" };
+  const needsAdjustment = tone !== "good";
+  const statusLabel = needsAdjustment ? "Needs adjustment" : "Looking good";
+  const statusTone = needsAdjustment
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-emerald-600 dark:text-emerald-400";
 
   const toneClasses =
     tone === "good" ? "border-emerald-500/40 bg-emerald-500/5" :
     tone === "warn" ? "border-amber-500/40 bg-amber-500/5" :
     "border-border bg-muted/30";
-  const headlineColor =
-    tone === "good" ? "text-emerald-600 dark:text-emerald-400" :
-    tone === "warn" ? "text-amber-600 dark:text-amber-400" :
-    "text-foreground";
 
   return (
-    <div className={cn("rounded-lg border p-3 space-y-3 mb-2", toneClasses)}>
-      <div className="flex items-center justify-between gap-2">
-        <p className={cn("text-base font-semibold", headlineColor)}>{headline}</p>
-        <span className={cn("text-xs font-semibold tabular-nums", fairnessTone.text)}>
-          {fairnessLabel} · {fairnessScore}
+    <div className={cn("rounded-lg border p-3 space-y-2.5 mb-2", toneClasses)}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground leading-snug">{headline}</p>
+        <span className={cn("text-[11px] font-semibold shrink-0 mt-0.5", statusTone)}>
+          {statusLabel}
         </span>
       </div>
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Fairness</span>
-          {fairnessScore < 80 && (
-            <span className="text-[10px] text-muted-foreground">Apply a fix below to improve</span>
-          )}
-        </div>
-        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className={cn("h-full transition-all", fairnessTone.bar)}
-            style={{ width: `${fairnessScore}%` }}
-          />
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground leading-snug">{subline}</p>
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Subs</div>
           <div className="text-sm font-bold text-foreground tabular-nums">{totalSubs}</div>
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Spread</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Minutes diff</div>
           <div className="text-sm font-bold text-foreground tabular-nums">{spreadMin.toFixed(1)}m</div>
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Short shifts</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Very short turns</div>
           <div className={cn("text-sm font-bold tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
             {shortShifts > 0 ? shortShifts : "0"}
           </div>
@@ -3316,7 +3307,7 @@ function PlayersNeedingAttention({
       const f = forecasts.find((x) => x.player.id === stat.playerId);
       if (!f) continue;
       if (stat.shortShifts > 0) {
-        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.shortShifts} short shift${stat.shortShifts > 1 ? "s" : ""}`, tone: "border-red-500/50 text-red-500" });
+        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.shortShifts} very short turn${stat.shortShifts > 1 ? "s" : ""}`, tone: "border-red-500/50 text-red-500" });
         seen.add(stat.playerId);
       } else if (stat.bounceBacks > 0) {
         rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.bounceBacks} bounce-back${stat.bounceBacks > 1 ? "s" : ""}`, tone: "border-purple-500/50 text-purple-500" });
@@ -3351,6 +3342,7 @@ function PlayersNeedingAttention({
 function PlanImpactPreview({
   overrides,
   defaultMaxSpreadMinutes,
+  baseline,
   totalSubs,
   spreadMin,
   shortShifts,
@@ -3358,6 +3350,7 @@ function PlanImpactPreview({
 }: {
   overrides: AutoSubAdvancedOverrides;
   defaultMaxSpreadMinutes: number;
+  baseline: { totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null;
   totalSubs: number;
   spreadMin: number;
   shortShifts: number;
@@ -3371,22 +3364,22 @@ function PlanImpactPreview({
   if (overrides.standardTargetIntervalSec !== undefined) {
     phrases.push(
       overrides.standardTargetIntervalSec < ADV_DEFAULTS.standardTargetIntervalSec
-        ? "prioritise fairer minutes"
-        : "reduce substitution moments",
+        ? "give players more even minutes"
+        : "reduce the number of substitutions",
     );
   }
   if (overrides.standardIntervalFloorSec !== undefined) {
     phrases.push(
       overrides.standardIntervalFloorSec > ADV_DEFAULTS.standardIntervalFloorSec
-        ? "space out substitution moments"
-        : "allow more frequent substitution moments",
+        ? "space out substitutions"
+        : "allow substitutions more often",
     );
   }
   if (overrides.minShiftSeconds !== undefined) {
     phrases.push(
       overrides.minShiftSeconds > ADV_DEFAULTS.minShiftSeconds
-        ? "protect players from short shifts"
-        : "allow shorter shifts so minutes balance faster",
+        ? "stop very short turns on the pitch"
+        : "allow shorter turns so minutes balance faster",
     );
   }
   if (overrides.halftimeGuardSeconds !== undefined) {
@@ -3400,8 +3393,8 @@ function PlanImpactPreview({
     const min = overrides.maxSpreadOverrideSec / 60;
     phrases.push(
       min < defaultMaxSpreadMinutes
-        ? "tighten the acceptable playing-time gap"
-        : "loosen the acceptable playing-time gap",
+        ? "tighten the acceptable minutes difference"
+        : "loosen the acceptable minutes difference",
     );
   }
 
@@ -3409,23 +3402,65 @@ function PlanImpactPreview({
     ? `This will ${phrases.slice(0, -1).join(", ")}${phrases.length > 1 ? " and " : ""}${phrases[phrases.length - 1]}.`
     : "Custom tuning is active.";
 
-  return <PlanImpactPreviewBody sentence={sentence} totalSubs={totalSubs} spreadMin={spreadMin} shortShifts={shortShifts} hasHalftimeClash={hasHalftimeClash} />;
+  return (
+    <PlanImpactPreviewBody
+      sentence={sentence}
+      baseline={baseline}
+      totalSubs={totalSubs}
+      spreadMin={spreadMin}
+      shortShifts={shortShifts}
+      hasHalftimeClash={hasHalftimeClash}
+    />
+  );
 }
 
 function PlanImpactPreviewBody({
   sentence,
+  baseline,
   totalSubs,
   spreadMin,
   shortShifts,
   hasHalftimeClash,
 }: {
   sentence: string;
+  baseline: { totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null;
   totalSubs: number;
   spreadMin: number;
   shortShifts: number;
   hasHalftimeClash: boolean;
 }) {
   const [open, setOpen] = useState(true);
+
+  const Row = ({
+    label,
+    before,
+    after,
+    improved,
+  }: { label: string; before: string; after: string; improved: boolean | null }) => (
+    <>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right tabular-nums text-foreground flex items-center justify-end gap-1.5">
+        {baseline ? (
+          <>
+            <span className="text-muted-foreground line-through">{before}</span>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <span
+              className={cn(
+                "font-semibold",
+                improved === true && "text-emerald-600 dark:text-emerald-400",
+                improved === false && "text-amber-600 dark:text-amber-400",
+              )}
+            >
+              {after}
+            </span>
+          </>
+        ) : (
+          <span>{after}</span>
+        )}
+      </span>
+    </>
+  );
+
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
       <button
@@ -3435,26 +3470,38 @@ function PlanImpactPreviewBody({
       >
         <span className="flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          Impact preview
+          What changed
         </span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open ? "rotate-180" : "")} />
       </button>
       {open && (
         <>
           <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
-            <span className="text-muted-foreground">Substitutions in plan</span>
-            <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
-            <span className="text-muted-foreground">Playing-time spread</span>
-            <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
-            <span className="text-muted-foreground">Short shifts detected</span>
-            <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
-              {shortShifts > 0 ? shortShifts : "None"}
-            </span>
-            <span className="text-muted-foreground">Halftime clash</span>
-            <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
-              {hasHalftimeClash ? "Detected" : "None"}
-            </span>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] pt-2 border-t border-primary/20">
+            <Row
+              label="Total substitutions"
+              before={`${baseline?.totalSubs ?? totalSubs}`}
+              after={`${totalSubs}`}
+              improved={baseline ? totalSubs < baseline.totalSubs ? true : totalSubs > baseline.totalSubs ? false : null : null}
+            />
+            <Row
+              label="Minutes difference"
+              before={`${(baseline?.spreadMin ?? spreadMin).toFixed(1)}m`}
+              after={`${spreadMin.toFixed(1)}m`}
+              improved={baseline ? spreadMin < baseline.spreadMin ? true : spreadMin > baseline.spreadMin ? false : null : null}
+            />
+            <Row
+              label="Very short turns"
+              before={`${baseline?.shortShifts ?? shortShifts}`}
+              after={`${shortShifts}`}
+              improved={baseline ? shortShifts < baseline.shortShifts ? true : shortShifts > baseline.shortShifts ? false : null : null}
+            />
+            <Row
+              label="Subs near halftime"
+              before={baseline?.hasHalftimeClash ? "Yes" : "No"}
+              after={hasHalftimeClash ? "Yes" : "No"}
+              improved={baseline ? (baseline.hasHalftimeClash && !hasHalftimeClash) ? true : (!baseline.hasHalftimeClash && hasHalftimeClash) ? false : null : null}
+            />
           </div>
         </>
       )}
@@ -3525,6 +3572,9 @@ function DialogInner({
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [appliedFixIds, setAppliedFixIds] = useState<Set<string>>(new Set());
+  // Snapshot of plan metrics from BEFORE the coach applied any fix, so the
+  // impact preview can show before→after diffs.
+  const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
   const [showAllMinutes, setShowAllMinutes] = useState(false);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
   // snappy. Cleared whenever the underlying plan changes.
@@ -3808,6 +3858,15 @@ function DialogInner({
                   hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
                 });
+                // Capture baseline metrics on first render before any fix applied.
+                if (appliedFixIds.size === 0) {
+                  baselineMetricsRef.current = {
+                    totalSubs: autoFair.totalSubs,
+                    spreadMin,
+                    shortShifts: autoFair.totalShortShifts,
+                    hasHalftimeClash,
+                  };
+                }
                 return (
                   <>
                     {/* 1. Plain-English status card */}
@@ -3832,6 +3891,7 @@ function DialogInner({
                       <PlanImpactPreview
                         overrides={effectiveOverrides}
                         defaultMaxSpreadMinutes={maxSpreadMinutes}
+                        baseline={baselineMetricsRef.current}
                         totalSubs={autoFair.totalSubs}
                         spreadMin={spreadMin}
                         shortShifts={autoFair.totalShortShifts}
@@ -3896,7 +3956,7 @@ function DialogInner({
                           <>
                             {stat.shortShifts > 0 && (
                               <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
-                                {stat.shortShifts} short
+                                {stat.shortShifts} very short
                               </Badge>
                             )}
                             {stat.bounceBacks > 0 && (
