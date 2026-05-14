@@ -7586,6 +7586,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         onBackToLineup={autoSubFromPreGame ? () => { setAutoSubPlanDialogOpen(false); setShowLineupPicker(true); } : undefined}
         miniLeagueTeams={miniLeagueTeams}
         preferredSecondHalfGkId={preferredSecondHalfGkId}
+        onLineupChange={(updatedPlayers) => {
+          setPlayers(prev => prev.map(p => {
+            const u = updatedPlayers.find(x => x.id === p.id);
+            if (!u) return p;
+            if (u.position === p.position && u.currentPitchPosition === p.currentPitchPosition) return p;
+            return { ...p, position: u.position, currentPitchPosition: u.currentPitchPosition };
+          }));
+        }}
       />
 
       {/* Auto-Sub Control Panel */}
