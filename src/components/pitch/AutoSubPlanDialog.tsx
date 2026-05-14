@@ -3657,7 +3657,7 @@ function DialogInner({
   // Snapshot of plan metrics from BEFORE the coach applied any priority, so
   // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
-  const [showAllMinutes, setShowAllMinutes] = useState(false);
+  const [showAllMinutes, setShowAllMinutes] = useState(true);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
   // snappy. Cleared whenever the underlying plan changes.
   const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
