@@ -91,8 +91,8 @@ export default function AddFillInPlayerDialog({
           {compact ? "Fill-In" : "Add Fill-In Player"}
         </Button>
       )}
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
-        <ResponsiveDialogContent className="sm:max-w-md">
+      <ResponsiveDialog open={open} onOpenChange={setOpen} forceDesktopDialog>
+        <ResponsiveDialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)]">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle className="text-lg">Add Fill-In Player</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
