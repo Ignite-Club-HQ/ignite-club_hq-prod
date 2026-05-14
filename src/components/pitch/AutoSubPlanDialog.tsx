@@ -2998,14 +2998,14 @@ function buildPlanFixes(args: {
     }
   }
 
-  // Stop players coming off too quickly — when short cameos detected.
+  // Reduce short shifts — when short cameos detected.
   if (args.shortShifts > 0) {
     const cur = o.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds;
     if (cur < SLIDER_RANGES.minShiftSeconds.max) {
       fixes.push({
         id: "protect-shifts",
-        title: "Stop players coming off too quickly",
-        tradeoff: "Protects players from cameo shifts, but the spread between most- and least-played may grow.",
+        title: "Reduce short shifts",
+        tradeoff: "Keeps players on for longer turns. The minutes difference between players may grow a little.",
         apply: (c) => bumpOverride(c, "minShiftSeconds", 30),
       });
     }
