@@ -3629,6 +3629,12 @@ function DialogInner({
   // Only ONE priority can be active at a time (mutually exclusive).
   // Picking another priority replaces the current one rather than stacking.
   const [activeFixId, setActiveFixId] = useState<string | null>(null);
+  // Local override of rotation speed (Standard=1 / Frequent=2). Defaults to
+  // the prop so the dialog opens in the coach's saved mode but can be
+  // toggled in-dialog without leaving the planner.
+  const normalizedPropMode: 1 | 2 = rotationSpeed === 1 ? 1 : 2;
+  const [rotationSpeedOverride, setRotationSpeedOverride] = useState<1 | 2>(normalizedPropMode);
+  const effectiveRotationSpeed: 1 | 2 = rotationSpeedOverride;
   // Snapshot of plan metrics from BEFORE the coach applied any priority, so
   // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
