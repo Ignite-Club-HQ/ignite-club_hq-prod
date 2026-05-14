@@ -3967,8 +3967,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
+    return calculateTimeForecasts(effectivePlayers, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+  }, [plan, effectivePlayers, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
 
   // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
   useEffect(() => { setFairnessReport(null); }, [plan]);
