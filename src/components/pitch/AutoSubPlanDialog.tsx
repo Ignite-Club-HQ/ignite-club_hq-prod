@@ -3732,19 +3732,6 @@ function DialogInner({
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
               </p>
 
-              {/* Always-on fairness diagnostics derived from forecasts */}
-              <FairnessDiagnostics
-                forecasts={forecasts}
-                teamSize={teamSize}
-                squadSize={players.length}
-                matchMinutes={minutesPerHalf * 2}
-                minShiftSeconds={effectiveOverrides.minShiftSeconds ?? 180}
-                rotateGkAtHalftime={rotateGkAtHalftime ?? true}
-                mode={rotationSpeed === 2 ? "Frequent" : "Standard"}
-              />
-
-              {/* Coach-facing diagnose → fix → preview block. Auto-computed
-                  from the current plan; no need to tap "Run simulator" first. */}
               {(() => {
                 const autoFair = calculateFairnessReport(players, plan, minutesPerHalf);
                 const halfSec = minutesPerHalf * 60;
@@ -3757,9 +3744,10 @@ function DialogInner({
                 const isLargeBench = benchSize >= Math.ceil(teamSize / 2);
                 const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
                 const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
-                const constrainedByMinShift = (autoFair.spreadSeconds / 60) > 3 && target < minShiftMin * 1.5;
+                const spreadMin = autoFair.spreadSeconds / 60;
+                const constrainedByMinShift = spreadMin > 3 && target < minShiftMin * 1.5;
                 const liveFixes = buildPlanFixes({
-                  spreadMin: autoFair.spreadSeconds / 60,
+                  spreadMin,
                   shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks,
                   totalSubs: autoFair.totalSubs,
@@ -3769,9 +3757,6 @@ function DialogInner({
                   overrides: effectiveOverrides,
                   hasHalftimeClash,
                 });
-                // Always include any previously applied fix so the card
-                // doesn't vanish out from under the coach when its
-                // triggering metric is now satisfied.
                 const stickyFixes = buildPlanFixes({
                   spreadMin: 999, shortShifts: 999, bounceBacks: 999,
                   totalSubs: 999, isLargeBench: true,
@@ -3786,36 +3771,60 @@ function DialogInner({
                 for (const f of stickyFixes) {
                   if (!seen.has(f.id) && appliedFixIds.has(f.id)) { seen.add(f.id); fixes.push(f); }
                 }
+                const recommended = pickRecommendedFix(fixes, {
+                  hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
+                  bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
+                });
                 return (
                   <>
+                    {/* 1. Plain-English status card */}
+                    <PlanStatusCard
+                      totalSubs={autoFair.totalSubs}
+                      spreadMin={spreadMin}
+                      shortShifts={autoFair.totalShortShifts}
+                      hasHalftimeClash={hasHalftimeClash}
+                    />
+
+                    {/* 2. Single recommended fix (other fixes hidden behind a toggle) */}
                     <PlanFixSuggestions
                       fixes={fixes}
+                      recommended={recommended}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
                       appliedIds={appliedFixIds}
                     />
-                    <PlanImpactPreview
-                      overrides={effectiveOverrides}
-                      defaultMaxSpreadMinutes={maxSpreadMinutes}
-                      totalSubs={autoFair.totalSubs}
-                      spreadMin={autoFair.spreadSeconds / 60}
-                      shortShifts={autoFair.totalShortShifts}
-                      hasHalftimeClash={hasHalftimeClash}
-                    />
+
+                    {/* 3. Impact preview — only after coach has applied a fix */}
+                    {appliedFixIds.size > 0 && (
+                      <PlanImpactPreview
+                        overrides={effectiveOverrides}
+                        defaultMaxSpreadMinutes={maxSpreadMinutes}
+                        totalSubs={autoFair.totalSubs}
+                        spreadMin={spreadMin}
+                        shortShifts={autoFair.totalShortShifts}
+                        hasHalftimeClash={hasHalftimeClash}
+                      />
+                    )}
                   </>
                 );
               })()}
 
-              {/* Fairness Simulator — one-click preview of plan quality */}
-              <FairnessSimulatorPanel
-                report={fairnessReport}
-                isSimulating={isSimulating}
-                onRun={handleRunSimulator}
-                modeLabel={rotationSpeed === 2 ? "Frequent" : "Standard"}
-                teamSize={teamSize}
-                benchSize={players.filter(p => p.position === null).length}
+              {/* 4. Compact "players needing attention" summary */}
+              <PlayersNeedingAttention
+                forecasts={forecasts}
+                fairnessReport={fairnessReport}
               />
-              {forecasts.map(forecast => (
+
+              {/* 5. Full per-player minutes — collapsed by default */}
+              <button
+                type="button"
+                onClick={() => setShowAllMinutes((v) => !v)}
+                className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground rounded-md border border-border bg-muted/20 px-3 py-2"
+              >
+                <span>{showAllMinutes ? "Hide all player minutes" : "Show all player minutes"}</span>
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllMinutes ? "rotate-180" : "")} />
+              </button>
+              {showAllMinutes && forecasts.map(forecast => (
                 <div 
                   key={forecast.player.id}
                   className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
@@ -3878,9 +3887,16 @@ function DialogInner({
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
+
+              {/* 6. Preview changes — moved to bottom, demoted */}
+              <FairnessSimulatorPanel
+                report={fairnessReport}
+                isSimulating={isSimulating}
+                onRun={handleRunSimulator}
+                modeLabel={rotationSpeed === 2 ? "Frequent" : "Standard"}
+                teamSize={teamSize}
+                benchSize={players.filter(p => p.position === null).length}
+              />
 
         {activeTab === 'edit' && (
           /* Manual Edit Mode */
