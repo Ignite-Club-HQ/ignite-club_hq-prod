@@ -872,10 +872,23 @@ export default function PreGameLineupScreen({
               }
             </p>
             <div className="flex gap-1.5">
-              <Button variant="ghost" size="sm" className="h-11 text-sm px-3" onClick={handleAutoFill} aria-label="Auto-fill all positions">
-                <Zap className="h-4 w-4 mr-1" />
-                Auto
-              </Button>
+              {(() => {
+                const hasAssignments = slots.some(s => s.assignedPlayerId);
+                return (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 text-sm px-3"
+                    onClick={handleAutoFill}
+                    disabled={hasAssignments}
+                    aria-label="Auto-fill all positions"
+                    title={hasAssignments ? "Clear assignments first to auto-fill" : undefined}
+                  >
+                    <Zap className="h-4 w-4 mr-1" />
+                    Auto
+                  </Button>
+                );
+              })()}
               <Button variant="ghost" size="sm" className="h-11 text-sm px-3" onClick={handleClearAll} aria-label="Clear all assigned players">
                 <RotateCcw className="h-4 w-4 mr-1" />
                 Clear
