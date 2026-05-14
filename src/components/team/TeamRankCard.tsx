@@ -2,9 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, ChevronRight, ChevronDown, CalendarCheck, MessageCircle, Camera } from "lucide-react";
+import { ChevronDown, TrendingUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 interface TeamRankCardProps {
@@ -18,12 +17,6 @@ interface LeaderboardRow {
   team_name: string;
   points: number;
 }
-
-const EARN_TIPS = [
-  { icon: CalendarCheck, label: "RSVP \"Going\" at least 3 days before an event (+3 pts each)" },
-  { icon: MessageCircle, label: "Send messages in team chat (+2 pts each, capped at 6/day)" },
-  { icon: Camera, label: "Upload team photos (+3 pts each, capped at 6/day)" },
-];
 
 function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -40,7 +33,7 @@ export function TeamRankCard({ teamId, clubId }: TeamRankCardProps) {
       const { data, error } = await supabase.rpc("get_teams_leaderboard", {
         _club_id: clubId,
         _window: "all",
-        _limit: 50,
+        _limit: 100,
       });
       if (error) throw error;
       return (data ?? []) as LeaderboardRow[];
@@ -54,67 +47,115 @@ export function TeamRankCard({ teamId, clubId }: TeamRankCardProps) {
   if (!me) return null;
 
   const above = leaderboard.find((r) => r.rank === me.rank - 1);
+  const below = leaderboard.find((r) => r.rank === me.rank + 1);
   const pointsToNext = above ? Math.max(0, above.points - me.points) : 0;
   const totalRanked = leaderboard.length;
 
-  // Soften the framing for teams in the bottom quartile so the card never
-  // reads like a "last place" callout. Only suppress when there are enough
-  // teams for a quartile to be meaningful.
-  const isBottomQuartile = totalRanked >= 4 && me.rank > Math.ceil(totalRanked * 0.75);
-
-  // Progress toward next rank: how close my points are to the team above
-  const progressPct = above && above.points > 0
-    ? Math.min(100, Math.round((me.points / above.points) * 100))
-    : me.rank === 1 ? 100 : 0;
-
-  const rankLabel = me.rank === 1 ? "🥇" : me.rank === 2 ? "🥈" : me.rank === 3 ? "🥉" : `#${me.rank}`;
-
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md bg-muted/30">
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg bg-muted/30">
+      <div className="px-3 py-2.5 space-y-1">
         <Link
           to="/leaderboard"
-          aria-label="View club leaderboard"
-          className="flex items-center gap-2 flex-1 min-w-0 rounded-sm hover:bg-muted/50 transition-colors py-0.5"
+          aria-label="View club participation rankings"
+          className="block rounded-sm hover:bg-muted/40 -mx-1 px-1 py-0.5 transition-colors"
         >
-          <span className="flex items-center justify-center h-6 w-7 rounded text-[11px] font-semibold tabular-nums text-muted-foreground shrink-0">
-            {rankLabel}
-          </span>
-          <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
-            {isBottomQuartile ? (
-              <>Climbing · <span className="tabular-nums">{me.points} pts</span></>
-            ) : (
-              <>
-                <span className="text-foreground/80 font-medium">
-                  Rank {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)}
-                </span>
-                <span> of {totalRanked} · </span>
-                <span className="tabular-nums">{me.points} pts</span>
-                {above && pointsToNext > 0 ? <> · {pointsToNext} to #{above.rank}</> : null}
-              </>
-            )}
-          </span>
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="min-w-0 flex items-baseline gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
+                Club Participation
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+              {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)} of {totalRanked} teams
+            </span>
+          </div>
+
+          {/* Primary motivator: nearby achievable goal */}
+          {above && pointsToNext > 0 ? (
+            <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+              <span>
+                Only <span className="tabular-nums text-primary">{pointsToNext} pts</span> behind #{above.rank}
+              </span>
+            </div>
+          ) : me.rank === 1 ? (
+            <div className="mt-1 text-sm font-medium text-foreground">🏆 Top of the club</div>
+          ) : (
+            <div className="mt-1 text-sm font-medium text-foreground tabular-nums">{me.points} pts</div>
+          )}
         </Link>
+
         <CollapsibleTrigger
-          className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Show ways to improve team ranking"
+          className="w-full flex items-center justify-between gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors pt-1"
+          aria-label="Show how to earn participation points"
         >
+          <span>Active teams climb the rankings</span>
           <ChevronDown
-            className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+            className={cn("h-3.5 w-3.5 transition-transform shrink-0", open && "rotate-180")}
             aria-hidden="true"
           />
         </CollapsibleTrigger>
       </div>
+
       <CollapsibleContent>
-        <ul className="px-3 pb-2.5 pt-0.5 space-y-1.5 border-t border-border/40 mt-0.5">
-          {EARN_TIPS.map(({ icon: Icon, label }) => (
-            <li key={label} className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1.5 first:pt-2">
-              <Icon className="h-3 w-3 shrink-0 text-primary/70" aria-hidden="true" />
-              <span>{label}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="px-3 pb-3 pt-0 space-y-3">
+          {/* Nearby teams — social context */}
+          {(above || below) && (
+            <div className="rounded-md bg-background/60 border border-border/40 divide-y divide-border/40">
+              {above && <NearbyRow row={above} />}
+              <NearbyRow row={me} highlight />
+              {below && <NearbyRow row={below} />}
+            </div>
+          )}
+
+          {/* Earn tips — light + scannable */}
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold text-foreground">Earn points by:</p>
+            <ul className="text-[11px] text-muted-foreground space-y-0.5">
+              <li>✓ RSVPing early <span className="tabular-nums">(+3)</span></li>
+              <li>✓ Posting in team chat <span className="tabular-nums">(+2)</span></li>
+              <li>✓ Uploading team photos <span className="tabular-nums">(+3)</span></li>
+            </ul>
+            <p className="text-[10px] text-muted-foreground/70 pt-0.5">Daily caps apply.</p>
+          </div>
+        </div>
       </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+function NearbyRow({ row, highlight = false }: { row: LeaderboardRow; highlight?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 px-2.5 py-1.5 text-xs",
+        highlight && "bg-primary/10",
+      )}
+    >
+      <span
+        className={cn(
+          "tabular-nums w-7 text-[11px] shrink-0",
+          highlight ? "font-bold text-primary" : "text-muted-foreground",
+        )}
+      >
+        #{row.rank}
+      </span>
+      <span
+        className={cn(
+          "flex-1 min-w-0 truncate",
+          highlight ? "font-semibold text-foreground" : "text-foreground/80",
+        )}
+      >
+        {row.team_name}
+      </span>
+      <span
+        className={cn(
+          "tabular-nums text-[11px] shrink-0",
+          highlight ? "font-semibold text-primary" : "text-muted-foreground",
+        )}
+      >
+        {row.points} pts
+      </span>
+    </div>
   );
 }
