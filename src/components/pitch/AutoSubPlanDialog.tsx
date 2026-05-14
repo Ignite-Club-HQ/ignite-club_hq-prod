@@ -3722,27 +3722,7 @@ function DialogInner({
   return (
     <>
       <div className="space-y-4">
-        {/* Tab switcher */}
-        <div className="flex gap-1 p-1 bg-muted rounded-lg">
-          <Button
-            variant={activeTab === 'forecast' ? "default" : "ghost"}
-            size="sm"
-            className="flex-1 gap-2"
-            onClick={() => setActiveTab('forecast')}
-          >
-            <BarChart3 className="h-4 w-4" />
-            Projected Minutes
-          </Button>
-          <Button
-            variant={activeTab === 'edit' ? "default" : "ghost"}
-            size="sm"
-            className="flex-1 gap-2"
-            onClick={() => setActiveTab('edit')}
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-        </div>
+        {/* Edit tab removed — manual editing only via parent-driven editMode */}
         
         {activeTab === 'forecast' && (
           /* Playing Time Forecast */
