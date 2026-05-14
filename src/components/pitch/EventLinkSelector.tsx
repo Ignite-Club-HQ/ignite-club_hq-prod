@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+
+// Games can only be linked from 48 hours before kickoff up until 24 hours
+// after kickoff. Anything further out is not yet linkable so coaches don't
+// accidentally tie the pitch board to a fixture weeks away.
+const LINK_WINDOW_HOURS_BEFORE = 48;
 
 interface EventLinkSelectorProps {
   teamId: string;
