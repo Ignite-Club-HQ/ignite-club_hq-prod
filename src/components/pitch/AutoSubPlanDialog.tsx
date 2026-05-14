@@ -3498,71 +3498,45 @@ function PlanImpactPreviewBody({
 }
 
 // ===========================================================================
-// PlanPriorityToggles — fixed set of 4 mutually-exclusive priorities, always
-// visible. Tapping a toggle activates that priority (resetting any previous
-// one); tapping the active toggle clears it back to defaults.
+// PlanModeToggles — pick Standard or Frequent rotation cadence. Standard
+// keeps subs low; Frequent rotates more often for tighter minutes spread.
 // ===========================================================================
-const PRIORITY_TOGGLES: { id: string; title: string; tradeoff: string; apply: (c: AutoSubAdvancedOverrides) => AutoSubAdvancedOverrides }[] = [
+const MODE_TOGGLES: { id: 1 | 2; title: string; tradeoff: string }[] = [
   {
-    id: "fairer",
-    title: "Make minutes fairer",
-    tradeoff: "Tightens the fairness cap and shortens the rotation window so minutes even out faster. Expect more substitutions.",
-    apply: (c) => ({
-      ...c,
-      // Direct fairness lever: cap the projected minutes spread at ~2 minutes.
-      maxSpreadOverrideSec: 120,
-      // Shorten the standard cadence aggressively so the planner gets more
-      // chances to balance minutes.
-      standardTargetIntervalSec: clampOverride("standardTargetIntervalSec", 240),
-      standardIntervalFloorSec: clampOverride("standardIntervalFloorSec", 150),
-      // Allow shorter shifts so the planner can pull a high-minutes player
-      // even when they've only just gone on.
-      minShiftSeconds: clampOverride("minShiftSeconds", 90),
-    }),
+    id: 1,
+    title: "Standard",
+    tradeoff: "Fewer substitutions, longer shifts. Minutes may differ a little more between players.",
   },
   {
-    id: "fewer-subs",
-    title: "Fewer subs",
-    tradeoff: "Keeps players on longer and lowers the total number of subs. The minutes difference between players may grow a little.",
-    apply: (c) => ({
-      ...c,
-      // Force longer minimum shifts so the planner can't pull a player after a
-      // short turn just to balance minutes.
-      minShiftSeconds: clampOverride("minShiftSeconds", 240),
-      // Widen the sub-window cadence so the planner schedules fewer windows
-      // overall (otherwise tightening minShift just bunches subs up later).
-      standardIntervalFloorSec: clampOverride("standardIntervalFloorSec", 300),
-      standardTargetIntervalSec: clampOverride("standardTargetIntervalSec", 540),
-      // Relax the fairness cap a touch so the planner doesn't add extra
-      // windows to chase spread.
-      maxSpreadOverrideSec: 360,
-    }),
+    id: 2,
+    title: "Frequent",
+    tradeoff: "More substitutions, tighter rotation. Minutes even out faster across the squad.",
   },
 ];
 
-function PlanPriorityToggles({
-  activeFixId,
-  onApply,
+function PlanModeToggles({
+  activeMode,
+  onChange,
   readOnly,
 }: {
-  activeFixId: string | null;
-  onApply: (fix: PlanFix) => void;
+  activeMode: 1 | 2;
+  onChange: (mode: 1 | 2) => void;
   readOnly: boolean;
 }) {
   if (readOnly) return null;
   return (
     <div className="space-y-1.5 mb-2">
       <p className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground px-0.5">
-        Plan priority
+        Rotation mode
       </p>
-      <div className="grid gap-1.5">
-        {PRIORITY_TOGGLES.map((fix) => {
-          const isActive = activeFixId === fix.id;
+      <div className="grid grid-cols-2 gap-1.5">
+        {MODE_TOGGLES.map((m) => {
+          const isActive = activeMode === m.id;
           return (
             <button
-              key={fix.id}
+              key={m.id}
               type="button"
-              onClick={() => onApply(fix)}
+              onClick={() => onChange(m.id)}
               className={cn(
                 "text-left rounded-md border transition-colors p-2.5 min-h-[40px]",
                 isActive
@@ -3570,22 +3544,18 @@ function PlanPriorityToggles({
                   : "border-border bg-background hover:bg-muted/60",
               )}
             >
-              <div className="flex items-start gap-2">
-                <span className="flex-1 min-w-0">
-                  <span className="flex items-center gap-1.5">
-                    <span className="block text-xs font-semibold text-foreground">{fix.title}</span>
-                    {isActive && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                        <Check className="h-2.5 w-2.5" />
-                        On
-                      </span>
-                    )}
+              <span className="flex items-center gap-1.5">
+                <span className="block text-xs font-semibold text-foreground">{m.title}</span>
+                {isActive && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    <Check className="h-2.5 w-2.5" />
+                    On
                   </span>
-                  <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
-                    {fix.tradeoff}
-                  </span>
-                </span>
-              </div>
+                )}
+              </span>
+              <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                {m.tradeoff}
+              </span>
             </button>
           );
         })}
@@ -3659,6 +3629,12 @@ function DialogInner({
   // Only ONE priority can be active at a time (mutually exclusive).
   // Picking another priority replaces the current one rather than stacking.
   const [activeFixId, setActiveFixId] = useState<string | null>(null);
+  // Local override of rotation speed (Standard=1 / Frequent=2). Defaults to
+  // the prop so the dialog opens in the coach's saved mode but can be
+  // toggled in-dialog without leaving the planner.
+  const normalizedPropMode: 1 | 2 = rotationSpeed === 1 ? 1 : 2;
+  const [rotationSpeedOverride, setRotationSpeedOverride] = useState<1 | 2>(normalizedPropMode);
+  const effectiveRotationSpeed: 1 | 2 = rotationSpeedOverride;
   // Snapshot of plan metrics from BEFORE the coach applied any priority, so
   // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
@@ -3699,9 +3675,9 @@ function DialogInner({
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
     if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -3734,7 +3710,7 @@ function DialogInner({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    rotationSpeed,
+    effectiveRotationSpeed,
     effectiveMaxSpreadMinutes,
     minutesPerHalf,
     disablePositionSwaps,
@@ -3933,9 +3909,9 @@ function DialogInner({
                       shortShifts={autoFair.totalShortShifts}
                       hasHalftimeClash={hasHalftimeClash}
                     />
-                    <PlanPriorityToggles
-                      activeFixId={activeFixId}
-                      onApply={applyPlanFix}
+                    <PlanModeToggles
+                      activeMode={effectiveRotationSpeed}
+                      onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
                     />
                   </>
