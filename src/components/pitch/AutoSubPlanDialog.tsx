@@ -3615,12 +3615,16 @@ function DialogInner({
   miniLeagueTeams?: MiniLeagueTeams;
   advancedOverrides?: AutoSubAdvancedOverrides;
 }) {
-  const isExistingPlanPlayable = !!existingPlan?.some(s => !s.executed && !s.skipped) &&
-    isPlanPlayableFromPlayers(players, existingPlan, minutesPerHalf * 60);
-  // Treat empty/stale existing plans as no plan so auto-generation kicks in.
-  // A stale plan can reference an impossible state after lineup changes, which
-  // made the forecast show bench players stuck on 0 minutes.
-  const effectiveExistingPlan = isExistingPlanPlayable ? existingPlan : undefined;
+  const hasRemainingPlan = !!existingPlan?.some(s => !s.executed && !s.skipped);
+  const isExistingPlanPlayable = hasRemainingPlan &&
+    isPlanPlayableFromPlayers(players, existingPlan!, minutesPerHalf * 60);
+  // In edit mode, always load the existing plan so the user can review/adjust
+  // it — even if the lineup has drifted and made it technically unplayable.
+  // In forecast mode, treat stale plans as none so auto-generation kicks in
+  // (a stale plan would render bench players stuck on 0 minutes).
+  const effectiveExistingPlan = editMode
+    ? (hasRemainingPlan ? existingPlan : undefined)
+    : (isExistingPlanPlayable ? existingPlan : undefined);
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const activeTab: 'forecast' | 'edit' = editMode ? 'edit' : 'forecast';
