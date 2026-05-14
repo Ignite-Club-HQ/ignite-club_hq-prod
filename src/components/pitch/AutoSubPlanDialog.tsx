@@ -3193,48 +3193,16 @@ function PlanStatusCard({
   shortShifts: number;
   hasHalftimeClash: boolean;
 }) {
-  // Pick the dominant issue and describe it in plain English.
-  let tone: "good" | "info" | "warn" = "good";
-  let headline = "This plan looks balanced.";
-  let subline = "Every player gets a fair share of the game.";
-  if (hasHalftimeClash) {
-    tone = "warn";
-    headline = "Some subs land too close to halftime.";
-    subline = "Players may not get a clean break.";
-  } else if (shortShifts >= 1) {
-    tone = "warn";
-    headline = `This plan has ${shortShifts} very short turn${shortShifts === 1 ? "" : "s"}.`;
-    subline = "Some players may come off too quickly.";
-  } else if (spreadMin > 6) {
-    tone = "warn";
-    headline = "Some players get a lot more game time than others.";
-    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
-  } else if (spreadMin > 3) {
-    tone = "info";
-    headline = "This plan is mostly fair.";
-    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
-  }
+  const hasShortShifts = shortShifts > 0;
+  const hasSpread = spreadMin > 6;
+  const needsAdjustment = hasHalftimeClash || hasShortShifts || hasSpread;
 
-  const needsAdjustment = tone !== "good";
-  const statusLabel = needsAdjustment ? "Needs adjustment" : "Looking good";
-  const statusTone = needsAdjustment
-    ? "text-amber-600 dark:text-amber-400"
-    : "text-emerald-600 dark:text-emerald-400";
-
-  const toneClasses =
-    tone === "good" ? "border-emerald-500/40 bg-emerald-500/5" :
-    tone === "warn" ? "border-amber-500/40 bg-amber-500/5" :
-    "border-border bg-muted/30";
+  const toneClasses = needsAdjustment
+    ? "border-amber-500/40 bg-amber-500/5"
+    : "border-emerald-500/40 bg-emerald-500/5";
 
   return (
-    <div className={cn("rounded-lg border p-3 space-y-2.5 mb-2", toneClasses)}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold text-foreground leading-snug">{headline}</p>
-        <span className={cn("text-[11px] font-semibold shrink-0 mt-0.5", statusTone)}>
-          {statusLabel}
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground leading-snug">{subline}</p>
+    <div className={cn("rounded-lg border p-3 mb-2", toneClasses)}>
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Subs</div>
@@ -3242,12 +3210,14 @@ function PlanStatusCard({
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Minutes diff</div>
-          <div className="text-sm font-bold text-foreground tabular-nums">{spreadMin.toFixed(1)}m</div>
+          <div className={cn("text-sm font-bold tabular-nums", hasSpread ? "text-amber-600" : "text-foreground")}>
+            {spreadMin.toFixed(1)}m
+          </div>
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Very short turns</div>
-          <div className={cn("text-sm font-bold tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
-            {shortShifts > 0 ? shortShifts : "0"}
+          <div className={cn("text-sm font-bold tabular-nums", hasShortShifts ? "text-amber-600" : "text-emerald-600")}>
+            {shortShifts}
           </div>
         </div>
       </div>
