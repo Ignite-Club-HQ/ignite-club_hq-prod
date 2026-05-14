@@ -3306,6 +3306,11 @@ function DialogInner({
   const applyPlanFix = (fix: PlanFix) => {
     if (advancedOverrides) return;
     persistLocal(fix.apply(effectiveOverrides));
+    setAppliedFixIds((prev) => {
+      const next = new Set(prev);
+      next.add(fix.id);
+      return next;
+    });
   };
 
   
