@@ -4228,69 +4228,83 @@ function DialogInner({
                 <span>{showAllMinutes ? "Hide all player minutes" : "Show all player minutes"}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllMinutes ? "rotate-180" : "")} />
               </button>
-              {showAllMinutes && forecasts.map(forecast => (
-                <div 
-                  key={forecast.player.id}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0">
-                    {forecast.player.number || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium truncate">
-                        {forecast.player.name}
+              {showAllMinutes && (() => {
+                // Outfielders are draggable; full-game GKs are pinned at the
+                // bottom and non-draggable so the bias pass never tries to
+                // touch them.
+                const outfield = forecasts.filter(f => f.gkRole !== 'full');
+                const fullGks = forecasts.filter(f => f.gkRole === 'full');
+                const priority = playerPriority ?? [];
+                const orderedOutfield = [...outfield].sort((a, b) => {
+                  const ai = priority.indexOf(a.player.id);
+                  const bi = priority.indexOf(b.player.id);
+                  if (ai === -1 && bi === -1) {
+                    // Default: most predicted minutes first (mirrors the
+                    // implicit "current top of list" so first drag is intuitive).
+                    return b.predictedMinutes - a.predictedMinutes;
+                  }
+                  if (ai === -1) return 1;
+                  if (bi === -1) return -1;
+                  return ai - bi;
+                });
+                const sortableIds = orderedOutfield.map(f => f.player.id);
+
+                const handleDragEnd = (e: DragEndEvent) => {
+                  const { active, over } = e;
+                  if (!over || active.id === over.id) return;
+                  const oldIndex = sortableIds.indexOf(String(active.id));
+                  const newIndex = sortableIds.indexOf(String(over.id));
+                  if (oldIndex < 0 || newIndex < 0) return;
+                  const next = arrayMove(sortableIds, oldIndex, newIndex);
+                  setPlayerPriority(next);
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                      <span className="flex items-center gap-1.5">
+                        <GripVertical className="h-3 w-3" />
+                        Drag to prioritise — top players get nudged more minutes.
                       </span>
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs px-1.5 py-0",
-                          forecast.startsOnPitch 
-                            ? "border-emerald-500/50 text-emerald-500" 
-                            : "border-muted-foreground/50"
-                        )}
-                      >
-                        {forecast.startsOnPitch ? 'Start' : 'Bench'}
-                      </Badge>
-                      {forecast.gkRole && (
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600"
+                      {playerPriority && playerPriority.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPlayerPriority(null)}
+                          className="text-primary hover:underline"
                         >
-                          {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
-                        </Badge>
+                          Reset priority
+                        </button>
                       )}
-                      {(() => {
-                        const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
-                        if (!stat) return null;
-                        return (
-                          <>
-                            {stat.shortShifts > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
-                                {stat.shortShifts} very short
-                              </Badge>
-                            )}
-                            {stat.bounceBacks > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
-                                {stat.bounceBacks} bounce
-                              </Badge>
-                            )}
-                          </>
-                        );
-                      })()}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Progress 
-                        value={forecast.percentageOfGame} 
-                        className="h-2 flex-1"
-                      />
-                      <span className="text-xs text-muted-foreground w-20 text-right shrink-0">
-                        {forecast.predictedMinutes}' ({forecast.percentageOfGame}%)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1.5">
+                          {orderedOutfield.map(forecast => (
+                            <SortablePlayerMinutesRow
+                              key={forecast.player.id}
+                              forecast={forecast}
+                              fairnessReport={fairnessReport}
+                              draggable
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    {fullGks.length > 0 && (
+                      <div className="space-y-1.5 mt-1.5">
+                        {fullGks.map(forecast => (
+                          <SortablePlayerMinutesRow
+                            key={forecast.player.id}
+                            forecast={forecast}
+                            fairnessReport={fairnessReport}
+                            draggable={false}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
           </div>
