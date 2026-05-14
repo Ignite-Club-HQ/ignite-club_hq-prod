@@ -3951,8 +3951,8 @@ function AdvancedSettingsPanel({
               Player shift protection
             </p>
             <NumberRow
-              label="Minimum time on field"
-              hint="Prevents a player being subbed on and then pulled off almost immediately. Higher = fewer cameo shifts."
+              label="Allow short cameos vs protect player shifts"
+              hint="Lower = players can come off sooner so minutes balance faster. Higher = no cameo shifts but a wider playing-time spread."
               value={v.minShiftSeconds}
               defaultValue={ADV_DEFAULTS.minShiftSeconds}
               min={60} max={360} step={15}
@@ -3967,8 +3967,8 @@ function AdvancedSettingsPanel({
               Halftime protection
             </p>
             <NumberRow
-              label="Avoid subs near halftime"
-              hint="Stops regular substitutions clashing with halftime or planned goalkeeper swaps."
+              label="Allow halftime subs vs keep halftime clean"
+              hint="Lower = subs can land near the halftime whistle. Higher = halftime stays untouched but rotations may shift earlier or later."
               value={v.halftimeGuardSeconds}
               defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
               min={0} max={420} step={15}
