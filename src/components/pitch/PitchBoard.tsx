@@ -837,6 +837,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     refetchOnWindowFocus: true,
   });
 
+  // Auto-unlink the game 24h after kickoff so stale fixtures don't stay
+  // attached to the pitch board indefinitely. Re-checks hourly while mounted.
+  useEffect(() => {
+    if (!linkedEventId || !linkedEventDetails?.start_time) return;
+    const checkExpiry = () => {
+      const kickoff = new Date(linkedEventDetails.start_time as string).getTime();
+      if (!Number.isFinite(kickoff)) return;
+      const ageMs = Date.now() - kickoff;
+      if (ageMs > 24 * 60 * 60 * 1000) {
+        setLinkedEventId(null);
+      }
+    };
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [linkedEventId, linkedEventDetails?.start_time]);
+
   // Extract opponent name from linked event
   const opponentName = useMemo(() => {
     if (linkedEventDetails?.opponent) return linkedEventDetails.opponent;
