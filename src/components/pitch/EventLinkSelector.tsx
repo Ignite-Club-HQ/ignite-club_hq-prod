@@ -184,7 +184,8 @@ export function EventLinkSelector({
               </div>
             ) : (
               <div className="p-4 text-sm text-muted-foreground text-center">
-                No games found for this team
+                No games within 48 hours.
+                <div className="text-xs mt-1 opacity-80">Games can be linked from 48h before kickoff.</div>
               </div>
             )}
           </ScrollArea>
