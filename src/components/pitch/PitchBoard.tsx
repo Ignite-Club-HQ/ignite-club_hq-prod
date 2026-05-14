@@ -4779,6 +4779,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
                         </button>
+                        {linkedEventId && (
+                          <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleUnlinkEvent(); setSettingsMenuOpen(false); }}>
+                            <Link2Off className="h-4 w-4" />
+                            Unlink from Game
+                          </button>
+                        )}
                         <div className="h-px bg-border mx-2 my-1" />
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -4824,6 +4830,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   gameTimerRunning={!!gameTimerRef.current?.isRunning()}
                   gameFinished={!!gameTimerRef.current?.isGameFinished()}
                   onResetGame={handleResetGame}
+                  linkedEventId={linkedEventId}
+                  onUnlinkEvent={handleUnlinkEvent}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
                   onSaveSettings={handleSaveSettings}
