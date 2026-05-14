@@ -1519,21 +1519,6 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap gap-2 justify-between items-center">
-                  <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[120px] h-7 text-xs">
-                      <SelectValue placeholder="Filter by role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="player">Players</SelectItem>
-                      <SelectItem value="parent">Parents</SelectItem>
-                      <SelectItem value="coach">Coaches</SelectItem>
-                      <SelectItem value="team_admin">Team Admins</SelectItem>
-                      <SelectItem value="child">Children</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
