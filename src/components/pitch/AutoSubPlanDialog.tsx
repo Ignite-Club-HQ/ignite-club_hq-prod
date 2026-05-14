@@ -3523,8 +3523,20 @@ const PRIORITY_TOGGLES: { id: string; title: string; tradeoff: string; apply: (c
   {
     id: "protect-shifts",
     title: "Reduce short shifts",
-    tradeoff: "Keeps players on for longer turns. The minutes difference between players may grow a little.",
-    apply: (c) => bumpOverride(c, "minShiftSeconds", 30),
+    tradeoff: "Keeps players on longer and lowers the total number of subs. The minutes difference between players may grow a little.",
+    apply: (c) => ({
+      ...c,
+      // Force longer minimum shifts so the planner can't pull a player after a
+      // short turn just to balance minutes.
+      minShiftSeconds: clampOverride("minShiftSeconds", 240),
+      // Widen the sub-window cadence so the planner schedules fewer windows
+      // overall (otherwise tightening minShift just bunches subs up later).
+      standardIntervalFloorSec: clampOverride("standardIntervalFloorSec", 300),
+      standardTargetIntervalSec: clampOverride("standardTargetIntervalSec", 540),
+      // Relax the fairness cap a touch so the planner doesn't add extra
+      // windows to chase spread.
+      maxSpreadOverrideSec: 360,
+    }),
   },
   {
     id: "space-out",
