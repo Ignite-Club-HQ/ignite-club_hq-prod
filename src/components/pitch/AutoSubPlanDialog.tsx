@@ -306,6 +306,9 @@ interface AutoSubPlanDialogProps {
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
+  /** When provided alongside showStepper, the "Lineup" step becomes a button
+   *  that closes the dialog and returns the user to the lineup picker. */
+  onBackToLineup?: () => void;
   miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
   /** Optional power-user overrides for planner thresholds. */
   advancedOverrides?: AutoSubAdvancedOverrides;
