@@ -3093,48 +3093,52 @@ function pickRecommendedFix(
 
 function PlanFixSuggestions({
   fixes,
-  recommended,
+  promoted,
+  activeFixId,
   onApply,
   readOnly,
-  appliedIds,
 }: {
   fixes: PlanFix[];
-  recommended: PlanFix | null;
+  /** The fix shown in the top slot — either the active priority or recommendation. */
+  promoted: PlanFix | null;
+  /** Currently applied priority id, or null if none. Mutually exclusive. */
+  activeFixId: string | null;
   onApply: (fix: PlanFix) => void;
   readOnly: boolean;
-  appliedIds: Set<string>;
 }) {
   const [showOthers, setShowOthers] = useState(false);
-  if (readOnly || !recommended) return null;
-  const others = fixes.filter((f) => f.id !== recommended.id);
-  const recommendedApplied = appliedIds.has(recommended.id);
+  if (readOnly || !promoted) return null;
+  const others = fixes.filter((f) => f.id !== promoted.id);
+  const isPromotedActive = activeFixId === promoted.id;
+  const headerLabel = activeFixId ? "Current priority" : "Recommended priority";
+  const buttonLabel = isPromotedActive ? "Recalculate plan" : "Use this priority";
 
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2.5 mb-2">
       <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold text-primary">
         <Wand2 className="h-3.5 w-3.5" />
-        Recommended fix
+        {headerLabel}
       </div>
       <div>
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-foreground">{recommended.title}</p>
-          {recommendedApplied && (
+          <p className="text-sm font-semibold text-foreground">{promoted.title}</p>
+          {isPromotedActive && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
               <Check className="h-2.5 w-2.5" />
-              Applied
+              Current
             </span>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground leading-snug mt-1">{recommended.tradeoff}</p>
+        <p className="text-[11px] text-muted-foreground leading-snug mt-1">{promoted.tradeoff}</p>
       </div>
       <Button
         type="button"
         size="sm"
         className="w-full gap-1.5"
-        onClick={() => onApply(recommended)}
+        onClick={() => onApply(promoted)}
       >
-        {recommendedApplied ? <Check className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
-        {recommendedApplied ? "Apply again" : "Fix this plan"}
+        <Wand2 className="h-3.5 w-3.5" />
+        {buttonLabel}
       </Button>
       {others.length > 0 && (
         <div className="pt-1 border-t border-primary/20">
@@ -3143,45 +3147,29 @@ function PlanFixSuggestions({
             onClick={() => setShowOthers((v) => !v)}
             className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
-            <span>More options ({others.length})</span>
+            <span>{activeFixId ? `Try a different priority (${others.length})` : `Other priorities (${others.length})`}</span>
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showOthers ? "rotate-180" : "")} />
           </button>
           {showOthers && (
             <div className="grid gap-1.5 mt-2">
-              {others.map((fix) => {
-                const applied = appliedIds.has(fix.id);
-                return (
-                  <button
-                    key={fix.id}
-                    type="button"
-                    onClick={() => onApply(fix)}
-                    className={cn(
-                      "text-left rounded-md border transition-colors p-2 min-h-[40px] group",
-                      applied
-                        ? "border-primary/40 bg-primary/10 hover:bg-primary/15"
-                        : "border-border bg-background hover:bg-muted/60",
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="flex-1 min-w-0">
-                        <span className="flex items-center gap-1.5">
-                          <span className="block text-xs font-medium text-foreground">{fix.title}</span>
-                          {applied && (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                              <Check className="h-2.5 w-2.5" />
-                              Applied
-                            </span>
-                          )}
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
-                          {fix.tradeoff}
-                        </span>
+              {others.map((fix) => (
+                <button
+                  key={fix.id}
+                  type="button"
+                  onClick={() => onApply(fix)}
+                  className="text-left rounded-md border border-border bg-background hover:bg-muted/60 transition-colors p-2 min-h-[40px] group"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-medium text-foreground">{fix.title}</span>
+                      <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                        {fix.tradeoff}
                       </span>
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
-                    </div>
-                  </button>
-                );
-              })}
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -3477,6 +3465,36 @@ function PlanImpactPreviewBody({
       {open && (
         <>
           <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
+          {(() => {
+            if (!baseline) return null;
+            const improvedAny =
+              totalSubs < baseline.totalSubs ||
+              spreadMin < baseline.spreadMin ||
+              shortShifts < baseline.shortShifts ||
+              (baseline.hasHalftimeClash && !hasHalftimeClash);
+            const worsenedAny =
+              totalSubs > baseline.totalSubs ||
+              spreadMin > baseline.spreadMin + 0.05 ||
+              shortShifts > baseline.shortShifts ||
+              (!baseline.hasHalftimeClash && hasHalftimeClash);
+            // If the active priority made things worse overall, warn the
+            // coach so they can switch rather than treat it as a success.
+            if (worsenedAny && !improvedAny) {
+              return (
+                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                  This priority made the plan worse overall. Try a different priority below.
+                </p>
+              );
+            }
+            if (worsenedAny) {
+              return (
+                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                  This improved one thing but made another worse. Try a different priority if the trade-off isn't right.
+                </p>
+              );
+            }
+            return null;
+          })()}
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] pt-2 border-t border-primary/20">
             <Row
               label="Total substitutions"
@@ -3571,9 +3589,11 @@ function DialogInner({
   });
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [appliedFixIds, setAppliedFixIds] = useState<Set<string>>(new Set());
-  // Snapshot of plan metrics from BEFORE the coach applied any fix, so the
-  // impact preview can show before→after diffs.
+  // Only ONE priority can be active at a time (mutually exclusive).
+  // Picking another priority replaces the current one rather than stacking.
+  const [activeFixId, setActiveFixId] = useState<string | null>(null);
+  // Snapshot of plan metrics from BEFORE the coach applied any priority, so
+  // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
   const [showAllMinutes, setShowAllMinutes] = useState(false);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
@@ -3586,15 +3606,21 @@ function DialogInner({
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
 
-  /** Apply a coach-facing fix to overrides; respects readOnly (parent-controlled) state. */
+  /**
+   * Apply a coach-facing priority. Mutually exclusive: resets overrides to
+   * defaults first, then applies only this fix on top — so picking another
+   * option replaces the current strategy rather than stacking on top of it.
+   */
   const applyPlanFix = (fix: PlanFix) => {
     if (advancedOverrides) return;
-    persistLocal(fix.apply(effectiveOverrides));
-    setAppliedFixIds((prev) => {
-      const next = new Set(prev);
-      next.add(fix.id);
-      return next;
-    });
+    // Reset-to-defaults fix is its own thing — clears the active priority.
+    if (fix.id === "reset-defaults") {
+      persistLocal({});
+      setActiveFixId(null);
+      return;
+    }
+    persistLocal(fix.apply({}));
+    setActiveFixId(fix.id);
   };
 
   
@@ -3851,15 +3877,23 @@ function DialogInner({
                 const seen = new Set<string>();
                 const fixes: PlanFix[] = [];
                 for (const f of liveFixes) { if (!seen.has(f.id)) { seen.add(f.id); fixes.push(f); } }
-                for (const f of stickyFixes) {
-                  if (!seen.has(f.id) && appliedFixIds.has(f.id)) { seen.add(f.id); fixes.push(f); }
+                // Keep the active priority in the list even if the planner no
+                // longer flags it as a relevant suggestion, so the coach can
+                // still see "Current" and switch away from it.
+                if (activeFixId) {
+                  for (const f of stickyFixes) {
+                    if (!seen.has(f.id) && f.id === activeFixId) { seen.add(f.id); fixes.push(f); }
+                  }
                 }
                 const recommended = pickRecommendedFix(fixes, {
                   hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
                 });
-                // Capture baseline metrics on first render before any fix applied.
-                if (appliedFixIds.size === 0) {
+                // Promote the active priority to the top slot if one is set;
+                // otherwise show the planner's recommendation.
+                const promoted = (activeFixId && fixes.find((f) => f.id === activeFixId)) || recommended;
+                // Capture baseline metrics before any priority is applied.
+                if (!activeFixId) {
                   baselineMetricsRef.current = {
                     totalSubs: autoFair.totalSubs,
                     spreadMin,
@@ -3877,17 +3911,17 @@ function DialogInner({
                       hasHalftimeClash={hasHalftimeClash}
                     />
 
-                    {/* 2. Single recommended fix (other fixes hidden behind a toggle) */}
+                    {/* 2. Mutually-exclusive priority picker */}
                     <PlanFixSuggestions
                       fixes={fixes}
-                      recommended={recommended}
+                      promoted={promoted}
+                      activeFixId={activeFixId}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
-                      appliedIds={appliedFixIds}
                     />
 
-                    {/* 3. Impact preview — only after coach has applied a fix */}
-                    {appliedFixIds.size > 0 && (
+                    {/* 3. Impact preview — only for the currently active priority */}
+                    {activeFixId && (
                       <PlanImpactPreview
                         overrides={effectiveOverrides}
                         defaultMaxSpreadMinutes={maxSpreadMinutes}
