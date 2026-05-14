@@ -3518,10 +3518,12 @@ function PlanModeToggles({
   activeMode,
   onChange,
   readOnly,
+  disabledModes = [],
 }: {
   activeMode: 1 | 2;
   onChange: (mode: 1 | 2) => void;
   readOnly: boolean;
+  disabledModes?: (1 | 2)[];
 }) {
   if (readOnly) return null;
   return (
@@ -3532,24 +3534,34 @@ function PlanModeToggles({
       <div className="grid grid-cols-2 gap-1.5">
         {MODE_TOGGLES.map((m) => {
           const isActive = activeMode === m.id;
+          const isDisabled = disabledModes.includes(m.id);
           return (
             <button
               key={m.id}
               type="button"
-              onClick={() => onChange(m.id)}
+              disabled={isDisabled}
+              onClick={() => !isDisabled && onChange(m.id)}
+              aria-disabled={isDisabled}
+              title={isDisabled ? "Not available for this squad size and match length" : undefined}
               className={cn(
                 "text-left rounded-md border transition-colors p-2.5 min-h-[40px]",
                 isActive
                   ? "border-primary bg-primary/10"
                   : "border-border bg-background hover:bg-muted/60",
+                isDisabled && "opacity-50 cursor-not-allowed hover:bg-background",
               )}
             >
               <span className="flex items-center gap-1.5">
                 <span className="block text-xs font-semibold text-foreground">{m.title}</span>
-                {isActive && (
+                {isActive && !isDisabled && (
                   <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                     <Check className="h-2.5 w-2.5" />
                     On
+                  </span>
+                )}
+                {isDisabled && (
+                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Unavailable
                   </span>
                 )}
               </span>
