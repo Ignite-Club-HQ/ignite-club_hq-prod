@@ -3936,11 +3936,6 @@ function DialogInner({
                 );
               })()}
 
-              {/* 4. Compact "players needing attention" summary */}
-              <PlayersNeedingAttention
-                forecasts={forecasts}
-                fairnessReport={fairnessReport}
-              />
 
               {/* 5. Full per-player minutes — collapsed by default */}
               <button
