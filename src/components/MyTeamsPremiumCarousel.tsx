@@ -676,6 +676,7 @@ export function MyTeamsPremiumCarousel() {
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
               unreadMessages={unreadCounts[item.id]}
+              members={teamMembers[item.id]}
             />
           ))}
           {createClubCard}
