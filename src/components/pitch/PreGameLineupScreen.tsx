@@ -983,9 +983,6 @@ export default function PreGameLineupScreen({
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
-        <Button variant="outline" className="flex-1" onClick={onSkip}>
-          Skip to Subs
-        </Button>
         <Button
           className="flex-1"
           onClick={handleConfirm}
