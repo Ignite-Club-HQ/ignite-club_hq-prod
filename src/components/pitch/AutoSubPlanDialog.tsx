@@ -3921,15 +3921,6 @@ function DialogInner({
                 </div>
               ))}
 
-              {/* 6. Preview changes — moved to bottom, demoted */}
-              <FairnessSimulatorPanel
-                report={fairnessReport}
-                isSimulating={isSimulating}
-                onRun={handleRunSimulator}
-                modeLabel={rotationSpeed === 2 ? "Frequent" : "Standard"}
-                teamSize={teamSize}
-                benchSize={players.filter(p => p.position === null).length}
-              />
             </div>
           </div>
         )}
