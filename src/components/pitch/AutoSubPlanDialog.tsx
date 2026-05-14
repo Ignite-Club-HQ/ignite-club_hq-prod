@@ -3699,8 +3699,8 @@ function DialogInner({
    */
   const applyPlanFix = (fix: PlanFix) => {
     if (advancedOverrides) return;
-    // Reset-to-defaults fix is its own thing — clears the active priority.
-    if (fix.id === "reset-defaults") {
+    // Tapping the active toggle clears it back to recommended defaults.
+    if (activeFixId === fix.id || fix.id === "reset-defaults") {
       persistLocal({});
       setActiveFixId(null);
       return;
