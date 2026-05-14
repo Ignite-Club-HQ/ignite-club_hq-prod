@@ -786,8 +786,9 @@ export function createSubPlan(
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
-    const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
-    const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
+    const playerTargetSec = (id: string) => Math.max(0, targetSecPerPlayer + priorityTargetBiasSeconds(id));
+    const playerMinThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MIN_THRESHOLD_RATIO;
+    const playerMaxThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MAX_THRESHOLD_RATIO;
 
     // GK-PROTECTED players: anyone assigned as GK in any half. They must finish
     // at or near the top of the allowed spread (target + spread/2) without
@@ -799,8 +800,6 @@ export function createSubPlan(
     const isGkProtected = (id: string) => gkProtectedIds.has(id);
     // Top of the allowed spread — GK-protected players aim for this.
     const gkCeilingSec = targetSecPerPlayer + (maxSpreadMinutes / 2) * 60;
-    // Floor for non-GK so they don't dip too low while we lift the GKs.
-    const nonGkFloorSec = Math.max(minThresholdSec, targetSecPerPlayer - (maxSpreadMinutes / 2) * 60);
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -836,8 +835,8 @@ export function createSubPlan(
     // The "priority" for GKs is realised purely by being shielded from being
     // pulled off too early (see overCap/FIFO filters below) and by the forced
     // outfield window for the 2H GK before halftime.
-    const effectiveMinSec = (_id: string) => minThresholdSec;
-    const effectiveTargetSec = (_id: string) => targetSecPerPlayer;
+    const effectiveMinSec = (id: string) => playerMinThresholdSec(id);
+    const effectiveTargetSec = (id: string) => playerTargetSec(id);
     const shortfall = (id: string) => effectiveTargetSec(id) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
