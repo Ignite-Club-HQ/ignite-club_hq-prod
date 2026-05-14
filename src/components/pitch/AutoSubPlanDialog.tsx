@@ -4174,6 +4174,7 @@ export default function AutoSubPlanDialog({
   currentHalf = 1,
   preferredSecondHalfGkId,
   showStepper = false,
+  onBackToLineup,
   miniLeagueTeams,
   advancedOverrides,
 }: AutoSubPlanDialogProps) {
