@@ -6991,6 +6991,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Fill-in
                         </button>
                       )}
+                    </div>
                     {/* Auto Subs Quick Access - Portrait */}
                     {!readOnly && !disableAutoSubs && (
                       <div className="py-1">
