@@ -3476,7 +3476,7 @@ function DialogInner({
   const effectiveExistingPlan = isExistingPlanPlayable ? existingPlan : undefined;
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+  const activeTab: 'forecast' | 'edit' = editMode ? 'edit' : 'forecast';
 
   // ---- Advanced overrides (persisted) -----------------------------------
   // External `advancedOverrides` prop wins; otherwise we read/write our own
