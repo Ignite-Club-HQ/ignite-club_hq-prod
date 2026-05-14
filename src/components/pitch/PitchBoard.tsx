@@ -4815,10 +4815,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="flex-1">Training Mode</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
-                          <RotateCcw className="h-4 w-4" />
-                          Reset Formation
-                        </button>
                         {!disableAutoSubs && (
                           <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { if (autoSubActive) { setAutoSubPanelOpen(true); } else { handleOpenNewPlan(); } setSettingsMenuOpen(false); }}>
                             <RefreshCw className="h-4 w-4" />
@@ -6411,12 +6407,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <div className="h-px bg-border mx-2 my-1" />
                       </>
                     )}
-                    {!readOnly && (
-                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
-                        <RotateCcw className="h-4 w-4" />
-                        Reset Formation
-                      </button>
-                    )}
                     {!readOnly && !disableAutoSubs && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { if (autoSubActive) { setAutoSubPanelOpen(true); } else { handleOpenNewPlan(); } setSettingsMenuOpen(false); }}>
                         <RefreshCw className="h-4 w-4" />
@@ -6751,6 +6741,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         {f.name}
                       </button>
                     ))}
+                    {!readOnly && (
+                      <>
+                        <div className="h-px bg-border my-1" />
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2 text-muted-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleResetFormation();
+                            setTimerFormationDropdownOpen(false);
+                          }}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Reset Formation
+                        </button>
+                      </>
+                    )}
                   </div>
                   </>
                 )}
