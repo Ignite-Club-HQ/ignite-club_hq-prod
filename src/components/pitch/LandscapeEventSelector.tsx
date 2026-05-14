@@ -40,13 +40,15 @@ export function LandscapeEventSelector({
   currentEventId,
   onSelectEvent,
 }: LandscapeEventSelectorProps) {
-  // Fetch game events for the selector
-  // Only show games from the last 24 hours (for past games) or future games
+  // Fetch game events within the link window: from 24h after kickoff back to
+  // 48h before. Anything further out is hidden so coaches can't link a game
+  // weeks ahead by mistake.
   const { data: gameEvents, isLoading } = useQuery({
     queryKey: ["team-game-events-selector", teamId],
     queryFn: async () => {
       const oneDayAgo = subDays(new Date(), 1);
-      
+      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
+
       const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, address, suburb, opponent")
@@ -54,6 +56,7 @@ export function LandscapeEventSelector({
         .eq("type", "game")
         .eq("is_cancelled", false)
         .gte("event_date", oneDayAgo.toISOString())
+        .lte("event_date", linkCutoff.toISOString())
         .order("event_date", { ascending: true })
         .limit(20);
 
