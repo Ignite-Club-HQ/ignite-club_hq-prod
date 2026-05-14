@@ -3711,6 +3711,7 @@ function DialogInner({
   isSetupFlow = false,
   miniLeagueTeams,
   advancedOverrides,
+  onLineupChange,
 }: {
   players: Player[];
   teamSize: number;
@@ -3730,6 +3731,7 @@ function DialogInner({
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
   advancedOverrides?: AutoSubAdvancedOverrides;
+  onLineupChange?: (players: Player[]) => void;
 }) {
   const hasRemainingPlan = !!existingPlan?.some(s => !s.executed && !s.skipped);
   const isExistingPlanPlayable = hasRemainingPlan &&
