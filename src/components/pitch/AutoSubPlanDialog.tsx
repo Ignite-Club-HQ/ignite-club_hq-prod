@@ -3932,9 +3932,6 @@ function DialogInner({
       } catch (error) {
         console.error("Error auto-generating plan:", error);
         setPlan([]);
-      } catch (error) {
-        console.error("Error auto-generating plan:", error);
-        setPlan([]);
       } finally {
         setIsGenerating(false);
       }
