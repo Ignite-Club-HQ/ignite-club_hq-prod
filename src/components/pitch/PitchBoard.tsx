@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Link2Off, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -122,6 +122,7 @@ interface PitchBoardProps {
   initialMode?: PitchBoardMode;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
+  onUnlinkEvent?: () => void;
 }
 
 // Loading fallback for lazy-loaded dialogs
@@ -145,7 +146,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -704,7 +705,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
   }, [linkedEventId, teamId, teamName, user?.id]);
-  
+
   // Undo history for subs and swaps (stores player states)
   const [undoHistory, setUndoHistory] = useState<{ players: Player[]; description: string }[]>([]);
   const MAX_UNDO_HISTORY = 10;
@@ -3291,6 +3292,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setZoom(1);
   };
 
+  const handleUnlinkEvent = useCallback(async () => {
+    setLinkedEventId(null);
+    onUnlinkEvent?.();
+
+    savePitchState(teamId, {
+      players,
+      teamSize,
+      selectedFormation,
+      ballPosition,
+      autoSubPlan,
+      autoSubActive,
+      autoSubPaused,
+      mockMode,
+      linkedEventId: null,
+      goals,
+    });
+
+    if (user?.id && !teamId.startsWith("event-group-")) {
+      await supabase
+        .from("active_games")
+        .update({ is_active: false })
+        .eq("team_id", teamId)
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["team-active-game", teamId] });
+    toast({
+      title: "Game Unlinked",
+      description: "This board is no longer linked to the match.",
+    });
+  }, [autoSubActive, autoSubPaused, autoSubPlan, ballPosition, goals, mockMode, onUnlinkEvent, players, queryClient, selectedFormation, teamId, teamSize, toast, user?.id]);
+
   // Reset game - clears all player minutes, timer, and positions
   const handleResetGame = useCallback((silent = false) => {
     // Stop the timer first
@@ -4745,6 +4779,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
                         </button>
+                        {linkedEventId && (
+                          <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleUnlinkEvent(); setSettingsMenuOpen(false); }}>
+                            <Link2Off className="h-4 w-4" />
+                            Unlink from Game
+                          </button>
+                        )}
                         <div className="h-px bg-border mx-2 my-1" />
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -4790,6 +4830,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   gameTimerRunning={!!gameTimerRef.current?.isRunning()}
                   gameFinished={!!gameTimerRef.current?.isGameFinished()}
                   onResetGame={handleResetGame}
+                  linkedEventId={linkedEventId}
+                  onUnlinkEvent={handleUnlinkEvent}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
                   onSaveSettings={handleSaveSettings}
@@ -6324,6 +6366,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <BarChart3 className="h-4 w-4" />
                       Match Stats
                     </button>
+                    {linkedEventId && !readOnly && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleUnlinkEvent(); setSettingsMenuOpen(false); }}>
+                        <Link2Off className="h-4 w-4" />
+                        Unlink from Game
+                      </button>
+                    )}
                     {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -6374,6 +6422,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 gameTimerRunning={!!gameTimerRef.current?.isRunning()}
                 gameFinished={!!gameTimerRef.current?.isGameFinished()}
                 onResetGame={handleResetGame}
+                linkedEventId={linkedEventId}
+                onUnlinkEvent={handleUnlinkEvent}
                 onResetFormation={handleResetFormation}
                 onOpenStats={() => setStatsOpen(true)}
                 onSaveSettings={handleSaveSettings}
