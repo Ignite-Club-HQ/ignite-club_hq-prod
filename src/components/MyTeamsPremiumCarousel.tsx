@@ -147,11 +147,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-base leading-tight truncate text-foreground">{item.name}</h3>
-              {unreadMessages && unreadMessages > 0 ? (
-                <Badge className="bg-primary text-primary-foreground text-[10px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </Badge>
-              ) : null}
               {item.isOnTrial && (
                 <Badge variant="outline" className="text-amber-600 border-amber-500 text-[9px] px-1 py-0 h-[16px] shrink-0">Trial</Badge>
               )}
