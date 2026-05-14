@@ -3309,7 +3309,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       goals,
     });
 
-    if (user?.id) {
+    if (user?.id && !teamId.startsWith("event-group-")) {
       await supabase
         .from("active_games")
         .update({ is_active: false })
