@@ -3843,6 +3843,9 @@ function DialogInner({
   // Soft bias only: nudges minutes among bench-rotation outfielders without
   // overriding fairness/short-shift rules. `null` = neutral (planner default).
   const [playerPriority, setPlayerPriority] = useState<string[] | null>(null);
+  // PointerSensor with a small activation distance so taps on rows still
+  // scroll naturally; only deliberate drags from the grip handle reorder.
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
