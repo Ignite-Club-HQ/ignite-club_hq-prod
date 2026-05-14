@@ -3616,7 +3616,10 @@ function DialogInner({
   // ---- Advanced overrides (persisted) -----------------------------------
   // External `advancedOverrides` prop wins; otherwise we read/write our own
   // copy in localStorage so the panel survives reloads.
-  const ADV_STORAGE_KEY = "autoSubPlan.advancedOverrides.v1";
+  // v2 storage key — bumped when the priority toggles were removed so any
+  // leftover overrides from the deleted "Make minutes fairer" / "Fewer subs"
+  // toggles don't keep starving bench players in Frequent mode.
+  const ADV_STORAGE_KEY = "autoSubPlan.advancedOverrides.v2";
   const [localOverrides, setLocalOverrides] = useState<AutoSubAdvancedOverrides>(() => {
     if (advancedOverrides) return {};
     try {
