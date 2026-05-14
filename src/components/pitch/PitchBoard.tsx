@@ -7567,7 +7567,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
             minutesPerHalf={minutesPerHalf}
             onTogglePause={handleTogglePauseAutoSub}
-            onCancelPlan={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); }}
+            onCancelPlan={() => setCancelPlanConfirmOpen(true)}
             onSkipNext={handleSkipNextSub}
             onExecuteNow={handleExecuteNow}
             onEditPlan={() => { handleOpenEditPlan(); setAutoSubPanelOpen(false); }}
