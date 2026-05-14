@@ -3946,6 +3946,12 @@ function DialogInner({
                       onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
                     />
+                    {frequentFallbackNotice && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>{frequentFallbackNotice}</span>
+                      </div>
+                    )}
                   </>
                 );
               })()}
