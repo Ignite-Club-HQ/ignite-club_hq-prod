@@ -9,7 +9,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+
+// Match EventLinkSelector: only games within 48h of kickoff (and up to 24h
+// after) are linkable from the pitch board.
+const LINK_WINDOW_HOURS_BEFORE = 48;
 
 interface LandscapeEventSelectorProps {
   open: boolean;
