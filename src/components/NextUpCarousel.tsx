@@ -57,11 +57,11 @@ interface NextUpCarouselProps {
 // so the home page never grows / pushes other content downward as the
 // per-event queries (myRsvp, childrenOnEvent, rsvpSummary) resolve a
 // moment after first paint.
-// Fixed minimum height that fits the expanded Children's RSVP accordion (one
-// child) so toggling open/closed never grows the card and pushes the rest of
-// the page. The collapsed state fills the same reserved space with a compact
-// summary panel (see below) instead of leaving it blank.
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[380px]";
+// Soft minimum height — keeps cards visually consistent across the carousel
+// without locking them so tall they feel oversized. Some growth on expand
+// is permitted; the collapsed state fills the reserved space with a compact
+// summary panel (see below) so the lower area never reads as empty.
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[300px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
@@ -774,34 +774,42 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               );
             })()}
 
-            {/* Personal-first RSVP summary — only shown when the collapsed
-                children panel above is NOT rendering (no children on event),
-                so we don't duplicate the same info. */}
+            {/* Personal-first summary panel — only shown when the children
+                panel above is NOT rendering (no children on event). Mirrors the
+                collapsed children panel so the lower card area never reads as
+                empty. */}
             {(!childrenOnEvent || childrenOnEvent.length === 0) && (() => {
               if (!heroDataReady) {
                 return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
               }
+              const teammatesGoing = rsvpSummary?.totalCount || 0;
               const goingChildNames = (childRsvps || [])
                 .filter((r) => r.status === "going")
                 .map((r) => r.children?.name?.split(" ")[0] || "Child");
               const summary = buildPersonalRsvpLine({
                 parentStatus: currentStatus,
                 goingChildNames,
-                totalGoing: rsvpSummary?.totalCount || 0,
+                totalGoing: teammatesGoing,
               });
-              if (!summary) {
-                return (
-                  <p className="text-[11px] text-muted-foreground/60 text-center">
-                    Be the first to RSVP
-                  </p>
-                );
-              }
               const isChildGoing = goingChildNames.length > 0;
               const personal = isChildGoing || currentStatus === "going";
               return (
-                <div className={`flex items-center justify-center gap-1 text-[11px] ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
-                  {isChildGoing && <User className="h-3 w-3 shrink-0" />}
-                  <span>{summary}</span>
+                <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
+                  <div className={`flex items-center gap-1.5 text-[11px] ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
+                    {isChildGoing ? <User className="h-3 w-3 shrink-0" /> : <Check className="h-3 w-3 shrink-0 opacity-70" />}
+                    <span className="truncate">{summary || "You haven't responded yet"}</span>
+                  </div>
+                  {teammatesGoing > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Users className="h-3 w-3 shrink-0" />
+                      <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
+                    </div>
+                  )}
+                  {!currentStatus && (
+                    <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
+                      Tap an option above to RSVP
+                    </p>
+                  )}
                 </div>
               );
             })()}
