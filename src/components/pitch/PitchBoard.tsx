@@ -5036,7 +5036,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Tactical dropdown */}
                 {timerTacticalDropdownOpen && (
                   <>
-                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
+                  <div className="fixed inset-0 z-[66]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
                     {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
                       <button
@@ -5063,7 +5063,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Formation dropdown */}
                 {timerFormationDropdownOpen && (
                   <>
-                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
+                  <div className="fixed inset-0 z-[66]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
                   <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
                     {/* Team selector moved to top strip */}
                     {FORMATIONS[teamSize].map((f, i) => (
@@ -6686,7 +6686,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerTacticalDropdownOpen && (
                   <>
                   {createPortal(
-                    <div className="fixed inset-0 z-[59]" onPointerDown={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />,
+                    <div className="fixed inset-0 z-[66]" onPointerDown={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />,
                     document.body
                   )}
                    <div data-timer-dropdown className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
@@ -6716,7 +6716,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   {createPortal(
-                    <div className="fixed inset-0 z-[59]" onPointerDown={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />,
+                    <div className="fixed inset-0 z-[66]" onPointerDown={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />,
                     document.body
                   )}
                    <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
