@@ -3572,6 +3572,9 @@ function DialogInner({
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [appliedFixIds, setAppliedFixIds] = useState<Set<string>>(new Set());
+  // Snapshot of plan metrics from BEFORE the coach applied any fix, so the
+  // impact preview can show before→after diffs.
+  const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
   const [showAllMinutes, setShowAllMinutes] = useState(false);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
   // snappy. Cleared whenever the underlying plan changes.
