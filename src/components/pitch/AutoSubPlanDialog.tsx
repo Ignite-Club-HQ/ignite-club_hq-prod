@@ -3051,6 +3051,19 @@ function buildPlanFixes(args: {
     }
   }
 
+  // Fallback — when overrides differ from recommended defaults, always offer
+  // a reset so coaches who tuned themselves into a corner have one tap out.
+  const overridesDirty = (Object.keys(ADV_DEFAULTS) as Array<keyof typeof ADV_DEFAULTS>)
+    .some((k) => o[k] !== undefined && o[k] !== ADV_DEFAULTS[k]);
+  if (overridesDirty) {
+    fixes.push({
+      id: "reset-defaults",
+      title: "Reset to recommended defaults",
+      tradeoff: "Undoes your custom slider tweaks and starts fresh from the planner's defaults.",
+      apply: () => ({}),
+    });
+  }
+
   return fixes;
 }
 
@@ -3063,11 +3076,18 @@ function pickRecommendedFix(
   if (fixes.length === 0) return null;
   const byId = (id: string) => fixes.find((f) => f.id === id);
   if (signals.hasHalftimeClash) { const f = byId("halftime"); if (f) return f; }
-  if (signals.shortShifts > 0) { const f = byId("protect-shifts"); if (f) return f; }
+  if (signals.shortShifts > 0) {
+    const f = byId("protect-shifts"); if (f) return f;
+    const r = byId("reset-defaults"); if (r) return r;
+  }
   if (signals.bounceBacks > 0) { const f = byId("space-out"); if (f) return f; }
-  if (signals.spreadMin > 6) { const f = byId("fairer"); if (f) return f; }
+  if (signals.spreadMin > 6) {
+    const f = byId("fairer"); if (f) return f;
+    const r = byId("reset-defaults"); if (r) return r;
+  }
   if (signals.spreadMin > 3 && signals.constrainedByMinShift) { const f = byId("shorter-shifts"); if (f) return f; }
   const reduce = byId("reduce-stoppages"); if (reduce) return reduce;
+  const reset = byId("reset-defaults"); if (reset) return reset;
   return fixes[0];
 }
 
