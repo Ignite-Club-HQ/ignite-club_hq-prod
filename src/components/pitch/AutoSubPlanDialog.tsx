@@ -3623,6 +3623,10 @@ function DialogInner({
   const [localOverrides, setLocalOverrides] = useState<AutoSubAdvancedOverrides>(() => {
     if (advancedOverrides) return {};
     try {
+      if (typeof window !== "undefined") {
+        // One-time cleanup of the v1 key (priority-toggle leftovers).
+        window.localStorage.removeItem("autoSubPlan.advancedOverrides.v1");
+      }
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(ADV_STORAGE_KEY) : null;
       return raw ? JSON.parse(raw) as AutoSubAdvancedOverrides : {};
     } catch { return {}; }
