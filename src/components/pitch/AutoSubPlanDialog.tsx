@@ -3465,6 +3465,36 @@ function PlanImpactPreviewBody({
       {open && (
         <>
           <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
+          {(() => {
+            if (!baseline) return null;
+            const improvedAny =
+              totalSubs < baseline.totalSubs ||
+              spreadMin < baseline.spreadMin ||
+              shortShifts < baseline.shortShifts ||
+              (baseline.hasHalftimeClash && !hasHalftimeClash);
+            const worsenedAny =
+              totalSubs > baseline.totalSubs ||
+              spreadMin > baseline.spreadMin + 0.05 ||
+              shortShifts > baseline.shortShifts ||
+              (!baseline.hasHalftimeClash && hasHalftimeClash);
+            // If the active priority made things worse overall, warn the
+            // coach so they can switch rather than treat it as a success.
+            if (worsenedAny && !improvedAny) {
+              return (
+                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                  This priority made the plan worse overall. Try a different priority below.
+                </p>
+              );
+            }
+            if (worsenedAny) {
+              return (
+                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5">
+                  This improved one thing but made another worse. Try a different priority if the trade-off isn't right.
+                </p>
+              );
+            }
+            return null;
+          })()}
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] pt-2 border-t border-primary/20">
             <Row
               label="Total substitutions"
