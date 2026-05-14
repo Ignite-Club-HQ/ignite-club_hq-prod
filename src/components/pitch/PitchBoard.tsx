@@ -5728,8 +5728,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {/* Position Filter Chips - sticky */}
                     <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-2 flex-1 min-w-0 overflow-x-auto scrollbar-hide -mx-1 px-1">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
                           const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
@@ -5739,7 +5738,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
                               className={cn(
                                 "rounded-md border font-medium text-sm px-3.5 py-2 transition-colors whitespace-nowrap min-h-[36px]",
-                                benchPositionFilter === pos 
+                                benchPositionFilter === pos
                                   ? "bg-primary text-primary-foreground border-primary"
                                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
                               )}
@@ -5756,18 +5755,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <X className="h-4 w-4" />
                           </button>
                         )}
+                        {!readOnly && (
+                          <button
+                            onClick={() => setFillInDialogOpen(true)}
+                            className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] whitespace-nowrap transition-colors"
+                            aria-label="Add fill-in player"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                            Fill-in
+                          </button>
+                        )}
                       </div>
-                      {!readOnly && (
-                        <button
-                          onClick={() => setFillInDialogOpen(true)}
-                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] transition-colors"
-                          aria-label="Add fill-in player"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          Fill-in
-                        </button>
-                      )}
-                    </div>
                       {/* Auto Subs Quick Access - Landscape (inside sticky area) */}
                       {!readOnly && !disableAutoSubs && (
                         <>
@@ -6942,38 +6940,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
-                    <div className="flex items-center gap-2">
-                       <div className="flex gap-2 flex-1 min-w-0 overflow-x-auto scrollbar-hide -mx-1 px-1">
-                        {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
-                          return (
-                            <button
-                              key={pos}
-                              onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
-                              className={cn(
-                                "rounded-md border font-medium text-sm px-3.5 py-2 transition-colors whitespace-nowrap min-h-[36px]",
-                                benchPositionFilter === pos 
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                              )}
-                            >
-                              {pos} ({count})
-                            </button>
-                          );
-                        })}
-                        {benchPositionFilter && (
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
+                      {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
+                        const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
+                        return (
                           <button
-                            onClick={() => setBenchPositionFilter(null)}
-                            className="rounded-md border font-medium text-sm px-3 py-2 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[36px]"
+                            key={pos}
+                            onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
+                            className={cn(
+                              "rounded-md border font-medium text-sm px-3.5 py-2 transition-colors whitespace-nowrap min-h-[36px]",
+                              benchPositionFilter === pos
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                            )}
                           >
-                            <X className="h-4 w-4" />
+                            {pos} ({count})
                           </button>
-                        )}
-                      </div>
+                        );
+                      })}
+                      {benchPositionFilter && (
+                        <button
+                          onClick={() => setBenchPositionFilter(null)}
+                          className="rounded-md border font-medium text-sm px-3 py-2 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[36px]"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                       {!readOnly && (
                         <button
                           onClick={() => setFillInDialogOpen(true)}
-                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] whitespace-nowrap transition-colors"
                           aria-label="Add fill-in player"
                         >
                           <UserPlus className="h-3.5 w-3.5" />
