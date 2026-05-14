@@ -3521,8 +3521,8 @@ const PRIORITY_TOGGLES: { id: string; title: string; tradeoff: string; apply: (c
     }),
   },
   {
-    id: "protect-shifts",
-    title: "Reduce short shifts",
+    id: "fewer-subs",
+    title: "Fewer subs",
     tradeoff: "Keeps players on longer and lowers the total number of subs. The minutes difference between players may grow a little.",
     apply: (c) => ({
       ...c,
@@ -3537,18 +3537,6 @@ const PRIORITY_TOGGLES: { id: string; title: string; tradeoff: string; apply: (c
       // windows to chase spread.
       maxSpreadOverrideSec: 360,
     }),
-  },
-  {
-    id: "space-out",
-    title: "Space out substitution moments",
-    tradeoff: "Fewer interruptions in the game, but minutes may even out more slowly.",
-    apply: (c) => bumpOverride(c, "standardIntervalFloorSec", 30),
-  },
-  {
-    id: "halftime",
-    title: "Avoid subs near halftime",
-    tradeoff: "Keeps the halftime break clean, but can push some rotations earlier or later than ideal.",
-    apply: (c) => bumpOverride(c, "halftimeGuardSeconds", 60),
   },
 ];
 
