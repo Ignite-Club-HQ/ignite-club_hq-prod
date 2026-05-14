@@ -1364,7 +1364,7 @@ export default function TeamDetailPage() {
           beta?: boolean;
         }> = [
           { key: "schedule", icon: Calendar, label: "Schedule", to: `/events?team=${team.id}` },
-          { key: "media", icon: Image, label: "Media", to: `/media?team=${team.id}` },
+          { key: "media", icon: ImageIcon, label: "Media", to: `/media?team=${team.id}` },
         ];
         if (showVault) {
           tiles.push({
