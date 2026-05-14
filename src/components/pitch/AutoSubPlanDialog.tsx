@@ -3786,10 +3786,11 @@ function DialogInner({
 
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
-    if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-    }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    const basePlan = miniLeagueTeams
+      ? createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+      : createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    if (!playerPriority || playerPriority.length < 2) return basePlan;
+    return applyPriorityBiasToPlan(basePlan, allPlayers, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
