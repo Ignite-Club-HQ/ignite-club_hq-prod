@@ -3571,9 +3571,11 @@ function DialogInner({
   });
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [appliedFixIds, setAppliedFixIds] = useState<Set<string>>(new Set());
-  // Snapshot of plan metrics from BEFORE the coach applied any fix, so the
-  // impact preview can show before→after diffs.
+  // Only ONE priority can be active at a time (mutually exclusive).
+  // Picking another priority replaces the current one rather than stacking.
+  const [activeFixId, setActiveFixId] = useState<string | null>(null);
+  // Snapshot of plan metrics from BEFORE the coach applied any priority, so
+  // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
   const [showAllMinutes, setShowAllMinutes] = useState(false);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
@@ -3586,15 +3588,21 @@ function DialogInner({
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
 
-  /** Apply a coach-facing fix to overrides; respects readOnly (parent-controlled) state. */
+  /**
+   * Apply a coach-facing priority. Mutually exclusive: resets overrides to
+   * defaults first, then applies only this fix on top — so picking another
+   * option replaces the current strategy rather than stacking on top of it.
+   */
   const applyPlanFix = (fix: PlanFix) => {
     if (advancedOverrides) return;
-    persistLocal(fix.apply(effectiveOverrides));
-    setAppliedFixIds((prev) => {
-      const next = new Set(prev);
-      next.add(fix.id);
-      return next;
-    });
+    // Reset-to-defaults fix is its own thing — clears the active priority.
+    if (fix.id === "reset-defaults") {
+      persistLocal({});
+      setActiveFixId(null);
+      return;
+    }
+    persistLocal(fix.apply({}));
+    setActiveFixId(fix.id);
   };
 
   
