@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
@@ -2916,7 +2916,274 @@ function FairnessDiagnostics({
   );
 }
 
-function DialogInner({ 
+// ===========================================================================
+// Plan fix suggestions — coach-facing diagnose → fix → preview flow.
+// Reads the auto-computed fairness report + current overrides, infers concrete
+// problems, and offers tappable fixes that mutate AutoSubAdvancedOverrides.
+// ===========================================================================
+
+interface PlanFix {
+  id: string;
+  title: string;
+  tradeoff: string;
+  /** Returns the mutated overrides; clamped to the same min/max as the sliders. */
+  apply: (current: AutoSubAdvancedOverrides) => AutoSubAdvancedOverrides;
+}
+
+const SLIDER_RANGES = {
+  standardTargetIntervalSec: { min: 180, max: 900 },
+  standardIntervalFloorSec: { min: 120, max: 600 },
+  frequentIntervalFloorSec: { min: 60, max: 420 },
+  minShiftSeconds: { min: 60, max: 360 },
+  halftimeGuardSeconds: { min: 0, max: 420 },
+} as const;
+
+function clampOverride(
+  key: keyof typeof SLIDER_RANGES,
+  next: number,
+): number {
+  const r = SLIDER_RANGES[key];
+  return Math.max(r.min, Math.min(r.max, next));
+}
+
+function bumpOverride(
+  current: AutoSubAdvancedOverrides,
+  key: keyof typeof SLIDER_RANGES,
+  delta: number,
+): AutoSubAdvancedOverrides {
+  const base = current[key] ?? ADV_DEFAULTS[key as keyof typeof ADV_DEFAULTS];
+  const next = clampOverride(key, base + delta);
+  if (next === base) return current;
+  return { ...current, [key]: next };
+}
+
+function buildPlanFixes(args: {
+  spreadMin: number;
+  shortShifts: number;
+  bounceBacks: number;
+  totalSubs: number;
+  isLargeBench: boolean;
+  constrainedByMinShift: boolean;
+  mode: "Standard" | "Frequent";
+  overrides: AutoSubAdvancedOverrides;
+  hasHalftimeClash: boolean;
+}): PlanFix[] {
+  const fixes: PlanFix[] = [];
+  const o = args.overrides;
+
+  // Make minutes fairer — only when the spread is meaningfully off.
+  if (args.spreadMin > 3) {
+    const targetKey = "standardTargetIntervalSec" as const;
+    const cur = o[targetKey] ?? ADV_DEFAULTS[targetKey];
+    if (cur > SLIDER_RANGES[targetKey].min) {
+      fixes.push({
+        id: "fairer",
+        title: "Make minutes fairer",
+        tradeoff: "Gives the planner more chances to balance game time, but creates more substitution moments.",
+        apply: (c) => bumpOverride(c, targetKey, -60),
+      });
+    }
+  }
+
+  // Allow shorter shifts — when min-shift is the bottleneck.
+  if (args.spreadMin > 3 && args.constrainedByMinShift) {
+    const cur = o.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds;
+    if (cur > SLIDER_RANGES.minShiftSeconds.min) {
+      fixes.push({
+        id: "shorter-shifts",
+        title: "Allow shorter shifts",
+        tradeoff: "Lets the planner pull players sooner so minutes balance faster, but shifts can feel brief.",
+        apply: (c) => bumpOverride(c, "minShiftSeconds", -30),
+      });
+    }
+  }
+
+  // Stop players coming off too quickly — when short cameos detected.
+  if (args.shortShifts > 0) {
+    const cur = o.minShiftSeconds ?? ADV_DEFAULTS.minShiftSeconds;
+    if (cur < SLIDER_RANGES.minShiftSeconds.max) {
+      fixes.push({
+        id: "protect-shifts",
+        title: "Stop players coming off too quickly",
+        tradeoff: "Protects players from cameo shifts, but the spread between most- and least-played may grow.",
+        apply: (c) => bumpOverride(c, "minShiftSeconds", 30),
+      });
+    }
+  }
+
+  // Space out substitution moments — when bounce-backs detected or plan is busy.
+  const busy = args.totalSubs > Math.max(6, args.spreadMin * 2);
+  if (args.bounceBacks > 0 || busy) {
+    const cur = o.standardIntervalFloorSec ?? ADV_DEFAULTS.standardIntervalFloorSec;
+    if (cur < SLIDER_RANGES.standardIntervalFloorSec.max) {
+      fixes.push({
+        id: "space-out",
+        title: "Space out substitution moments",
+        tradeoff: "Fewer interruptions in the game, but minutes may even out more slowly.",
+        apply: (c) => bumpOverride(c, "standardIntervalFloorSec", 30),
+      });
+    }
+  }
+
+  // Avoid subs near halftime — only when a halftime clash is detected.
+  if (args.hasHalftimeClash) {
+    const cur = o.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds;
+    if (cur < SLIDER_RANGES.halftimeGuardSeconds.max) {
+      fixes.push({
+        id: "halftime",
+        title: "Avoid subs near halftime",
+        tradeoff: "Keeps the halftime break clean, but can push some rotations earlier or later than ideal.",
+        apply: (c) => bumpOverride(c, "halftimeGuardSeconds", 60),
+      });
+    }
+  }
+
+  // Reduce stoppages — only when plan looks overly busy and minutes are fine.
+  if (args.spreadMin <= 4 && busy) {
+    const cur = o.standardTargetIntervalSec ?? ADV_DEFAULTS.standardTargetIntervalSec;
+    if (cur < SLIDER_RANGES.standardTargetIntervalSec.max) {
+      fixes.push({
+        id: "reduce-stoppages",
+        title: "Reduce stoppages",
+        tradeoff: "Fewer interruptions, but minutes may not balance quite as tightly.",
+        apply: (c) => bumpOverride(c, "standardTargetIntervalSec", 60),
+      });
+    }
+  }
+
+  return fixes;
+}
+
+function PlanFixSuggestions({
+  fixes,
+  onApply,
+  readOnly,
+}: {
+  fixes: PlanFix[];
+  onApply: (fix: PlanFix) => void;
+  readOnly: boolean;
+}) {
+  if (readOnly || fixes.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border bg-background p-3 space-y-2 mb-2">
+      <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <Wand2 className="h-3.5 w-3.5 text-primary" />
+        Suggested fixes
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-snug">
+        Tap a fix to update the plan. Each one explains what it changes.
+      </p>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {fixes.map((fix) => (
+          <button
+            key={fix.id}
+            type="button"
+            onClick={() => onApply(fix)}
+            className="text-left rounded-md border border-border bg-muted/30 hover:bg-muted/60 active:bg-muted transition-colors p-2.5 min-h-[44px] group"
+          >
+            <div className="flex items-start gap-2">
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-medium text-foreground">{fix.title}</span>
+                <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                  {fix.tradeoff}
+                </span>
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlanImpactPreview({
+  overrides,
+  defaultMaxSpreadMinutes,
+  totalSubs,
+  spreadMin,
+  shortShifts,
+  hasHalftimeClash,
+}: {
+  overrides: AutoSubAdvancedOverrides;
+  defaultMaxSpreadMinutes: number;
+  totalSubs: number;
+  spreadMin: number;
+  shortShifts: number;
+  hasHalftimeClash: boolean;
+}) {
+  const overrideKeys = Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[];
+  const active = overrideKeys.filter((k) => overrides[k] !== undefined);
+  if (active.length === 0) return null;
+
+  const phrases: string[] = [];
+  if (overrides.standardTargetIntervalSec !== undefined) {
+    phrases.push(
+      overrides.standardTargetIntervalSec < ADV_DEFAULTS.standardTargetIntervalSec
+        ? "prioritise fairer minutes"
+        : "reduce substitution moments",
+    );
+  }
+  if (overrides.standardIntervalFloorSec !== undefined) {
+    phrases.push(
+      overrides.standardIntervalFloorSec > ADV_DEFAULTS.standardIntervalFloorSec
+        ? "space out substitution moments"
+        : "allow more frequent substitution moments",
+    );
+  }
+  if (overrides.minShiftSeconds !== undefined) {
+    phrases.push(
+      overrides.minShiftSeconds > ADV_DEFAULTS.minShiftSeconds
+        ? "protect players from short shifts"
+        : "allow shorter shifts so minutes balance faster",
+    );
+  }
+  if (overrides.halftimeGuardSeconds !== undefined) {
+    phrases.push(
+      overrides.halftimeGuardSeconds > ADV_DEFAULTS.halftimeGuardSeconds
+        ? "keep substitutions away from halftime"
+        : "allow substitutions closer to halftime",
+    );
+  }
+  if (overrides.maxSpreadOverrideSec !== undefined) {
+    const min = overrides.maxSpreadOverrideSec / 60;
+    phrases.push(
+      min < defaultMaxSpreadMinutes
+        ? "tighten the acceptable playing-time gap"
+        : "loosen the acceptable playing-time gap",
+    );
+  }
+
+  const sentence = phrases.length
+    ? `This will ${phrases.slice(0, -1).join(", ")}${phrases.length > 1 ? " and " : ""}${phrases[phrases.length - 1]}.`
+    : "Custom tuning is active.";
+
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
+      <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        Impact preview
+      </div>
+      <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
+        <span className="text-muted-foreground">Substitutions in plan</span>
+        <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
+        <span className="text-muted-foreground">Playing-time spread</span>
+        <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Short shifts detected</span>
+        <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
+          {shortShifts > 0 ? shortShifts : "None"}
+        </span>
+        <span className="text-muted-foreground">Halftime clash</span>
+        <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
+          {hasHalftimeClash ? "Detected" : "None"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DialogInner({
   players, 
   teamSize, 
   minutesPerHalf, 
@@ -2987,6 +3254,13 @@ function DialogInner({
     setLocalOverrides(next);
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
+
+  /** Apply a coach-facing fix to overrides; respects readOnly (parent-controlled) state. */
+  const applyPlanFix = (fix: PlanFix) => {
+    if (advancedOverrides) return;
+    persistLocal(fix.apply(effectiveOverrides));
+  };
+
   
   // Effective max-spread: panel override (in seconds) wins over the prop.
   const effectiveMaxSpreadMinutes = effectiveOverrides.maxSpreadOverrideSec !== undefined
@@ -3235,6 +3509,51 @@ function DialogInner({
                 rotateGkAtHalftime={rotateGkAtHalftime ?? true}
                 mode={rotationSpeed === 2 ? "Frequent" : "Standard"}
               />
+
+              {/* Coach-facing diagnose → fix → preview block. Auto-computed
+                  from the current plan; no need to tap "Run simulator" first. */}
+              {(() => {
+                const autoFair = calculateFairnessReport(players, plan, minutesPerHalf);
+                const halfSec = minutesPerHalf * 60;
+                const guard = effectiveOverrides.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds;
+                const hasHalftimeClash = plan.some(ev => {
+                  const distFromHt = ev.half === 1 ? halfSec - ev.time : ev.time;
+                  return distFromHt < guard;
+                });
+                const benchSize = players.filter(p => p.position === null).length;
+                const isLargeBench = benchSize >= Math.ceil(teamSize / 2);
+                const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
+                const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
+                const constrainedByMinShift = (autoFair.spreadSeconds / 60) > 3 && target < minShiftMin * 1.5;
+                const fixes = buildPlanFixes({
+                  spreadMin: autoFair.spreadSeconds / 60,
+                  shortShifts: autoFair.totalShortShifts,
+                  bounceBacks: autoFair.totalBounceBacks,
+                  totalSubs: autoFair.totalSubs,
+                  isLargeBench,
+                  constrainedByMinShift,
+                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
+                  overrides: effectiveOverrides,
+                  hasHalftimeClash,
+                });
+                return (
+                  <>
+                    <PlanFixSuggestions
+                      fixes={fixes}
+                      onApply={applyPlanFix}
+                      readOnly={!!advancedOverrides}
+                    />
+                    <PlanImpactPreview
+                      overrides={effectiveOverrides}
+                      defaultMaxSpreadMinutes={maxSpreadMinutes}
+                      totalSubs={autoFair.totalSubs}
+                      spreadMin={autoFair.spreadSeconds / 60}
+                      shortShifts={autoFair.totalShortShifts}
+                      hasHalftimeClash={hasHalftimeClash}
+                    />
+                  </>
+                );
+              })()}
 
               {/* Fairness Simulator — one-click preview of plan quality */}
               <FairnessSimulatorPanel
@@ -3554,8 +3873,8 @@ function AdvancedSettingsPanel({
         aria-expanded={open}
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Settings2 className="h-4 w-4" />
-          Advanced substitution tuning
+          <Sliders className="h-4 w-4" />
+          Show expert controls
           {overrideCount > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
               {overrideCount} custom
@@ -3568,7 +3887,7 @@ function AdvancedSettingsPanel({
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Only adjust these if Basic or Frequent mode creates an uneven or awkward plan.
+            Raw planner thresholds. Most coaches won't need these — use the suggested fixes above instead.
           </p>
           {readOnly && (
             <p className="text-[11px] text-muted-foreground italic">
@@ -3576,35 +3895,14 @@ function AdvancedSettingsPanel({
             </p>
           )}
 
-          {/* Troubleshooting card */}
-          <div className="rounded-md border border-border bg-background/60 p-3 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Common problems
-            </p>
-            <ul className="space-y-1.5 text-[11px] leading-snug text-foreground">
-              <li>
-                <span className="font-medium">Plan looks uneven?</span>{" "}
-                <span className="text-muted-foreground">Lower “How often to suggest subs” to give the planner more chances to balance game time.</span>
-              </li>
-              <li>
-                <span className="font-medium">Plan feels too busy?</span>{" "}
-                <span className="text-muted-foreground">Increase “Minimum gap between sub moments” to reduce interruptions.</span>
-              </li>
-              <li>
-                <span className="font-medium">Players coming off too quickly?</span>{" "}
-                <span className="text-muted-foreground">Increase “Minimum time on field.”</span>
-              </li>
-            </ul>
-          </div>
-
           {/* Balance game time */}
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Balance game time
             </p>
             <NumberRow
-              label="How often to suggest subs"
-              hint="Lower = fairer minutes, more interruptions. Higher = fewer interruptions, less precise balancing."
+              label="Fairer minutes vs fewer stoppages"
+              hint="Lower = more substitution moments and fairer minutes. Higher = fewer interruptions but a wider playing-time spread."
               value={v.standardTargetIntervalSec}
               defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
               min={180} max={900} step={30}
@@ -3628,8 +3926,8 @@ function AdvancedSettingsPanel({
               Prevent awkward timing
             </p>
             <NumberRow
-              label="Minimum gap between sub moments"
-              hint="Stops the app creating substitution moments too close together. Lower = fairer minutes, more interruptions."
+              label="Space out substitution moments"
+              hint="Lower = more frequent substitution moments and fairer minutes. Higher = calmer match flow."
               value={v.standardIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
               min={120} max={600} step={30}
@@ -3637,8 +3935,8 @@ function AdvancedSettingsPanel({
               onChange={(n) => set("standardIntervalFloorSec", n)}
             />
             <NumberRow
-              label="Minimum gap in Frequent mode"
-              hint="Used only when Frequent mode is selected. Lower values create more rotations but may feel busier."
+              label="Space out substitution moments (Frequent mode)"
+              hint="Applies only when Frequent mode is selected. Lower = more rotations, busier match flow."
               value={v.frequentIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
               min={60} max={420} step={15}
@@ -3653,8 +3951,8 @@ function AdvancedSettingsPanel({
               Player shift protection
             </p>
             <NumberRow
-              label="Minimum time on field"
-              hint="Prevents a player being subbed on and then pulled off almost immediately. Higher = fewer cameo shifts."
+              label="Allow short cameos vs protect player shifts"
+              hint="Lower = players can come off sooner so minutes balance faster. Higher = no cameo shifts but a wider playing-time spread."
               value={v.minShiftSeconds}
               defaultValue={ADV_DEFAULTS.minShiftSeconds}
               min={60} max={360} step={15}
@@ -3669,8 +3967,8 @@ function AdvancedSettingsPanel({
               Halftime protection
             </p>
             <NumberRow
-              label="Avoid subs near halftime"
-              hint="Stops regular substitutions clashing with halftime or planned goalkeeper swaps."
+              label="Allow halftime subs vs keep halftime clean"
+              hint="Lower = subs can land near the halftime whistle. Higher = halftime stays untouched but rotations may shift earlier or later."
               value={v.halftimeGuardSeconds}
               defaultValue={ADV_DEFAULTS.halftimeGuardSeconds}
               min={0} max={420} step={15}
