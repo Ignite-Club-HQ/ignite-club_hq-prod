@@ -3211,6 +3211,20 @@ function PlanStatusCard({
   else if (spreadMin > 6) { tone = "warn"; headline = "Plan is uneven"; }
   else if (hasHalftimeClash || shortShifts > 0 || spreadMin > 3) { tone = "info"; headline = "Plan needs review"; }
 
+  // Fairness score: 100 when spread = 0, drops to 0 at spread = 12 min.
+  // Penalise short shifts and halftime clashes.
+  const spreadScore = Math.max(0, 100 - (spreadMin / 12) * 100);
+  const penalty = Math.min(40, shortShifts * 8) + (hasHalftimeClash ? 10 : 0);
+  const fairnessScore = Math.max(0, Math.round(spreadScore - penalty));
+  const fairnessLabel =
+    fairnessScore >= 80 ? "Good" :
+    fairnessScore >= 55 ? "Needs improving" :
+    "Poor";
+  const fairnessTone =
+    fairnessScore >= 80 ? { text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" } :
+    fairnessScore >= 55 ? { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" } :
+    { text: "text-red-600 dark:text-red-400", bar: "bg-red-500" };
+
   const toneClasses =
     tone === "good" ? "border-emerald-500/40 bg-emerald-500/5" :
     tone === "warn" ? "border-amber-500/40 bg-amber-500/5" :
@@ -3221,8 +3235,27 @@ function PlanStatusCard({
     "text-foreground";
 
   return (
-    <div className={cn("rounded-lg border p-3 space-y-2 mb-2", toneClasses)}>
-      <p className={cn("text-base font-semibold", headlineColor)}>{headline}</p>
+    <div className={cn("rounded-lg border p-3 space-y-3 mb-2", toneClasses)}>
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn("text-base font-semibold", headlineColor)}>{headline}</p>
+        <span className={cn("text-xs font-semibold tabular-nums", fairnessTone.text)}>
+          {fairnessLabel} · {fairnessScore}
+        </span>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Fairness</span>
+          {fairnessScore < 80 && (
+            <span className="text-[10px] text-muted-foreground">Apply a fix below to improve</span>
+          )}
+        </div>
+        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn("h-full transition-all", fairnessTone.bar)}
+            style={{ width: `${fairnessScore}%` }}
+          />
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Subs</div>
