@@ -5,7 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+
+// Games can only be linked from 48 hours before kickoff up until 24 hours
+// after kickoff. Anything further out is not yet linkable so coaches don't
+// accidentally tie the pitch board to a fixture weeks away.
+const LINK_WINDOW_HOURS_BEFORE = 48;
 
 interface EventLinkSelectorProps {
   teamId: string;
@@ -33,13 +38,14 @@ export function EventLinkSelector({
 }: EventLinkSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  // Fetch game events for this team (last 24 hours and upcoming)
-  // Cannot link to games older than 24 hours
+  // Fetch game events for this team within the link window: from 24h after
+  // kickoff back to 48h before kickoff. Games further away are excluded.
   const { data: events, isLoading } = useQuery({
     queryKey: ["team-game-events", teamId],
     queryFn: async () => {
       const oneDayAgo = subDays(new Date(), 1);
-      
+      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
+
       const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, address, suburb")
@@ -47,6 +53,7 @@ export function EventLinkSelector({
         .eq("type", "game")
         .eq("is_cancelled", false)
         .gte("event_date", oneDayAgo.toISOString())
+        .lte("event_date", linkCutoff.toISOString())
         .order("event_date", { ascending: true })
         .limit(20);
 
@@ -177,7 +184,8 @@ export function EventLinkSelector({
               </div>
             ) : (
               <div className="p-4 text-sm text-muted-foreground text-center">
-                No games found for this team
+                No games within 48 hours.
+                <div className="text-xs mt-1 opacity-80">Games can be linked from 48h before kickoff.</div>
               </div>
             )}
           </ScrollArea>
@@ -261,7 +269,7 @@ export function EventLinkSelector({
                 ))
               ) : (
                 <div className="p-3 text-sm text-muted-foreground text-center">
-                  No games found
+                  No games within 48 hours
                 </div>
               )}
             </ScrollArea>

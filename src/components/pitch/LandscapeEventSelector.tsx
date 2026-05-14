@@ -9,7 +9,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { format, parseISO, isAfter, subDays, addHours } from "date-fns";
+
+// Match EventLinkSelector: only games within 48h of kickoff (and up to 24h
+// after) are linkable from the pitch board.
+const LINK_WINDOW_HOURS_BEFORE = 48;
 
 interface LandscapeEventSelectorProps {
   open: boolean;
@@ -36,13 +40,15 @@ export function LandscapeEventSelector({
   currentEventId,
   onSelectEvent,
 }: LandscapeEventSelectorProps) {
-  // Fetch game events for the selector
-  // Only show games from the last 24 hours (for past games) or future games
+  // Fetch game events within the link window: from 24h after kickoff back to
+  // 48h before. Anything further out is hidden so coaches can't link a game
+  // weeks ahead by mistake.
   const { data: gameEvents, isLoading } = useQuery({
     queryKey: ["team-game-events-selector", teamId],
     queryFn: async () => {
       const oneDayAgo = subDays(new Date(), 1);
-      
+      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
+
       const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, address, suburb, opponent")
@@ -50,6 +56,7 @@ export function LandscapeEventSelector({
         .eq("type", "game")
         .eq("is_cancelled", false)
         .gte("event_date", oneDayAgo.toISOString())
+        .lte("event_date", linkCutoff.toISOString())
         .order("event_date", { ascending: true })
         .limit(20);
 
@@ -150,7 +157,8 @@ export function LandscapeEventSelector({
               </div>
             ) : (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                No games found for this team
+                No games within 48 hours.
+                <div className="text-xs mt-1 opacity-80">Games can be linked from 48h before kickoff.</div>
               </div>
             )}
           </div>
