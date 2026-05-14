@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle } from "lucide-react";
@@ -366,6 +366,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+  const [childrenRsvpOpen, setChildrenRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
   const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
@@ -703,74 +704,81 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               });
               const needsAction = childStatuses.find((c) => !c.status);
               return (
-                <details className="rounded-xl border border-border/50 bg-muted/20 group">
-                  <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
+                <div className="rounded-xl border border-border/50 bg-muted/20">
+                  <button
+                    type="button"
+                    onClick={() => setChildrenRsvpOpen((v) => !v)}
+                    aria-expanded={childrenRsvpOpen}
+                    className="flex w-full items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer p-2.5 touch-manipulation"
+                  >
                     <Baby className="h-3.5 w-3.5 text-primary" />
                     <span>Children's RSVP</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0 ml-auto" />
-                  </summary>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ml-auto ${childrenRsvpOpen ? "rotate-180" : ""}`} />
+                  </button>
 
-                  {/* Collapsed-state summary panel — fills reserved space */}
-                  <div className="group-open:hidden border-t border-border/40 px-2.5 py-2 space-y-1">
-                    {childStatuses.map((c) => (
-                      <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <User className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{c.label}</span>
-                      </div>
-                    ))}
-                    {teammatesGoing > 0 && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Users className="h-3 w-3 shrink-0" />
-                        <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
-                      </div>
-                    )}
-                    {needsAction && (
-                      <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
-                        Tap Children's RSVP to update {needsAction.first}'s response
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Expanded-state full controls */}
-                  <div className="hidden group-open:block space-y-2 px-2.5 pb-2.5 pt-2 border-t border-border/40">
-                    {childrenOnEvent.map((child) => {
-                      const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
-                      return (
-                        <div key={child.id} className="space-y-1.5">
-                          <div className="text-[11px] font-medium text-foreground">{child.name}</div>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
-                              const isActive = childRsvp?.status === status;
-                              return (
-                                <Button
-                                  key={`${child.id}-${status}`}
-                                  variant="outline"
-                                  size="sm"
-                                  aria-pressed={isActive}
-                                  aria-label={`${child.name} RSVP ${label}`}
-                                  className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                    isActive ? activeClass : inactiveHint
-                                  }`}
-                                  disabled={childRsvpMutation.isPending || isActive}
-                                  onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
-                                >
-                                  {childRsvpMutation.isPending ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                                  ) : isActive ? (
-                                    <Check className="h-3 w-3" />
-                                  ) : (
-                                    icon
-                                  )}
-                                  <span className="truncate">{label}</span>
-                                </Button>
-                              );
-                            })}
-                          </div>
+                  {!childrenRsvpOpen && (
+                    <div className="border-t border-border/40 px-2.5 py-2 space-y-1">
+                      {childStatuses.map((c) => (
+                        <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <User className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{c.label}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </details>
+                      ))}
+                      {teammatesGoing > 0 && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Users className="h-3 w-3 shrink-0" />
+                          <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
+                        </div>
+                      )}
+                      {needsAction && (
+                        <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
+                          Tap Children's RSVP to update {needsAction.first}'s response
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {childrenRsvpOpen && (
+                    <div className="space-y-2 px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                      {childrenOnEvent.map((child) => {
+                        const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
+                        return (
+                          <div key={child.id} className="space-y-1.5">
+                            <div className="text-[11px] font-medium text-foreground">{child.name}</div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
+                                const isActive = childRsvp?.status === status;
+                                return (
+                                  <Button
+                                    key={`${child.id}-${status}`}
+                                    variant="outline"
+                                    size="sm"
+                                    aria-pressed={isActive}
+                                    aria-label={`${child.name} RSVP ${label}`}
+                                    className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
+                                      isActive ? activeClass : inactiveHint
+                                    }`}
+                                    disabled={childRsvpMutation.isPending || isActive}
+                                    onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
+                                  >
+                                    {childRsvpMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                    ) : isActive ? (
+                                      <Check className="h-3 w-3" />
+                                    ) : (
+                                      icon
+                                    )}
+                                    <span className="truncate">{label}</span>
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })()}
 
