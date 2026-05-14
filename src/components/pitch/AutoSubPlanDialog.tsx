@@ -3897,6 +3897,9 @@ function DialogInner({
                 teamSize={teamSize}
                 benchSize={players.filter(p => p.position === null).length}
               />
+            </div>
+          </div>
+        )}
 
         {activeTab === 'edit' && (
           /* Manual Edit Mode */
