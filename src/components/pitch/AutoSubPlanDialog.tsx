@@ -4325,6 +4325,7 @@ export default function AutoSubPlanDialog({
   onBackToLineup,
   miniLeagueTeams,
   advancedOverrides,
+  onLineupChange,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
