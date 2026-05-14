@@ -6981,7 +6981,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
-                    </div>
+                      {!readOnly && (
+                        <button
+                          onClick={() => setFillInDialogOpen(true)}
+                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] transition-colors"
+                          aria-label="Add fill-in player"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Fill-in
+                        </button>
+                      )}
                     {/* Auto Subs Quick Access - Portrait */}
                     {!readOnly && !disableAutoSubs && (
                       <div className="py-1">
