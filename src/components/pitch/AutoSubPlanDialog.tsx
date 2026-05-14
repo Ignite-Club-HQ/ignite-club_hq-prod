@@ -334,6 +334,9 @@ interface AutoSubPlanDialogProps {
   miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
   /** Optional power-user overrides for planner thresholds. */
   advancedOverrides?: AutoSubAdvancedOverrides;
+  /** Called when the priority-bias loop swaps players between starting and
+   *  bench so the parent can sync its lineup before the plan runs. */
+  onLineupChange?: (players: Player[]) => void;
 }
 
 const formatTime = (seconds: number) => {
