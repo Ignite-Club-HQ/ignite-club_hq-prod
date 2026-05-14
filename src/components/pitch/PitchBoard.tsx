@@ -6022,6 +6022,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
           currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
           showStepper={autoSubFromPreGame}
+          onBackToLineup={autoSubFromPreGame ? () => { setAutoSubPlanDialogOpen(false); setShowLineupPicker(true); } : undefined}
           miniLeagueTeams={miniLeagueTeams}
           preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
@@ -7572,6 +7573,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
         currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
         showStepper={autoSubFromPreGame}
+        onBackToLineup={autoSubFromPreGame ? () => { setAutoSubPlanDialogOpen(false); setShowLineupPicker(true); } : undefined}
         miniLeagueTeams={miniLeagueTeams}
         preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
