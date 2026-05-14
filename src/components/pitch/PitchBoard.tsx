@@ -4426,7 +4426,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Fill-in player added",
       description: `${playerData.name} has been added to the bench`,
     });
-  }, [readOnly, toast]);
+
+    // If a sub plan exists, recalculate so the new bench player is included.
+    if (autoSubPlan.some(s => !s.executed)) {
+      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
+      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+
+      const updatedPlayers = [...players, newPlayer];
+      const executedSubs = autoSubPlan.filter(s => s.executed);
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      const anchor = remainingSubs[0];
+
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        minutesPerHalfSecs,
+        currentElapsed,
+        currentHalf,
+        anchor,
+        rotateGkAtHalftime
+      );
+
+      const finalPlan = recalculated.length > 0
+        ? [...executedSubs, ...recalculated]
+        : [...executedSubs, ...remainingSubs];
+      setAutoSubPlan(finalPlan);
+      toast({
+        title: "Sub plan updated",
+        description: "Auto-substitution plan recalculated for new fill-in",
+      });
+    }
+  }, [readOnly, toast, players, autoSubPlan, teamSize, rotateGkAtHalftime]);
 
   // Remove fill-in player
   const handleRemoveFillInPlayer = useCallback((playerId: string) => {
