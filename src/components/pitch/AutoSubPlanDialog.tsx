@@ -305,6 +305,8 @@ export interface AutoSubAdvancedOverrides {
    *  set, replaces the `maxSpreadMinutes` prop value. Lower = stricter
    *  fairness (planner sacrifices queue order sooner). */
   maxSpreadOverrideSec?: number;
+  /** Optional coach drag order: lower index = should be favoured for more time. */
+  playerPriorityOrder?: string[];
 }
 
 interface AutoSubPlanDialogProps {
@@ -630,6 +632,23 @@ export function createSubPlan(
       ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
       : undefined, // undefined → fall back to interval floor at use site
   };
+  const priorityOrder = Array.isArray(ov.playerPriorityOrder) ? ov.playerPriorityOrder : [];
+  const priorityRank = new Map(priorityOrder.map((id, index) => [id, index] as const));
+  const priorityBiasMaxSeconds = Math.max(0, (maxSpreadMinutes * 60) / 2);
+  const priorityTargetBiasSeconds = (id: string) => {
+    const rank = priorityRank.get(id);
+    if (rank === undefined || priorityOrder.length < 2 || priorityBiasMaxSeconds <= 0) return 0;
+    const midpoint = (priorityOrder.length - 1) / 2;
+    return ((midpoint - rank) / Math.max(1, midpoint)) * priorityBiasMaxSeconds;
+  };
+  const priorityPullOffCompare = (a: string, b: string) => {
+    if (priorityOrder.length < 2) return 0;
+    return (priorityRank.get(b) ?? Number.MAX_SAFE_INTEGER) - (priorityRank.get(a) ?? Number.MAX_SAFE_INTEGER);
+  };
+  const priorityBringOnCompare = (a: string, b: string) => {
+    if (priorityOrder.length < 2) return 0;
+    return (priorityRank.get(a) ?? Number.MAX_SAFE_INTEGER) - (priorityRank.get(b) ?? Number.MAX_SAFE_INTEGER);
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
@@ -775,8 +794,9 @@ export function createSubPlan(
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
-    const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
-    const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
+    const playerTargetSec = (id: string) => Math.max(0, targetSecPerPlayer + priorityTargetBiasSeconds(id));
+    const playerMinThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MIN_THRESHOLD_RATIO;
+    const playerMaxThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MAX_THRESHOLD_RATIO;
 
     // GK-PROTECTED players: anyone assigned as GK in any half. They must finish
     // at or near the top of the allowed spread (target + spread/2) without
@@ -788,8 +808,6 @@ export function createSubPlan(
     const isGkProtected = (id: string) => gkProtectedIds.has(id);
     // Top of the allowed spread — GK-protected players aim for this.
     const gkCeilingSec = targetSecPerPlayer + (maxSpreadMinutes / 2) * 60;
-    // Floor for non-GK so they don't dip too low while we lift the GKs.
-    const nonGkFloorSec = Math.max(minThresholdSec, targetSecPerPlayer - (maxSpreadMinutes / 2) * 60);
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -825,8 +843,8 @@ export function createSubPlan(
     // The "priority" for GKs is realised purely by being shielded from being
     // pulled off too early (see overCap/FIFO filters below) and by the forced
     // outfield window for the 2H GK before halftime.
-    const effectiveMinSec = (_id: string) => minThresholdSec;
-    const effectiveTargetSec = (_id: string) => targetSecPerPlayer;
+    const effectiveMinSec = (id: string) => playerMinThresholdSec(id);
+    const effectiveTargetSec = (id: string) => playerTargetSec(id);
     const shortfall = (id: string) => effectiveTargetSec(id) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
@@ -960,7 +978,7 @@ export function createSubPlan(
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
       const isForcedGkWindow = forcedInByWindow.has(t) || forcedOutByWindow.has(t);
       const benchUnder = benchOrder.filter(
-        id => (projected.get(id) || 0) < minThresholdSec
+        id => (projected.get(id) || 0) < effectiveMinSec(id)
       );
       if (!isForcedGkWindow && benchUnder.length > 0) {
         const earliest = Math.max(lastTickAbs + 60, t - PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS);
@@ -1027,7 +1045,7 @@ export function createSubPlan(
           // reached the top of the allowed spread (gkCeilingSec). Their
           // outfield run should land them at equal-highest minutes.
           .filter(id => !isGkProtected(id) || !needsProtectedOutfieldRun(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
+          .filter(id => (projected.get(id) || 0) > playerMaxThresholdSec(id) || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
             // GK-protected promotion: prefer pulling non-GK-protected first
             // when a GK-protected on-pitch is still below ceiling.
@@ -1040,6 +1058,8 @@ export function createSubPlan(
             const aNB = neverBenched.has(a) ? 1 : 0;
             const bNB = neverBenched.has(b) ? 1 : 0;
             if (aNB !== bNB) return bNB - aNB;
+            const priorityCmp = priorityPullOffCompare(a, b);
+            if (priorityCmp !== 0) return priorityCmp;
             return (projected.get(b) || 0) - (projected.get(a) || 0);
           });
 
@@ -1109,6 +1129,8 @@ export function createSubPlan(
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
+              const priorityCmp = priorityPullOffCompare(a, b);
+              if (priorityCmp !== 0) return priorityCmp;
               if (aNB === 1 && bNB === 1) {
                 return onPitchOrder.indexOf(b) - onPitchOrder.indexOf(a);
               }
@@ -1131,7 +1153,7 @@ export function createSubPlan(
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => !windowOuts.has(b.id))
           .filter(b => b.proj < effectiveMinSec(b.id))
-          .sort((a, b) => b.score - a.score);
+          .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id));
 
         let inId: string | undefined;
         const forcedInId = forcedInByWindow.get(t);
@@ -1149,11 +1171,11 @@ export function createSubPlan(
           const fifoCandidates = benchOrder
             .map((id, index) => ({ id, index, score: needScore(id, t, index), projected: projected.get(id) || 0 }))
             .filter(item => !windowOuts.has(item.id))
-            .filter(item => item.projected <= maxThresholdSec);
+            .filter(item => item.projected <= playerMaxThresholdSec(item.id));
           const fifoFirst = fifoCandidates[0];
           const urgent = fifoCandidates
             .filter(item => item.projected < targetSecPerPlayer)
-            .sort((a, b) => b.score - a.score)[0];
+            .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id))[0];
           const fifoIdx = (urgent && (!fifoFirst || urgent.score > fifoFirst.score + 500))
             ? urgent.index
             : fifoFirst?.index ?? -1;
@@ -1536,13 +1558,13 @@ export function createSubPlan(
   const sharedTotalTarget = playerData.length > 0
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
-  const rawFieldTargets = new Map<string, number>();
+    const rawFieldTargets = new Map<string, number>();
   outfieldPlayers.forEach(p => {
     // FAIRNESS: every player aims for the SAME total minutes (field + GK duty).
     // GKs already have GK time banked, so their outfield target is the shared
     // total minus their GK duty. They naturally play LESS outfield, not more —
     // landing them at equal total minutes alongside everyone else.
-    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+      const base = Math.max(0, sharedTotalTarget + priorityTargetBiasSeconds(p.id) - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
@@ -1840,7 +1862,7 @@ export function createSubPlan(
       const isProtected =
         (includeStartingGkInRotation && id === gkOnPitch?.id) ||
         (halftimeGkIn ? id === halftimeGkIn.id : false);
-      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      const target = (isProtected ? gkCeilingTotal : sharedTotalTarget) + priorityTargetBiasSeconds(id);
       return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
@@ -3848,39 +3870,36 @@ function DialogInner({
    */
   const buildPlanFromRoster = (roster: Player[], speed: 1 | 2): { plan: SubstitutionEvent[]; roster: Player[] } => {
     const halfDurationSeconds = minutesPerHalf * 60;
+    const planningOverrides: AutoSubAdvancedOverrides = playerPriority?.length
+      ? { ...effectiveOverrides, playerPriorityOrder: playerPriority }
+      : effectiveOverrides;
     const make = (rs: Player[]) => miniLeagueTeams
-      ? createMiniLeagueSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-      : createSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+      ? createMiniLeagueSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, planningOverrides)
+      : createSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, planningOverrides);
 
     let working = roster;
-    let plan = make(working);
-    if (!playerPriority || playerPriority.length < 2) return { plan, roster: working };
+    if (playerPriority && playerPriority.length >= 2) {
+      const rank = new Map(playerPriority.map((id, index) => [id, index] as const));
+      const isSwappableOutfielder = (p: Player) =>
+        p.currentPitchPosition !== "GK" && !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK");
+      const outfieldStarterCount = working.filter(p => p.position !== null && isSwappableOutfielder(p)).length;
+      const desiredStarters = new Set(
+        playerPriority
+          .filter(id => working.some(p => p.id === id && isSwappableOutfielder(p)))
+          .slice(0, outfieldStarterCount)
+      );
 
-    for (let iter = 0; iter < 8; iter++) {
-      const fc = calculateTimeForecasts(working, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-      const minsById = new Map(fc.map(f => [f.player.id, f.predictedMinutes] as const));
-      const gkRoleById = new Map(fc.map(f => [f.player.id, f.gkRole] as const));
-      // Outfielders only — full-game GKs are pinned.
-      const swappable = playerPriority.filter(id => gkRoleById.get(id) !== 'full' && working.some(p => p.id === id));
-
-      let didSwap = false;
-      outer: for (let i = 0; i < swappable.length - 1; i++) {
-        for (let j = i + 1; j < swappable.length; j++) {
-          const Hid = swappable[i];
-          const Lid = swappable[j];
-          const hMin = minsById.get(Hid) ?? 0;
-          const lMin = minsById.get(Lid) ?? 0;
-          if (hMin < lMin - 1.5) {
-            working = swapLineupPositions(working, Hid, Lid);
-            didSwap = true;
-            break outer;
-          }
-        }
+      for (const desiredId of desiredStarters) {
+        const desired = working.find(p => p.id === desiredId);
+        if (!desired || desired.position !== null) continue;
+        const replacement = working
+          .filter(p => p.position !== null && isSwappableOutfielder(p) && !desiredStarters.has(p.id))
+          .sort((a, b) => (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER))[0];
+        if (replacement) working = swapLineupPositions(working, desiredId, replacement.id);
       }
-      if (!didSwap) break;
-      plan = make(working);
     }
-    return { plan, roster: working };
+
+    return { plan: make(working), roster: working };
   };
 
   const generatePlan = (allPlayers: Player[]) => {
@@ -4564,7 +4583,7 @@ function AdvancedSettingsPanel({
   const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
     .filter(k => overrides[k] !== undefined).length;
 
-  const set = (key: keyof AutoSubAdvancedOverrides, next: number | undefined) => {
+  const set = (key: Exclude<keyof AutoSubAdvancedOverrides, "playerPriorityOrder">, next: number | undefined) => {
     if (readOnly) return;
     const merged: AutoSubAdvancedOverrides = { ...overrides };
     if (next === undefined) delete merged[key];
