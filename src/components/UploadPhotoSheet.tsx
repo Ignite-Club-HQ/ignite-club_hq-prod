@@ -421,7 +421,7 @@ export function UploadPhotoSheet({
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string): Promise<{ url: string; photoId: string }> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string, albumId: string | null): Promise<{ url: string; photoId: string }> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
@@ -460,6 +460,7 @@ export function UploadPhotoSheet({
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
+      album_id: albumId,
     }).select("id").single();
 
     if (insertError || !insertedPhoto) {
@@ -695,7 +696,35 @@ export function UploadPhotoSheet({
     let firstErrorMessage: string | null = null;
     const uploadedUrls: string[] = [];
     const uploadedPhotoIds: string[] = [];
-    
+
+    // Multi-photo upload session → create a single album so the feed shows
+    // one card per upload session (with +N badge) instead of N separate
+    // cards each duplicating the same caption.
+    let albumId: string | null = null;
+    if (photosToUpload.length > 1) {
+      try {
+        // Use SECURITY DEFINER RPC to bypass RLS edge cases where a stale
+        // auth.uid() vs user.id mismatch silently rejects the direct insert.
+        const { data: newAlbumId, error: albumErr } = await supabase.rpc(
+          "create_photo_album",
+          {
+            _club_id: clubId || null,
+            _team_id: teamId || null,
+            _mini_league_id: miniLeagueId || null,
+            _event_id: eventId || null,
+            _caption: photoCaption || null,
+          },
+        );
+        if (albumErr) {
+          console.warn("[upload] album creation failed, falling back to ungrouped photos:", albumErr);
+        } else {
+          albumId = (newAlbumId as string) ?? null;
+        }
+      } catch (e) {
+        console.warn("[upload] album creation threw:", e);
+      }
+    }
+
     for (let i = 0; i < photosToUpload.length; i++) {
       const photo = photosToUpload[i];
       
@@ -706,7 +735,7 @@ export function UploadPhotoSheet({
       );
       
       try {
-        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption, albumId);
         uploadedUrls.push(url);
         uploadedPhotoIds.push(photoId);
         successCount++;
@@ -1151,7 +1180,7 @@ export function UploadPhotoSheet({
             )}
 
             {/* Form Fields */}
-            <div className="px-4 pb-6 space-y-6">
+            <div className="px-4 pt-4 pb-6 space-y-6">
               {/* Club Selection */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium flex items-center gap-2">

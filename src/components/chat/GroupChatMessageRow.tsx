@@ -384,14 +384,20 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         document.body
       )}
       <div className={`flex w-full min-w-0 gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={avatarUrl} />
-          <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
-        </Avatar>
+        {/* Outgoing messages never show the sender avatar — modern messaging
+            apps rely on right-alignment + bubble colour for ownership cues. */}
+        {!isOwnMessage && (
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarImage src={avatarUrl} />
+            <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
+          </Avatar>
+        )}
 
         <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-medium">{displayName}</span>
+            {!isOwnMessage && (
+              <span className="text-xs font-medium">{displayName}</span>
+            )}
             {msg.id.startsWith("queued-") && (
               <span className="flex items-center text-amber-500" title="Pending sync">
                 <Clock className="h-3 w-3" />

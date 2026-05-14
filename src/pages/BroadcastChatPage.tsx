@@ -44,6 +44,7 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -1066,7 +1067,12 @@ export default function BroadcastChatPage() {
             renderRow={(msg, index, arr) => {
               const currentDate = new Date(msg.created_at);
               const prevMessage = index > 0 ? arr[index - 1] : null;
+              const nextMessage = index < arr.length - 1 ? arr[index + 1] : null;
               const showDateSeparator = !prevMessage || !isSameDay(currentDate, new Date(prevMessage.created_at));
+              const groupedWithPrev = !showDateSeparator && shouldGroupWithPrev(msg, prevMessage);
+              const groupedWithNext = nextMessage
+                ? isSameDay(currentDate, new Date(nextMessage.created_at)) && shouldGroupWithPrev(nextMessage, msg)
+                : false;
               return (
                 <>
                   {showDateSeparator && <ChatDateSeparator date={currentDate} />}
@@ -1103,6 +1109,8 @@ export default function BroadcastChatPage() {
                       isLastMessage={index === arr.length - 1}
                       isPending={msg.id.startsWith("queued-")}
                       contextId="broadcast"
+                      groupedWithPrev={groupedWithPrev}
+                      groupedWithNext={groupedWithNext}
                     />
                   </div>
                 </>

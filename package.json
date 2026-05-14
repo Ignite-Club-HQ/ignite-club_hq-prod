@@ -13,6 +13,7 @@
     "test:run": "vitest run",
     "test:ci": "CI=true TZ=UTC vitest run",
     "test:gestures": "vitest run \"src/components/chat/FullscreenImageViewer.*.test.tsx\"",
+    "test:matrix": "vitest run --config vitest.matrix.config.ts",
     "ios:bump": "node scripts/bump-ios-version.cjs",
     "ios:check-build": "node scripts/check-asc-build-number.cjs",
     "ios:check-build:strict": "node scripts/check-asc-build-number.cjs --check-only",

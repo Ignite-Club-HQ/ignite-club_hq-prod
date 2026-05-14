@@ -762,6 +762,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     setupPushNotifications();
 
+    // RAF-throttled, deduped invalidations so a burst of notifications
+    // doesn't chain refetches and freeze the UI on slow devices.
+    const inboxRefreshState = { unread: 0, team: 0, club: 0, group: 0, dm: 0, broadcast: 0 } as Record<string, number>;
+    const scheduleInboxRefresh = (key: keyof typeof inboxRefreshState, fn: () => void) => {
+      if (inboxRefreshState[key]) return;
+      inboxRefreshState[key] = requestAnimationFrame(() => {
+        inboxRefreshState[key] = 0;
+        fn();
+      });
+    };
+
     const channel = supabase
       .channel('notifications-realtime')
       .on(
@@ -779,6 +790,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const notificationType = (payload.new as any)?.type;
           if (MESSAGE_NOTIFICATION_TYPES.includes(notificationType)) {
             setUnreadMessagesCount((prev) => prev + 1);
+
+            // Keep the inbox previews + per-thread unread badges in sync.
+            // The dedicated message-table realtime channel can miss events
+            // (RLS race / throttling), but the user-filtered notifications
+            // channel is reliable. We RAF-dedupe per query so a burst of
+            // notifications fires at most one refetch per frame per query.
+            scheduleInboxRefresh('unread', () => {
+              queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+              queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+              queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+            });
+            if (notificationType === 'team_message') {
+              scheduleInboxRefresh('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
+            } else if (notificationType === 'club_message') {
+              scheduleInboxRefresh('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
+            } else if (notificationType === 'group_message') {
+              scheduleInboxRefresh('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
+            } else if (notificationType === 'direct_message') {
+              scheduleInboxRefresh('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
+            } else if (notificationType === 'broadcast') {
+              scheduleInboxRefresh('broadcast', () => queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] }));
+            }
           }
           
           // Only show browser notification if push notifications are NOT active.
@@ -858,6 +891,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       supabase.removeChannel(channel);
+      Object.keys(inboxRefreshState).forEach((k) => {
+        if (inboxRefreshState[k]) cancelAnimationFrame(inboxRefreshState[k]);
+      });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };

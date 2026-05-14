@@ -23,6 +23,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Phase 6 matrix sweep is a slow regression suite — run separately
+    // via `bun run test:matrix` (vitest.matrix.config.ts).
+    exclude: ["**/node_modules/**", "**/*.matrix.test.ts"],
     // Forks + single-fork = deterministic test ordering and no shared-memory
     // races between gesture mocks. Slightly slower than threads but the
     // FullscreenImageViewer suites are tiny so the trade-off is worth it.

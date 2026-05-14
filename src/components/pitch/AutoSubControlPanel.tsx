@@ -250,8 +250,7 @@ export default function AutoSubControlPanel({
           {/* Scrollable Mini-Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[50vh]">
-                <div className="divide-y divide-border">
+              <div className="divide-y divide-border">
                   {[1, 2].map((half) => {
                     const halfSubs = autoSubPlan
                       .map((sub, idx) => ({ sub, idx }))
@@ -357,7 +356,6 @@ export default function AutoSubControlPanel({
                     );
                   })}
                 </div>
-              </ScrollArea>
             </div>
           )}
 

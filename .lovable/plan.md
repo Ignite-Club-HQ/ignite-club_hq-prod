@@ -1,38 +1,53 @@
+
 ## Goal
-Bring the mini-league "Add Players" sheet to parity with the team invite flow: a prominent shareable parent join link (one tap → joiner becomes parent + adds their kid → kid auto-assigned to the league) sitting above the existing named/email invite form.
 
-## Scope
+Reduce information overload in the Auto Substitution Plan "Forecast" tab. Replace the current always-on stack (fairness diagnostics + suggested fixes + impact preview + simulator + full player bars) with a guided, plain-English layout for junior coaches.
 
-### 1. New component — `MiniLeagueParentJoinLinkCard`
-Mirrors the new `MiniLeagueAdminJoinLinkCard`:
-- Icon + title "Share a parent join link", subtitle explaining one link per league
-- No "sensitive role" warning (parent is safe to share)
-- Share / Copy / QR + Regenerate / Revoke
-- Backed by a single `pending_invites` row with `metadata.kind = 'mini_league_parent_join_link'`, `role = 'parent'`, `invited_email = NULL`, `invited_label = NULL`, `metadata.mini_league_id`
-- URL pattern: `https://igniteclubhq.app/join/p/<token>` (same as admin link)
+All work is UI-only inside `src/components/pitch/AutoSubPlanDialog.tsx`. No planner, override storage, or fairness-calculation logic changes.
 
-### 2. `JoinTeamPage` updates (`src/pages/JoinTeamPage.tsx`)
-- Skip name-match validation when `metadata.kind === 'mini_league_parent_join_link'` (no per-recipient name on a shareable link)
-- Skip "invite already used" check for that kind
-- Re-enable the `showChildStep` UI for league shareable links: gate the existing child-add flow on `metadata.mini_league_id` (currently gated on `invite?.team_id`)
-- After joiner adds a child:
-  - Insert into `children` with `parent_id = user.id`
-  - Insert into `child_mini_league_assignments` (idempotent, default ability 3)
-- Do NOT mark the invite accepted (keep token reusable, same pattern as the league_admin link)
-- Issue `parent` role grant at the club level if not already present
+## New Forecast tab layout (top → bottom)
 
-### 3. `AddMiniLeagueMemberSheet` integration
-Mount `MiniLeagueParentJoinLinkCard` at the very top of the sheet (above the Single/Bulk tabs), so it is the primary CTA. The named/email "Add Player" tabs stay unchanged underneath — these remain the way to pre-create a kid record and invite a specific parent by email.
+1. **Plan status card** (NEW `PlanStatusCard`) — single calm card with:
+   - Headline status: "Plan looks good" / "Plan needs review" / "Plan is uneven" / "Too many short shifts" (derived from existing `spreadMin`, `shortShifts`, `hasHalftimeClash`).
+   - 3 chips: `Substitutions`, `Playing-time spread`, `Short shifts`.
+   - No technical jargon, no targets/highest/lowest grid.
+
+2. **Recommended fix card** (refactored `PlanFixSuggestions`) — one primary fix only:
+   - Title (e.g. "Stop players coming off too quickly").
+   - One-sentence trade-off.
+   - One **primary button**: "Apply recommended fix".
+   - Below: collapsible "Other fixes" link revealing the remaining suggestions as compact rows. Hidden by default. Applied fixes still show an "Applied" badge.
+   - Priority order for picking the recommended fix:
+     1. `hasHalftimeClash` → "Avoid subs near halftime"
+     2. `shortShifts > 0` → "Stop players coming off too quickly"
+     3. `bounceBacks > 0` → "Space out substitution moments"
+     4. `spreadMin > 6` → "Make minutes fairer"
+     5. `spreadMin > 3 && constrainedByMinShift` → "Allow shorter shifts"
+     6. busy + fair spread → "Reduce stoppages"
+   - If no fixes available → card hidden.
+
+3. **Impact preview** (existing `PlanImpactPreview`) — only rendered after the user applies/selects a fix (gated by `appliedFixIds.size > 0`). Shows before/after style summary (Substitutions / Spread / Short shifts / Halftime clash). Already collapsible — keep that.
+
+4. **Players needing attention** (NEW compact summary) — replaces the always-on full bar list:
+   - Lists only outfielders flagged as: lowest minutes, highest minutes, has short shifts, or has bounce-backs. Max ~5 rows. Each row: number, name, predicted minutes, single reason badge.
+   - Footer button: "Show all player minutes" → expands the existing full forecast list (current per-player progress bars, unchanged).
+
+5. **Preview changes** (renamed `FairnessSimulatorPanel`) — moved to the bottom and demoted:
+   - Header label changed from "Fairness simulator" to "Preview changes" (aka "Check plan again"), with subtle styling so it doesn't compete with the status card.
+   - Behavior unchanged.
+
+6. **Show expert settings** — already-renamed `AdvancedSettingsPanel`, untouched, stays at the very bottom (existing position).
+
+## Mapping to existing code
+
+- `PlanStatusCard`: NEW small component near `FairnessDiagnostics` (which we stop rendering in the Forecast tab — keep the function for now in case it's referenced elsewhere, but remove it from the JSX).
+- `PlanFixSuggestions`: change to accept `fixes` + a derived `recommendedId`. Render the recommended fix prominently with a `Button` ("Apply recommended fix"); render the rest behind a "Other fixes" disclosure (`useState`).
+- `PlayersNeedingAttention`: NEW component above the existing `forecasts.map(...)` loop. Wrap the existing per-player rows in a `useState`-gated `<Collapsible>`-style block, default closed, toggled by "Show all player minutes".
+- `FairnessSimulatorPanel`: keep impl, just relabel header to "Preview changes" and tone down the empty-state CTA (smaller, secondary variant).
+- Order in JSX (lines 3546-3702): `PlanStatusCard` → recommended fix block → impact preview (gated) → players-needing-attention → expandable full list → preview-changes panel.
 
 ## Out of scope
-- Team-side changes (already supports parent + child shareable links)
-- Bulk import changes
-- Adding shareable links to specific *children* (only the parent-with-own-child flow)
-- Any change to `mini_league_players` legacy table — child assignment is via `child_mini_league_assignments` only
 
-## Files touched
-- New: `src/components/mini-league/MiniLeagueParentJoinLinkCard.tsx`
-- Edit: `src/pages/JoinTeamPage.tsx` (validation + child step gating + accept skip + role grant for league parent link)
-- Edit: `src/components/AddMiniLeagueMemberSheet.tsx` (mount the card above the tabs)
-
-No DB migration needed — the existing pending_invites RLS policy for league-scoped admins already covers insert/select via `metadata->>'mini_league_id'`.
+- No edits to planner, `usePitchSettings`, override persistence, simulator math, or per-player forecast calculation.
+- No new dependencies.
+- Tests: existing 258 should continue to pass; no new tests required.
