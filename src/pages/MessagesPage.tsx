@@ -21,7 +21,7 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
-import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
+import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
