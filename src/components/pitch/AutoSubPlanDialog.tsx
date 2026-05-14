@@ -20,7 +20,7 @@ interface PlayerTimeForecast {
 }
 
 // Calculate playing time forecast for each player based on the plan
-function calculateTimeForecasts(
+export function calculateTimeForecasts(
   players: Player[],
   plan: SubstitutionEvent[],
   minutesPerHalf: number,
