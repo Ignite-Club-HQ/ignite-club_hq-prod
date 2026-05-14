@@ -641,6 +641,10 @@ export function createSubPlan(
     const midpoint = (priorityOrder.length - 1) / 2;
     return ((midpoint - rank) / Math.max(1, midpoint)) * priorityBiasMaxSeconds;
   };
+  const priorityPullOffCompare = (a: string, b: string) => {
+    if (priorityOrder.length < 2) return 0;
+    return (priorityRank.get(b) ?? Number.MAX_SAFE_INTEGER) - (priorityRank.get(a) ?? Number.MAX_SAFE_INTEGER);
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
