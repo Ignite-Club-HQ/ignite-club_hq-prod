@@ -4406,6 +4406,7 @@ export default function AutoSubPlanDialog({
                 isSetupFlow={showStepper}
                 miniLeagueTeams={miniLeagueTeams}
                 advancedOverrides={advancedOverrides}
+                onLineupChange={onLineupChange}
               />
             )}
           </div>
