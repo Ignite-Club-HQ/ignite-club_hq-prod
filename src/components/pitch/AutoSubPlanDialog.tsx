@@ -3859,15 +3859,23 @@ function DialogInner({
                 const seen = new Set<string>();
                 const fixes: PlanFix[] = [];
                 for (const f of liveFixes) { if (!seen.has(f.id)) { seen.add(f.id); fixes.push(f); } }
-                for (const f of stickyFixes) {
-                  if (!seen.has(f.id) && appliedFixIds.has(f.id)) { seen.add(f.id); fixes.push(f); }
+                // Keep the active priority in the list even if the planner no
+                // longer flags it as a relevant suggestion, so the coach can
+                // still see "Current" and switch away from it.
+                if (activeFixId) {
+                  for (const f of stickyFixes) {
+                    if (!seen.has(f.id) && f.id === activeFixId) { seen.add(f.id); fixes.push(f); }
+                  }
                 }
                 const recommended = pickRecommendedFix(fixes, {
                   hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
                 });
-                // Capture baseline metrics on first render before any fix applied.
-                if (appliedFixIds.size === 0) {
+                // Promote the active priority to the top slot if one is set;
+                // otherwise show the planner's recommendation.
+                const promoted = (activeFixId && fixes.find((f) => f.id === activeFixId)) || recommended;
+                // Capture baseline metrics before any priority is applied.
+                if (!activeFixId) {
                   baselineMetricsRef.current = {
                     totalSubs: autoFair.totalSubs,
                     spreadMin,
@@ -3885,17 +3893,17 @@ function DialogInner({
                       hasHalftimeClash={hasHalftimeClash}
                     />
 
-                    {/* 2. Single recommended fix (other fixes hidden behind a toggle) */}
+                    {/* 2. Mutually-exclusive priority picker */}
                     <PlanFixSuggestions
                       fixes={fixes}
-                      recommended={recommended}
+                      promoted={promoted}
+                      activeFixId={activeFixId}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
-                      appliedIds={appliedFixIds}
                     />
 
-                    {/* 3. Impact preview — only after coach has applied a fix */}
-                    {appliedFixIds.size > 0 && (
+                    {/* 3. Impact preview — only for the currently active priority */}
+                    {activeFixId && (
                       <PlanImpactPreview
                         overrides={effectiveOverrides}
                         defaultMaxSpreadMinutes={maxSpreadMinutes}
