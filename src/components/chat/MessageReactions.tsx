@@ -65,6 +65,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     }
     mountedAtRef.current = Date.now();
 
+    // Clear any text selection left behind by the long-press that opened the
+    // picker. On Android WebView this otherwise leaves a teal selection handle
+    // floating between the picker and the message bubble.
+    try {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+    } catch {}
+
     const updatePosition = () => {
       const anchor = anchorRef.current;
       if (!anchor) return;
@@ -221,8 +229,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     if (Date.now() - mountedAtRef.current < 500) return;
                     triggerEmojiSelection(type);
                   }}
-                  style={{ touchAction: "none" }}
-                  className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation ${
+                  style={{
+                    touchAction: "none",
+                    WebkitTapHighlightColor: "transparent",
+                    WebkitUserSelect: "none",
+                    userSelect: "none",
+                  }}
+                  className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation outline-none focus:outline-none ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
