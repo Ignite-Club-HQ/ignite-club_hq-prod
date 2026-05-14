@@ -3205,68 +3205,59 @@ function PlanStatusCard({
   shortShifts: number;
   hasHalftimeClash: boolean;
 }) {
+  // Pick the dominant issue and describe it in plain English.
   let tone: "good" | "info" | "warn" = "good";
-  let headline = "Plan looks good";
-  if (shortShifts >= 3) { tone = "warn"; headline = "Too many short shifts"; }
-  else if (spreadMin > 6) { tone = "warn"; headline = "Plan is uneven"; }
-  else if (hasHalftimeClash || shortShifts > 0 || spreadMin > 3) { tone = "info"; headline = "Plan needs review"; }
+  let headline = "This plan looks balanced.";
+  let subline = "Every player gets a fair share of the game.";
+  if (hasHalftimeClash) {
+    tone = "warn";
+    headline = "Some subs land too close to halftime.";
+    subline = "Players may not get a clean break.";
+  } else if (shortShifts >= 1) {
+    tone = "warn";
+    headline = `This plan has ${shortShifts} very short turn${shortShifts === 1 ? "" : "s"}.`;
+    subline = "Some players may come off too quickly.";
+  } else if (spreadMin > 6) {
+    tone = "warn";
+    headline = "Some players get a lot more game time than others.";
+    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
+  } else if (spreadMin > 3) {
+    tone = "info";
+    headline = "This plan is mostly fair.";
+    subline = `There's about ${spreadMin.toFixed(1)} minutes between the most- and least-played player.`;
+  }
 
-  // Fairness score: 100 when spread = 0, drops to 0 at spread = 12 min.
-  // Penalise short shifts and halftime clashes.
-  const spreadScore = Math.max(0, 100 - (spreadMin / 12) * 100);
-  const penalty = Math.min(40, shortShifts * 8) + (hasHalftimeClash ? 10 : 0);
-  const fairnessScore = Math.max(0, Math.round(spreadScore - penalty));
-  const fairnessLabel =
-    fairnessScore >= 80 ? "Good" :
-    fairnessScore >= 55 ? "Needs improving" :
-    "Poor";
-  const fairnessTone =
-    fairnessScore >= 80 ? { text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" } :
-    fairnessScore >= 55 ? { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" } :
-    { text: "text-red-600 dark:text-red-400", bar: "bg-red-500" };
+  const needsAdjustment = tone !== "good";
+  const statusLabel = needsAdjustment ? "Needs adjustment" : "Looking good";
+  const statusTone = needsAdjustment
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-emerald-600 dark:text-emerald-400";
 
   const toneClasses =
     tone === "good" ? "border-emerald-500/40 bg-emerald-500/5" :
     tone === "warn" ? "border-amber-500/40 bg-amber-500/5" :
     "border-border bg-muted/30";
-  const headlineColor =
-    tone === "good" ? "text-emerald-600 dark:text-emerald-400" :
-    tone === "warn" ? "text-amber-600 dark:text-amber-400" :
-    "text-foreground";
 
   return (
-    <div className={cn("rounded-lg border p-3 space-y-3 mb-2", toneClasses)}>
-      <div className="flex items-center justify-between gap-2">
-        <p className={cn("text-base font-semibold", headlineColor)}>{headline}</p>
-        <span className={cn("text-xs font-semibold tabular-nums", fairnessTone.text)}>
-          {fairnessLabel} · {fairnessScore}
+    <div className={cn("rounded-lg border p-3 space-y-2.5 mb-2", toneClasses)}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground leading-snug">{headline}</p>
+        <span className={cn("text-[11px] font-semibold shrink-0 mt-0.5", statusTone)}>
+          {statusLabel}
         </span>
       </div>
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Fairness</span>
-          {fairnessScore < 80 && (
-            <span className="text-[10px] text-muted-foreground">Apply a fix below to improve</span>
-          )}
-        </div>
-        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className={cn("h-full transition-all", fairnessTone.bar)}
-            style={{ width: `${fairnessScore}%` }}
-          />
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground leading-snug">{subline}</p>
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Subs</div>
           <div className="text-sm font-bold text-foreground tabular-nums">{totalSubs}</div>
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Spread</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Minutes diff</div>
           <div className="text-sm font-bold text-foreground tabular-nums">{spreadMin.toFixed(1)}m</div>
         </div>
         <div className="rounded-md bg-background/60 border border-border p-2 text-center">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Short shifts</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Very short turns</div>
           <div className={cn("text-sm font-bold tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
             {shortShifts > 0 ? shortShifts : "0"}
           </div>
