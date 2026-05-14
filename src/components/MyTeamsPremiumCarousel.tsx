@@ -166,10 +166,26 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
           </div>
         )}
 
-        {/* Footer: photos + unread (subtle). Always rendered to reserve stable
-            height so deferred photo/unread queries don't push the page down. */}
+        {/* Footer: priority cascade — unread > photos > members fallback. */}
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
-          {photos.length > 0 ? (
+          {unreadMessages && unreadMessages > 0 ? (
+            <button
+              type="button"
+              className="flex items-center gap-2 min-w-0 flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(item.type === "league" ? `/mini-leagues/${item.id}` : `/teams/${item.id}`);
+              }}
+            >
+              <span className="relative flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
+              </span>
+              <span className="text-[11px] font-medium text-foreground truncate">
+                {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
+              </span>
+            </button>
+          ) : photos.length > 0 ? (
             <button
               type="button"
               className="flex items-center gap-2 min-w-0 flex-1"
@@ -197,13 +213,34 @@ function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
                 {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
             </button>
-          ) : <span className="flex-1" />}
-          {unreadMessages && unreadMessages > 0 ? (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-              <MessageCircle className="h-3 w-3" />
-              {unreadMessages}
-            </span>
-          ) : null}
+          ) : members && members.count > 0 ? (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex -space-x-1.5 shrink-0">
+                {members.avatars.slice(0, 3).map((url, i) => (
+                  <div key={i} className="h-7 w-7 rounded-full overflow-hidden bg-muted ring-2 ring-card shrink-0">
+                    <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+                {members.avatars.length === 0 && (
+                  <div className="h-7 w-7 rounded-full bg-muted ring-2 ring-card shrink-0 flex items-center justify-center">
+                    <Users className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {members.count} member{members.count > 1 ? "s" : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="h-7 w-7 rounded-full bg-muted ring-2 ring-card shrink-0 flex items-center justify-center">
+                <Users className="h-3 w-3 text-muted-foreground" />
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {item.type === "league" ? "Mini-league" : "Your team"}
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
