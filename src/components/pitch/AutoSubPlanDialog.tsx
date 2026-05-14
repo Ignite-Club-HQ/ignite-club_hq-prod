@@ -3863,6 +3863,8 @@ function DialogInner({
     players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
     // Regenerate when advanced overrides change.
     JSON.stringify(effectiveOverrides),
+    // Re-run bias when the coach reorders the priority list.
+    playerPriority ? playerPriority.join('|') : '',
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
