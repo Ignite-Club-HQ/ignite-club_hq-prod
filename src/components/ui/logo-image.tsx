@@ -34,12 +34,37 @@ function evictPreloadedLogos() {
   }
 }
 
+// Inject a <link rel="preload" as="image"> into <head> so the browser fetches
+// the logo at the highest priority (higher than scripted Image() loads). The
+// visible <img> with the same src then paints from the warm response without
+// issuing a second request — eliminating the cold-open "logo pops in" flash.
+function injectPreloadLinkTag(src: string) {
+  if (typeof document === "undefined") return;
+  try {
+    const existing = document.head.querySelector(
+      `link[rel="preload"][as="image"][href="${CSS.escape(src)}"]`
+    );
+    if (existing) return;
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = src;
+    link.setAttribute("fetchpriority", "high");
+    document.head.appendChild(link);
+  } catch {
+    /* ignore — Image() warm-up below still kicks off the fetch */
+  }
+}
+
 export function preloadLogo(src: string | null | undefined) {
   if (!src) return;
   if (preloadedImages.has(src)) {
     touchPreloadedLogo(src);
     return;
   }
+  // 1) High-priority browser-level preload (matches the visible <img> later).
+  injectPreloadLinkTag(src);
+  // 2) Scripted decode warm-up so the bitmap is ready in memory too.
   const img = new Image();
   img.decoding = "sync";
   img.fetchPriority = "high" as HTMLImageElement["fetchPriority"];
