@@ -25,7 +25,7 @@ const players = [
   make("Jordan T", null),
 ];
 
-const halfSec = 20*60;
+const halfSec = 10*60;
 const plan = createSubPlan(players as any, 9, halfSec, 2, false, false, true, 0, 1, "Emery", 5);
 
 const onPitch = new Set<string>(players.filter(p=>p.position).map(p=>p.id));
