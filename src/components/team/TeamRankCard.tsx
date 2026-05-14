@@ -70,76 +70,51 @@ export function TeamRankCard({ teamId, clubId }: TeamRankCardProps) {
   const rankLabel = me.rank === 1 ? "🥇" : me.rank === 2 ? "🥈" : me.rank === 3 ? "🥉" : `#${me.rank}`;
 
   return (
-    <div className="rounded-lg border bg-card">
-      <div className="flex items-center gap-3 p-3">
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md bg-muted/30">
+      <div className="flex items-center gap-2 px-2.5 py-1.5">
         <Link
           to="/leaderboard"
           aria-label="View club leaderboard"
-          className="flex items-center gap-3 flex-1 min-w-0 -m-1 p-1 rounded-md hover:bg-muted/50 transition-colors"
+          className="flex items-center gap-2 flex-1 min-w-0 rounded-sm hover:bg-muted/50 transition-colors py-0.5"
         >
-          <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-sm font-bold tabular-nums shrink-0">
+          <span className="flex items-center justify-center h-6 w-7 rounded text-[11px] font-semibold tabular-nums text-muted-foreground shrink-0">
             {rankLabel}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium leading-tight">
-              {isBottomQuartile ? (
-                "Climbing the leaderboard"
-              ) : (
-                <>
-                  Club Rank {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)}
-                  <span className="text-muted-foreground font-normal"> of {totalRanked}</span>
-                </>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">
-              <span className="tabular-nums font-medium text-foreground/80">{me.points} pts</span>
-              {above ? (
-                isBottomQuartile
-                  ? <> · {pointsToNext} pts to climb</>
-                  : <> · {pointsToNext} to #{above.rank}</>
-              ) : me.rank === 1 ? (
-                <> · Top of the club 🎉</>
-              ) : null}
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+          </span>
+          <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
+            {isBottomQuartile ? (
+              <>Climbing · <span className="tabular-nums">{me.points} pts</span></>
+            ) : (
+              <>
+                <span className="text-foreground/80 font-medium">
+                  Rank {me.rank <= 3 ? `#${me.rank}` : ordinal(me.rank)}
+                </span>
+                <span> of {totalRanked} · </span>
+                <span className="tabular-nums">{me.points} pts</span>
+                {above && pointsToNext > 0 ? <> · {pointsToNext} to #{above.rank}</> : null}
+              </>
+            )}
+          </span>
         </Link>
-      </div>
-
-      {above && (
-        <div className="px-3 -mt-1 pb-2">
-          <Progress value={progressPct} className="h-1" aria-label={`${progressPct}% toward rank ${above.rank}`} />
-        </div>
-      )}
-
-      <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger
-          className="w-full flex items-center justify-between px-3 py-2 border-t text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Show ways to improve team ranking"
         >
-          <span className="flex items-center gap-1.5">
-            <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
-            Ways to climb the leaderboard
-          </span>
           <ChevronDown
             className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
             aria-hidden="true"
           />
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <ul className="px-3 pb-3 pt-1 space-y-1.5">
-            {EARN_TIPS.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Icon className="h-3.5 w-3.5 shrink-0 text-primary/70" aria-hidden="true" />
-                <span>{label}</span>
-              </li>
-            ))}
-            <li className="text-[11px] text-muted-foreground/80 pt-1">
-              Team scores are based on chat activity and RSVP response rates.
+      </div>
+      <CollapsibleContent>
+        <ul className="px-3 pb-2.5 pt-0.5 space-y-1.5 border-t border-border/40 mt-0.5">
+          {EARN_TIPS.map(({ icon: Icon, label }) => (
+            <li key={label} className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1.5 first:pt-2">
+              <Icon className="h-3 w-3 shrink-0 text-primary/70" aria-hidden="true" />
+              <span>{label}</span>
             </li>
-          </ul>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
