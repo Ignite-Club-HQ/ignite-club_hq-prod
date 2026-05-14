@@ -269,7 +269,7 @@ export function EventLinkSelector({
                 ))
               ) : (
                 <div className="p-3 text-sm text-muted-foreground text-center">
-                  No games found
+                  No games within 48 hours
                 </div>
               )}
             </ScrollArea>
