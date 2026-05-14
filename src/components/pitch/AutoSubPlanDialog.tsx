@@ -3510,6 +3510,51 @@ function DialogInner({
                 mode={rotationSpeed === 2 ? "Frequent" : "Standard"}
               />
 
+              {/* Coach-facing diagnose → fix → preview block. Auto-computed
+                  from the current plan; no need to tap "Run simulator" first. */}
+              {(() => {
+                const autoFair = calculateFairnessReport(players, plan, minutesPerHalf);
+                const halfSec = minutesPerHalf * 60;
+                const guard = effectiveOverrides.halftimeGuardSeconds ?? ADV_DEFAULTS.halftimeGuardSeconds;
+                const hasHalftimeClash = plan.some(ev => {
+                  const distFromHt = ev.half === 1 ? halfSec - ev.time : ev.time;
+                  return distFromHt < guard;
+                });
+                const benchSize = players.filter(p => p.position === null).length;
+                const isLargeBench = benchSize >= Math.ceil(teamSize / 2);
+                const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
+                const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
+                const constrainedByMinShift = (autoFair.spreadSeconds / 60) > 3 && target < minShiftMin * 1.5;
+                const fixes = buildPlanFixes({
+                  spreadMin: autoFair.spreadSeconds / 60,
+                  shortShifts: autoFair.totalShortShifts,
+                  bounceBacks: autoFair.totalBounceBacks,
+                  totalSubs: autoFair.totalSubs,
+                  isLargeBench,
+                  constrainedByMinShift,
+                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
+                  overrides: effectiveOverrides,
+                  hasHalftimeClash,
+                });
+                return (
+                  <>
+                    <PlanFixSuggestions
+                      fixes={fixes}
+                      onApply={applyPlanFix}
+                      readOnly={!!advancedOverrides}
+                    />
+                    <PlanImpactPreview
+                      overrides={effectiveOverrides}
+                      defaultMaxSpreadMinutes={maxSpreadMinutes}
+                      totalSubs={autoFair.totalSubs}
+                      spreadMin={autoFair.spreadSeconds / 60}
+                      shortShifts={autoFair.totalShortShifts}
+                      hasHalftimeClash={hasHalftimeClash}
+                    />
+                  </>
+                );
+              })()}
+
               {/* Fairness Simulator — one-click preview of plan quality */}
               <FairnessSimulatorPanel
                 report={fairnessReport}
