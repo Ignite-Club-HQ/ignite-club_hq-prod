@@ -153,38 +153,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
           </div>
-          {(
-            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-              <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
-                    aria-label="Team actions"
-                  >
-                    <MoreVertical className="h-4 w-4 text-foreground/70" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View schedule
-                  </DropdownMenuItem>
-                  {item.canManage && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      {item.type === "league" ? "Add match" : "Add event"}
-                    </DropdownMenuItem>
-                  )}
-                  {photos.length > 0 && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
-                      <Image className="h-4 w-4 mr-2" />
-                      View photos
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
 
         {/* Event block — fixed min-height so the placeholder and resolved
