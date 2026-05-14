@@ -3916,7 +3916,15 @@ function DialogInner({
                   const distFromHt = ev.half === 1 ? halfSec - ev.time : ev.time;
                   return distFromHt < guard;
                 });
-                const spreadMin = autoFair.spreadSeconds / 60;
+                // Outfield-only spread: GKs (full or half) are excluded because
+                // they're constrained to halftime swaps and skew the diff in
+                // ways the coach can't influence via the toggles.
+                const gkIds = new Set(forecasts.filter(f => f.gkRole).map(f => f.player.id));
+                const outfieldStats = autoFair.perPlayer.filter(s => !gkIds.has(s.playerId));
+                const outfieldTotals = outfieldStats.map(s => s.totalSeconds);
+                const spreadMin = outfieldTotals.length
+                  ? (Math.max(...outfieldTotals) - Math.min(...outfieldTotals)) / 60
+                  : 0;
                 return (
                   <>
                     <PlanStatusCard
