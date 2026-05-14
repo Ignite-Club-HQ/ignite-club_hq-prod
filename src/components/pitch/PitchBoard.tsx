@@ -6695,7 +6695,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Tactical dropdown - portrait */}
                 {timerTacticalDropdownOpen && (
                   <>
-                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
+                  {createPortal(
+                    <div className="fixed inset-0 z-[59]" onPointerDown={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />,
+                    document.body
+                  )}
                    <div data-timer-dropdown className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
                     {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
                       <button
