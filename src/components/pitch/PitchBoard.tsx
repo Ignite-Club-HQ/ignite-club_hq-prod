@@ -5991,6 +5991,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           />
         </Suspense>
 
+        <Suspense fallback={null}>
+          <AddFillInPlayerDialog
+            onAddPlayer={handleAddFillInPlayer}
+            existingNumbers={players.map(p => p.number).filter((n): n is number => typeof n === 'number')}
+            hideTrigger
+            externalOpen={fillInDialogOpen}
+            onExternalOpenChange={setFillInDialogOpen}
+          />
+        </Suspense>
+
         {/* Formation Change Dialog */}
         <FormationChangeDialog
           open={formationChangeDialogOpen}
@@ -6466,6 +6476,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 showLineupPicker={showLineupPickerSetting}
                 onShowLineupPickerChange={handleShowLineupPickerSettingChange}
                 onOpenLineupPicker={handleSetupGame}
+                onAddFillInPlayer={() => {
+                  setPortraitSheetHeightPct(50);
+                  setPortraitSheetOpen(true);
+                  setFillInDialogOpen(true);
+                }}
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
