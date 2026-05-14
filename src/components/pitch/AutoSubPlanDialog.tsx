@@ -632,6 +632,15 @@ export function createSubPlan(
       ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
       : undefined, // undefined → fall back to interval floor at use site
   };
+  const priorityOrder = Array.isArray(ov.playerPriorityOrder) ? ov.playerPriorityOrder : [];
+  const priorityRank = new Map(priorityOrder.map((id, index) => [id, index] as const));
+  const priorityBiasMaxSeconds = Math.max(0, (maxSpreadMinutes * 60) / 2);
+  const priorityTargetBiasSeconds = (id: string) => {
+    const rank = priorityRank.get(id);
+    if (rank === undefined || priorityOrder.length < 2 || priorityBiasMaxSeconds <= 0) return 0;
+    const midpoint = (priorityOrder.length - 1) / 2;
+    return ((midpoint - rank) / Math.max(1, midpoint)) * priorityBiasMaxSeconds;
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
