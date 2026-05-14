@@ -4265,6 +4265,12 @@ function DialogInner({
                       <span className="flex items-center gap-1.5">
                         <GripVertical className="h-3 w-3" />
                         Drag to prioritise — top players get nudged more minutes.
+                        {isGenerating && (
+                          <span className="ml-1 inline-flex items-center gap-1 text-primary">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Updating…
+                          </span>
+                        )}
                       </span>
                       {playerPriority && playerPriority.length > 0 && (
                         <button
