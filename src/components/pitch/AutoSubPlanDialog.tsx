@@ -3710,7 +3710,7 @@ function DialogInner({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    rotationSpeed,
+    effectiveRotationSpeed,
     effectiveMaxSpreadMinutes,
     minutesPerHalf,
     disablePositionSwaps,
