@@ -3653,6 +3653,10 @@ function DialogInner({
   // Safeguard notice: set when Frequent mode would have left an outfield
   // player with 0 minutes and we silently fell back to Standard rotation.
   const [frequentFallbackNotice, setFrequentFallbackNotice] = useState<string | null>(null);
+  // True when Frequent rotation can't fit every player into this match
+  // length — drives a disabled Frequent toggle so the coach can't pick a
+  // mode that would silently fall back to Standard.
+  const [frequentBlocked, setFrequentBlocked] = useState(false);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
