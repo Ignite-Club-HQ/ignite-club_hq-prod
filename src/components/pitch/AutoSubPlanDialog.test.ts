@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSubPlan } from "./AutoSubPlanDialog";
+import { calculateTimeForecasts, createSubPlan } from "./AutoSubPlanDialog";
 import type { PitchPosition } from "./PositionBadge";
 
 const makePlayer = (
@@ -39,6 +39,53 @@ const simulateTotals = (
 };
 
 describe("createSubPlan", () => {
+  it("changes the timeline and projected minutes when player priority is reordered", () => {
+    const players = [
+      makePlayer("GK", "GK"),
+      makePlayer("A", "DEF"),
+      makePlayer("B", "DEF"),
+      makePlayer("C", "MID"),
+      makePlayer("D", "MID"),
+      makePlayer("E", "FWD"),
+      makePlayer("F", "FWD"),
+      makePlayer("G", null),
+      makePlayer("H", null),
+      makePlayer("I", null),
+      makePlayer("J", null),
+    ];
+    players.forEach(p => {
+      if (p.currentPitchPosition && p.currentPitchPosition !== "GK") {
+        p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+      }
+    });
+
+    const halfSec = 20 * 60;
+    const basePlan = createSubPlan(players as any, 7, halfSec, 1, false, false, false, 0, 1, undefined, 5);
+    const priorityPlan = createSubPlan(
+      players as any,
+      7,
+      halfSec,
+      1,
+      false,
+      false,
+      false,
+      0,
+      1,
+      undefined,
+      5,
+      { playerPriorityOrder: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "GK"] },
+    );
+
+    const signature = (plan: typeof basePlan) => plan.map(s => `${s.half}-${s.time}:${s.playerOut.id}>${s.playerIn.id}`).join("|");
+    expect(signature(priorityPlan)).not.toEqual(signature(basePlan));
+
+    const baseForecasts = new Map(calculateTimeForecasts(players as any, basePlan, 20, undefined, false).map(f => [f.player.id, f.predictedMinutes]));
+    const priorityForecasts = new Map(calculateTimeForecasts(players as any, priorityPlan, 20, undefined, false).map(f => [f.player.id, f.predictedMinutes]));
+
+    expect(priorityForecasts.get("A")!).toBeGreaterThan(baseForecasts.get("A")!);
+    expect(priorityForecasts.get("B")!).toBeGreaterThan(baseForecasts.get("B")!);
+  });
+
   it("does not take a newly introduced bench player off at the next rotation when alternatives exist", () => {
     const players = [
       makePlayer("A", "DEF"),
