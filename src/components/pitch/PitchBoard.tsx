@@ -7486,6 +7486,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Cancel Auto-Sub Plan Confirmation */}
+      <AlertDialog open={cancelPlanConfirmOpen} onOpenChange={setCancelPlanConfirmOpen}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Auto-Sub Plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current auto-sub plan will be discarded. You can generate a new one at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Plan</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); setCancelPlanConfirmOpen(false); }}
+            >
+              Cancel Plan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Bench Injury Confirmation - portrait */}
       <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
         <AlertDialogContent className="z-[999999]">
