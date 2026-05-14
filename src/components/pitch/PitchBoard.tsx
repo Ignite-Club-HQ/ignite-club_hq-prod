@@ -4837,10 +4837,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <span className="text-destructive">Reset Game</span>
                         </button>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
-                          <UserPlus className="h-4 w-4" />
-                          Add Fill-In Player
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
@@ -5776,6 +5772,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
+                      {!readOnly && (
+                        <button
+                          onClick={() => setFillInDialogOpen(true)}
+                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] transition-colors"
+                          aria-label="Add fill-in player"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Fill-in
+                        </button>
+                      )}
                     </div>
                       {/* Auto Subs Quick Access - Landscape (inside sticky area) */}
                       {!readOnly && !disableAutoSubs && (
@@ -6432,10 +6438,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsMenuOpen(false); setFillInDialogOpen(true); }}>
-                          <UserPlus className="h-4 w-4" />
-                          Add Fill-In Player
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
@@ -6989,6 +6991,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
+                      {!readOnly && (
+                        <button
+                          onClick={() => setFillInDialogOpen(true)}
+                          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground text-xs font-medium px-2.5 py-2 min-h-[36px] transition-colors"
+                          aria-label="Add fill-in player"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Fill-in
+                        </button>
+                      )}
                     </div>
                     {/* Auto Subs Quick Access - Portrait */}
                     {!readOnly && !disableAutoSubs && (
