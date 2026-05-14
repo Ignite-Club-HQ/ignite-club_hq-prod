@@ -4009,6 +4009,16 @@ function DialogInner({
   
   const handleStart = () => {
     if (plan && plan.length > 0) {
+      // If priority bias swapped any starter↔bench positions, push the new
+      // lineup back to the parent so the pitch matches the plan that's
+      // about to run.
+      if (onLineupChange) {
+        const lineupChanged = effectivePlayers.some(ep => {
+          const orig = players.find(p => p.id === ep.id);
+          return !orig || orig.position !== ep.position;
+        });
+        if (lineupChanged) onLineupChange(effectivePlayers);
+      }
       onStartPlan(plan);
       onClose();
     }
