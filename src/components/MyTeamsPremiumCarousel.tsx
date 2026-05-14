@@ -58,11 +58,17 @@ function formatDateParts(dateStr: string): DateParts {
 }
 
 
-function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
-  item: TeamOrLeague; 
+interface MemberSummary {
+  count: number;
+  avatars: string[];
+}
+
+function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
+  item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
   unreadMessages?: number;
+  members?: MemberSummary;
 }) {
   const navigate = useNavigate();
 
