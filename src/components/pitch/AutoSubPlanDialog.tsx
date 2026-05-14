@@ -3342,6 +3342,7 @@ function PlayersNeedingAttention({
 function PlanImpactPreview({
   overrides,
   defaultMaxSpreadMinutes,
+  baseline,
   totalSubs,
   spreadMin,
   shortShifts,
@@ -3349,6 +3350,7 @@ function PlanImpactPreview({
 }: {
   overrides: AutoSubAdvancedOverrides;
   defaultMaxSpreadMinutes: number;
+  baseline: { totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null;
   totalSubs: number;
   spreadMin: number;
   shortShifts: number;
@@ -3362,22 +3364,22 @@ function PlanImpactPreview({
   if (overrides.standardTargetIntervalSec !== undefined) {
     phrases.push(
       overrides.standardTargetIntervalSec < ADV_DEFAULTS.standardTargetIntervalSec
-        ? "prioritise fairer minutes"
-        : "reduce substitution moments",
+        ? "give players more even minutes"
+        : "reduce the number of substitutions",
     );
   }
   if (overrides.standardIntervalFloorSec !== undefined) {
     phrases.push(
       overrides.standardIntervalFloorSec > ADV_DEFAULTS.standardIntervalFloorSec
-        ? "space out substitution moments"
-        : "allow more frequent substitution moments",
+        ? "space out substitutions"
+        : "allow substitutions more often",
     );
   }
   if (overrides.minShiftSeconds !== undefined) {
     phrases.push(
       overrides.minShiftSeconds > ADV_DEFAULTS.minShiftSeconds
-        ? "protect players from short shifts"
-        : "allow shorter shifts so minutes balance faster",
+        ? "stop very short turns on the pitch"
+        : "allow shorter turns so minutes balance faster",
     );
   }
   if (overrides.halftimeGuardSeconds !== undefined) {
@@ -3391,8 +3393,8 @@ function PlanImpactPreview({
     const min = overrides.maxSpreadOverrideSec / 60;
     phrases.push(
       min < defaultMaxSpreadMinutes
-        ? "tighten the acceptable playing-time gap"
-        : "loosen the acceptable playing-time gap",
+        ? "tighten the acceptable minutes difference"
+        : "loosen the acceptable minutes difference",
     );
   }
 
@@ -3400,23 +3402,65 @@ function PlanImpactPreview({
     ? `This will ${phrases.slice(0, -1).join(", ")}${phrases.length > 1 ? " and " : ""}${phrases[phrases.length - 1]}.`
     : "Custom tuning is active.";
 
-  return <PlanImpactPreviewBody sentence={sentence} totalSubs={totalSubs} spreadMin={spreadMin} shortShifts={shortShifts} hasHalftimeClash={hasHalftimeClash} />;
+  return (
+    <PlanImpactPreviewBody
+      sentence={sentence}
+      baseline={baseline}
+      totalSubs={totalSubs}
+      spreadMin={spreadMin}
+      shortShifts={shortShifts}
+      hasHalftimeClash={hasHalftimeClash}
+    />
+  );
 }
 
 function PlanImpactPreviewBody({
   sentence,
+  baseline,
   totalSubs,
   spreadMin,
   shortShifts,
   hasHalftimeClash,
 }: {
   sentence: string;
+  baseline: { totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null;
   totalSubs: number;
   spreadMin: number;
   shortShifts: number;
   hasHalftimeClash: boolean;
 }) {
   const [open, setOpen] = useState(true);
+
+  const Row = ({
+    label,
+    before,
+    after,
+    improved,
+  }: { label: string; before: string; after: string; improved: boolean | null }) => (
+    <>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right tabular-nums text-foreground flex items-center justify-end gap-1.5">
+        {baseline ? (
+          <>
+            <span className="text-muted-foreground line-through">{before}</span>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <span
+              className={cn(
+                "font-semibold",
+                improved === true && "text-emerald-600 dark:text-emerald-400",
+                improved === false && "text-amber-600 dark:text-amber-400",
+              )}
+            >
+              {after}
+            </span>
+          </>
+        ) : (
+          <span>{after}</span>
+        )}
+      </span>
+    </>
+  );
+
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
       <button
@@ -3426,26 +3470,38 @@ function PlanImpactPreviewBody({
       >
         <span className="flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          Impact preview
+          What changed
         </span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open ? "rotate-180" : "")} />
       </button>
       {open && (
         <>
           <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
-            <span className="text-muted-foreground">Substitutions in plan</span>
-            <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
-            <span className="text-muted-foreground">Playing-time spread</span>
-            <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
-            <span className="text-muted-foreground">Short shifts detected</span>
-            <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
-              {shortShifts > 0 ? shortShifts : "None"}
-            </span>
-            <span className="text-muted-foreground">Halftime clash</span>
-            <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
-              {hasHalftimeClash ? "Detected" : "None"}
-            </span>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] pt-2 border-t border-primary/20">
+            <Row
+              label="Total substitutions"
+              before={`${baseline?.totalSubs ?? totalSubs}`}
+              after={`${totalSubs}`}
+              improved={baseline ? totalSubs < baseline.totalSubs ? true : totalSubs > baseline.totalSubs ? false : null : null}
+            />
+            <Row
+              label="Minutes difference"
+              before={`${(baseline?.spreadMin ?? spreadMin).toFixed(1)}m`}
+              after={`${spreadMin.toFixed(1)}m`}
+              improved={baseline ? spreadMin < baseline.spreadMin ? true : spreadMin > baseline.spreadMin ? false : null : null}
+            />
+            <Row
+              label="Very short turns"
+              before={`${baseline?.shortShifts ?? shortShifts}`}
+              after={`${shortShifts}`}
+              improved={baseline ? shortShifts < baseline.shortShifts ? true : shortShifts > baseline.shortShifts ? false : null : null}
+            />
+            <Row
+              label="Subs near halftime"
+              before={baseline?.hasHalftimeClash ? "Yes" : "No"}
+              after={hasHalftimeClash ? "Yes" : "No"}
+              improved={baseline ? (baseline.hasHalftimeClash && !hasHalftimeClash) ? true : (!baseline.hasHalftimeClash && hasHalftimeClash) ? false : null : null}
+            />
           </div>
         </>
       )}
