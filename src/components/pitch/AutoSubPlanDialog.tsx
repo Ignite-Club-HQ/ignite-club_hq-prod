@@ -3961,6 +3961,7 @@ function DialogInner({
                       activeMode={effectiveRotationSpeed}
                       onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
+                      disabledModes={frequentBlocked ? [2] : []}
                     />
                     {frequentFallbackNotice && (
                       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
