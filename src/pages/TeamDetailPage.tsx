@@ -2485,6 +2485,7 @@ export default function TeamDetailPage() {
               readOnly={!canEditPitchBoard && !isSubsManager}
               isSubsManager={!!isSubsManager}
               initialLinkedEventId={linkedEventId}
+              onUnlinkEvent={() => setLinkedEventId(null)}
               initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             />
           )}
