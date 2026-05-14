@@ -3058,10 +3058,12 @@ function PlanFixSuggestions({
   fixes,
   onApply,
   readOnly,
+  appliedIds,
 }: {
   fixes: PlanFix[];
   onApply: (fix: PlanFix) => void;
   readOnly: boolean;
+  appliedIds: Set<string>;
 }) {
   if (readOnly || fixes.length === 0) return null;
   return (
@@ -3071,27 +3073,43 @@ function PlanFixSuggestions({
         Suggested fixes
       </div>
       <p className="text-[11px] text-muted-foreground leading-snug">
-        Tap a fix to update the plan. Each one explains what it changes.
+        Tap a fix to update the plan. Tap again to apply more of the same.
       </p>
       <div className="grid gap-1.5 sm:grid-cols-2">
-        {fixes.map((fix) => (
-          <button
-            key={fix.id}
-            type="button"
-            onClick={() => onApply(fix)}
-            className="text-left rounded-md border border-border bg-muted/30 hover:bg-muted/60 active:bg-muted transition-colors p-2.5 min-h-[44px] group"
-          >
-            <div className="flex items-start gap-2">
-              <span className="flex-1 min-w-0">
-                <span className="block text-xs font-medium text-foreground">{fix.title}</span>
-                <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
-                  {fix.tradeoff}
+        {fixes.map((fix) => {
+          const applied = appliedIds.has(fix.id);
+          return (
+            <button
+              key={fix.id}
+              type="button"
+              onClick={() => onApply(fix)}
+              className={cn(
+                "text-left rounded-md border transition-colors p-2.5 min-h-[44px] group",
+                applied
+                  ? "border-primary/40 bg-primary/10 hover:bg-primary/15 active:bg-primary/20"
+                  : "border-border bg-muted/30 hover:bg-muted/60 active:bg-muted",
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <span className="block text-xs font-medium text-foreground">{fix.title}</span>
+                    {applied && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        <Check className="h-2.5 w-2.5" />
+                        Applied
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                    {fix.tradeoff}
+                  </span>
                 </span>
-              </span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
-            </div>
-          </button>
-        ))}
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
