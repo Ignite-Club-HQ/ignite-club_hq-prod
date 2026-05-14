@@ -1,32 +1,31 @@
 import { createSubPlan } from "../src/components/pitch/AutoSubPlanDialog";
 
-const make = (id: string, pos: any, x = 50, y = 50) => ({
+const make = (id: string, pos: any) => ({
   id, name: id,
-  position: pos ? { x, y } : null,
+  position: pos ? { x: 50, y: 50 } : null,
   currentPitchPosition: pos || undefined,
   assignedPositions: pos ? [pos] : ["DEF","MID","FWD"],
 });
 
-// 9 on pitch (incl GK) + 4 bench = 13 players, 20 min halves, mode 2 (Frequent)
+// 7-a-side: 7 starters + 6 bench = 13. 10-min halves. Frequent mode.
 const players = [
   make("Ellis","GK"),
   make("Emery","DEF"),
   make("Finley","DEF"),
-  make("Harper","MID"),
   make("Flynn","MID"),
-  make("Jamie","MID"),
-  make("Jordan C","FWD"),
-  make("P9","FWD"),
-  make("P10","FWD"),
+  make("Harper","MID"),
+  make("Jamie","FWD"),
+  make("JordanC","FWD"),
   make("Haven", null),
   make("Hayden", null),
   make("Indigo", null),
-  make("Jordan H", null),
-  make("Jordan T", null),
+  make("JordanH", null),
+  make("JordanT", null),
+  make("JordanHo", null),
 ];
 
 const halfSec = 10*60;
-const plan = createSubPlan(players as any, 9, halfSec, 2, false, false, true, 0, 1, "Emery", 5);
+const plan = createSubPlan(players as any, 7, halfSec, 2, false, false, true, 0, 1, "Emery", 5);
 
 const onPitch = new Set<string>(players.filter(p=>p.position).map(p=>p.id));
 const totals = new Map<string,number>(players.map(p=>[p.id,0]));
