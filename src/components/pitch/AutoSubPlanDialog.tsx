@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders, GripVertical } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
 import { buildSubWindows } from "./planner/windows";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 
 interface PlayerTimeForecast {
