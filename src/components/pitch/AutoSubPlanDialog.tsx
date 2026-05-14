@@ -3254,6 +3254,13 @@ function DialogInner({
     setLocalOverrides(next);
     try { window.localStorage.setItem(ADV_STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
+
+  /** Apply a coach-facing fix to overrides; respects readOnly (parent-controlled) state. */
+  const applyPlanFix = (fix: PlanFix) => {
+    if (advancedOverrides) return;
+    persistLocal(fix.apply(effectiveOverrides));
+  };
+
   
   // Effective max-spread: panel override (in seconds) wins over the prop.
   const effectiveMaxSpreadMinutes = effectiveOverrides.maxSpreadOverrideSec !== undefined
