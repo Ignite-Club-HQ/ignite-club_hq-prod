@@ -3708,7 +3708,32 @@ function DialogInner({
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
-        const generatedPlan = generatePlan(players);
+        let generatedPlan = generatePlan(players);
+        // Safeguard: Frequent mode should never strand an outfield player at 0
+        // minutes. If it does (and there's no explicit constraint), retry once
+        // at Standard rotation and surface a notice so the coach knows why.
+        if (effectiveRotationSpeed === 2) {
+          const fc = calculateTimeForecasts(players, generatedPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+          const stranded = fc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+          if (stranded.length > 0) {
+            const fallbackPlan = miniLeagueTeams
+              ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+              : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+            const fallbackFc = calculateTimeForecasts(players, fallbackPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+            const stillStranded = fallbackFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+            if (stillStranded.length < stranded.length) {
+              generatedPlan = fallbackPlan;
+              const names = stranded.map(s => s.player.name).slice(0, 3).join(', ');
+              setFrequentFallbackNotice(`Frequent mode left ${stranded.length} player${stranded.length > 1 ? 's' : ''} (${names}${stranded.length > 3 ? '…' : ''}) with no minutes. Switched to Standard rotation to give everyone a turn.`);
+            } else {
+              setFrequentFallbackNotice(null);
+            }
+          } else {
+            setFrequentFallbackNotice(null);
+          }
+        } else {
+          setFrequentFallbackNotice(null);
+        }
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error auto-generating plan:", error);
