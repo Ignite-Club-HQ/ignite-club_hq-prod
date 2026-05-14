@@ -3873,8 +3873,8 @@ function AdvancedSettingsPanel({
         aria-expanded={open}
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Settings2 className="h-4 w-4" />
-          Advanced substitution tuning
+          <Sliders className="h-4 w-4" />
+          Show expert controls
           {overrideCount > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
               {overrideCount} custom
@@ -3887,7 +3887,7 @@ function AdvancedSettingsPanel({
       {open && (
         <div className="px-3 pb-3 pt-1 space-y-4 border-t border-border">
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Only adjust these if Basic or Frequent mode creates an uneven or awkward plan.
+            Raw planner thresholds. Most coaches won't need these — use the suggested fixes above instead.
           </p>
           {readOnly && (
             <p className="text-[11px] text-muted-foreground italic">
@@ -3895,35 +3895,14 @@ function AdvancedSettingsPanel({
             </p>
           )}
 
-          {/* Troubleshooting card */}
-          <div className="rounded-md border border-border bg-background/60 p-3 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Common problems
-            </p>
-            <ul className="space-y-1.5 text-[11px] leading-snug text-foreground">
-              <li>
-                <span className="font-medium">Plan looks uneven?</span>{" "}
-                <span className="text-muted-foreground">Lower “How often to suggest subs” to give the planner more chances to balance game time.</span>
-              </li>
-              <li>
-                <span className="font-medium">Plan feels too busy?</span>{" "}
-                <span className="text-muted-foreground">Increase “Minimum gap between sub moments” to reduce interruptions.</span>
-              </li>
-              <li>
-                <span className="font-medium">Players coming off too quickly?</span>{" "}
-                <span className="text-muted-foreground">Increase “Minimum time on field.”</span>
-              </li>
-            </ul>
-          </div>
-
           {/* Balance game time */}
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Balance game time
             </p>
             <NumberRow
-              label="How often to suggest subs"
-              hint="Lower = fairer minutes, more interruptions. Higher = fewer interruptions, less precise balancing."
+              label="Fairer minutes vs fewer stoppages"
+              hint="Lower = more substitution moments and fairer minutes. Higher = fewer interruptions but a wider playing-time spread."
               value={v.standardTargetIntervalSec}
               defaultValue={ADV_DEFAULTS.standardTargetIntervalSec}
               min={180} max={900} step={30}
@@ -3947,8 +3926,8 @@ function AdvancedSettingsPanel({
               Prevent awkward timing
             </p>
             <NumberRow
-              label="Minimum gap between sub moments"
-              hint="Stops the app creating substitution moments too close together. Lower = fairer minutes, more interruptions."
+              label="Space out substitution moments"
+              hint="Lower = more frequent substitution moments and fairer minutes. Higher = calmer match flow."
               value={v.standardIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.standardIntervalFloorSec}
               min={120} max={600} step={30}
@@ -3956,8 +3935,8 @@ function AdvancedSettingsPanel({
               onChange={(n) => set("standardIntervalFloorSec", n)}
             />
             <NumberRow
-              label="Minimum gap in Frequent mode"
-              hint="Used only when Frequent mode is selected. Lower values create more rotations but may feel busier."
+              label="Space out substitution moments (Frequent mode)"
+              hint="Applies only when Frequent mode is selected. Lower = more rotations, busier match flow."
               value={v.frequentIntervalFloorSec}
               defaultValue={ADV_DEFAULTS.frequentIntervalFloorSec}
               min={60} max={420} step={15}
