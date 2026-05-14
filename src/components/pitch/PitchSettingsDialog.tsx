@@ -606,17 +606,6 @@ export function PitchSettingsDialog({
                       Unlink from Game
                     </Button>
                   )}
-                  {onResetFormation && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full h-9"
-                      onClick={() => setResetFormationConfirmOpen(true)}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 mr-2" />
-                      Reset Formation
-                    </Button>
-                  )}
                   {onResetGame && (
                     <Button 
                       variant="outline" 
