@@ -690,58 +690,94 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               })}
             </div>
 
-            {heroDataReady && childrenOnEvent && childrenOnEvent.length > 0 && (
-              <details className="rounded-xl border border-border/50 bg-muted/20 group">
-                <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
-                  <Baby className="h-3.5 w-3.5 text-primary" />
-                  <span>Children's RSVP</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0 ml-auto" />
-                </summary>
-                <div className="space-y-2 px-2.5 pb-2.5">
-                  {childrenOnEvent.map((child) => {
-                    const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
+            {heroDataReady && childrenOnEvent && childrenOnEvent.length > 0 && (() => {
+              const teammatesGoing = rsvpSummary?.totalCount || 0;
+              const childStatuses = childrenOnEvent.map((child) => {
+                const r = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
+                const first = child.name.split(" ")[0] || child.name;
+                let label = `${first} hasn't responded`;
+                if (r?.status === "going") label = `${first} is going`;
+                else if (r?.status === "maybe") label = `${first} might go`;
+                else if (r?.status === "not_going") label = `${first} is not going`;
+                return { id: child.id, name: child.name, first, status: r?.status, label };
+              });
+              const needsAction = childStatuses.find((c) => !c.status);
+              return (
+                <details className="rounded-xl border border-border/50 bg-muted/20 group">
+                  <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
+                    <Baby className="h-3.5 w-3.5 text-primary" />
+                    <span>Children's RSVP</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0 ml-auto" />
+                  </summary>
 
-                    return (
-                      <div key={child.id} className="space-y-1.5">
-                        <div className="text-[11px] font-medium text-foreground">{child.name}</div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
-                            const isActive = childRsvp?.status === status;
-
-                            return (
-                              <Button
-                                key={`${child.id}-${status}`}
-                                variant="outline"
-                                size="sm"
-                                aria-pressed={isActive}
-                                aria-label={`${child.name} RSVP ${label}`}
-                                className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                  isActive ? activeClass : inactiveHint
-                                }`}
-                                disabled={childRsvpMutation.isPending || isActive}
-                                onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
-                              >
-                                {childRsvpMutation.isPending ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                                ) : isActive ? (
-                                  <Check className="h-3 w-3" />
-                                ) : (
-                                  icon
-                                )}
-                                <span className="truncate">{label}</span>
-                              </Button>
-                            );
-                          })}
-                        </div>
+                  {/* Collapsed-state summary panel — fills reserved space */}
+                  <div className="group-open:hidden border-t border-border/40 px-2.5 py-2 space-y-1">
+                    {childStatuses.map((c) => (
+                      <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <User className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{c.label}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </details>
-            )}
+                    ))}
+                    {teammatesGoing > 0 && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Users className="h-3 w-3 shrink-0" />
+                        <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
+                      </div>
+                    )}
+                    {needsAction && (
+                      <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
+                        Tap Children's RSVP to update {needsAction.first}'s response
+                      </p>
+                    )}
+                  </div>
 
-            {/* Personal-first RSVP summary — "Teddy going + N others" */}
-            {(() => {
+                  {/* Expanded-state full controls */}
+                  <div className="hidden group-open:block space-y-2 px-2.5 pb-2.5 pt-2 border-t border-border/40">
+                    {childrenOnEvent.map((child) => {
+                      const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
+                      return (
+                        <div key={child.id} className="space-y-1.5">
+                          <div className="text-[11px] font-medium text-foreground">{child.name}</div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
+                              const isActive = childRsvp?.status === status;
+                              return (
+                                <Button
+                                  key={`${child.id}-${status}`}
+                                  variant="outline"
+                                  size="sm"
+                                  aria-pressed={isActive}
+                                  aria-label={`${child.name} RSVP ${label}`}
+                                  className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
+                                    isActive ? activeClass : inactiveHint
+                                  }`}
+                                  disabled={childRsvpMutation.isPending || isActive}
+                                  onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
+                                >
+                                  {childRsvpMutation.isPending ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                  ) : isActive ? (
+                                    <Check className="h-3 w-3" />
+                                  ) : (
+                                    icon
+                                  )}
+                                  <span className="truncate">{label}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            })()}
+
+            {/* Personal-first RSVP summary — only shown when the collapsed
+                children panel above is NOT rendering (no children on event),
+                so we don't duplicate the same info. */}
+            {(!childrenOnEvent || childrenOnEvent.length === 0) && (() => {
               if (!heroDataReady) {
                 return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
               }
