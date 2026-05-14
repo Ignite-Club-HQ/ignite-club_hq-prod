@@ -3518,10 +3518,12 @@ function PlanModeToggles({
   activeMode,
   onChange,
   readOnly,
+  disabledModes = [],
 }: {
   activeMode: 1 | 2;
   onChange: (mode: 1 | 2) => void;
   readOnly: boolean;
+  disabledModes?: (1 | 2)[];
 }) {
   if (readOnly) return null;
   return (
@@ -3532,24 +3534,34 @@ function PlanModeToggles({
       <div className="grid grid-cols-2 gap-1.5">
         {MODE_TOGGLES.map((m) => {
           const isActive = activeMode === m.id;
+          const isDisabled = disabledModes.includes(m.id);
           return (
             <button
               key={m.id}
               type="button"
-              onClick={() => onChange(m.id)}
+              disabled={isDisabled}
+              onClick={() => !isDisabled && onChange(m.id)}
+              aria-disabled={isDisabled}
+              title={isDisabled ? "Not available for this squad size and match length" : undefined}
               className={cn(
                 "text-left rounded-md border transition-colors p-2.5 min-h-[40px]",
                 isActive
                   ? "border-primary bg-primary/10"
                   : "border-border bg-background hover:bg-muted/60",
+                isDisabled && "opacity-50 cursor-not-allowed hover:bg-background",
               )}
             >
               <span className="flex items-center gap-1.5">
                 <span className="block text-xs font-semibold text-foreground">{m.title}</span>
-                {isActive && (
+                {isActive && !isDisabled && (
                   <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                     <Check className="h-2.5 w-2.5" />
                     On
+                  </span>
+                )}
+                {isDisabled && (
+                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Unavailable
                   </span>
                 )}
               </span>
@@ -3653,6 +3665,10 @@ function DialogInner({
   // Safeguard notice: set when Frequent mode would have left an outfield
   // player with 0 minutes and we silently fell back to Standard rotation.
   const [frequentFallbackNotice, setFrequentFallbackNotice] = useState<string | null>(null);
+  // True when Frequent rotation can't fit every player into this match
+  // length — drives a disabled Frequent toggle so the coach can't pick a
+  // mode that would silently fall back to Standard.
+  const [frequentBlocked, setFrequentBlocked] = useState(false);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
@@ -3708,32 +3724,33 @@ function DialogInner({
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
-        let generatedPlan = generatePlan(players);
-        // Safeguard: Frequent mode should never strand an outfield player at 0
-        // minutes. If it does (and there's no explicit constraint), retry once
-        // at Standard rotation and surface a notice so the coach knows why.
-        if (effectiveRotationSpeed === 2) {
-          const fc = calculateTimeForecasts(players, generatedPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-          const stranded = fc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
-          if (stranded.length > 0) {
-            const fallbackPlan = miniLeagueTeams
-              ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-              : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-            const fallbackFc = calculateTimeForecasts(players, fallbackPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-            const stillStranded = fallbackFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
-            if (stillStranded.length < stranded.length) {
-              generatedPlan = fallbackPlan;
-              setFrequentFallbackNotice(`Frequent rotation couldn't fit the whole squad into this match length, so we're using Standard rotation below to make sure everyone gets a turn.`);
-            } else {
-              setFrequentFallbackNotice(null);
-            }
-          } else {
-            setFrequentFallbackNotice(null);
-          }
+        // Always probe Frequent so we know whether it's a viable choice for
+        // the current squad/match length, regardless of which mode is
+        // currently selected. If it would strand an outfield player at 0
+        // minutes we lock the toggle to Standard.
+        const frequentProbe = miniLeagueTeams
+          ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 2, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+          : createSubPlan(players, teamSize, minutesPerHalf * 60, 2, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+        const probeFc = calculateTimeForecasts(players, frequentProbe, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+        const probeStranded = probeFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+        const frequentNotViable = probeStranded.length > 0;
+        setFrequentBlocked(frequentNotViable);
+
+        // If Frequent isn't viable but the coach is on Frequent, force them
+        // back to Standard so the toggle UI matches the plan being shown.
+        if (frequentNotViable && effectiveRotationSpeed === 2) {
+          setRotationSpeedOverride(1);
+          setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
+          // Build the Standard plan now so we don't render a stale Frequent
+          // plan for one frame before the override change re-runs the effect.
+          const standardPlan = miniLeagueTeams
+            ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+            : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+          setPlan(standardPlan);
         } else {
-          setFrequentFallbackNotice(null);
+          if (!frequentNotViable) setFrequentFallbackNotice(null);
+          setPlan(generatePlan(players));
         }
-        setPlan(generatedPlan);
       } catch (error) {
         console.error("Error auto-generating plan:", error);
         setPlan([]);
@@ -3944,6 +3961,7 @@ function DialogInner({
                       activeMode={effectiveRotationSpeed}
                       onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
+                      disabledModes={frequentBlocked ? [2] : []}
                     />
                     {frequentFallbackNotice && (
                       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
