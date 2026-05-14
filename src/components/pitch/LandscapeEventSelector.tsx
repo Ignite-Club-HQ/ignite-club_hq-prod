@@ -79,8 +79,8 @@ export function LandscapeEventSelector({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
         side="bottom" 
-        className="h-[70vh] rounded-t-xl"
-        style={{ zIndex: 100001 }}
+        className="h-[70vh] rounded-t-xl bg-background"
+        style={{ zIndex: 9999999 }}
       >
         <SheetHeader className="pb-4">
           <SheetTitle className="flex items-center gap-2">
