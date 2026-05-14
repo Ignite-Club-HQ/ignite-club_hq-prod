@@ -6007,7 +6007,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         <AutoSubPlanDialog
           open={autoSubPlanDialogOpen}
           onOpenChange={setAutoSubPlanDialogOpen}
-          players={players}
+          players={players.filter(p => !p.isInjured)}
           teamSize={parseInt(teamSize)}
           minutesPerHalf={minutesPerHalf}
           onStartPlan={handleStartAutoSubPlan}
