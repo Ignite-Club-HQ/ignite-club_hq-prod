@@ -5,10 +5,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2 } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, Image, MessageCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
@@ -66,37 +65,11 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   unreadMessages?: number;
 }) {
   const navigate = useNavigate();
-  const [showDots, setShowDots] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    longPressTriggered.current = false;
-    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    longPressTimer.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      setShowDots(true);
-    }, 600);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartPos.current) return;
-    const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
-    const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    if (dx > 10 || dy > 10) { clearLongPress(); }
-  }, [clearLongPress]);
-
-  const handleTouchEnd = useCallback(() => { clearLongPress(); }, [clearLongPress]);
 
   const handleCardClick = useCallback(() => {
-    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
     navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
   }, [navigate, item.type, item.id]);
+
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
 
@@ -116,9 +89,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
       onClick={handleCardClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -153,38 +123,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
           </div>
-          {(
-            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-              <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
-                    aria-label="Team actions"
-                  >
-                    <MoreVertical className="h-4 w-4 text-foreground/70" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View schedule
-                  </DropdownMenuItem>
-                  {item.canManage && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      {item.type === "league" ? "Add match" : "Add event"}
-                    </DropdownMenuItem>
-                  )}
-                  {photos.length > 0 && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
-                      <Image className="h-4 w-4 mr-2" />
-                      View photos
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
 
         {/* Event block — fixed min-height so the placeholder and resolved
