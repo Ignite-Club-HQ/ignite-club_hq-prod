@@ -3577,7 +3577,7 @@ function DialogInner({
                 const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
                 const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
                 const constrainedByMinShift = (autoFair.spreadSeconds / 60) > 3 && target < minShiftMin * 1.5;
-                const fixes = buildPlanFixes({
+                const liveFixes = buildPlanFixes({
                   spreadMin: autoFair.spreadSeconds / 60,
                   shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks,
@@ -3588,12 +3588,30 @@ function DialogInner({
                   overrides: effectiveOverrides,
                   hasHalftimeClash,
                 });
+                // Always include any previously applied fix so the card
+                // doesn't vanish out from under the coach when its
+                // triggering metric is now satisfied.
+                const stickyFixes = buildPlanFixes({
+                  spreadMin: 999, shortShifts: 999, bounceBacks: 999,
+                  totalSubs: 999, isLargeBench: true,
+                  constrainedByMinShift: true,
+                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
+                  overrides: effectiveOverrides,
+                  hasHalftimeClash: true,
+                });
+                const seen = new Set<string>();
+                const fixes: PlanFix[] = [];
+                for (const f of liveFixes) { if (!seen.has(f.id)) { seen.add(f.id); fixes.push(f); } }
+                for (const f of stickyFixes) {
+                  if (!seen.has(f.id) && appliedFixIds.has(f.id)) { seen.add(f.id); fixes.push(f); }
+                }
                 return (
                   <>
                     <PlanFixSuggestions
                       fixes={fixes}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
+                      appliedIds={appliedFixIds}
                     />
                     <PlanImpactPreview
                       overrides={effectiveOverrides}
