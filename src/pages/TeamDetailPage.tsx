@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical, Image as ImageIcon } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamRankCard } from "@/components/team/TeamRankCard";
 import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
@@ -1272,14 +1272,9 @@ export default function TeamDetailPage() {
         <TeamNextStepsCard teamId={id!} onInvite={() => setHeaderInviteOpen(true)} />
       )}
 
-      {/* Next Event Card - highest visual priority */}
+      {/* Next Event Card — dominant hero */}
       {isMember && (
         <TeamNextEventCard teamId={id!} clubId={team.club_id} />
-      )}
-
-      {/* Compact rank module — secondary emphasis, includes "ways to improve" */}
-      {isMember && (
-        <TeamRankCard teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Watch Live banner — shown to ALL team members when a coach is running
@@ -1313,119 +1308,157 @@ export default function TeamDetailPage() {
         </Link>
       )}
 
-      {/* Primary Actions - Chat & Schedule */}
-      {isMember && (
-        <div className="space-y-2">
-          <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors" role="button">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <MessageCircle className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
-                </div>
-                <TeamChatPreview teamId={team.id} />
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-          <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/40 transition-colors" role="button">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Calendar className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold">Schedule</span>
-                  <p className="text-[11px] text-muted-foreground">Events & fixtures</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-      )}
+      {/* Quick Actions — chat row + compact tile grid */}
+      {isMember && (() => {
+        const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
+        const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
+        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin) && (
+          (isSoccerClub && (hasProFootball || isAppAdmin)) ||
+          ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+        );
+        const launchPitchBoard = async () => {
+          const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
+            refetchMembers(),
+            refetchChildren(),
+            findNearbyGameEvent(id!),
+          ]);
+          const freshMembers = membersResult.data || [];
+          const freshChildren = childrenResult.data || [];
+          let goingChildIds: Set<string> | null = null;
+          let goingAdultIds: Set<string> | null = null;
+          if (nearbyEventId) {
+            const { data: goingRows } = await supabase
+              .from("rsvps")
+              .select("user_id, child_id")
+              .eq("event_id", nearbyEventId)
+              .eq("status", "going");
+            goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
+            goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
+          }
+          const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
+          const nextPitchBoardMembers = [
+            ...freshMembers.filter(m => !goingAdultIds || STAFF_ROLES.has(m.role) || goingAdultIds.has(m.user_id)).map(m => ({
+              id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
+            })),
+            ...freshChildren
+              .filter(child => child.children)
+              .filter(child => !goingChildIds || goingChildIds.has(child.children.id))
+              .map(child => ({
+                id: `child-${child.children.id}`, user_id: child.children.id,
+                role: "player" as string,
+                profiles: { display_name: child.children.name, avatar_url: null },
+              })),
+          ];
+          setPitchBoardMembersOverride(nextPitchBoardMembers);
+          setLinkedEventId(nearbyEventId);
+          setShowPitchBoard(true);
+        };
 
-      {/* Secondary Actions - Vault & Pitch Board */}
-      {(isAdmin || isCoachOrAdmin || isClubAdmin) && (
-        <div className="grid grid-cols-2 gap-2">
-          {(isSubscriptionLoading || isTeamPro) ? (
-            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
-              <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2">
-                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                Vault
-              </Button>
+        const tiles: Array<{
+          key: string;
+          icon: typeof Calendar;
+          label: string;
+          to?: string;
+          onClick?: () => void;
+          locked?: boolean;
+          beta?: boolean;
+        }> = [
+          { key: "schedule", icon: Calendar, label: "Schedule", to: `/events?team=${team.id}` },
+          { key: "media", icon: ImageIcon, label: "Media", to: `/media?team=${team.id}` },
+        ];
+        if (showVault) {
+          tiles.push({
+            key: "vault",
+            icon: FolderOpen,
+            label: "Vault",
+            to: vaultLocked ? undefined : `/vault?team=${team.id}`,
+            locked: vaultLocked,
+          });
+        }
+        if (showPitch) {
+          tiles.push({
+            key: "pitch",
+            icon: LayoutGrid,
+            label: (isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board",
+            onClick: launchPitchBoard,
+            beta: (isNetballClub || isBasketballClub),
+          });
+        }
+
+        const cols = tiles.length >= 4 ? "grid-cols-4" : tiles.length === 3 ? "grid-cols-3" : "grid-cols-2";
+
+        return (
+          <section className="space-y-2">
+            {/* Chat — primary action with preview */}
+            <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
+              <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors" role="button">
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <MessageCircle className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
+                  </div>
+                  <TeamChatPreview teamId={team.id} />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </CardContent>
+              </Card>
             </Link>
-          ) : (
-            <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2 opacity-50 cursor-not-allowed" disabled>
-              <FolderOpen className="h-3.5 w-3.5" />
-              Vault
-              <Badge variant="secondary" className="text-[9px] ml-auto gap-0.5 h-3.5 px-1">
-                <Lock className="h-2 w-2" />
-                Pro
-              </Badge>
-            </Button>
-          )}
-          {(
-            (isSoccerClub && (hasProFootball || isAppAdmin)) ||
-            ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
-          ) && (
-            <Button 
-              variant="outline"
-              className="w-full h-9 text-xs font-medium justify-start gap-2"
-              onClick={async () => {
-                const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
-                  refetchMembers(),
-                  refetchChildren(),
-                  findNearbyGameEvent(id!),
-                ]);
-                const freshMembers = membersResult.data || [];
-                const freshChildren = childrenResult.data || [];
-                let goingChildIds: Set<string> | null = null;
-                let goingAdultIds: Set<string> | null = null;
-                if (nearbyEventId) {
-                  const { data: goingRows } = await supabase
-                    .from("rsvps")
-                    .select("user_id, child_id")
-                    .eq("event_id", nearbyEventId)
-                    .eq("status", "going");
-                  goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
-                  goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
-                }
-                const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
-                const nextPitchBoardMembers = [
-                  ...freshMembers.filter(m => !goingAdultIds || STAFF_ROLES.has(m.role) || goingAdultIds.has(m.user_id)).map(m => ({
-                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
-                  })),
-                  ...freshChildren
-                    .filter(child => child.children)
-                    .filter(child => !goingChildIds || goingChildIds.has(child.children.id))
-                    .map(child => ({
-                      id: `child-${child.children.id}`, user_id: child.children.id,
-                      role: "player" as string,
-                      profiles: { display_name: child.children.name, avatar_url: null },
-                    })),
-                ];
-                setPitchBoardMembersOverride(nextPitchBoardMembers);
-                setLinkedEventId(nearbyEventId);
-                setShowPitchBoard(true);
-              }}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="inline-flex items-center gap-1.5">
-                {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
-                {(isNetballClub || isBasketballClub) && (
-                  <span className="px-1.5 py-px rounded-full bg-primary/15 text-primary text-[9px] font-bold uppercase tracking-wider leading-none">
-                    Beta
-                  </span>
-                )}
-              </span>
-            </Button>
-          )}
-        </div>
-      )}
 
-      {/* Latest Photos */}
+            {/* Compact tile grid for secondary tools */}
+            <div className={cn("grid gap-2", cols)}>
+              {tiles.map(({ key, icon: Icon, label, to, onClick, locked, beta }) => {
+                const inner = (
+                  <div className={cn(
+                    "relative flex flex-col items-center justify-center gap-1 rounded-lg border bg-card/60 px-1 py-2.5 h-[68px] transition-colors",
+                    locked
+                      ? "opacity-50"
+                      : "hover:border-primary/40 hover:bg-card active:scale-[0.97]"
+                  )}>
+                    <Icon className="h-[18px] w-[18px] text-foreground/80" aria-hidden="true" />
+                    <span className="text-[11px] font-medium text-foreground/90 leading-none">{label}</span>
+                    {locked && (
+                      <Lock className="absolute top-1 right-1 h-2.5 w-2.5 text-muted-foreground" aria-hidden="true" />
+                    )}
+                    {beta && (
+                      <span className="absolute top-1 right-1 px-1 py-px rounded-sm bg-primary/15 text-primary text-[8px] font-bold uppercase leading-none">
+                        Beta
+                      </span>
+                    )}
+                  </div>
+                );
+                if (locked) {
+                  return <div key={key} aria-disabled="true">{inner}</div>;
+                }
+                if (to) {
+                  return (
+                    <Link key={key} to={to} aria-label={label} className="block">
+                      {inner}
+                    </Link>
+                  );
+                }
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={label}
+                    onClick={onClick}
+                    className="block text-left w-full"
+                  >
+                    {inner}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* Latest Photos — emotional/social engagement */}
       {isMember && (
         <TeamLatestPhotos teamId={id!} clubId={team.club_id} />
+      )}
+
+      {/* Compact rank module — secondary emphasis, includes "ways to improve" */}
+      {isMember && (
+        <TeamRankCard teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Collapsible Sections */}
@@ -1500,12 +1533,6 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(isAdmin || isClubAdmin) && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={() => setHeaderInviteOpen(true)}>
-                      <UserPlus className="h-3.5 w-3.5 mr-1" />
-                      Add members
-                    </Button>
-                  )}
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">

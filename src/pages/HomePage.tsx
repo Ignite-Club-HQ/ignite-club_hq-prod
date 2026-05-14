@@ -1668,7 +1668,34 @@ export default function HomePage() {
         );
       })()}
 
-      {/* Quick Actions — anchored high so async widgets below can't push it down */}
+      {/* Resume in-progress basketball / netball game boards.
+          Soccer is already handled by GameTimerWidget above. */}
+      <CourtBoardResumeCard />
+
+      {/* Mini League Live Matches Widget */}
+      <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
+
+      {/* Account Recovery Banner */}
+      {user && (
+        <AccountRecoveryBanner
+          userId={user.id}
+          onRecovered={() => queryClient.invalidateQueries()}
+        />
+      )}
+
+      {/* Native App Download Banner - for mobile browser users */}
+      <NativeAppDownloadBanner />
+
+      {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
+          minHeight matches the rendered carousel (section title 28px + gap 12px +
+          card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
+      <LazyMount minHeight={260} rootMargin="400px">
+        <Suspense fallback={<div className="h-[260px] rounded-xl bg-muted/40 animate-pulse" />}>
+          <MyTeamsPremiumCarousel />
+        </Suspense>
+      </LazyMount>
+
+      {/* Team Actions — compact secondary utilities below primary team content */}
       <HomeQuickActions
         onCreateTeam={() => {
           if (activeClubFilter) {
@@ -1681,36 +1708,6 @@ export default function HomePage() {
         onJoinTeam={() => setTeamDialogOpen(true)}
         hasTeams={!!userRoles?.some(r => r.team_id)}
       />
-
-      {/* Resume in-progress basketball / netball game boards.
-          Soccer is already handled by GameTimerWidget above.
-          Placed AFTER Quick Actions to avoid pushing Team Actions down when
-          the query resolves late. */}
-      <CourtBoardResumeCard />
-
-      {/* Mini League Live Matches Widget */}
-      <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
-
-      {/* Account Recovery Banner */}
-      {user && (
-        <AccountRecoveryBanner 
-          userId={user.id} 
-          onRecovered={() => queryClient.invalidateQueries()}
-        />
-      )}
-
-      {/* Native App Download Banner - for mobile browser users */}
-      <NativeAppDownloadBanner />
-
-
-      {/* My Teams & Leagues - Premium Carousel (lazy chunk + viewport-deferred).
-          minHeight matches the rendered carousel (section title 28px + gap 12px +
-          card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
-      <LazyMount minHeight={260} rootMargin="400px">
-        <Suspense fallback={<div className="h-[260px] rounded-xl bg-muted/40 animate-pulse" />}>
-          <MyTeamsPremiumCarousel />
-        </Suspense>
-      </LazyMount>
 
       <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 

@@ -5,10 +5,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2 } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, Image, MessageCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams, getCachedClub } from "@/lib/clubTeamCache";
@@ -59,44 +58,24 @@ function formatDateParts(dateStr: string): DateParts {
 }
 
 
-function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
-  item: TeamOrLeague; 
+interface MemberSummary {
+  count: number;
+  avatars: string[];
+}
+
+function TeamCard({ item, nextEvent, photos, unreadMessages, members }: {
+  item: TeamOrLeague;
   nextEvent?: NextEventInfo;
   photos: { id: string; url: string }[];
   unreadMessages?: number;
+  members?: MemberSummary;
 }) {
   const navigate = useNavigate();
-  const [showDots, setShowDots] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    longPressTriggered.current = false;
-    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    longPressTimer.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      setShowDots(true);
-    }, 600);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartPos.current) return;
-    const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
-    const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    if (dx > 10 || dy > 10) { clearLongPress(); }
-  }, [clearLongPress]);
-
-  const handleTouchEnd = useCallback(() => { clearLongPress(); }, [clearLongPress]);
 
   const handleCardClick = useCallback(() => {
-    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
     navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
   }, [navigate, item.type, item.id]);
+
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
 
@@ -116,9 +95,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
       onClick={handleCardClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -147,49 +123,12 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-base leading-tight truncate text-foreground">{item.name}</h3>
-              {unreadMessages && unreadMessages > 0 ? (
-                <Badge className="bg-primary text-primary-foreground text-[10px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </Badge>
-              ) : null}
               {item.isOnTrial && (
                 <Badge variant="outline" className="text-amber-600 border-amber-500 text-[9px] px-1 py-0 h-[16px] shrink-0">Trial</Badge>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.club_name}</p>
           </div>
-          {(
-            <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-              <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
-                    aria-label="Team actions"
-                  >
-                    <MoreVertical className="h-4 w-4 text-foreground/70" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View schedule
-                  </DropdownMenuItem>
-                  {item.canManage && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      {item.type === "league" ? "Add match" : "Add event"}
-                    </DropdownMenuItem>
-                  )}
-                  {photos.length > 0 && (
-                    <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
-                      <Image className="h-4 w-4 mr-2" />
-                      View photos
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
 
         {/* Event block — fixed min-height so the placeholder and resolved
@@ -227,10 +166,26 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           </div>
         )}
 
-        {/* Footer: photos + unread (subtle). Always rendered to reserve stable
-            height so deferred photo/unread queries don't push the page down. */}
+        {/* Footer: priority cascade — unread > photos > members fallback. */}
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 min-h-[36px]">
-          {photos.length > 0 ? (
+          {unreadMessages && unreadMessages > 0 ? (
+            <button
+              type="button"
+              className="flex items-center gap-2 min-w-0 flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(item.type === "league" ? `/mini-leagues/${item.id}` : `/teams/${item.id}`);
+              }}
+            >
+              <span className="relative flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                <MessageCircle className="h-3.5 w-3.5 text-primary" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
+              </span>
+              <span className="text-[11px] font-medium text-foreground truncate">
+                {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
+              </span>
+            </button>
+          ) : photos.length > 0 ? (
             <button
               type="button"
               className="flex items-center gap-2 min-w-0 flex-1"
@@ -258,13 +213,34 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
                 {photos.length} new photo{photos.length > 1 ? "s" : ""}
               </span>
             </button>
-          ) : <span className="flex-1" />}
-          {unreadMessages && unreadMessages > 0 ? (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-              <MessageCircle className="h-3 w-3" />
-              {unreadMessages}
-            </span>
-          ) : null}
+          ) : members && members.count > 0 ? (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex -space-x-1.5 shrink-0">
+                {members.avatars.slice(0, 3).map((url, i) => (
+                  <div key={i} className="h-7 w-7 rounded-full overflow-hidden bg-muted ring-2 ring-card shrink-0">
+                    <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+                {members.avatars.length === 0 && (
+                  <div className="h-7 w-7 rounded-full bg-muted ring-2 ring-card shrink-0 flex items-center justify-center">
+                    <Users className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {members.count} member{members.count > 1 ? "s" : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="h-7 w-7 rounded-full bg-muted ring-2 ring-card shrink-0 flex items-center justify-center">
+                <Users className="h-3 w-3 text-muted-foreground" />
+              </div>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {item.type === "league" ? "Mini-league" : "Your team"}
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -276,6 +252,7 @@ interface CarouselSnapshot {
   nextEvents: Record<string, NextEventInfo>;
   teamPhotos: Record<string, { id: string; url: string }[]>;
   unreadCounts: Record<string, number>;
+  teamMembers?: Record<string, MemberSummary>;
 }
 
 export function MyTeamsPremiumCarousel() {
@@ -547,40 +524,81 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch unread message counts per team — single batched query (no N+1)
+  // Fetch unread message counts per team — use the SAME source as the
+  // Messages inbox (notifications.is_read=false) so the team card and inbox
+  // never disagree. The previous direct team_messages/message_reads diff
+  // could over-report (e.g. message_reads not always inserted on viewing).
   const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
     queryKey: ["team-unread-counts", teamIds, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0 || !user?.id) return {};
+      const { fetchUnreadMessageCounts } = await import("@/lib/unreadMessageCounts");
+      const counts = await fetchUnreadMessageCounts(user.id);
       const map: Record<string, number> = {};
-
-      // Batched: all unread-candidate messages across all teams in one query
-      const [{ data: messages }, { data: readMessages }] = await Promise.all([
-        supabase
-          .from("team_messages")
-          .select("id, team_id")
-          .in("team_id", teamIds)
-          .is("deleted_at", null)
-          .neq("author_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(teamIds.length * 50),
-        supabase
-          .from("message_reads")
-          .select("team_message_id")
-          .eq("user_id", user.id)
-          .not("team_message_id", "is", null),
-      ]);
-
-      const readIds = new Set((readMessages || []).map(r => r.team_message_id).filter(Boolean));
-      for (const m of messages || []) {
-        if (!m.team_id || readIds.has(m.id)) continue;
-        map[m.team_id] = (map[m.team_id] || 0) + 1;
+      for (const id of teamIds) {
+        const n = counts.teams[id] ?? 0;
+        if (n > 0) map[id] = n;
       }
-
       return map;
     },
     enabled: teamIds.length > 0 && !!user?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  // Fetch members + avatars per team for the social fallback footer state.
+  // Deferred until idle so it never delays the first paint.
+  const { data: teamMembers = snapshot?.teamMembers ?? {} } = useQuery({
+    queryKey: ["team-members-premium", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {};
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("team_id, user_id")
+        .in("team_id", teamIds);
+      if (!roles) return {};
+
+      const byTeam: Record<string, Set<string>> = {};
+      for (const r of roles) {
+        if (!r.team_id || !r.user_id) continue;
+        if (!byTeam[r.team_id]) byTeam[r.team_id] = new Set();
+        byTeam[r.team_id].add(r.user_id);
+      }
+
+      const allUserIds = Array.from(new Set(roles.map(r => r.user_id).filter(Boolean) as string[]));
+      const profileMap = new Map<string, string | null>();
+      if (allUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, avatar_url")
+          .in("id", allUserIds);
+        for (const p of profiles || []) profileMap.set(p.id, p.avatar_url);
+      }
+
+      // Sign avatar URLs in one batch
+      const rawAvatarUrls = new Set<string>();
+      for (const url of profileMap.values()) if (url) rawAvatarUrls.add(url);
+      const signed = rawAvatarUrls.size > 0
+        ? await getSignedPhotoUrls(Array.from(rawAvatarUrls))
+        : {};
+
+      const map: Record<string, MemberSummary> = {};
+      for (const teamId of teamIds) {
+        const userIds = Array.from(byTeam[teamId] || []);
+        const avatars: string[] = [];
+        for (const uid of userIds) {
+          const raw = profileMap.get(uid);
+          if (raw) {
+            avatars.push(signed[raw] || raw);
+            if (avatars.length >= 3) break;
+          }
+        }
+        map[teamId] = { count: userIds.length, avatars };
+      }
+      return map;
+    },
+    enabled: teamIds.length > 0 && deferredReady,
+    staleTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -592,13 +610,14 @@ export function MyTeamsPremiumCarousel() {
       nextEvents,
       teamPhotos,
       unreadCounts,
+      teamMembers,
     });
-  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts]);
+  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
   if (isLoading && !snapshot) {
     return (
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold px-1">My Teams</h2>
+      <section className="space-y-2.5">
+        <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
           {[1, 2].map(i => (
             <div key={i} className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg bg-muted animate-pulse" />
@@ -646,8 +665,8 @@ export function MyTeamsPremiumCarousel() {
   });
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold px-1">My Teams</h2>
+    <section className="space-y-2.5">
+      <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
       <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 pb-2 snap-x snap-mandatory pr-4">
           {sortedItems.map((item) => (
@@ -657,6 +676,7 @@ export function MyTeamsPremiumCarousel() {
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
               unreadMessages={unreadCounts[item.id]}
+              members={teamMembers[item.id]}
             />
           ))}
           {createClubCard}

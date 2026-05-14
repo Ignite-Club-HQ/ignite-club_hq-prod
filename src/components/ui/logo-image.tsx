@@ -34,12 +34,37 @@ function evictPreloadedLogos() {
   }
 }
 
+// Inject a <link rel="preload" as="image"> into <head> so the browser fetches
+// the logo at the highest priority (higher than scripted Image() loads). The
+// visible <img> with the same src then paints from the warm response without
+// issuing a second request — eliminating the cold-open "logo pops in" flash.
+function injectPreloadLinkTag(src: string) {
+  if (typeof document === "undefined") return;
+  try {
+    const existing = document.head.querySelector(
+      `link[rel="preload"][as="image"][href="${CSS.escape(src)}"]`
+    );
+    if (existing) return;
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = src;
+    link.setAttribute("fetchpriority", "high");
+    document.head.appendChild(link);
+  } catch {
+    /* ignore — Image() warm-up below still kicks off the fetch */
+  }
+}
+
 export function preloadLogo(src: string | null | undefined) {
   if (!src) return;
   if (preloadedImages.has(src)) {
     touchPreloadedLogo(src);
     return;
   }
+  // 1) High-priority browser-level preload (matches the visible <img> later).
+  injectPreloadLinkTag(src);
+  // 2) Scripted decode warm-up so the bitmap is ready in memory too.
   const img = new Image();
   img.decoding = "sync";
   img.fetchPriority = "high" as HTMLImageElement["fetchPriority"];
@@ -86,11 +111,19 @@ if (typeof window !== "undefined") {
  */
 export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
+  // Already-decoded URLs paint synchronously; otherwise show a soft
+  // skeleton in the same footprint until the bitmap is ready.
+  const [loaded, setLoaded] = useState(() => decodedLogoUrls.has(src));
 
   // Warm cache on every render so navigation between routes keeps the
   // decoded entry hot.
   useEffect(() => {
     preloadLogo(src);
+    if (decodedLogoUrls.has(src)) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
   }, [src]);
 
   if (failed) {
@@ -98,14 +131,26 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      loading="eager"
-      decoding="sync"
-      fetchPriority="high"
-      onError={() => setFailed(true)}
-    />
+    <span className={`relative inline-block overflow-hidden ${className ?? ""}`}>
+      {!loaded && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 bg-muted animate-pulse"
+        />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`block h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        loading="eager"
+        decoding="sync"
+        fetchPriority="high"
+        onLoad={() => {
+          decodedLogoUrls.add(src);
+          setLoaded(true);
+        }}
+        onError={() => setFailed(true)}
+      />
+    </span>
   );
 }
