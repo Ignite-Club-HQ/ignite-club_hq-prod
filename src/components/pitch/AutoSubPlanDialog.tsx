@@ -3176,27 +3176,55 @@ function PlanImpactPreview({
     ? `This will ${phrases.slice(0, -1).join(", ")}${phrases.length > 1 ? " and " : ""}${phrases[phrases.length - 1]}.`
     : "Custom tuning is active.";
 
+  return <PlanImpactPreviewBody sentence={sentence} totalSubs={totalSubs} spreadMin={spreadMin} shortShifts={shortShifts} hasHalftimeClash={hasHalftimeClash} />;
+}
+
+function PlanImpactPreviewBody({
+  sentence,
+  totalSubs,
+  spreadMin,
+  shortShifts,
+  hasHalftimeClash,
+}: {
+  sentence: string;
+  totalSubs: number;
+  spreadMin: number;
+  shortShifts: number;
+  hasHalftimeClash: boolean;
+}) {
+  const [open, setOpen] = useState(true);
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
-      <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
-        Impact preview
-      </div>
-      <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
-        <span className="text-muted-foreground">Substitutions in plan</span>
-        <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
-        <span className="text-muted-foreground">Playing-time spread</span>
-        <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
-        <span className="text-muted-foreground">Short shifts detected</span>
-        <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
-          {shortShifts > 0 ? shortShifts : "None"}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between w-full text-sm font-semibold text-foreground"
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Impact preview
         </span>
-        <span className="text-muted-foreground">Halftime clash</span>
-        <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
-          {hasHalftimeClash ? "Detected" : "None"}
-        </span>
-      </div>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open ? "rotate-180" : "")} />
+      </button>
+      {open && (
+        <>
+          <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
+            <span className="text-muted-foreground">Substitutions in plan</span>
+            <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
+            <span className="text-muted-foreground">Playing-time spread</span>
+            <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
+            <span className="text-muted-foreground">Short shifts detected</span>
+            <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
+              {shortShifts > 0 ? shortShifts : "None"}
+            </span>
+            <span className="text-muted-foreground">Halftime clash</span>
+            <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
+              {hasHalftimeClash ? "Detected" : "None"}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
