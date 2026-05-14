@@ -3858,6 +3858,15 @@ function DialogInner({
                   hasHalftimeClash, shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks, spreadMin, constrainedByMinShift,
                 });
+                // Capture baseline metrics on first render before any fix applied.
+                if (appliedFixIds.size === 0) {
+                  baselineMetricsRef.current = {
+                    totalSubs: autoFair.totalSubs,
+                    spreadMin,
+                    shortShifts: autoFair.totalShortShifts,
+                    hasHalftimeClash,
+                  };
+                }
                 return (
                   <>
                     {/* 1. Plain-English status card */}
@@ -3882,6 +3891,7 @@ function DialogInner({
                       <PlanImpactPreview
                         overrides={effectiveOverrides}
                         defaultMaxSpreadMinutes={maxSpreadMinutes}
+                        baseline={baselineMetricsRef.current}
                         totalSubs={autoFair.totalSubs}
                         spreadMin={spreadMin}
                         shortShifts={autoFair.totalShortShifts}
