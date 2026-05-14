@@ -90,9 +90,6 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
       onClick={handleCardClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
