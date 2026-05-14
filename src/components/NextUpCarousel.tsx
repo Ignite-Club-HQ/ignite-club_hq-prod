@@ -405,6 +405,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
       queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
       queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+      queryClient.invalidateQueries({ queryKey: ["next-up-pending-count"] });
     },
     onError: () => {
       toast({ title: "Failed to update RSVP", variant: "destructive" });
