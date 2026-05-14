@@ -38,13 +38,14 @@ export function EventLinkSelector({
 }: EventLinkSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  // Fetch game events for this team (last 24 hours and upcoming)
-  // Cannot link to games older than 24 hours
+  // Fetch game events for this team within the link window: from 24h after
+  // kickoff back to 48h before kickoff. Games further away are excluded.
   const { data: events, isLoading } = useQuery({
     queryKey: ["team-game-events", teamId],
     queryFn: async () => {
       const oneDayAgo = subDays(new Date(), 1);
-      
+      const linkCutoff = addHours(new Date(), LINK_WINDOW_HOURS_BEFORE);
+
       const { data, error } = await supabase
         .from("events")
         .select("id, title, event_date, type, address, suburb")
@@ -52,6 +53,7 @@ export function EventLinkSelector({
         .eq("type", "game")
         .eq("is_cancelled", false)
         .gte("event_date", oneDayAgo.toISOString())
+        .lte("event_date", linkCutoff.toISOString())
         .order("event_date", { ascending: true })
         .limit(20);
 
