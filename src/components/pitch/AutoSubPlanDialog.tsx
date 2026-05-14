@@ -3183,6 +3183,7 @@ function PlanImpactPreview({
   );
 }
 
+function DialogInner({
   players, 
   teamSize, 
   minutesPerHalf, 
