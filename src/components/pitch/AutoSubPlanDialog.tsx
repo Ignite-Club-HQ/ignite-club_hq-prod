@@ -259,75 +259,23 @@ interface SubstitutionEvent {
 }
 
 /**
- * Soft-bias post-pass: nudges player minutes to align with a coach-supplied
- * priority order (top of list = wants more minutes). Only swaps identities
- * between bench-rotation outfielders — never touches starters or GKs — so
- * the underlying scheduler logic, position swaps, and short-shift rules
- * stay intact. Iterates a few passes until no inversion remains worth fixing.
- *
- * Conservative by design: a "swap" is only triggered when a higher-priority
- * player has materially fewer minutes (>1.5m gap) than a lower-priority
- * player below them, so balanced plans are left untouched.
+ * Swap two players' lineup positions (and currentPitchPosition snapshot).
+ * Used by the priority-bias loop to actually move a higher-priority bench
+ * player onto the pitch (and the displaced starter to the bench) so the
+ * scheduler then redistributes minutes from the new lineup. Full-game GKs
+ * are never passed in here — only outfielders.
  */
-export function applyPriorityBiasToPlan(
-  plan: SubstitutionEvent[],
-  players: Player[],
-  priorityOrder: string[],
-  minutesPerHalf: number,
-  preferredSecondHalfGkId: string | undefined,
-  rotateGkAtHalftime: boolean,
-  currentHalf: 1 | 2,
-  currentElapsedSeconds: number,
-): SubstitutionEvent[] {
-  if (!priorityOrder || priorityOrder.length < 2 || plan.length === 0) return plan;
-  const startersIds = new Set(players.filter(p => p.position !== null).map(p => p.id));
-  const playerById = new Map(players.map(p => [p.id, p] as const));
-
-  let mutated = plan.map(s => ({ ...s }));
-  for (let iter = 0; iter < 12; iter++) {
-    const fc = calculateTimeForecasts(players, mutated, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-    const minsById = new Map(fc.map(f => [f.player.id, f.predictedMinutes] as const));
-    const gkRoleById = new Map(fc.map(f => [f.player.id, f.gkRole] as const));
-
-    // Only swap among bench-rotation outfielders — keep starters/GKs put.
-    const swappable = priorityOrder.filter(id => {
-      if (startersIds.has(id)) return false;
-      if (gkRoleById.get(id) === 'full') return false;
-      return playerById.has(id);
-    });
-
-    let didSwap = false;
-    outer: for (let i = 0; i < swappable.length - 1; i++) {
-      for (let j = i + 1; j < swappable.length; j++) {
-        const Hid = swappable[i];
-        const Lid = swappable[j];
-        const hMin = minsById.get(Hid) ?? 0;
-        const lMin = minsById.get(Lid) ?? 0;
-        if (hMin < lMin - 1.5) {
-          const Hp = playerById.get(Hid)!;
-          const Lp = playerById.get(Lid)!;
-          mutated = mutated.map(s => {
-            const swap = (p: Player): Player => {
-              if (p.id === Hid) return { ...Lp, currentPitchPosition: p.currentPitchPosition };
-              if (p.id === Lid) return { ...Hp, currentPitchPosition: p.currentPitchPosition };
-              return p;
-            };
-            return {
-              ...s,
-              playerOut: swap(s.playerOut),
-              playerIn: swap(s.playerIn),
-              positionSwap: s.positionSwap ? { ...s.positionSwap, player: swap(s.positionSwap.player) } : undefined,
-            };
-          });
-          didSwap = true;
-          break outer;
-        }
-      }
-    }
-    if (!didSwap) break;
-  }
-  return mutated;
+export function swapLineupPositions(players: Player[], idA: string, idB: string): Player[] {
+  const A = players.find(p => p.id === idA);
+  const B = players.find(p => p.id === idB);
+  if (!A || !B) return players;
+  return players.map(p => {
+    if (p.id === idA) return { ...p, position: B.position, currentPitchPosition: B.currentPitchPosition };
+    if (p.id === idB) return { ...p, position: A.position, currentPitchPosition: A.currentPitchPosition };
+    return p;
+  });
 }
+
 
 interface MiniLeagueTeams {
   teamAPlayerIds: string[];
