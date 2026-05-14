@@ -1450,6 +1450,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
+  const [cancelPlanConfirmOpen, setCancelPlanConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
