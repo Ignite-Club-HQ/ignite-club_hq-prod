@@ -1533,12 +1533,6 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(isAdmin || isClubAdmin) && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={() => setHeaderInviteOpen(true)}>
-                      <UserPlus className="h-3.5 w-3.5 mr-1" />
-                      Add members
-                    </Button>
-                  )}
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
