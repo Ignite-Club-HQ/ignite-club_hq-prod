@@ -970,7 +970,7 @@ export function createSubPlan(
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
       const isForcedGkWindow = forcedInByWindow.has(t) || forcedOutByWindow.has(t);
       const benchUnder = benchOrder.filter(
-        id => (projected.get(id) || 0) < minThresholdSec
+        id => (projected.get(id) || 0) < effectiveMinSec(id)
       );
       if (!isForcedGkWindow && benchUnder.length > 0) {
         const earliest = Math.max(lastTickAbs + 60, t - PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS);
@@ -1037,7 +1037,7 @@ export function createSubPlan(
           // reached the top of the allowed spread (gkCeilingSec). Their
           // outfield run should land them at equal-highest minutes.
           .filter(id => !isGkProtected(id) || !needsProtectedOutfieldRun(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
+          .filter(id => (projected.get(id) || 0) > playerMaxThresholdSec(id) || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
             // GK-protected promotion: prefer pulling non-GK-protected first
             // when a GK-protected on-pitch is still below ceiling.
@@ -1159,7 +1159,7 @@ export function createSubPlan(
           const fifoCandidates = benchOrder
             .map((id, index) => ({ id, index, score: needScore(id, t, index), projected: projected.get(id) || 0 }))
             .filter(item => !windowOuts.has(item.id))
-            .filter(item => item.projected <= maxThresholdSec);
+            .filter(item => item.projected <= playerMaxThresholdSec(item.id));
           const fifoFirst = fifoCandidates[0];
           const urgent = fifoCandidates
             .filter(item => item.projected < targetSecPerPlayer)
