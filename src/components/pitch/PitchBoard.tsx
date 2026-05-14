@@ -7491,6 +7491,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
+      <Suspense fallback={null}>
+        <AddFillInPlayerDialog
+          onAddPlayer={handleAddFillInPlayer}
+          existingNumbers={players.map(p => p.number).filter((n): n is number => typeof n === 'number')}
+          hideTrigger
+          externalOpen={fillInDialogOpen}
+          onExternalOpenChange={setFillInDialogOpen}
+        />
+      </Suspense>
+
       {/* Pitch Player Action Menu (injury on pitch) */}
       <Suspense fallback={null}>
         <PitchPlayerActionMenu
