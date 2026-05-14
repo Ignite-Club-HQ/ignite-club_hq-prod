@@ -3054,62 +3054,242 @@ function buildPlanFixes(args: {
   return fixes;
 }
 
+// Pick the single highest-priority fix to recommend, based on the dominant
+// problem in the current plan. Falls back to the first available fix.
+function pickRecommendedFix(
+  fixes: PlanFix[],
+  signals: { hasHalftimeClash: boolean; shortShifts: number; bounceBacks: number; spreadMin: number; constrainedByMinShift: boolean },
+): PlanFix | null {
+  if (fixes.length === 0) return null;
+  const byId = (id: string) => fixes.find((f) => f.id === id);
+  if (signals.hasHalftimeClash) { const f = byId("halftime"); if (f) return f; }
+  if (signals.shortShifts > 0) { const f = byId("protect-shifts"); if (f) return f; }
+  if (signals.bounceBacks > 0) { const f = byId("space-out"); if (f) return f; }
+  if (signals.spreadMin > 6) { const f = byId("fairer"); if (f) return f; }
+  if (signals.spreadMin > 3 && signals.constrainedByMinShift) { const f = byId("shorter-shifts"); if (f) return f; }
+  const reduce = byId("reduce-stoppages"); if (reduce) return reduce;
+  return fixes[0];
+}
+
 function PlanFixSuggestions({
   fixes,
+  recommended,
   onApply,
   readOnly,
   appliedIds,
 }: {
   fixes: PlanFix[];
+  recommended: PlanFix | null;
   onApply: (fix: PlanFix) => void;
   readOnly: boolean;
   appliedIds: Set<string>;
 }) {
-  if (readOnly || fixes.length === 0) return null;
+  const [showOthers, setShowOthers] = useState(false);
+  if (readOnly || !recommended) return null;
+  const others = fixes.filter((f) => f.id !== recommended.id);
+  const recommendedApplied = appliedIds.has(recommended.id);
+
   return (
-    <div className="rounded-lg border border-border bg-background p-3 space-y-2 mb-2">
-      <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <Wand2 className="h-3.5 w-3.5 text-primary" />
-        Suggested fixes
+    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2.5 mb-2">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold text-primary">
+        <Wand2 className="h-3.5 w-3.5" />
+        Recommended fix
       </div>
-      <p className="text-[11px] text-muted-foreground leading-snug">
-        Tap a fix to update the plan. Tap again to apply more of the same.
-      </p>
-      <div className="grid gap-1.5 sm:grid-cols-2">
-        {fixes.map((fix) => {
-          const applied = appliedIds.has(fix.id);
-          return (
-            <button
-              key={fix.id}
-              type="button"
-              onClick={() => onApply(fix)}
-              className={cn(
-                "text-left rounded-md border transition-colors p-2.5 min-h-[44px] group",
-                applied
-                  ? "border-primary/40 bg-primary/10 hover:bg-primary/15 active:bg-primary/20"
-                  : "border-border bg-muted/30 hover:bg-muted/60 active:bg-muted",
-              )}
-            >
-              <div className="flex items-start gap-2">
-                <span className="flex-1 min-w-0">
-                  <span className="flex items-center gap-1.5">
-                    <span className="block text-xs font-medium text-foreground">{fix.title}</span>
-                    {applied && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                        <Check className="h-2.5 w-2.5" />
-                        Applied
-                      </span>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-foreground">{recommended.title}</p>
+          {recommendedApplied && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <Check className="h-2.5 w-2.5" />
+              Applied
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-snug mt-1">{recommended.tradeoff}</p>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        className="w-full gap-1.5"
+        onClick={() => onApply(recommended)}
+      >
+        {recommendedApplied ? <Check className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
+        {recommendedApplied ? "Apply again" : "Apply recommended fix"}
+      </Button>
+      {others.length > 0 && (
+        <div className="pt-1 border-t border-primary/20">
+          <button
+            type="button"
+            onClick={() => setShowOthers((v) => !v)}
+            className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            <span>Other fixes ({others.length})</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showOthers ? "rotate-180" : "")} />
+          </button>
+          {showOthers && (
+            <div className="grid gap-1.5 mt-2">
+              {others.map((fix) => {
+                const applied = appliedIds.has(fix.id);
+                return (
+                  <button
+                    key={fix.id}
+                    type="button"
+                    onClick={() => onApply(fix)}
+                    className={cn(
+                      "text-left rounded-md border transition-colors p-2 min-h-[40px] group",
+                      applied
+                        ? "border-primary/40 bg-primary/10 hover:bg-primary/15"
+                        : "border-border bg-background hover:bg-muted/60",
                     )}
-                  </span>
-                  <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
-                    {fix.tradeoff}
-                  </span>
-                </span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
-              </div>
-            </button>
-          );
-        })}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span className="block text-xs font-medium text-foreground">{fix.title}</span>
+                          {applied && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              <Check className="h-2.5 w-2.5" />
+                              Applied
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                          {fix.tradeoff}
+                        </span>
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// PlanStatusCard — calm, plain-English headline + 3 key chips. Replaces the
+// dense "Game time fairness" grid for everyday coaches.
+// ===========================================================================
+function PlanStatusCard({
+  totalSubs,
+  spreadMin,
+  shortShifts,
+  hasHalftimeClash,
+}: {
+  totalSubs: number;
+  spreadMin: number;
+  shortShifts: number;
+  hasHalftimeClash: boolean;
+}) {
+  let tone: "good" | "info" | "warn" = "good";
+  let headline = "Plan looks good";
+  if (shortShifts >= 3) { tone = "warn"; headline = "Too many short shifts"; }
+  else if (spreadMin > 6) { tone = "warn"; headline = "Plan is uneven"; }
+  else if (hasHalftimeClash || shortShifts > 0 || spreadMin > 3) { tone = "info"; headline = "Plan needs review"; }
+
+  const toneClasses =
+    tone === "good" ? "border-emerald-500/40 bg-emerald-500/5" :
+    tone === "warn" ? "border-amber-500/40 bg-amber-500/5" :
+    "border-border bg-muted/30";
+  const headlineColor =
+    tone === "good" ? "text-emerald-600 dark:text-emerald-400" :
+    tone === "warn" ? "text-amber-600 dark:text-amber-400" :
+    "text-foreground";
+
+  return (
+    <div className={cn("rounded-lg border p-3 space-y-2 mb-2", toneClasses)}>
+      <p className={cn("text-base font-semibold", headlineColor)}>{headline}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Subs</div>
+          <div className="text-sm font-bold text-foreground tabular-nums">{totalSubs}</div>
+        </div>
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Spread</div>
+          <div className="text-sm font-bold text-foreground tabular-nums">{spreadMin.toFixed(1)}m</div>
+        </div>
+        <div className="rounded-md bg-background/60 border border-border p-2 text-center">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Short shifts</div>
+          <div className={cn("text-sm font-bold tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
+            {shortShifts > 0 ? shortShifts : "0"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// PlayersNeedingAttention — only flags outfielders with notable issues
+// (lowest/highest minutes, short shifts, bounce-backs). Hides the full bar
+// list behind a "Show all player minutes" toggle.
+// ===========================================================================
+function PlayersNeedingAttention({
+  forecasts,
+  fairnessReport,
+}: {
+  forecasts: PlayerTimeForecast[];
+  fairnessReport: FairnessReport | null;
+}) {
+  const outfield = forecasts.filter((f) => f.gkRole !== "full");
+  if (outfield.length < 3) return null;
+
+  const sorted = [...outfield].sort((a, b) => a.predictedMinutes - b.predictedMinutes);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  const spread = highest.predictedMinutes - lowest.predictedMinutes;
+
+  type Row = { id: string; number?: number; name: string; minutes: number; reason: string; tone: string };
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+
+  if (spread > 3) {
+    rows.push({ id: lowest.player.id, number: lowest.player.number, name: lowest.player.name, minutes: lowest.predictedMinutes, reason: "Lowest minutes", tone: "border-amber-500/50 text-amber-600" });
+    seen.add(lowest.player.id);
+    if (!seen.has(highest.player.id)) {
+      rows.push({ id: highest.player.id, number: highest.player.number, name: highest.player.name, minutes: highest.predictedMinutes, reason: "Highest minutes", tone: "border-amber-500/50 text-amber-600" });
+      seen.add(highest.player.id);
+    }
+  }
+
+  if (fairnessReport) {
+    for (const stat of fairnessReport.perPlayer) {
+      if (rows.length >= 5) break;
+      if (seen.has(stat.playerId)) continue;
+      const f = forecasts.find((x) => x.player.id === stat.playerId);
+      if (!f) continue;
+      if (stat.shortShifts > 0) {
+        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.shortShifts} short shift${stat.shortShifts > 1 ? "s" : ""}`, tone: "border-red-500/50 text-red-500" });
+        seen.add(stat.playerId);
+      } else if (stat.bounceBacks > 0) {
+        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.bounceBacks} bounce-back${stat.bounceBacks > 1 ? "s" : ""}`, tone: "border-purple-500/50 text-purple-500" });
+        seen.add(stat.playerId);
+      }
+    }
+  }
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5 mb-2">
+      <p className="text-xs font-semibold text-foreground">Players needing attention</p>
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div key={`${row.id}-${row.reason}`} className="flex items-center gap-2 text-xs">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-bold shrink-0">
+              {row.number ?? "?"}
+            </div>
+            <span className="flex-1 min-w-0 truncate text-foreground">{row.name}</span>
+            <span className="text-muted-foreground tabular-nums shrink-0">{row.minutes}'</span>
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 shrink-0", row.tone)}>
+              {row.reason}
+            </Badge>
+          </div>
+        ))}
       </div>
     </div>
   );
