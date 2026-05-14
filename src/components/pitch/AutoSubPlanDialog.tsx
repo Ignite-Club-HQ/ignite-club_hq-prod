@@ -1546,13 +1546,13 @@ export function createSubPlan(
   const sharedTotalTarget = playerData.length > 0
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
-  const rawFieldTargets = new Map<string, number>();
+    const rawFieldTargets = new Map<string, number>();
   outfieldPlayers.forEach(p => {
     // FAIRNESS: every player aims for the SAME total minutes (field + GK duty).
     // GKs already have GK time banked, so their outfield target is the shared
     // total minus their GK duty. They naturally play LESS outfield, not more —
     // landing them at equal total minutes alongside everyone else.
-    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+      const base = Math.max(0, sharedTotalTarget + priorityTargetBiasSeconds(p.id) - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
@@ -1850,7 +1850,7 @@ export function createSubPlan(
       const isProtected =
         (includeStartingGkInRotation && id === gkOnPitch?.id) ||
         (halftimeGkIn ? id === halftimeGkIn.id : false);
-      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      const target = (isProtected ? gkCeilingTotal : sharedTotalTarget) + priorityTargetBiasSeconds(id);
       return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
