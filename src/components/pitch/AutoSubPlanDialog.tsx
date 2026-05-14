@@ -3796,6 +3796,11 @@ function DialogInner({
   // Soft bias only: nudges minutes among bench-rotation outfielders without
   // overriding fairness/short-shift rules. `null` = neutral (planner default).
   const [playerPriority, setPlayerPriority] = useState<string[] | null>(null);
+  // Players after applying priority-bias position swaps. When the coach
+  // drags a bench player above a starter, this view actually swaps their
+  // positions so the planner — and its forecasts — reflect the new lineup.
+  // Falls back to the input `players` when no bias is active.
+  const [effectivePlayers, setEffectivePlayers] = useState<Player[]>(players);
   // PointerSensor with a small activation distance so taps on rows still
   // scroll naturally; only deliberate drags from the grip handle reorder.
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
