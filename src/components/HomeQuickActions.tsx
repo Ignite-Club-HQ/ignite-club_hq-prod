@@ -16,13 +16,13 @@ export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams 
       show: hasTeams,
     },
     {
-      label: "Join Team",
+      label: "Join",
       icon: Users,
       onClick: onJoinTeam,
       show: true,
     },
     {
-      label: "Create Team",
+      label: "Create",
       icon: Plus,
       onClick: onCreateTeam,
       show: true,
@@ -40,7 +40,7 @@ export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams 
             key={action.label}
             type="button"
             onClick={action.onClick}
-            className="inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-full border border-border bg-card/60 hover:bg-accent/40 active:bg-accent active:scale-[0.97] transition-all text-xs font-medium text-foreground touch-manipulation select-none cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-10 px-2 rounded-full border border-border bg-card/60 hover:bg-accent/40 active:bg-accent active:scale-[0.97] transition-all text-xs font-medium text-foreground touch-manipulation select-none cursor-pointer"
           >
             <action.icon className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="truncate">{action.label}</span>
