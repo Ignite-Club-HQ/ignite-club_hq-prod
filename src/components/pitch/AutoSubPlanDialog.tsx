@@ -3956,7 +3956,7 @@ function DialogInner({
                           <>
                             {stat.shortShifts > 0 && (
                               <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
-                                {stat.shortShifts} short
+                                {stat.shortShifts} very short
                               </Badge>
                             )}
                             {stat.bounceBacks > 0 && (
