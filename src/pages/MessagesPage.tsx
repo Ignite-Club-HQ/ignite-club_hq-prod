@@ -21,7 +21,7 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
-import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
+import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -823,8 +823,13 @@ export default function MessagesPage() {
         c.participant_1 === user!.id ? c.participant_2 : c.participant_1
       );
 
-      const [profilesResult, messagesResult] = await Promise.all([
-        supabase.from("profiles").select("id, display_name, avatar_url").in("id", otherUserIds),
+      const [profilesMap, messagesResult] = await Promise.all([
+        // Use the global profile cache layer — returns cached/stale entries
+        // immediately and falls back to whatever is cached if the network
+        // fetch fails. This prevents the inbox from rendering "Unknown User"
+        // when the profiles SELECT is throttled, blocked by a transient RLS
+        // hiccup, or returns an empty row.
+        fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 }),
         Promise.all(
           convos.map(async (conv) => {
             const { data } = await supabase
@@ -839,7 +844,6 @@ export default function MessagesPage() {
         ),
       ]);
 
-      const profileMap = new Map(profilesResult.data?.map(p => [p.id, p]) || []);
       const messageMap = new Map(messagesResult.map(m => [m.conversationId, m.message]));
 
       // Build a fallback map of previously-known other_user data so that a
@@ -861,17 +865,30 @@ export default function MessagesPage() {
 
       const result = convos.map(conv => {
         const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
-        const fetchedProfile = profileMap.get(otherUserId);
+        const fetchedProfile = profilesMap.get(otherUserId);
         const fallbackProfile = previousOtherUserMap.get(otherUserId);
+        // Final defence: the global in-memory profile cache (populated by
+        // every other surface in the app — chat rows, member lists, etc).
+        const globalCached = getProfileFromCache(otherUserId);
         // Prefer freshly fetched data, but never overwrite a known good
         // profile with null/empty values.
-        const otherUser = fetchedProfile
+        const otherUser = (fetchedProfile && fetchedProfile.display_name)
           ? {
               id: otherUserId,
-              display_name: fetchedProfile.display_name || fallbackProfile?.display_name || null,
-              avatar_url: fetchedProfile.avatar_url ?? fallbackProfile?.avatar_url ?? null,
+              display_name: fetchedProfile.display_name,
+              avatar_url: fetchedProfile.avatar_url ?? fallbackProfile?.avatar_url ?? globalCached?.avatar_url ?? null,
             }
-          : fallbackProfile || null;
+          : (fallbackProfile && fallbackProfile.display_name)
+            ? fallbackProfile
+            : globalCached
+              ? {
+                  id: otherUserId,
+                  display_name: globalCached.display_name,
+                  avatar_url: globalCached.avatar_url ?? null,
+                }
+              : (fetchedProfile
+                  ? { id: otherUserId, display_name: null, avatar_url: fetchedProfile.avatar_url ?? null }
+                  : null);
         return {
           ...conv,
           other_user: otherUser,

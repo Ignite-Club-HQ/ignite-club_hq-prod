@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList, Link2Off } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -82,6 +82,10 @@ interface PitchSettingsDialogProps {
   
   // Reset game
   onResetGame?: () => void;
+
+  // Unlink current match/game event without resetting the board
+  linkedEventId?: string | null;
+  onUnlinkEvent?: () => void;
   
   // Reset formation (players + ball to default positions)
   onResetFormation?: () => void;
@@ -148,6 +152,8 @@ export function PitchSettingsDialog({
   onExternalOpenChange,
   hideTrigger = false,
   onResetGame,
+  linkedEventId,
+  onUnlinkEvent,
   onResetFormation,
   onOpenStats,
   onSaveSettings,
@@ -579,13 +585,27 @@ export function PitchSettingsDialog({
             </div>
 
             {/* Danger zone - collapsed */}
-            {!readOnly && (onResetFormation || onResetGame) && (
+            {!readOnly && (onResetFormation || onResetGame || (linkedEventId && onUnlinkEvent)) && (
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
                   <span>Reset Options</span>
                   <ChevronDown className="h-3 w-3" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-2 pt-1">
+                  {linkedEventId && onUnlinkEvent && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="w-full h-9"
+                      onClick={() => {
+                        onUnlinkEvent();
+                        setOpen(false);
+                      }}
+                    >
+                      <Link2Off className="h-3.5 w-3.5 mr-2" />
+                      Unlink from Game
+                    </Button>
+                  )}
                   {onResetFormation && (
                     <Button 
                       variant="outline" 

@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders, GripVertical } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
 import { buildSubWindows } from "./planner/windows";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 
 interface PlayerTimeForecast {
@@ -255,6 +258,25 @@ interface SubstitutionEvent {
   skipped?: boolean;
 }
 
+/**
+ * Swap two players' lineup positions (and currentPitchPosition snapshot).
+ * Used by the priority-bias loop to actually move a higher-priority bench
+ * player onto the pitch (and the displaced starter to the bench) so the
+ * scheduler then redistributes minutes from the new lineup. Full-game GKs
+ * are never passed in here — only outfielders.
+ */
+export function swapLineupPositions(players: Player[], idA: string, idB: string): Player[] {
+  const A = players.find(p => p.id === idA);
+  const B = players.find(p => p.id === idB);
+  if (!A || !B) return players;
+  return players.map(p => {
+    if (p.id === idA) return { ...p, position: B.position, currentPitchPosition: B.currentPitchPosition };
+    if (p.id === idB) return { ...p, position: A.position, currentPitchPosition: A.currentPitchPosition };
+    return p;
+  });
+}
+
+
 interface MiniLeagueTeams {
   teamAPlayerIds: string[];
   teamBPlayerIds: string[];
@@ -283,6 +305,8 @@ export interface AutoSubAdvancedOverrides {
    *  set, replaces the `maxSpreadMinutes` prop value. Lower = stricter
    *  fairness (planner sacrifices queue order sooner). */
   maxSpreadOverrideSec?: number;
+  /** Optional coach drag order: lower index = should be favoured for more time. */
+  playerPriorityOrder?: string[];
 }
 
 interface AutoSubPlanDialogProps {
@@ -306,9 +330,15 @@ interface AutoSubPlanDialogProps {
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
+  /** When provided alongside showStepper, the "Lineup" step becomes a button
+   *  that closes the dialog and returns the user to the lineup picker. */
+  onBackToLineup?: () => void;
   miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
   /** Optional power-user overrides for planner thresholds. */
   advancedOverrides?: AutoSubAdvancedOverrides;
+  /** Called when the priority-bias loop swaps players between starting and
+   *  bench so the parent can sync its lineup before the plan runs. */
+  onLineupChange?: (players: Player[]) => void;
 }
 
 const formatTime = (seconds: number) => {
@@ -602,6 +632,23 @@ export function createSubPlan(
       ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
       : undefined, // undefined → fall back to interval floor at use site
   };
+  const priorityOrder = Array.isArray(ov.playerPriorityOrder) ? ov.playerPriorityOrder : [];
+  const priorityRank = new Map(priorityOrder.map((id, index) => [id, index] as const));
+  const priorityBiasMaxSeconds = Math.max(0, (maxSpreadMinutes * 60) / 2);
+  const priorityTargetBiasSeconds = (id: string) => {
+    const rank = priorityRank.get(id);
+    if (rank === undefined || priorityOrder.length < 2 || priorityBiasMaxSeconds <= 0) return 0;
+    const midpoint = (priorityOrder.length - 1) / 2;
+    return ((midpoint - rank) / Math.max(1, midpoint)) * priorityBiasMaxSeconds;
+  };
+  const priorityPullOffCompare = (a: string, b: string) => {
+    if (priorityOrder.length < 2) return 0;
+    return (priorityRank.get(b) ?? Number.MAX_SAFE_INTEGER) - (priorityRank.get(a) ?? Number.MAX_SAFE_INTEGER);
+  };
+  const priorityBringOnCompare = (a: string, b: string) => {
+    if (priorityOrder.length < 2) return 0;
+    return (priorityRank.get(a) ?? Number.MAX_SAFE_INTEGER) - (priorityRank.get(b) ?? Number.MAX_SAFE_INTEGER);
+  };
   const plan: SubstitutionEvent[] = [];
   
   if (!playerData || playerData.length === 0 || teamSize <= 0 || halfDurationSeconds <= 0) {
@@ -747,8 +794,9 @@ export function createSubPlan(
     const fullGameSec = halfDurationSeconds * 2;
     const fairPlayerCount = Math.max(playerData.filter(p => !p.isInjured).length, 1);
     const targetSecPerPlayer = (fullGameSec * teamSize) / fairPlayerCount;
-    const minThresholdSec = targetSecPerPlayer * PRACTICAL_MIN_THRESHOLD_RATIO;
-    const maxThresholdSec = targetSecPerPlayer * PRACTICAL_MAX_THRESHOLD_RATIO;
+    const playerTargetSec = (id: string) => Math.max(0, targetSecPerPlayer + priorityTargetBiasSeconds(id));
+    const playerMinThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MIN_THRESHOLD_RATIO;
+    const playerMaxThresholdSec = (id: string) => playerTargetSec(id) * PRACTICAL_MAX_THRESHOLD_RATIO;
 
     // GK-PROTECTED players: anyone assigned as GK in any half. They must finish
     // at or near the top of the allowed spread (target + spread/2) without
@@ -760,8 +808,6 @@ export function createSubPlan(
     const isGkProtected = (id: string) => gkProtectedIds.has(id);
     // Top of the allowed spread — GK-protected players aim for this.
     const gkCeilingSec = targetSecPerPlayer + (maxSpreadMinutes / 2) * 60;
-    // Floor for non-GK so they don't dip too low while we lift the GKs.
-    const nonGkFloorSec = Math.max(minThresholdSec, targetSecPerPlayer - (maxSpreadMinutes / 2) * 60);
 
     // Track projected playing seconds per outfield player. Seed from minutes
     // already accumulated (for mid-game starts), converted to seconds.
@@ -797,8 +843,8 @@ export function createSubPlan(
     // The "priority" for GKs is realised purely by being shielded from being
     // pulled off too early (see overCap/FIFO filters below) and by the forced
     // outfield window for the 2H GK before halftime.
-    const effectiveMinSec = (_id: string) => minThresholdSec;
-    const effectiveTargetSec = (_id: string) => targetSecPerPlayer;
+    const effectiveMinSec = (id: string) => playerMinThresholdSec(id);
+    const effectiveTargetSec = (id: string) => playerTargetSec(id);
     const shortfall = (id: string) => effectiveTargetSec(id) - (projected.get(id) || 0);
     const needScore = (id: string, absT: number, queueIndex = 0) => {
       const need = shortfall(id);
@@ -932,7 +978,7 @@ export function createSubPlan(
       // would stay below by this window, allow pulling sub up to ~2 min earlier.
       const isForcedGkWindow = forcedInByWindow.has(t) || forcedOutByWindow.has(t);
       const benchUnder = benchOrder.filter(
-        id => (projected.get(id) || 0) < minThresholdSec
+        id => (projected.get(id) || 0) < effectiveMinSec(id)
       );
       if (!isForcedGkWindow && benchUnder.length > 0) {
         const earliest = Math.max(lastTickAbs + 60, t - PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS);
@@ -999,7 +1045,7 @@ export function createSubPlan(
           // reached the top of the allowed spread (gkCeilingSec). Their
           // outfield run should land them at equal-highest minutes.
           .filter(id => !isGkProtected(id) || !needsProtectedOutfieldRun(id) || (projected.get(id) || 0) >= gkCeilingSec - 30)
-          .filter(id => (projected.get(id) || 0) > maxThresholdSec || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
+          .filter(id => (projected.get(id) || 0) > playerMaxThresholdSec(id) || benchOrder.some(benchId => (projected.get(benchId) || 0) < effectiveMinSec(benchId)))
           .sort((a, b) => {
             // GK-protected promotion: prefer pulling non-GK-protected first
             // when a GK-protected on-pitch is still below ceiling.
@@ -1012,6 +1058,8 @@ export function createSubPlan(
             const aNB = neverBenched.has(a) ? 1 : 0;
             const bNB = neverBenched.has(b) ? 1 : 0;
             if (aNB !== bNB) return bNB - aNB;
+            const priorityCmp = priorityPullOffCompare(a, b);
+            if (priorityCmp !== 0) return priorityCmp;
             return (projected.get(b) || 0) - (projected.get(a) || 0);
           });
 
@@ -1081,6 +1129,8 @@ export function createSubPlan(
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
+              const priorityCmp = priorityPullOffCompare(a, b);
+              if (priorityCmp !== 0) return priorityCmp;
               if (aNB === 1 && bNB === 1) {
                 return onPitchOrder.indexOf(b) - onPitchOrder.indexOf(a);
               }
@@ -1103,7 +1153,7 @@ export function createSubPlan(
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => !windowOuts.has(b.id))
           .filter(b => b.proj < effectiveMinSec(b.id))
-          .sort((a, b) => b.score - a.score);
+          .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id));
 
         let inId: string | undefined;
         const forcedInId = forcedInByWindow.get(t);
@@ -1121,11 +1171,11 @@ export function createSubPlan(
           const fifoCandidates = benchOrder
             .map((id, index) => ({ id, index, score: needScore(id, t, index), projected: projected.get(id) || 0 }))
             .filter(item => !windowOuts.has(item.id))
-            .filter(item => item.projected <= maxThresholdSec);
+            .filter(item => item.projected <= playerMaxThresholdSec(item.id));
           const fifoFirst = fifoCandidates[0];
           const urgent = fifoCandidates
             .filter(item => item.projected < targetSecPerPlayer)
-            .sort((a, b) => b.score - a.score)[0];
+            .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id))[0];
           const fifoIdx = (urgent && (!fifoFirst || urgent.score > fifoFirst.score + 500))
             ? urgent.index
             : fifoFirst?.index ?? -1;
@@ -1508,13 +1558,13 @@ export function createSubPlan(
   const sharedTotalTarget = playerData.length > 0
     ? (totalExistingSeconds + totalRemainingSeconds * teamSize) / playerData.length
     : 0;
-  const rawFieldTargets = new Map<string, number>();
+    const rawFieldTargets = new Map<string, number>();
   outfieldPlayers.forEach(p => {
     // FAIRNESS: every player aims for the SAME total minutes (field + GK duty).
     // GKs already have GK time banked, so their outfield target is the shared
     // total minus their GK duty. They naturally play LESS outfield, not more —
     // landing them at equal total minutes alongside everyone else.
-    const base = Math.max(0, sharedTotalTarget - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
+      const base = Math.max(0, sharedTotalTarget + priorityTargetBiasSeconds(p.id) - (p.minutesPlayed || 0) - gkDutySeconds(p.id));
     rawFieldTargets.set(p.id, base);
   });
   const rawTargetTotal = Array.from(rawFieldTargets.values()).reduce((sum, value) => sum + value, 0);
@@ -1812,7 +1862,7 @@ export function createSubPlan(
       const isProtected =
         (includeStartingGkInRotation && id === gkOnPitch?.id) ||
         (halftimeGkIn ? id === halftimeGkIn.id : false);
-      const target = isProtected ? gkCeilingTotal : sharedTotalTarget;
+      const target = (isProtected ? gkCeilingTotal : sharedTotalTarget) + priorityTargetBiasSeconds(id);
       return Math.max(baseMinutes + gkDutySeconds(id), target);
     };
     const shortfall = (id: string) => playerTotalTarget(id) - totalProjected(id);
@@ -3576,6 +3626,94 @@ function PlanModeToggles({
   );
 }
 
+// ===========================================================================
+// SortablePlayerMinutesRow — drag handle + minute-forecast row used in the
+// "Show all player minutes" list. Drag is enabled only for outfielders so
+// the coach can soft-bias rotation order without disturbing locked GKs.
+// ===========================================================================
+function SortablePlayerMinutesRow({
+  forecast,
+  fairnessReport,
+  draggable,
+}: {
+  forecast: PlayerTimeForecast;
+  fairnessReport: FairnessReport | null;
+  draggable: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: forecast.player.id,
+    disabled: !draggable,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-lg bg-muted/50",
+        isDragging && "ring-2 ring-primary/40"
+      )}
+    >
+      {draggable ? (
+        <button
+          type="button"
+          aria-label="Drag to reorder priority"
+          className="touch-none p-1 -ml-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      ) : (
+        <div className="w-6 shrink-0" aria-hidden />
+      )}
+      <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0">
+        {forecast.player.number || "?"}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium truncate">{forecast.player.name}</span>
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-xs px-1.5 py-0",
+              forecast.startsOnPitch ? "border-emerald-500/50 text-emerald-500" : "border-muted-foreground/50"
+            )}
+          >
+            {forecast.startsOnPitch ? 'Start' : 'Bench'}
+          </Badge>
+          {forecast.gkRole && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600">
+              {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
+            </Badge>
+          )}
+          {stat?.shortShifts ? (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
+              {stat.shortShifts} very short
+            </Badge>
+          ) : null}
+          {stat?.bounceBacks ? (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
+              {stat.bounceBacks} bounce
+            </Badge>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <Progress value={forecast.percentageOfGame} className="h-2 flex-1" />
+          <span className="text-xs text-muted-foreground w-20 text-right shrink-0 tabular-nums">
+            {forecast.predictedMinutes}' ({forecast.percentageOfGame}%)
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DialogInner({
   players, 
   teamSize, 
@@ -3595,6 +3733,7 @@ function DialogInner({
   isSetupFlow = false,
   miniLeagueTeams,
   advancedOverrides,
+  onLineupChange,
 }: {
   players: Player[];
   teamSize: number;
@@ -3614,13 +3753,18 @@ function DialogInner({
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
   advancedOverrides?: AutoSubAdvancedOverrides;
+  onLineupChange?: (players: Player[]) => void;
 }) {
-  const isExistingPlanPlayable = !!existingPlan?.some(s => !s.executed && !s.skipped) &&
-    isPlanPlayableFromPlayers(players, existingPlan, minutesPerHalf * 60);
-  // Treat empty/stale existing plans as no plan so auto-generation kicks in.
-  // A stale plan can reference an impossible state after lineup changes, which
-  // made the forecast show bench players stuck on 0 minutes.
-  const effectiveExistingPlan = isExistingPlanPlayable ? existingPlan : undefined;
+  const hasRemainingPlan = !!existingPlan?.some(s => !s.executed && !s.skipped);
+  const isExistingPlanPlayable = hasRemainingPlan &&
+    isPlanPlayableFromPlayers(players, existingPlan!, minutesPerHalf * 60);
+  // In edit mode, always load the existing plan so the user can review/adjust
+  // it — even if the lineup has drifted and made it technically unplayable.
+  // In forecast mode, treat stale plans as none so auto-generation kicks in
+  // (a stale plan would render bench players stuck on 0 minutes).
+  const effectiveExistingPlan = editMode
+    ? (hasRemainingPlan ? existingPlan : undefined)
+    : (isExistingPlanPlayable ? existingPlan : undefined);
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const activeTab: 'forecast' | 'edit' = editMode ? 'edit' : 'forecast';
@@ -3670,6 +3814,18 @@ function DialogInner({
   // length — drives a disabled Frequent toggle so the coach can't pick a
   // mode that would silently fall back to Standard.
   const [frequentBlocked, setFrequentBlocked] = useState(false);
+  // Coach-supplied priority order — top of list = wants more minutes.
+  // Soft bias only: nudges minutes among bench-rotation outfielders without
+  // overriding fairness/short-shift rules. `null` = neutral (planner default).
+  const [playerPriority, setPlayerPriority] = useState<string[] | null>(null);
+  // Players after applying priority-bias position swaps. When the coach
+  // drags a bench player above a starter, this view actually swaps their
+  // positions so the planner — and its forecasts — reflect the new lineup.
+  // Falls back to the input `players` when no bias is active.
+  const [effectivePlayers, setEffectivePlayers] = useState<Player[]>(players);
+  // PointerSensor with a small activation distance so taps on rows still
+  // scroll naturally; only deliberate drags from the grip handle reorder.
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
@@ -3699,12 +3855,55 @@ function DialogInner({
     ? effectiveOverrides.maxSpreadOverrideSec / 60
     : maxSpreadMinutes;
 
-  const generatePlan = (allPlayers: Player[]) => {
+  /**
+   * Build a plan from the given roster, with optional priority-bias position
+   * swaps. When the coach has dragged players in the priority list, we run
+   * an iterative loop: generate a plan, compute forecasts, and if a
+   * higher-priority outfielder has materially fewer minutes (>1.5m) than a
+   * lower-priority outfielder below them, physically swap their lineup
+   * positions and regenerate. GKs (full-game) are pinned. Loops until
+   * stable or 8 iterations to prevent runaway recalculation.
+   *
+   * Returns both the plan AND the player roster used to generate it so the
+   * caller can mirror those position swaps to the parent's lineup before
+   * the plan starts running.
+   */
+  const buildPlanFromRoster = (roster: Player[], speed: 1 | 2): { plan: SubstitutionEvent[]; roster: Player[] } => {
     const halfDurationSeconds = minutesPerHalf * 60;
-    if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    const planningOverrides: AutoSubAdvancedOverrides = playerPriority?.length
+      ? { ...effectiveOverrides, playerPriorityOrder: playerPriority }
+      : effectiveOverrides;
+    const make = (rs: Player[]) => miniLeagueTeams
+      ? createMiniLeagueSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, planningOverrides)
+      : createSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, planningOverrides);
+
+    let working = roster;
+    if (playerPriority && playerPriority.length >= 2) {
+      const rank = new Map(playerPriority.map((id, index) => [id, index] as const));
+      const isSwappableOutfielder = (p: Player) =>
+        p.currentPitchPosition !== "GK" && !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK");
+      const outfieldStarterCount = working.filter(p => p.position !== null && isSwappableOutfielder(p)).length;
+      const desiredStarters = new Set(
+        playerPriority
+          .filter(id => working.some(p => p.id === id && isSwappableOutfielder(p)))
+          .slice(0, outfieldStarterCount)
+      );
+
+      for (const desiredId of desiredStarters) {
+        const desired = working.find(p => p.id === desiredId);
+        if (!desired || desired.position !== null) continue;
+        const replacement = working
+          .filter(p => p.position !== null && isSwappableOutfielder(p) && !desiredStarters.has(p.id))
+          .sort((a, b) => (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER))[0];
+        if (replacement) working = swapLineupPositions(working, desiredId, replacement.id);
+      }
     }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+
+    return { plan: make(working), roster: working };
+  };
+
+  const generatePlan = (allPlayers: Player[]) => {
+    return buildPlanFromRoster(allPlayers, effectiveRotationSpeed);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -3737,20 +3936,17 @@ function DialogInner({
         const frequentNotViable = probeStranded.length > 0;
         setFrequentBlocked(frequentNotViable);
 
-        // If Frequent isn't viable but the coach is on Frequent, force them
-        // back to Standard so the toggle UI matches the plan being shown.
         if (frequentNotViable && effectiveRotationSpeed === 2) {
           setRotationSpeedOverride(1);
           setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
-          // Build the Standard plan now so we don't render a stale Frequent
-          // plan for one frame before the override change re-runs the effect.
-          const standardPlan = miniLeagueTeams
-            ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-            : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+          const { plan: standardPlan, roster: standardRoster } = buildPlanFromRoster(players, 1);
+          setEffectivePlayers(standardRoster);
           setPlan(standardPlan);
         } else {
           if (!frequentNotViable) setFrequentFallbackNotice(null);
-          setPlan(generatePlan(players));
+          const { plan: nextPlan, roster: nextRoster } = generatePlan(players);
+          setEffectivePlayers(nextRoster);
+          setPlan(nextPlan);
         }
       } catch (error) {
         console.error("Error auto-generating plan:", error);
@@ -3777,6 +3973,8 @@ function DialogInner({
     players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
     // Regenerate when advanced overrides change.
     JSON.stringify(effectiveOverrides),
+    // Re-run bias when the coach reorders the priority list.
+    playerPriority ? playerPriority.join('|') : '',
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -3788,8 +3986,8 @@ function DialogInner({
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
     if (!plan) return [];
-    return calculateTimeForecasts(players, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-  }, [plan, players, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
+    return calculateTimeForecasts(effectivePlayers, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+  }, [plan, effectivePlayers, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds]);
 
   // Reset stale fairness report whenever the plan changes (regen, edits, etc.)
   useEffect(() => { setFairnessReport(null); }, [plan]);
@@ -3815,8 +4013,9 @@ function DialogInner({
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
       try {
-        const generatedPlan = generatePlan(players);
+        const { plan: generatedPlan, roster: generatedRoster } = generatePlan(players);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs", miniLeagueTeams ? "(mini-league per-team)" : "");
+        setEffectivePlayers(generatedRoster);
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error generating plan:", error);
@@ -3829,6 +4028,16 @@ function DialogInner({
   
   const handleStart = () => {
     if (plan && plan.length > 0) {
+      // If priority bias swapped any starter↔bench positions, push the new
+      // lineup back to the parent so the pitch matches the plan that's
+      // about to run.
+      if (onLineupChange) {
+        const lineupChanged = effectivePlayers.some(ep => {
+          const orig = players.find(p => p.id === ep.id);
+          return !orig || orig.position !== ep.position;
+        });
+        if (lineupChanged) onLineupChange(effectivePlayers);
+      }
       onStartPlan(plan);
       onClose();
     }
@@ -4046,69 +4255,89 @@ function DialogInner({
                 <span>{showAllMinutes ? "Hide all player minutes" : "Show all player minutes"}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllMinutes ? "rotate-180" : "")} />
               </button>
-              {showAllMinutes && forecasts.map(forecast => (
-                <div 
-                  key={forecast.player.id}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0">
-                    {forecast.player.number || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium truncate">
-                        {forecast.player.name}
-                      </span>
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs px-1.5 py-0",
-                          forecast.startsOnPitch 
-                            ? "border-emerald-500/50 text-emerald-500" 
-                            : "border-muted-foreground/50"
+              {showAllMinutes && (() => {
+                // Outfielders are draggable; full-game GKs are pinned at the
+                // bottom and non-draggable so the bias pass never tries to
+                // touch them.
+                const outfield = forecasts.filter(f => f.gkRole !== 'full');
+                const fullGks = forecasts.filter(f => f.gkRole === 'full');
+                const priority = playerPriority ?? [];
+                const orderedOutfield = [...outfield].sort((a, b) => {
+                  const ai = priority.indexOf(a.player.id);
+                  const bi = priority.indexOf(b.player.id);
+                  if (ai === -1 && bi === -1) {
+                    // Default: most predicted minutes first (mirrors the
+                    // implicit "current top of list" so first drag is intuitive).
+                    return b.predictedMinutes - a.predictedMinutes;
+                  }
+                  if (ai === -1) return 1;
+                  if (bi === -1) return -1;
+                  return ai - bi;
+                });
+                const sortableIds = orderedOutfield.map(f => f.player.id);
+
+                const handleDragEnd = (e: DragEndEvent) => {
+                  const { active, over } = e;
+                  if (!over || active.id === over.id) return;
+                  const oldIndex = sortableIds.indexOf(String(active.id));
+                  const newIndex = sortableIds.indexOf(String(over.id));
+                  if (oldIndex < 0 || newIndex < 0) return;
+                  const next = arrayMove(sortableIds, oldIndex, newIndex);
+                  setPlayerPriority(next);
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                      <span className="flex items-center gap-1.5">
+                        <GripVertical className="h-3 w-3" />
+                        Drag to prioritise — top players get nudged more minutes.
+                        {isGenerating && (
+                          <span className="ml-1 inline-flex items-center gap-1 text-primary">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Updating…
+                          </span>
                         )}
-                      >
-                        {forecast.startsOnPitch ? 'Start' : 'Bench'}
-                      </Badge>
-                      {forecast.gkRole && (
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600"
-                        >
-                          {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
-                        </Badge>
-                      )}
-                      {(() => {
-                        const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
-                        if (!stat) return null;
-                        return (
-                          <>
-                            {stat.shortShifts > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
-                                {stat.shortShifts} very short
-                              </Badge>
-                            )}
-                            {stat.bounceBacks > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
-                                {stat.bounceBacks} bounce
-                              </Badge>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Progress 
-                        value={forecast.percentageOfGame} 
-                        className="h-2 flex-1"
-                      />
-                      <span className="text-xs text-muted-foreground w-20 text-right shrink-0">
-                        {forecast.predictedMinutes}' ({forecast.percentageOfGame}%)
                       </span>
+                      {playerPriority && playerPriority.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPlayerPriority(null)}
+                          className="text-primary hover:underline"
+                        >
+                          Reset priority
+                        </button>
+                      )}
                     </div>
-                  </div>
-                </div>
-              ))}
+                    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1.5">
+                          {orderedOutfield.map(forecast => (
+                            <SortablePlayerMinutesRow
+                              key={forecast.player.id}
+                              forecast={forecast}
+                              fairnessReport={fairnessReport}
+                              draggable
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    {fullGks.length > 0 && (
+                      <div className="space-y-1.5 mt-1.5">
+                        {fullGks.map(forecast => (
+                          <SortablePlayerMinutesRow
+                            key={forecast.player.id}
+                            forecast={forecast}
+                            fairnessReport={fairnessReport}
+                            draggable={false}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
           </div>
@@ -4167,8 +4396,10 @@ export default function AutoSubPlanDialog({
   currentHalf = 1,
   preferredSecondHalfGkId,
   showStepper = false,
+  onBackToLineup,
   miniLeagueTeams,
   advancedOverrides,
+  onLineupChange,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -4199,8 +4430,22 @@ export default function AutoSubPlanDialog({
             <div className="flex items-center gap-3">
               {!editMode && showStepper && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
-                  <span>Lineup</span>
+                  {onBackToLineup ? (
+                    <button
+                      type="button"
+                      onClick={onBackToLineup}
+                      className="flex items-center gap-1.5 rounded-md px-1 py-0.5 -mx-1 hover:bg-muted/60 transition-colors"
+                      aria-label="Go back to lineup"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
+                      <span className="underline-offset-2 hover:underline">Lineup</span>
+                    </button>
+                  ) : (
+                    <>
+                      <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
+                      <span>Lineup</span>
+                    </>
+                  )}
                   <span className="text-muted-foreground/50 mx-0.5">→</span>
                   <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold">2</span>
                   <span className="font-medium text-foreground">Subs</span>
@@ -4235,6 +4480,7 @@ export default function AutoSubPlanDialog({
                 isSetupFlow={showStepper}
                 miniLeagueTeams={miniLeagueTeams}
                 advancedOverrides={advancedOverrides}
+                onLineupChange={onLineupChange}
               />
             )}
           </div>
@@ -4337,7 +4583,7 @@ function AdvancedSettingsPanel({
   const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
     .filter(k => overrides[k] !== undefined).length;
 
-  const set = (key: keyof AutoSubAdvancedOverrides, next: number | undefined) => {
+  const set = (key: Exclude<keyof AutoSubAdvancedOverrides, "playerPriorityOrder">, next: number | undefined) => {
     if (readOnly) return;
     const merged: AutoSubAdvancedOverrides = { ...overrides };
     if (next === undefined) delete merged[key];

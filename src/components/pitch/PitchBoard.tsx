@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Link2Off, Settings, UserCog, ClipboardList, Check, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -122,6 +122,7 @@ interface PitchBoardProps {
   initialMode?: PitchBoardMode;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
+  onUnlinkEvent?: () => void;
 }
 
 // Loading fallback for lazy-loaded dialogs
@@ -145,7 +146,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -704,7 +705,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
   }, [linkedEventId, teamId, teamName, user?.id]);
-  
+
   // Undo history for subs and swaps (stores player states)
   const [undoHistory, setUndoHistory] = useState<{ players: Player[]; description: string }[]>([]);
   const MAX_UNDO_HISTORY = 10;
@@ -835,6 +836,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
+
+  // Auto-unlink the game 24h after kickoff so stale fixtures don't stay
+  // attached to the pitch board indefinitely. Re-checks hourly while mounted.
+  useEffect(() => {
+    if (!linkedEventId || !linkedEventDetails?.start_time) return;
+    const checkExpiry = () => {
+      const kickoff = new Date(linkedEventDetails.start_time as string).getTime();
+      if (!Number.isFinite(kickoff)) return;
+      const ageMs = Date.now() - kickoff;
+      if (ageMs > 24 * 60 * 60 * 1000) {
+        setLinkedEventId(null);
+      }
+    };
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [linkedEventId, linkedEventDetails?.start_time]);
 
   // Extract opponent name from linked event
   const opponentName = useMemo(() => {
@@ -1449,6 +1467,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
+  const [cancelPlanConfirmOpen, setCancelPlanConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
@@ -3291,6 +3310,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setZoom(1);
   };
 
+  const handleUnlinkEvent = useCallback(async () => {
+    setLinkedEventId(null);
+    onUnlinkEvent?.();
+
+    savePitchState(teamId, {
+      players,
+      teamSize,
+      selectedFormation,
+      ballPosition,
+      autoSubPlan,
+      autoSubActive,
+      autoSubPaused,
+      mockMode,
+      linkedEventId: null,
+      goals,
+    });
+
+    if (user?.id && !teamId.startsWith("event-group-")) {
+      await supabase
+        .from("active_games")
+        .update({ is_active: false })
+        .eq("team_id", teamId)
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["team-active-game", teamId] });
+    toast({
+      title: "Game Unlinked",
+      description: "This board is no longer linked to the match.",
+    });
+  }, [autoSubActive, autoSubPaused, autoSubPlan, ballPosition, goals, mockMode, onUnlinkEvent, players, queryClient, selectedFormation, teamId, teamSize, toast, user?.id]);
+
   // Reset game - clears all player minutes, timer, and positions
   const handleResetGame = useCallback((silent = false) => {
     // Stop the timer first
@@ -4230,53 +4282,55 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       description: `${player?.name} ${newInjuredState ? "will not be available for substitutions" : "is now available for substitutions"}`,
     });
     
-    // If player was in auto-sub plan, recalculate
-    if (autoSubActive && newInjuredState) {
-      const isInPlan = autoSubPlan.some(sub => 
-        !sub.executed && (sub.playerIn.id === playerId)
+    // If a sub plan exists and player became injured, recalculate the
+    // remaining plan so the injured player is excluded from rotation.
+    if (newInjuredState && autoSubPlan.some(s => !s.executed)) {
+      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
+      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+
+      const updatedPlayers = players.map(p =>
+        p.id === playerId ? { ...p, isInjured: true } : p
       );
-      if (isInPlan) {
-        const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
-        const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-        const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-        
-        const updatedPlayers = players.map(p => 
-          p.id === playerId ? { ...p, isInjured: true } : p
-        );
-        
-        const executedSubs = autoSubPlan.filter(s => s.executed);
-        const remainingSubs = autoSubPlan.filter(s => !s.executed);
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers,
-          parseInt(teamSize),
-          minutesPerHalfSecs,
-          currentElapsed,
-          currentHalf,
-          autoSubPlan.find(sub => !sub.executed && sub.playerIn.id === playerId)!,
-          rotateGkAtHalftime
-        );
-        
-        // Safety guard: don't let recalculation wipe remaining plan
-        let finalPlan: typeof autoSubPlan;
-        if (recalculated.length > 0 || remainingSubs.length === 0) {
-          finalPlan = [...executedSubs, ...recalculated];
+
+      const executedSubs = autoSubPlan.filter(s => s.executed);
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      // Anchor on a sub referencing the injured player if present, otherwise
+      // the first remaining sub — recalculation rebuilds the rest from current time.
+      const anchor =
+        remainingSubs.find(sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId) ||
+        remainingSubs[0];
+
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        minutesPerHalfSecs,
+        currentElapsed,
+        currentHalf,
+        anchor,
+        rotateGkAtHalftime
+      );
+
+      let finalPlan: typeof autoSubPlan;
+      if (recalculated.length > 0 || remainingSubs.length === 0) {
+        finalPlan = [...executedSubs, ...recalculated];
+      } else {
+        const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+        if (benchPlayers.length > 0) {
+          console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
+          // Strip any remaining sub that still references the injured player
+          finalPlan = [...executedSubs, ...remainingSubs.filter(s => s.playerIn.id !== playerId && s.playerOut.id !== playerId)];
         } else {
-          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
-          if (benchPlayers.length > 0) {
-            console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
-            finalPlan = [...executedSubs, ...remainingSubs];
-          } else {
-            finalPlan = [...executedSubs, ...recalculated];
-          }
+          finalPlan = [...executedSubs, ...recalculated];
         }
-        setAutoSubPlan(finalPlan);
-        toast({
-          title: "Sub plan updated",
-          description: "Auto-substitution plan recalculated due to injury",
-        });
       }
+      setAutoSubPlan(finalPlan);
+      toast({
+        title: "Sub plan updated",
+        description: "Auto-substitution plan recalculated due to injury",
+      });
     }
-  }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize]);
+  }, [readOnly, players, toast, autoSubPlan, teamSize, rotateGkAtHalftime]);
 
   // Mark a pitch player as injured: sub them off, bring a bench player on, regenerate plan
   const handleMarkInjuredOnPitch = useCallback((playerId: string, replacementId?: string) => {
@@ -4314,8 +4368,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       });
     }
 
-    // Regenerate auto-sub plan if active
-    if (autoSubActive) {
+    // Regenerate auto-sub plan whenever a plan exists with remaining subs.
+    if (autoSubPlan.some(s => !s.executed)) {
       const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
       const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
       const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
@@ -4330,45 +4384,44 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         return p;
       });
 
-      // Find any sub referencing the injured or replacement player to trigger recalculation
-      const relevantSub = autoSubPlan.find(sub =>
-        !sub.executed && (sub.playerOut.id === playerId || sub.playerIn.id === playerId ||
-          (replacement && (sub.playerOut.id === replacement.id || sub.playerIn.id === replacement.id)))
+      const executedSubs = autoSubPlan.filter(s => s.executed);
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      // Prefer a sub referencing the injured/replacement player, else first remaining.
+      const anchor =
+        remainingSubs.find(sub =>
+          sub.playerOut.id === playerId || sub.playerIn.id === playerId ||
+          (replacement && (sub.playerOut.id === replacement.id || sub.playerIn.id === replacement.id))
+        ) || remainingSubs[0];
+
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        minutesPerHalfSecs,
+        currentElapsed,
+        currentHalf,
+        anchor,
+        rotateGkAtHalftime
       );
-      if (relevantSub) {
-        const executedSubs = autoSubPlan.filter(s => s.executed);
-        const remainingSubs = autoSubPlan.filter(s => !s.executed);
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers,
-          parseInt(teamSize),
-          minutesPerHalfSecs,
-          currentElapsed,
-          currentHalf,
-          relevantSub,
-          rotateGkAtHalftime
-        );
-        
-        // Safety guard: don't let recalculation wipe remaining plan
-        let finalPlan: typeof autoSubPlan;
-        if (recalculated.length > 0 || remainingSubs.length === 0) {
-          finalPlan = [...executedSubs, ...recalculated];
+
+      let finalPlan: typeof autoSubPlan;
+      if (recalculated.length > 0 || remainingSubs.length === 0) {
+        finalPlan = [...executedSubs, ...recalculated];
+      } else {
+        const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+        if (benchPlayers.length > 0) {
+          console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
+          finalPlan = [...executedSubs, ...remainingSubs.filter(s => s.playerIn.id !== playerId && s.playerOut.id !== playerId)];
         } else {
-          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
-          if (benchPlayers.length > 0) {
-            console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
-            finalPlan = [...executedSubs, ...remainingSubs];
-          } else {
-            finalPlan = [...executedSubs, ...recalculated];
-          }
+          finalPlan = [...executedSubs, ...recalculated];
         }
-        setAutoSubPlan(finalPlan);
-        toast({
-          title: "Sub plan updated",
-          description: "Auto-substitution plan recalculated due to injury",
-        });
       }
+      setAutoSubPlan(finalPlan);
+      toast({
+        title: "Sub plan updated",
+        description: "Auto-substitution plan recalculated due to injury",
+      });
     }
-  }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize, pushToUndoHistory]);
+  }, [readOnly, players, toast, autoSubPlan, teamSize, pushToUndoHistory, rotateGkAtHalftime]);
 
   // Add fill-in player to the bench
   const handleAddFillInPlayer = useCallback((playerData: { name: string; number?: number; positions: PitchPosition[] }) => {
@@ -4391,7 +4444,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Fill-in player added",
       description: `${playerData.name} has been added to the bench`,
     });
-  }, [readOnly, toast]);
+
+    // If a sub plan exists, recalculate so the new bench player is included.
+    if (autoSubPlan.some(s => !s.executed)) {
+      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
+      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+
+      const updatedPlayers = [...players, newPlayer];
+      const executedSubs = autoSubPlan.filter(s => s.executed);
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      const anchor = remainingSubs[0];
+
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        minutesPerHalfSecs,
+        currentElapsed,
+        currentHalf,
+        anchor,
+        rotateGkAtHalftime
+      );
+
+      const finalPlan = recalculated.length > 0
+        ? [...executedSubs, ...recalculated]
+        : [...executedSubs, ...remainingSubs];
+      setAutoSubPlan(finalPlan);
+      toast({
+        title: "Sub plan updated",
+        description: "Auto-substitution plan recalculated for new fill-in",
+      });
+    }
+  }, [readOnly, toast, players, autoSubPlan, teamSize, rotateGkAtHalftime]);
 
   // Remove fill-in player
   const handleRemoveFillInPlayer = useCallback((playerId: string) => {
@@ -4745,6 +4829,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
                         </button>
+                        {linkedEventId && (
+                          <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleUnlinkEvent(); setSettingsMenuOpen(false); }}>
+                            <Link2Off className="h-4 w-4" />
+                            Unlink from Game
+                          </button>
+                        )}
                         <div className="h-px bg-border mx-2 my-1" />
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -4790,6 +4880,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   gameTimerRunning={!!gameTimerRef.current?.isRunning()}
                   gameFinished={!!gameTimerRef.current?.isGameFinished()}
                   onResetGame={handleResetGame}
+                  linkedEventId={linkedEventId}
+                  onUnlinkEvent={handleUnlinkEvent}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
                   onSaveSettings={handleSaveSettings}
@@ -5933,7 +6025,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         <AutoSubPlanDialog
           open={autoSubPlanDialogOpen}
           onOpenChange={setAutoSubPlanDialogOpen}
-          players={players}
+          players={players.filter(p => !p.isInjured)}
           teamSize={parseInt(teamSize)}
           minutesPerHalf={minutesPerHalf}
           onStartPlan={handleStartAutoSubPlan}
@@ -5947,8 +6039,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
           currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
           showStepper={autoSubFromPreGame}
+          onBackToLineup={autoSubFromPreGame ? () => { setAutoSubPlanDialogOpen(false); setShowLineupPicker(true); } : undefined}
           miniLeagueTeams={miniLeagueTeams}
           preferredSecondHalfGkId={preferredSecondHalfGkId}
+          onLineupChange={(updatedPlayers) => {
+            // Sync priority-bias starter↔bench swaps back to the pitch so
+            // the active lineup matches the plan that's about to run.
+            setPlayers(prev => prev.map(p => {
+              const u = updatedPlayers.find(x => x.id === p.id);
+              if (!u) return p;
+              if (u.position === p.position && u.currentPitchPosition === p.currentPitchPosition) return p;
+              return { ...p, position: u.position, currentPitchPosition: u.currentPitchPosition };
+            }));
+          }}
         />
 
         {/* Sub Confirm Dialog */}
@@ -6123,7 +6226,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
               minutesPerHalf={minutesPerHalf}
               onTogglePause={handleTogglePauseAutoSub}
-              onCancelPlan={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); }}
+              onCancelPlan={() => setCancelPlanConfirmOpen(true)}
               onSkipNext={handleSkipNextSub}
               onExecuteNow={handleExecuteNow}
               onEditPlan={() => { handleOpenEditPlan(); setAutoSubPanelOpen(false); }}
@@ -6324,6 +6427,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <BarChart3 className="h-4 w-4" />
                       Match Stats
                     </button>
+                    {linkedEventId && !readOnly && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleUnlinkEvent(); setSettingsMenuOpen(false); }}>
+                        <Link2Off className="h-4 w-4" />
+                        Unlink from Game
+                      </button>
+                    )}
                     {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -6374,6 +6483,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 gameTimerRunning={!!gameTimerRef.current?.isRunning()}
                 gameFinished={!!gameTimerRef.current?.isGameFinished()}
                 onResetGame={handleResetGame}
+                linkedEventId={linkedEventId}
+                onUnlinkEvent={handleUnlinkEvent}
                 onResetFormation={handleResetFormation}
                 onOpenStats={() => setStatsOpen(true)}
                 onSaveSettings={handleSaveSettings}
@@ -7403,6 +7514,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Cancel Auto-Sub Plan Confirmation */}
+      <AlertDialog open={cancelPlanConfirmOpen} onOpenChange={setCancelPlanConfirmOpen}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Auto-Sub Plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current auto-sub plan will be discarded. You can generate a new one at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Plan</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); setCancelPlanConfirmOpen(false); }}
+            >
+              Cancel Plan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Bench Injury Confirmation - portrait */}
       <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
         <AlertDialogContent className="z-[999999]">
@@ -7454,7 +7586,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       <AutoSubPlanDialog
         open={autoSubPlanDialogOpen}
         onOpenChange={setAutoSubPlanDialogOpen}
-        players={players}
+        players={players.filter(p => !p.isInjured)}
         teamSize={parseInt(teamSize)}
         minutesPerHalf={minutesPerHalf}
         onStartPlan={handleStartAutoSubPlan}
@@ -7468,8 +7600,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentElapsedSeconds={autoSubFromPreGame ? 0 : (gameTimerRef.current?.getElapsedSeconds() || 0)}
         currentHalf={autoSubFromPreGame ? 1 : (gameTimerRef.current?.getCurrentHalf() || 1)}
         showStepper={autoSubFromPreGame}
+        onBackToLineup={autoSubFromPreGame ? () => { setAutoSubPlanDialogOpen(false); setShowLineupPicker(true); } : undefined}
         miniLeagueTeams={miniLeagueTeams}
         preferredSecondHalfGkId={preferredSecondHalfGkId}
+        onLineupChange={(updatedPlayers) => {
+          setPlayers(prev => prev.map(p => {
+            const u = updatedPlayers.find(x => x.id === p.id);
+            if (!u) return p;
+            if (u.position === p.position && u.currentPitchPosition === p.currentPitchPosition) return p;
+            return { ...p, position: u.position, currentPitchPosition: u.currentPitchPosition };
+          }));
+        }}
       />
 
       {/* Auto-Sub Control Panel */}
@@ -7484,7 +7625,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
             minutesPerHalf={minutesPerHalf}
             onTogglePause={handleTogglePauseAutoSub}
-            onCancelPlan={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); }}
+            onCancelPlan={() => setCancelPlanConfirmOpen(true)}
             onSkipNext={handleSkipNextSub}
             onExecuteNow={handleExecuteNow}
             onEditPlan={() => { handleOpenEditPlan(); setAutoSubPanelOpen(false); }}
