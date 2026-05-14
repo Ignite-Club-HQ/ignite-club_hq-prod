@@ -1058,6 +1058,8 @@ export function createSubPlan(
             const aNB = neverBenched.has(a) ? 1 : 0;
             const bNB = neverBenched.has(b) ? 1 : 0;
             if (aNB !== bNB) return bNB - aNB;
+            const priorityCmp = priorityPullOffCompare(a, b);
+            if (priorityCmp !== 0) return priorityCmp;
             return (projected.get(b) || 0) - (projected.get(a) || 0);
           });
 
@@ -1127,6 +1129,8 @@ export function createSubPlan(
               const aNB = neverBenched.has(a) ? 1 : 0;
               const bNB = neverBenched.has(b) ? 1 : 0;
               if (aNB !== bNB) return bNB - aNB;
+              const priorityCmp = priorityPullOffCompare(a, b);
+              if (priorityCmp !== 0) return priorityCmp;
               if (aNB === 1 && bNB === 1) {
                 return onPitchOrder.indexOf(b) - onPitchOrder.indexOf(a);
               }
@@ -1149,7 +1153,7 @@ export function createSubPlan(
           .map((id, index) => ({ id, proj: projected.get(id) || 0, score: needScore(id, t, index) }))
           .filter(b => !windowOuts.has(b.id))
           .filter(b => b.proj < effectiveMinSec(b.id))
-          .sort((a, b) => b.score - a.score);
+          .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id));
 
         let inId: string | undefined;
         const forcedInId = forcedInByWindow.get(t);
@@ -1171,7 +1175,7 @@ export function createSubPlan(
           const fifoFirst = fifoCandidates[0];
           const urgent = fifoCandidates
             .filter(item => item.projected < targetSecPerPlayer)
-            .sort((a, b) => b.score - a.score)[0];
+            .sort((a, b) => (b.score - a.score) || priorityBringOnCompare(a.id, b.id))[0];
           const fifoIdx = (urgent && (!fifoFirst || urgent.score > fifoFirst.score + 500))
             ? urgent.index
             : fifoFirst?.index ?? -1;
