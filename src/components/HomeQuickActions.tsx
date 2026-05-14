@@ -31,16 +31,19 @@ export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams 
 
   return (
     <section className="px-1">
-      <div className="flex items-center gap-2">
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}
+      >
         {actions.map((action) => (
           <button
             key={action.label}
             type="button"
             onClick={action.onClick}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-border bg-card/60 hover:bg-accent/40 active:bg-accent active:scale-[0.97] transition-all text-xs font-medium text-foreground touch-manipulation select-none cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-full border border-border bg-card/60 hover:bg-accent/40 active:bg-accent active:scale-[0.97] transition-all text-xs font-medium text-foreground touch-manipulation select-none cursor-pointer"
           >
-            <action.icon className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{action.label}</span>
+            <action.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="truncate">{action.label}</span>
           </button>
         ))}
       </div>
