@@ -65,6 +65,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     }
     mountedAtRef.current = Date.now();
 
+    // Clear any text selection left behind by the long-press that opened the
+    // picker. On Android WebView this otherwise leaves a teal selection handle
+    // floating between the picker and the message bubble.
+    try {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+    } catch {}
+
     const updatePosition = () => {
       const anchor = anchorRef.current;
       if (!anchor) return;
