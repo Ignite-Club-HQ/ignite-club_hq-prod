@@ -20,9 +20,9 @@ interface LeaderboardRow {
 }
 
 const EARN_TIPS = [
-  { icon: CalendarCheck, label: "RSVP early — within 24 hours of an event being posted (+5 pts each)" },
-  { icon: MessageCircle, label: "Stay active in team chat — send messages and reactions (+1 pt, capped daily)" },
-  { icon: Camera, label: "Share team photos to the gallery (+2 pts each)" },
+  { icon: CalendarCheck, label: "RSVP \"Going\" at least 3 days before an event (+3 pts each)" },
+  { icon: MessageCircle, label: "Send messages in team chat (+2 pts each, capped at 6/day)" },
+  { icon: Camera, label: "Upload team photos (+3 pts each, capped at 6/day)" },
 ];
 
 function ordinal(n: number): string {
