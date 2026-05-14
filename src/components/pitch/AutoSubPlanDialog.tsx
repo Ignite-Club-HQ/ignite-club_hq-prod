@@ -3658,6 +3658,7 @@ function DialogInner({
   // the impact preview can show before→after diffs.
   const baselineMetricsRef = useRef<{ totalSubs: number; spreadMin: number; shortShifts: number; hasHalftimeClash: boolean } | null>(null);
   const [showAllMinutes, setShowAllMinutes] = useState(true);
+  const [showTimelinePreview, setShowTimelinePreview] = useState(true);
   // Fairness simulator: lazily computed on coach demand so the dialog stays
   // snappy. Cleared whenever the underlying plan changes.
   const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
@@ -3973,8 +3974,70 @@ function DialogInner({
                 );
               })()}
 
+              {/* Sub timeline preview — read-only chronological list of every planned swap */}
+              {plan.length > 0 && (
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowTimelinePreview((v) => !v)}
+                    className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground rounded-md border border-border bg-muted/20 px-3 py-2"
+                  >
+                    <span>{showTimelinePreview ? "Hide sub timeline" : "Show sub timeline"} ({plan.length})</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showTimelinePreview ? "rotate-180" : "")} />
+                  </button>
+                  {showTimelinePreview && (
+                    <div className="rounded-xl border border-border overflow-hidden">
+                      <div className="divide-y divide-border">
+                        {[1, 2].map((half) => {
+                          const halfSubs = plan.filter((s) => s.half === half);
+                          if (halfSubs.length === 0) return null;
+                          const groups: { time: number; items: typeof halfSubs }[] = [];
+                          halfSubs.forEach((sub) => {
+                            const existing = groups.find((g) => g.time === sub.time);
+                            if (existing) existing.items.push(sub);
+                            else groups.push({ time: sub.time, items: [sub] });
+                          });
+                          groups.sort((a, b) => a.time - b.time);
+                          return (
+                            <div key={half}>
+                              <div className="px-3 py-1.5 bg-muted/50 text-xs font-semibold text-muted-foreground">
+                                {half === 1 ? "1st Half" : "2nd Half"}
+                              </div>
+                              {groups.map((group) => {
+                                const mins = Math.floor(group.time / 60);
+                                const secs = group.time % 60;
+                                const timeLabel = group.time === 0 && half === 2
+                                  ? "HT"
+                                  : `${mins}:${secs.toString().padStart(2, "0")}`;
+                                return (
+                                  <div key={`${half}-${group.time}`} className="flex gap-2.5 px-3 py-2">
+                                    <div className="flex flex-col items-center pt-0.5 shrink-0 w-14">
+                                      <Badge variant="secondary" className="font-mono text-xs h-5">
+                                        {timeLabel}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex-1 space-y-1 min-w-0">
+                                      {group.items.map((sub, i) => (
+                                        <div key={i} className="flex items-center gap-1 text-sm">
+                                          <span className="truncate text-destructive">{sub.playerOut.name}</span>
+                                          <span className="text-muted-foreground text-xs">→</span>
+                                          <span className="truncate text-green-600 dark:text-green-400">{sub.playerIn.name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* 5. Full per-player minutes — collapsed by default */}
+
               <button
                 type="button"
                 onClick={() => setShowAllMinutes((v) => !v)}
