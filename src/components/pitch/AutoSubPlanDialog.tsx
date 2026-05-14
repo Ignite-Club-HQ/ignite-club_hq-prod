@@ -3892,14 +3892,11 @@ function DialogInner({
                   const distFromHt = ev.half === 1 ? halfSec - ev.time : ev.time;
                   return distFromHt < guard;
                 });
-                // Outfield-only spread: GKs (full or half) are excluded because
-                // they're constrained to halftime swaps and skew the diff in
-                // ways the coach can't influence via the toggles.
-                const gkIds = new Set(forecasts.filter(f => f.gkRole).map(f => f.player.id));
-                const outfieldStats = autoFair.perPlayer.filter(s => !gkIds.has(s.playerId));
-                const outfieldTotals = outfieldStats.map(s => s.totalSeconds);
-                const spreadMin = outfieldTotals.length
-                  ? (Math.max(...outfieldTotals) - Math.min(...outfieldTotals)) / 60
+                // Spread reflects exactly what the coach sees in the per-player
+                // minutes list below — max minus min across every player.
+                const allMinutes = forecasts.map(f => f.predictedMinutes);
+                const spreadMin = allMinutes.length
+                  ? Math.max(...allMinutes) - Math.min(...allMinutes)
                   : 0;
                 return (
                   <>
