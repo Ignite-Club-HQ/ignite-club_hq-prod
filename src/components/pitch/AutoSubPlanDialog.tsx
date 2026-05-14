@@ -3058,10 +3058,12 @@ function PlanFixSuggestions({
   fixes,
   onApply,
   readOnly,
+  appliedIds,
 }: {
   fixes: PlanFix[];
   onApply: (fix: PlanFix) => void;
   readOnly: boolean;
+  appliedIds: Set<string>;
 }) {
   if (readOnly || fixes.length === 0) return null;
   return (
@@ -3071,27 +3073,43 @@ function PlanFixSuggestions({
         Suggested fixes
       </div>
       <p className="text-[11px] text-muted-foreground leading-snug">
-        Tap a fix to update the plan. Each one explains what it changes.
+        Tap a fix to update the plan. Tap again to apply more of the same.
       </p>
       <div className="grid gap-1.5 sm:grid-cols-2">
-        {fixes.map((fix) => (
-          <button
-            key={fix.id}
-            type="button"
-            onClick={() => onApply(fix)}
-            className="text-left rounded-md border border-border bg-muted/30 hover:bg-muted/60 active:bg-muted transition-colors p-2.5 min-h-[44px] group"
-          >
-            <div className="flex items-start gap-2">
-              <span className="flex-1 min-w-0">
-                <span className="block text-xs font-medium text-foreground">{fix.title}</span>
-                <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
-                  {fix.tradeoff}
+        {fixes.map((fix) => {
+          const applied = appliedIds.has(fix.id);
+          return (
+            <button
+              key={fix.id}
+              type="button"
+              onClick={() => onApply(fix)}
+              className={cn(
+                "text-left rounded-md border transition-colors p-2.5 min-h-[44px] group",
+                applied
+                  ? "border-primary/40 bg-primary/10 hover:bg-primary/15 active:bg-primary/20"
+                  : "border-border bg-muted/30 hover:bg-muted/60 active:bg-muted",
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <span className="block text-xs font-medium text-foreground">{fix.title}</span>
+                    {applied && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        <Check className="h-2.5 w-2.5" />
+                        Applied
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground leading-snug mt-0.5">
+                    {fix.tradeoff}
+                  </span>
                 </span>
-              </span>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
-            </div>
-          </button>
-        ))}
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -3158,27 +3176,55 @@ function PlanImpactPreview({
     ? `This will ${phrases.slice(0, -1).join(", ")}${phrases.length > 1 ? " and " : ""}${phrases[phrases.length - 1]}.`
     : "Custom tuning is active.";
 
+  return <PlanImpactPreviewBody sentence={sentence} totalSubs={totalSubs} spreadMin={spreadMin} shortShifts={shortShifts} hasHalftimeClash={hasHalftimeClash} />;
+}
+
+function PlanImpactPreviewBody({
+  sentence,
+  totalSubs,
+  spreadMin,
+  shortShifts,
+  hasHalftimeClash,
+}: {
+  sentence: string;
+  totalSubs: number;
+  spreadMin: number;
+  shortShifts: number;
+  hasHalftimeClash: boolean;
+}) {
+  const [open, setOpen] = useState(true);
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2 mb-2">
-      <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
-        Impact preview
-      </div>
-      <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
-        <span className="text-muted-foreground">Substitutions in plan</span>
-        <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
-        <span className="text-muted-foreground">Playing-time spread</span>
-        <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
-        <span className="text-muted-foreground">Short shifts detected</span>
-        <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
-          {shortShifts > 0 ? shortShifts : "None"}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between w-full text-sm font-semibold text-foreground"
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Impact preview
         </span>
-        <span className="text-muted-foreground">Halftime clash</span>
-        <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
-          {hasHalftimeClash ? "Detected" : "None"}
-        </span>
-      </div>
+        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open ? "rotate-180" : "")} />
+      </button>
+      {open && (
+        <>
+          <p className="text-[11px] leading-snug text-foreground">{sentence}</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-primary/20">
+            <span className="text-muted-foreground">Substitutions in plan</span>
+            <span className="text-right tabular-nums text-foreground">{totalSubs}</span>
+            <span className="text-muted-foreground">Playing-time spread</span>
+            <span className="text-right tabular-nums text-foreground">{spreadMin.toFixed(1)} min</span>
+            <span className="text-muted-foreground">Short shifts detected</span>
+            <span className={cn("text-right tabular-nums", shortShifts > 0 ? "text-amber-600" : "text-emerald-600")}>
+              {shortShifts > 0 ? shortShifts : "None"}
+            </span>
+            <span className="text-muted-foreground">Halftime clash</span>
+            <span className={cn("text-right tabular-nums", hasHalftimeClash ? "text-amber-600" : "text-emerald-600")}>
+              {hasHalftimeClash ? "Detected" : "None"}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3245,6 +3291,7 @@ function DialogInner({
   });
   const effectiveOverrides: AutoSubAdvancedOverrides = advancedOverrides ?? localOverrides;
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [appliedFixIds, setAppliedFixIds] = useState<Set<string>>(new Set());
   // Fairness simulator: lazily computed on coach demand so the dialog stays
   // snappy. Cleared whenever the underlying plan changes.
   const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
@@ -3259,6 +3306,11 @@ function DialogInner({
   const applyPlanFix = (fix: PlanFix) => {
     if (advancedOverrides) return;
     persistLocal(fix.apply(effectiveOverrides));
+    setAppliedFixIds((prev) => {
+      const next = new Set(prev);
+      next.add(fix.id);
+      return next;
+    });
   };
 
   
@@ -3525,7 +3577,7 @@ function DialogInner({
                 const target = ((teamSize - 1) * minutesPerHalf * 2) / Math.max(1, players.length);
                 const minShiftMin = (effectiveOverrides.minShiftSeconds ?? 180) / 60;
                 const constrainedByMinShift = (autoFair.spreadSeconds / 60) > 3 && target < minShiftMin * 1.5;
-                const fixes = buildPlanFixes({
+                const liveFixes = buildPlanFixes({
                   spreadMin: autoFair.spreadSeconds / 60,
                   shortShifts: autoFair.totalShortShifts,
                   bounceBacks: autoFair.totalBounceBacks,
@@ -3536,12 +3588,30 @@ function DialogInner({
                   overrides: effectiveOverrides,
                   hasHalftimeClash,
                 });
+                // Always include any previously applied fix so the card
+                // doesn't vanish out from under the coach when its
+                // triggering metric is now satisfied.
+                const stickyFixes = buildPlanFixes({
+                  spreadMin: 999, shortShifts: 999, bounceBacks: 999,
+                  totalSubs: 999, isLargeBench: true,
+                  constrainedByMinShift: true,
+                  mode: rotationSpeed === 2 ? "Frequent" : "Standard",
+                  overrides: effectiveOverrides,
+                  hasHalftimeClash: true,
+                });
+                const seen = new Set<string>();
+                const fixes: PlanFix[] = [];
+                for (const f of liveFixes) { if (!seen.has(f.id)) { seen.add(f.id); fixes.push(f); } }
+                for (const f of stickyFixes) {
+                  if (!seen.has(f.id) && appliedFixIds.has(f.id)) { seen.add(f.id); fixes.push(f); }
+                }
                 return (
                   <>
                     <PlanFixSuggestions
                       fixes={fixes}
                       onApply={applyPlanFix}
                       readOnly={!!advancedOverrides}
+                      appliedIds={appliedFixIds}
                     />
                     <PlanImpactPreview
                       overrides={effectiveOverrides}
