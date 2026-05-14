@@ -305,6 +305,8 @@ export interface AutoSubAdvancedOverrides {
    *  set, replaces the `maxSpreadMinutes` prop value. Lower = stricter
    *  fairness (planner sacrifices queue order sooner). */
   maxSpreadOverrideSec?: number;
+  /** Optional coach drag order: lower index = should be favoured for more time. */
+  playerPriorityOrder?: string[];
 }
 
 interface AutoSubPlanDialogProps {
