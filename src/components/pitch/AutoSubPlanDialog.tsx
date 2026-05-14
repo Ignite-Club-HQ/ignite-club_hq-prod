@@ -3723,8 +3723,7 @@ function DialogInner({
             const stillStranded = fallbackFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
             if (stillStranded.length < stranded.length) {
               generatedPlan = fallbackPlan;
-              const names = stranded.map(s => s.player.name).slice(0, 3).join(', ');
-              setFrequentFallbackNotice(`Frequent mode left ${stranded.length} player${stranded.length > 1 ? 's' : ''} (${names}${stranded.length > 3 ? '…' : ''}) with no minutes. Switched to Standard rotation to give everyone a turn.`);
+              setFrequentFallbackNotice(`Frequent rotation couldn't fit the whole squad into this match length, so we're using Standard rotation below to make sure everyone gets a turn.`);
             } else {
               setFrequentFallbackNotice(null);
             }
