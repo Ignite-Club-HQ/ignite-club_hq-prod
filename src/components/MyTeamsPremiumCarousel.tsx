@@ -542,40 +542,25 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
-  // Fetch unread message counts per team — single batched query (no N+1)
+  // Fetch unread message counts per team — use the SAME source as the
+  // Messages inbox (notifications.is_read=false) so the team card and inbox
+  // never disagree. The previous direct team_messages/message_reads diff
+  // could over-report (e.g. message_reads not always inserted on viewing).
   const { data: unreadCounts = snapshot?.unreadCounts ?? {} } = useQuery({
     queryKey: ["team-unread-counts", teamIds, user?.id],
     queryFn: async () => {
       if (teamIds.length === 0 || !user?.id) return {};
+      const { fetchUnreadMessageCounts } = await import("@/lib/unreadMessageCounts");
+      const counts = await fetchUnreadMessageCounts(user.id);
       const map: Record<string, number> = {};
-
-      // Batched: all unread-candidate messages across all teams in one query
-      const [{ data: messages }, { data: readMessages }] = await Promise.all([
-        supabase
-          .from("team_messages")
-          .select("id, team_id")
-          .in("team_id", teamIds)
-          .is("deleted_at", null)
-          .neq("author_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(teamIds.length * 50),
-        supabase
-          .from("message_reads")
-          .select("team_message_id")
-          .eq("user_id", user.id)
-          .not("team_message_id", "is", null),
-      ]);
-
-      const readIds = new Set((readMessages || []).map(r => r.team_message_id).filter(Boolean));
-      for (const m of messages || []) {
-        if (!m.team_id || readIds.has(m.id)) continue;
-        map[m.team_id] = (map[m.team_id] || 0) + 1;
+      for (const id of teamIds) {
+        const n = counts.teams[id] ?? 0;
+        if (n > 0) map[id] = n;
       }
-
       return map;
     },
     enabled: teamIds.length > 0 && !!user?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
