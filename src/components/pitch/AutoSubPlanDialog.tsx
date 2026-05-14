@@ -3650,6 +3650,9 @@ function DialogInner({
   // snappy. Cleared whenever the underlying plan changes.
   const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  // Safeguard notice: set when Frequent mode would have left an outfield
+  // player with 0 minutes and we silently fell back to Standard rotation.
+  const [frequentFallbackNotice, setFrequentFallbackNotice] = useState<string | null>(null);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
@@ -3705,7 +3708,32 @@ function DialogInner({
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
-        const generatedPlan = generatePlan(players);
+        let generatedPlan = generatePlan(players);
+        // Safeguard: Frequent mode should never strand an outfield player at 0
+        // minutes. If it does (and there's no explicit constraint), retry once
+        // at Standard rotation and surface a notice so the coach knows why.
+        if (effectiveRotationSpeed === 2) {
+          const fc = calculateTimeForecasts(players, generatedPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+          const stranded = fc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+          if (stranded.length > 0) {
+            const fallbackPlan = miniLeagueTeams
+              ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+              : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+            const fallbackFc = calculateTimeForecasts(players, fallbackPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+            const stillStranded = fallbackFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+            if (stillStranded.length < stranded.length) {
+              generatedPlan = fallbackPlan;
+              const names = stranded.map(s => s.player.name).slice(0, 3).join(', ');
+              setFrequentFallbackNotice(`Frequent mode left ${stranded.length} player${stranded.length > 1 ? 's' : ''} (${names}${stranded.length > 3 ? '…' : ''}) with no minutes. Switched to Standard rotation to give everyone a turn.`);
+            } else {
+              setFrequentFallbackNotice(null);
+            }
+          } else {
+            setFrequentFallbackNotice(null);
+          }
+        } else {
+          setFrequentFallbackNotice(null);
+        }
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error auto-generating plan:", error);
@@ -3918,6 +3946,12 @@ function DialogInner({
                       onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
                     />
+                    {frequentFallbackNotice && (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>{frequentFallbackNotice}</span>
+                      </div>
+                    )}
                   </>
                 );
               })()}
