@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders } from "lucide-react";
+import { Clock, Play, AlertTriangle, RefreshCw, Loader2, X, BarChart3, Pencil, ChevronDown, Settings2, RotateCcw, Sparkles, ShieldCheck, ShieldAlert, Zap, Wand2, Check, ArrowRight, Sliders, GripVertical } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
 import { buildSubWindows } from "./planner/windows";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 
 interface PlayerTimeForecast {
@@ -253,6 +256,77 @@ interface SubstitutionEvent {
   };
   executed?: boolean;
   skipped?: boolean;
+}
+
+/**
+ * Soft-bias post-pass: nudges player minutes to align with a coach-supplied
+ * priority order (top of list = wants more minutes). Only swaps identities
+ * between bench-rotation outfielders — never touches starters or GKs — so
+ * the underlying scheduler logic, position swaps, and short-shift rules
+ * stay intact. Iterates a few passes until no inversion remains worth fixing.
+ *
+ * Conservative by design: a "swap" is only triggered when a higher-priority
+ * player has materially fewer minutes (>1.5m gap) than a lower-priority
+ * player below them, so balanced plans are left untouched.
+ */
+export function applyPriorityBiasToPlan(
+  plan: SubstitutionEvent[],
+  players: Player[],
+  priorityOrder: string[],
+  minutesPerHalf: number,
+  preferredSecondHalfGkId: string | undefined,
+  rotateGkAtHalftime: boolean,
+  currentHalf: 1 | 2,
+  currentElapsedSeconds: number,
+): SubstitutionEvent[] {
+  if (!priorityOrder || priorityOrder.length < 2 || plan.length === 0) return plan;
+  const startersIds = new Set(players.filter(p => p.position !== null).map(p => p.id));
+  const playerById = new Map(players.map(p => [p.id, p] as const));
+
+  let mutated = plan.map(s => ({ ...s }));
+  for (let iter = 0; iter < 12; iter++) {
+    const fc = calculateTimeForecasts(players, mutated, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+    const minsById = new Map(fc.map(f => [f.player.id, f.predictedMinutes] as const));
+    const gkRoleById = new Map(fc.map(f => [f.player.id, f.gkRole] as const));
+
+    // Only swap among bench-rotation outfielders — keep starters/GKs put.
+    const swappable = priorityOrder.filter(id => {
+      if (startersIds.has(id)) return false;
+      if (gkRoleById.get(id) === 'full') return false;
+      return playerById.has(id);
+    });
+
+    let didSwap = false;
+    outer: for (let i = 0; i < swappable.length - 1; i++) {
+      for (let j = i + 1; j < swappable.length; j++) {
+        const Hid = swappable[i];
+        const Lid = swappable[j];
+        const hMin = minsById.get(Hid) ?? 0;
+        const lMin = minsById.get(Lid) ?? 0;
+        if (hMin < lMin - 1.5) {
+          const Hp = playerById.get(Hid)!;
+          const Lp = playerById.get(Lid)!;
+          mutated = mutated.map(s => {
+            const swap = (p: Player): Player => {
+              if (p.id === Hid) return { ...Lp, currentPitchPosition: p.currentPitchPosition };
+              if (p.id === Lid) return { ...Hp, currentPitchPosition: p.currentPitchPosition };
+              return p;
+            };
+            return {
+              ...s,
+              playerOut: swap(s.playerOut),
+              playerIn: swap(s.playerIn),
+              positionSwap: s.positionSwap ? { ...s.positionSwap, player: swap(s.positionSwap.player) } : undefined,
+            };
+          });
+          didSwap = true;
+          break outer;
+        }
+      }
+    }
+    if (!didSwap) break;
+  }
+  return mutated;
 }
 
 interface MiniLeagueTeams {
@@ -3579,6 +3653,94 @@ function PlanModeToggles({
   );
 }
 
+// ===========================================================================
+// SortablePlayerMinutesRow — drag handle + minute-forecast row used in the
+// "Show all player minutes" list. Drag is enabled only for outfielders so
+// the coach can soft-bias rotation order without disturbing locked GKs.
+// ===========================================================================
+function SortablePlayerMinutesRow({
+  forecast,
+  fairnessReport,
+  draggable,
+}: {
+  forecast: PlayerTimeForecast;
+  fairnessReport: FairnessReport | null;
+  draggable: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: forecast.player.id,
+    disabled: !draggable,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-lg bg-muted/50",
+        isDragging && "ring-2 ring-primary/40"
+      )}
+    >
+      {draggable ? (
+        <button
+          type="button"
+          aria-label="Drag to reorder priority"
+          className="touch-none p-1 -ml-1 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      ) : (
+        <div className="w-6 shrink-0" aria-hidden />
+      )}
+      <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0">
+        {forecast.player.number || "?"}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium truncate">{forecast.player.name}</span>
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-xs px-1.5 py-0",
+              forecast.startsOnPitch ? "border-emerald-500/50 text-emerald-500" : "border-muted-foreground/50"
+            )}
+          >
+            {forecast.startsOnPitch ? 'Start' : 'Bench'}
+          </Badge>
+          {forecast.gkRole && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600">
+              {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
+            </Badge>
+          )}
+          {stat?.shortShifts ? (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
+              {stat.shortShifts} very short
+            </Badge>
+          ) : null}
+          {stat?.bounceBacks ? (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
+              {stat.bounceBacks} bounce
+            </Badge>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <Progress value={forecast.percentageOfGame} className="h-2 flex-1" />
+          <span className="text-xs text-muted-foreground w-20 text-right shrink-0 tabular-nums">
+            {forecast.predictedMinutes}' ({forecast.percentageOfGame}%)
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DialogInner({
   players, 
   teamSize, 
@@ -3677,6 +3839,13 @@ function DialogInner({
   // length — drives a disabled Frequent toggle so the coach can't pick a
   // mode that would silently fall back to Standard.
   const [frequentBlocked, setFrequentBlocked] = useState(false);
+  // Coach-supplied priority order — top of list = wants more minutes.
+  // Soft bias only: nudges minutes among bench-rotation outfielders without
+  // overriding fairness/short-shift rules. `null` = neutral (planner default).
+  const [playerPriority, setPlayerPriority] = useState<string[] | null>(null);
+  // PointerSensor with a small activation distance so taps on rows still
+  // scroll naturally; only deliberate drags from the grip handle reorder.
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
@@ -3708,10 +3877,11 @@ function DialogInner({
 
   const generatePlan = (allPlayers: Player[]) => {
     const halfDurationSeconds = minutesPerHalf * 60;
-    if (miniLeagueTeams) {
-      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-    }
-    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    const basePlan = miniLeagueTeams
+      ? createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+      : createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+    if (!playerPriority || playerPriority.length < 2) return basePlan;
+    return applyPriorityBiasToPlan(basePlan, allPlayers, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -3751,9 +3921,12 @@ function DialogInner({
           setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
           // Build the Standard plan now so we don't render a stale Frequent
           // plan for one frame before the override change re-runs the effect.
-          const standardPlan = miniLeagueTeams
+          const standardBase = miniLeagueTeams
             ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
             : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+          const standardPlan = playerPriority && playerPriority.length >= 2
+            ? applyPriorityBiasToPlan(standardBase, players, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!)
+            : standardBase;
           setPlan(standardPlan);
         } else {
           if (!frequentNotViable) setFrequentFallbackNotice(null);
@@ -3784,6 +3957,8 @@ function DialogInner({
     players.map(p => `${p.id}:${p.currentPitchPosition ?? ''}:${p.position ? '1' : '0'}`).join('|'),
     // Regenerate when advanced overrides change.
     JSON.stringify(effectiveOverrides),
+    // Re-run bias when the coach reorders the priority list.
+    playerPriority ? playerPriority.join('|') : '',
   ]);
   
   const playersOnPitch = players.filter(p => p.position !== null);
@@ -4053,69 +4228,83 @@ function DialogInner({
                 <span>{showAllMinutes ? "Hide all player minutes" : "Show all player minutes"}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllMinutes ? "rotate-180" : "")} />
               </button>
-              {showAllMinutes && forecasts.map(forecast => (
-                <div 
-                  key={forecast.player.id}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0">
-                    {forecast.player.number || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium truncate">
-                        {forecast.player.name}
+              {showAllMinutes && (() => {
+                // Outfielders are draggable; full-game GKs are pinned at the
+                // bottom and non-draggable so the bias pass never tries to
+                // touch them.
+                const outfield = forecasts.filter(f => f.gkRole !== 'full');
+                const fullGks = forecasts.filter(f => f.gkRole === 'full');
+                const priority = playerPriority ?? [];
+                const orderedOutfield = [...outfield].sort((a, b) => {
+                  const ai = priority.indexOf(a.player.id);
+                  const bi = priority.indexOf(b.player.id);
+                  if (ai === -1 && bi === -1) {
+                    // Default: most predicted minutes first (mirrors the
+                    // implicit "current top of list" so first drag is intuitive).
+                    return b.predictedMinutes - a.predictedMinutes;
+                  }
+                  if (ai === -1) return 1;
+                  if (bi === -1) return -1;
+                  return ai - bi;
+                });
+                const sortableIds = orderedOutfield.map(f => f.player.id);
+
+                const handleDragEnd = (e: DragEndEvent) => {
+                  const { active, over } = e;
+                  if (!over || active.id === over.id) return;
+                  const oldIndex = sortableIds.indexOf(String(active.id));
+                  const newIndex = sortableIds.indexOf(String(over.id));
+                  if (oldIndex < 0 || newIndex < 0) return;
+                  const next = arrayMove(sortableIds, oldIndex, newIndex);
+                  setPlayerPriority(next);
+                };
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                      <span className="flex items-center gap-1.5">
+                        <GripVertical className="h-3 w-3" />
+                        Drag to prioritise — top players get nudged more minutes.
                       </span>
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs px-1.5 py-0",
-                          forecast.startsOnPitch 
-                            ? "border-emerald-500/50 text-emerald-500" 
-                            : "border-muted-foreground/50"
-                        )}
-                      >
-                        {forecast.startsOnPitch ? 'Start' : 'Bench'}
-                      </Badge>
-                      {forecast.gkRole && (
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600"
+                      {playerPriority && playerPriority.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPlayerPriority(null)}
+                          className="text-primary hover:underline"
                         >
-                          {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
-                        </Badge>
+                          Reset priority
+                        </button>
                       )}
-                      {(() => {
-                        const stat = fairnessReport?.perPlayer.find(s => s.playerId === forecast.player.id);
-                        if (!stat) return null;
-                        return (
-                          <>
-                            {stat.shortShifts > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-red-500/50 text-red-500">
-                                {stat.shortShifts} very short
-                              </Badge>
-                            )}
-                            {stat.bounceBacks > 0 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 border-purple-500/50 text-purple-500">
-                                {stat.bounceBacks} bounce
-                              </Badge>
-                            )}
-                          </>
-                        );
-                      })()}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Progress 
-                        value={forecast.percentageOfGame} 
-                        className="h-2 flex-1"
-                      />
-                      <span className="text-xs text-muted-foreground w-20 text-right shrink-0">
-                        {forecast.predictedMinutes}' ({forecast.percentageOfGame}%)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1.5">
+                          {orderedOutfield.map(forecast => (
+                            <SortablePlayerMinutesRow
+                              key={forecast.player.id}
+                              forecast={forecast}
+                              fairnessReport={fairnessReport}
+                              draggable
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    {fullGks.length > 0 && (
+                      <div className="space-y-1.5 mt-1.5">
+                        {fullGks.map(forecast => (
+                          <SortablePlayerMinutesRow
+                            key={forecast.player.id}
+                            forecast={forecast}
+                            fairnessReport={fairnessReport}
+                            draggable={false}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
           </div>
