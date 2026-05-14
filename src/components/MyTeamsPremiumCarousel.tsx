@@ -546,6 +546,62 @@ export function MyTeamsPremiumCarousel() {
     placeholderData: (prev) => prev,
   });
 
+  // Fetch members + avatars per team for the social fallback footer state.
+  // Deferred until idle so it never delays the first paint.
+  const { data: teamMembers = snapshot?.teamMembers ?? {} } = useQuery({
+    queryKey: ["team-members-premium", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {};
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("team_id, user_id")
+        .in("team_id", teamIds);
+      if (!roles) return {};
+
+      const byTeam: Record<string, Set<string>> = {};
+      for (const r of roles) {
+        if (!r.team_id || !r.user_id) continue;
+        if (!byTeam[r.team_id]) byTeam[r.team_id] = new Set();
+        byTeam[r.team_id].add(r.user_id);
+      }
+
+      const allUserIds = Array.from(new Set(roles.map(r => r.user_id).filter(Boolean) as string[]));
+      const profileMap = new Map<string, string | null>();
+      if (allUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, avatar_url")
+          .in("id", allUserIds);
+        for (const p of profiles || []) profileMap.set(p.id, p.avatar_url);
+      }
+
+      // Sign avatar URLs in one batch
+      const rawAvatarUrls = new Set<string>();
+      for (const url of profileMap.values()) if (url) rawAvatarUrls.add(url);
+      const signed = rawAvatarUrls.size > 0
+        ? await getSignedPhotoUrls(Array.from(rawAvatarUrls))
+        : {};
+
+      const map: Record<string, MemberSummary> = {};
+      for (const teamId of teamIds) {
+        const userIds = Array.from(byTeam[teamId] || []);
+        const avatars: string[] = [];
+        for (const uid of userIds) {
+          const raw = profileMap.get(uid);
+          if (raw) {
+            avatars.push(signed[raw] || raw);
+            if (avatars.length >= 3) break;
+          }
+        }
+        map[teamId] = { count: userIds.length, avatars };
+      }
+      return map;
+    },
+    enabled: teamIds.length > 0 && deferredReady,
+    staleTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {
     if (!user?.id || items.length === 0) return;
@@ -554,8 +610,9 @@ export function MyTeamsPremiumCarousel() {
       nextEvents,
       teamPhotos,
       unreadCounts,
+      teamMembers,
     });
-  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts]);
+  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
   if (isLoading && !snapshot) {
     return (
