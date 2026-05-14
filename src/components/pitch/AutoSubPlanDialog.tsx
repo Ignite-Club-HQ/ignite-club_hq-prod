@@ -3866,34 +3866,28 @@ function DialogInner({
       : createSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, planningOverrides);
 
     let working = roster;
-    let plan = make(working);
-    if (!playerPriority || playerPriority.length < 2) return { plan, roster: working };
+    if (playerPriority && playerPriority.length >= 2) {
+      const rank = new Map(playerPriority.map((id, index) => [id, index] as const));
+      const isSwappableOutfielder = (p: Player) =>
+        p.currentPitchPosition !== "GK" && !(p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK");
+      const outfieldStarterCount = working.filter(p => p.position !== null && isSwappableOutfielder(p)).length;
+      const desiredStarters = new Set(
+        playerPriority
+          .filter(id => working.some(p => p.id === id && isSwappableOutfielder(p)))
+          .slice(0, outfieldStarterCount)
+      );
 
-    for (let iter = 0; iter < 8; iter++) {
-      const fc = calculateTimeForecasts(working, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-      const minsById = new Map(fc.map(f => [f.player.id, f.predictedMinutes] as const));
-      const gkRoleById = new Map(fc.map(f => [f.player.id, f.gkRole] as const));
-      // Outfielders only — full-game GKs are pinned.
-      const swappable = playerPriority.filter(id => gkRoleById.get(id) !== 'full' && working.some(p => p.id === id));
-
-      let didSwap = false;
-      outer: for (let i = 0; i < swappable.length - 1; i++) {
-        for (let j = i + 1; j < swappable.length; j++) {
-          const Hid = swappable[i];
-          const Lid = swappable[j];
-          const hMin = minsById.get(Hid) ?? 0;
-          const lMin = minsById.get(Lid) ?? 0;
-          if (hMin < lMin - 1.5) {
-            working = swapLineupPositions(working, Hid, Lid);
-            didSwap = true;
-            break outer;
-          }
-        }
+      for (const desiredId of desiredStarters) {
+        const desired = working.find(p => p.id === desiredId);
+        if (!desired || desired.position !== null) continue;
+        const replacement = working
+          .filter(p => p.position !== null && isSwappableOutfielder(p) && !desiredStarters.has(p.id))
+          .sort((a, b) => (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER))[0];
+        if (replacement) working = swapLineupPositions(working, desiredId, replacement.id);
       }
-      if (!didSwap) break;
-      plan = make(working);
     }
-    return { plan, roster: working };
+
+    return { plan: make(working), roster: working };
   };
 
   const generatePlan = (allPlayers: Player[]) => {
