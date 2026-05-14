@@ -3650,6 +3650,9 @@ function DialogInner({
   // snappy. Cleared whenever the underlying plan changes.
   const [fairnessReport, setFairnessReport] = useState<FairnessReport | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  // Safeguard notice: set when Frequent mode would have left an outfield
+  // player with 0 minutes and we silently fell back to Standard rotation.
+  const [frequentFallbackNotice, setFrequentFallbackNotice] = useState<string | null>(null);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
