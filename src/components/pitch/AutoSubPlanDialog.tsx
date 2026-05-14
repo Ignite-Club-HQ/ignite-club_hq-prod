@@ -3134,7 +3134,7 @@ function PlanFixSuggestions({
         onClick={() => onApply(recommended)}
       >
         {recommendedApplied ? <Check className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
-        {recommendedApplied ? "Apply again" : "Apply recommended fix"}
+        {recommendedApplied ? "Apply again" : "Fix this plan"}
       </Button>
       {others.length > 0 && (
         <div className="pt-1 border-t border-primary/20">
@@ -3143,7 +3143,7 @@ function PlanFixSuggestions({
             onClick={() => setShowOthers((v) => !v)}
             className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
-            <span>Other fixes ({others.length})</span>
+            <span>More options ({others.length})</span>
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showOthers ? "rotate-180" : "")} />
           </button>
           {showOthers && (
