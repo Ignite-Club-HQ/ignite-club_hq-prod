@@ -3506,8 +3506,19 @@ const PRIORITY_TOGGLES: { id: string; title: string; tradeoff: string; apply: (c
   {
     id: "fairer",
     title: "Make minutes fairer",
-    tradeoff: "Gives the planner more chances to balance game time, but creates more substitution moments.",
-    apply: (c) => bumpOverride(c, "standardTargetIntervalSec", -60),
+    tradeoff: "Tightens the fairness cap and shortens the rotation window so minutes even out faster. Expect more substitutions.",
+    apply: (c) => ({
+      ...c,
+      // Direct fairness lever: cap the projected minutes spread at ~2 minutes.
+      maxSpreadOverrideSec: 120,
+      // Shorten the standard cadence aggressively so the planner gets more
+      // chances to balance minutes.
+      standardTargetIntervalSec: clampOverride("standardTargetIntervalSec", 240),
+      standardIntervalFloorSec: clampOverride("standardIntervalFloorSec", 150),
+      // Allow shorter shifts so the planner can pull a high-minutes player
+      // even when they've only just gone on.
+      minShiftSeconds: clampOverride("minShiftSeconds", 90),
+    }),
   },
   {
     id: "protect-shifts",
