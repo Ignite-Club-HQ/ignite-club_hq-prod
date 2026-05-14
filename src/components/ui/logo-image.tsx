@@ -111,11 +111,19 @@ if (typeof window !== "undefined") {
  */
 export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
+  // Already-decoded URLs paint synchronously; otherwise show a soft
+  // skeleton in the same footprint until the bitmap is ready.
+  const [loaded, setLoaded] = useState(() => decodedLogoUrls.has(src));
 
   // Warm cache on every render so navigation between routes keeps the
   // decoded entry hot.
   useEffect(() => {
     preloadLogo(src);
+    if (decodedLogoUrls.has(src)) {
+      setLoaded(true);
+    } else {
+      setLoaded(false);
+    }
   }, [src]);
 
   if (failed) {
@@ -123,14 +131,26 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      loading="eager"
-      decoding="sync"
-      fetchPriority="high"
-      onError={() => setFailed(true)}
-    />
+    <span className={`relative inline-block overflow-hidden ${className ?? ""}`}>
+      {!loaded && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 bg-muted animate-pulse"
+        />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`block h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        loading="eager"
+        decoding="sync"
+        fetchPriority="high"
+        onLoad={() => {
+          decodedLogoUrls.add(src);
+          setLoaded(true);
+        }}
+        onError={() => setFailed(true)}
+      />
+    </span>
   );
 }
