@@ -3830,9 +3830,12 @@ function DialogInner({
           setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
           // Build the Standard plan now so we don't render a stale Frequent
           // plan for one frame before the override change re-runs the effect.
-          const standardPlan = miniLeagueTeams
+          const standardBase = miniLeagueTeams
             ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
             : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+          const standardPlan = playerPriority && playerPriority.length >= 2
+            ? applyPriorityBiasToPlan(standardBase, players, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!)
+            : standardBase;
           setPlan(standardPlan);
         } else {
           if (!frequentNotViable) setFrequentFallbackNotice(null);
