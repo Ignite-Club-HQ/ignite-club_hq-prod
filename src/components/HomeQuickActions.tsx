@@ -16,13 +16,13 @@ export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams 
       show: hasTeams,
     },
     {
-      label: "Join Team",
+      label: "Join",
       icon: Users,
       onClick: onJoinTeam,
       show: true,
     },
     {
-      label: "Create Team",
+      label: "Create",
       icon: Plus,
       onClick: onCreateTeam,
       show: true,
