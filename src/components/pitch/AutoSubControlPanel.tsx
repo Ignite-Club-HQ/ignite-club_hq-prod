@@ -356,7 +356,6 @@ export default function AutoSubControlPanel({
                     );
                   })}
                 </div>
-              </ScrollArea>
             </div>
           )}
 
