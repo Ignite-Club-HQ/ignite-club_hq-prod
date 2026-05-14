@@ -3751,6 +3751,10 @@ function DialogInner({
   // length — drives a disabled Frequent toggle so the coach can't pick a
   // mode that would silently fall back to Standard.
   const [frequentBlocked, setFrequentBlocked] = useState(false);
+  // Coach-supplied priority order — top of list = wants more minutes.
+  // Soft bias only: nudges minutes among bench-rotation outfielders without
+  // overriding fairness/short-shift rules. `null` = neutral (planner default).
+  const [playerPriority, setPlayerPriority] = useState<string[] | null>(null);
 
   const persistLocal = (next: AutoSubAdvancedOverrides) => {
     setLocalOverrides(next);
