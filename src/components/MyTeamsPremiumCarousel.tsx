@@ -252,6 +252,7 @@ interface CarouselSnapshot {
   nextEvents: Record<string, NextEventInfo>;
   teamPhotos: Record<string, { id: string; url: string }[]>;
   unreadCounts: Record<string, number>;
+  teamMembers?: Record<string, MemberSummary>;
 }
 
 export function MyTeamsPremiumCarousel() {
