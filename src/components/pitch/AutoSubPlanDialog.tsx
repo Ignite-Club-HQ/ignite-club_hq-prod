@@ -3712,32 +3712,33 @@ function DialogInner({
     setIsGenerating(true);
     const t = setTimeout(() => {
       try {
-        let generatedPlan = generatePlan(players);
-        // Safeguard: Frequent mode should never strand an outfield player at 0
-        // minutes. If it does (and there's no explicit constraint), retry once
-        // at Standard rotation and surface a notice so the coach knows why.
-        if (effectiveRotationSpeed === 2) {
-          const fc = calculateTimeForecasts(players, generatedPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-          const stranded = fc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
-          if (stranded.length > 0) {
-            const fallbackPlan = miniLeagueTeams
-              ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-              : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-            const fallbackFc = calculateTimeForecasts(players, fallbackPlan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
-            const stillStranded = fallbackFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
-            if (stillStranded.length < stranded.length) {
-              generatedPlan = fallbackPlan;
-              setFrequentFallbackNotice(`Frequent rotation couldn't fit the whole squad into this match length, so we're using Standard rotation below to make sure everyone gets a turn.`);
-            } else {
-              setFrequentFallbackNotice(null);
-            }
-          } else {
-            setFrequentFallbackNotice(null);
-          }
+        // Always probe Frequent so we know whether it's a viable choice for
+        // the current squad/match length, regardless of which mode is
+        // currently selected. If it would strand an outfield player at 0
+        // minutes we lock the toggle to Standard.
+        const frequentProbe = miniLeagueTeams
+          ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 2, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+          : createSubPlan(players, teamSize, minutesPerHalf * 60, 2, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+        const probeFc = calculateTimeForecasts(players, frequentProbe, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+        const probeStranded = probeFc.filter(f => f.gkRole !== 'full' && f.predictedMinutes === 0);
+        const frequentNotViable = probeStranded.length > 0;
+        setFrequentBlocked(frequentNotViable);
+
+        // If Frequent isn't viable but the coach is on Frequent, force them
+        // back to Standard so the toggle UI matches the plan being shown.
+        if (frequentNotViable && effectiveRotationSpeed === 2) {
+          setRotationSpeedOverride(1);
+          setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
+          // Build the Standard plan now so we don't render a stale Frequent
+          // plan for one frame before the override change re-runs the effect.
+          const standardPlan = miniLeagueTeams
+            ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+            : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+          setPlan(standardPlan);
         } else {
-          setFrequentFallbackNotice(null);
+          if (!frequentNotViable) setFrequentFallbackNotice(null);
+          setPlan(generatePlan(players));
         }
-        setPlan(generatedPlan);
       } catch (error) {
         console.error("Error auto-generating plan:", error);
         setPlan([]);
