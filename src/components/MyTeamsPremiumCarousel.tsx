@@ -66,37 +66,11 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   unreadMessages?: number;
 }) {
   const navigate = useNavigate();
-  const [showDots, setShowDots] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    longPressTriggered.current = false;
-    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    longPressTimer.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      setShowDots(true);
-    }, 600);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartPos.current) return;
-    const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
-    const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    if (dx > 10 || dy > 10) { clearLongPress(); }
-  }, [clearLongPress]);
-
-  const handleTouchEnd = useCallback(() => { clearLongPress(); }, [clearLongPress]);
 
   const handleCardClick = useCallback(() => {
-    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
     navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
   }, [navigate, item.type, item.id]);
+
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
 
