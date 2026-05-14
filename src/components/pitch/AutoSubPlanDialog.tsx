@@ -4566,7 +4566,7 @@ function AdvancedSettingsPanel({
   const overrideCount = (Object.keys(overrides) as (keyof AutoSubAdvancedOverrides)[])
     .filter(k => overrides[k] !== undefined).length;
 
-  const set = (key: keyof AutoSubAdvancedOverrides, next: number | undefined) => {
+  const set = (key: Exclude<keyof AutoSubAdvancedOverrides, "playerPriorityOrder">, next: number | undefined) => {
     if (readOnly) return;
     const merged: AutoSubAdvancedOverrides = { ...overrides };
     if (next === undefined) delete merged[key];
