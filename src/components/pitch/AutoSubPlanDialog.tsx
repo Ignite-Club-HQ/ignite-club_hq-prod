@@ -3307,7 +3307,7 @@ function PlayersNeedingAttention({
       const f = forecasts.find((x) => x.player.id === stat.playerId);
       if (!f) continue;
       if (stat.shortShifts > 0) {
-        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.shortShifts} short shift${stat.shortShifts > 1 ? "s" : ""}`, tone: "border-red-500/50 text-red-500" });
+        rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.shortShifts} very short turn${stat.shortShifts > 1 ? "s" : ""}`, tone: "border-red-500/50 text-red-500" });
         seen.add(stat.playerId);
       } else if (stat.bounceBacks > 0) {
         rows.push({ id: stat.playerId, number: f.player.number, name: f.player.name, minutes: f.predictedMinutes, reason: `${stat.bounceBacks} bounce-back${stat.bounceBacks > 1 ? "s" : ""}`, tone: "border-purple-500/50 text-purple-500" });
