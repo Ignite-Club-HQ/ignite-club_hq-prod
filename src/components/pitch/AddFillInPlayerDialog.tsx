@@ -92,7 +92,12 @@ export default function AddFillInPlayerDialog({
         </Button>
       )}
       <ResponsiveDialog open={open} onOpenChange={setOpen} forceDesktopDialog>
-        <ResponsiveDialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)]">
+        <ResponsiveDialogContent
+          className={cn(
+            "sm:max-w-md max-w-[calc(100vw-2rem)]",
+            isMobile && "top-[calc(env(safe-area-inset-top,0px)+1rem)] translate-y-0 max-h-[calc(100dvh-2rem)]"
+          )}
+        >
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle className="text-lg">Add Fill-In Player</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
@@ -114,10 +119,12 @@ export default function AddFillInPlayerDialog({
               <div className="flex gap-2">
                 <Input
                   id="fillInNumber"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder={`e.g. ${suggestNumber()}`}
                   value={number}
-                  onChange={(e) => setNumber(e.target.value)}
+                  onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))}
                   min={1}
                   max={99}
                   className="w-24 h-11"
