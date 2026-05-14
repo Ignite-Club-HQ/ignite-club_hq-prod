@@ -597,8 +597,8 @@ export function MyTeamsPremiumCarousel() {
 
   if (isLoading && !snapshot) {
     return (
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold px-1">My Teams</h2>
+      <section className="space-y-2.5">
+        <h2 className="text-xl font-bold px-1 tracking-tight">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
           {[1, 2].map(i => (
             <div key={i} className="shrink-0 w-[85vw] max-w-[320px] min-h-[212px] rounded-lg bg-muted animate-pulse" />
