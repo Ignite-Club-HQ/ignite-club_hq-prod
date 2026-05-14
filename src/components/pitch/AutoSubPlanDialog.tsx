@@ -3994,8 +3994,9 @@ function DialogInner({
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
       try {
-        const generatedPlan = generatePlan(players);
+        const { plan: generatedPlan, roster: generatedRoster } = generatePlan(players);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs", miniLeagueTeams ? "(mini-league per-team)" : "");
+        setEffectivePlayers(generatedRoster);
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error generating plan:", error);
