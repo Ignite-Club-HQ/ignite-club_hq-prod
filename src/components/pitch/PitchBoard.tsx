@@ -4882,6 +4882,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onAddFillInPlayer={() => {
                     setToolbarCollapsed(false);
                     setSheetHeightPct(50);
+                    setFillInDialogOpen(true);
                   }}
                   hideTrigger
                   externalOpen={settingsDialogOpen}
