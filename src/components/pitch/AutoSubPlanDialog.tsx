@@ -3833,13 +3833,58 @@ function DialogInner({
     ? effectiveOverrides.maxSpreadOverrideSec / 60
     : maxSpreadMinutes;
 
-  const generatePlan = (allPlayers: Player[]) => {
+  /**
+   * Build a plan from the given roster, with optional priority-bias position
+   * swaps. When the coach has dragged players in the priority list, we run
+   * an iterative loop: generate a plan, compute forecasts, and if a
+   * higher-priority outfielder has materially fewer minutes (>1.5m) than a
+   * lower-priority outfielder below them, physically swap their lineup
+   * positions and regenerate. GKs (full-game) are pinned. Loops until
+   * stable or 8 iterations to prevent runaway recalculation.
+   *
+   * Returns both the plan AND the player roster used to generate it so the
+   * caller can mirror those position swaps to the parent's lineup before
+   * the plan starts running.
+   */
+  const buildPlanFromRoster = (roster: Player[], speed: 1 | 2): { plan: SubstitutionEvent[]; roster: Player[] } => {
     const halfDurationSeconds = minutesPerHalf * 60;
-    const basePlan = miniLeagueTeams
-      ? createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-      : createSubPlan(allPlayers, teamSize, halfDurationSeconds, effectiveRotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-    if (!playerPriority || playerPriority.length < 2) return basePlan;
-    return applyPriorityBiasToPlan(basePlan, allPlayers, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!);
+    const make = (rs: Player[]) => miniLeagueTeams
+      ? createMiniLeagueSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
+      : createSubPlan(rs, teamSize, halfDurationSeconds, speed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
+
+    let working = roster;
+    let plan = make(working);
+    if (!playerPriority || playerPriority.length < 2) return { plan, roster: working };
+
+    for (let iter = 0; iter < 8; iter++) {
+      const fc = calculateTimeForecasts(working, plan, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime, currentHalf, currentElapsedSeconds);
+      const minsById = new Map(fc.map(f => [f.player.id, f.predictedMinutes] as const));
+      const gkRoleById = new Map(fc.map(f => [f.player.id, f.gkRole] as const));
+      // Outfielders only — full-game GKs are pinned.
+      const swappable = playerPriority.filter(id => gkRoleById.get(id) !== 'full' && working.some(p => p.id === id));
+
+      let didSwap = false;
+      outer: for (let i = 0; i < swappable.length - 1; i++) {
+        for (let j = i + 1; j < swappable.length; j++) {
+          const Hid = swappable[i];
+          const Lid = swappable[j];
+          const hMin = minsById.get(Hid) ?? 0;
+          const lMin = minsById.get(Lid) ?? 0;
+          if (hMin < lMin - 1.5) {
+            working = swapLineupPositions(working, Hid, Lid);
+            didSwap = true;
+            break outer;
+          }
+        }
+      }
+      if (!didSwap) break;
+      plan = make(working);
+    }
+    return { plan, roster: working };
+  };
+
+  const generatePlan = (allPlayers: Player[]) => {
+    return buildPlanFromRoster(allPlayers, effectiveRotationSpeed);
   };
   
   // Auto-generate plan on mount AND whenever planner inputs change.
@@ -3872,24 +3917,21 @@ function DialogInner({
         const frequentNotViable = probeStranded.length > 0;
         setFrequentBlocked(frequentNotViable);
 
-        // If Frequent isn't viable but the coach is on Frequent, force them
-        // back to Standard so the toggle UI matches the plan being shown.
         if (frequentNotViable && effectiveRotationSpeed === 2) {
           setRotationSpeedOverride(1);
           setFrequentFallbackNotice(`Frequent rotation isn't possible with this squad and match length — every player would need a turn but the rotation can't fit them all. Standard rotation is being used instead.`);
-          // Build the Standard plan now so we don't render a stale Frequent
-          // plan for one frame before the override change re-runs the effect.
-          const standardBase = miniLeagueTeams
-            ? createMiniLeagueSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides)
-            : createSubPlan(players, teamSize, minutesPerHalf * 60, 1, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId, effectiveMaxSpreadMinutes, effectiveOverrides);
-          const standardPlan = playerPriority && playerPriority.length >= 2
-            ? applyPriorityBiasToPlan(standardBase, players, playerPriority, minutesPerHalf, preferredSecondHalfGkId, rotateGkAtHalftime!, currentHalf!, currentElapsedSeconds!)
-            : standardBase;
+          const { plan: standardPlan, roster: standardRoster } = buildPlanFromRoster(players, 1);
+          setEffectivePlayers(standardRoster);
           setPlan(standardPlan);
         } else {
           if (!frequentNotViable) setFrequentFallbackNotice(null);
-          setPlan(generatePlan(players));
+          const { plan: nextPlan, roster: nextRoster } = generatePlan(players);
+          setEffectivePlayers(nextRoster);
+          setPlan(nextPlan);
         }
+      } catch (error) {
+        console.error("Error auto-generating plan:", error);
+        setPlan([]);
       } catch (error) {
         console.error("Error auto-generating plan:", error);
         setPlan([]);
