@@ -3903,9 +3903,9 @@ function DialogInner({
                       shortShifts={autoFair.totalShortShifts}
                       hasHalftimeClash={hasHalftimeClash}
                     />
-                    <PlanPriorityToggles
-                      activeFixId={activeFixId}
-                      onApply={applyPlanFix}
+                    <PlanModeToggles
+                      activeMode={effectiveRotationSpeed}
+                      onChange={setRotationSpeedOverride}
                       readOnly={!!advancedOverrides}
                     />
                   </>
