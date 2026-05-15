@@ -895,10 +895,15 @@ function CompactCard({ event }: { event: EventItem }) {
         aria-hidden="true"
       />
       <CardContent className="p-3.5 pr-7 space-y-2">
-        {/* Cancelled marker only */}
-        {event.is_cancelled && (
-          <div className="flex items-center justify-end">
-            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+        {/* Status: BYE / Cancelled */}
+        {(event.is_cancelled || event.is_bye) && (
+          <div className="flex items-center justify-end gap-1.5">
+            {event.is_bye && !event.is_cancelled && (
+              <Badge variant="secondary" className="text-[10px] h-5 font-bold tracking-wider">BYE</Badge>
+            )}
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+            )}
           </div>
         )}
 
