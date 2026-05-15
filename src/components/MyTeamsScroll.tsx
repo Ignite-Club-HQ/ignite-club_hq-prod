@@ -143,9 +143,10 @@ export function MyTeamsScroll() {
         const m = title.match(/\s+vs?\.?\s+(.+)$/i);
         return m ? m[1].trim() : null;
       };
-      const buildLabel = (type: string | null, opponent: string | null, title: string) => {
+      const buildLabel = (type: string | null, opponent: string | null, title: string, isBye: boolean) => {
         if (type === "training") return "Training";
         if (type === "social") return "Social";
+        if ((type === "game" || type === "mini_league") && isBye) return "BYE — no match";
         const opp = opponent || extractOpponent(title);
         if ((type === "game" || type === "mini_league") && opp) return `Game v ${opp}`;
         if (type === "game" || type === "mini_league") return "Game";
