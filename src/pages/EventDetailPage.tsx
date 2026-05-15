@@ -538,6 +538,22 @@ export default function EventDetailPage() {
   const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
   const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
 
+  // Auto-open the pitch board when navigated here from the home Next Up
+  // Start Game CTA (or any other deep-link with ?openPitchBoard=1). We wait
+  // until access flags + team members have resolved so we don't open a board
+  // the user can't actually use.
+  const wantOpenPitchBoard = searchParams.get("openPitchBoard") === "1";
+  useEffect(() => {
+    if (!wantOpenPitchBoard) return;
+    if (!event || !teamMembers) return;
+    if (!(canAccessPitchBoard || canViewPitchBoardReadOnly)) return;
+    setShowPitchBoard(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("openPitchBoard");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantOpenPitchBoard, event?.id, canAccessPitchBoard, canViewPitchBoardReadOnly, !!teamMembers]);
+
   // Check if user is a team member (for read-only pitch board access)
   const { data: isTeamMember } = useQuery({
     queryKey: ["is-team-member", event?.team_id, user?.id],
