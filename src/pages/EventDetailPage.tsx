@@ -526,10 +526,15 @@ export default function EventDetailPage() {
   const isNetballClub = isNetballSport(event?.clubs?.sport);
   const isBasketballClub = isBasketballSport(event?.clubs?.sport);
 
-  // Check if user can access pitch board (coach/admin) - requires Pro Football for soccer; netball + basketball are open
-  const canAccessSoccerBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
-  const canAccessNetballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
-  const canAccessBasketballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
+  const isSubsManagerForEvent = !!duties?.some(
+    (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+  );
+  const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
+
+  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
+  const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
+  const canAccessNetballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
+  const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
   const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
 
   // Check if user is a team member (for read-only pitch board access)
