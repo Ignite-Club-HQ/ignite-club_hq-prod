@@ -287,7 +287,7 @@ export default function AutoSubManager({
                                   <div className="w-3 h-3 rounded-full border border-muted-foreground/40" />
                                 )}
                               </div>
-                              <Badge variant="secondary" className="font-mono text-[10px] h-5">
+                              <Badge className="font-mono text-[10px] h-5 border-transparent bg-foreground/15 text-foreground hover:bg-foreground/20">
                                 {timeLabel}
                               </Badge>
                               {group.items.length > 1 && (
