@@ -1,7 +1,10 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
+import type { DownloadFileResult } from "@capacitor/filesystem";
+
+type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
 
 /**
  * Download an image without exposing the backend URL or storage filename
@@ -74,128 +77,135 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       if (platform === "ios") {
-        // iOS: save directly to the Photos library via @capacitor-community/media,
-        // mirroring the Android path. This avoids the share sheet entirely (the
-        // share-sheet fallback was surfacing "Download failed" because some iOS
-        // versions reject Share.share() with `files` items pulled from cache when
-        // the underlying URLSession download race-conditioned with the share call).
-        //
-        // Strategy:
-        //  1) Download the bytes locally with Filesystem.downloadFile (URLSession,
-        //     reliable for Supabase signed URLs and small WebView memory).
-        //  2) Hand the resulting file:// URI to Media.savePhoto, which writes
-        //     into the user's Photos library through the Photos framework.
-        //  3) If Media is unavailable (rare — plugin not registered), fall back
-        //     to the share sheet so the user can still "Save Image" manually.
+        const { Media } = await import("@capacitor-community/media");
         const ext = guessExtensionFromUrl(resolvedUrl);
+        const contentType = pickContentTypeFromExtension(ext);
         const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-
-        // Step 1 — get the bytes onto disk.
         let localPath: string | null = null;
+
+        const saveToPhotos = async (path: string, source: string): Promise<boolean> => {
+          try {
+            await Media.savePhoto({ path });
+            toast.success("Saved to Photos", {
+              id: toastId,
+              description: "Open your Photos app to view it",
+            });
+            return true;
+          } catch (mediaErr: unknown) {
+            if (isPhotoPermissionError(mediaErr)) {
+              toast.error("Photos permission needed", {
+                id: toastId,
+                description: "Enable Photos access for Ignite in iOS Settings to save downloads.",
+              });
+              return true;
+            }
+            console.warn(`[downloadImage] iOS Media.savePhoto failed from ${source}:`, mediaErr);
+            return false;
+          }
+        };
+
+        // First let the native Media plugin download the signed HTTPS URL and
+        // write it straight to Photos. This avoids WKWebView fetch/CORS issues.
+        if (await saveToPhotos(resolvedUrl, "remote URL")) return;
+
+        // Fallback 1: native URLSession download to app cache, then save the
+        // cached bytes as a data URI. Capacitor Filesystem returns `path` on
+        // native (not `uri`), so support both shapes.
         try {
-          const dl: any = await (Filesystem as any).downloadFile({
+          const dl = await Filesystem.downloadFile({
             url: resolvedUrl,
             path: iosFilename,
             directory: Directory.Cache,
             recursive: true,
-          });
-          localPath = dl?.uri || null;
+          }) as DownloadResultWithLegacyUri;
+          localPath = dl?.uri || dl?.path || null;
         } catch (nativeErr) {
           console.warn("[downloadImage] iOS Filesystem.downloadFile failed, falling back to fetch:", nativeErr);
         }
 
-        if (!localPath) {
-          // Fallback: WebView fetch + writeFile. Useful when URLSession blocks
-          // (corporate proxies, captive portals, App Transport Security edge cases).
+        if (localPath) {
           try {
-            const response = await fetch(resolvedUrl);
-            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-            const blob = await response.blob();
-            const base64 = await blobToBase64(blob);
-            const written = await Filesystem.writeFile({
-              path: iosFilename,
-              data: base64,
-              directory: Directory.Cache,
-              recursive: true,
-            });
-            localPath = written.uri || null;
-          } catch (fetchErr) {
-            console.warn("[downloadImage] iOS fetch fallback failed:", fetchErr);
+            const read = await Filesystem.readFile({ path: iosFilename, directory: Directory.Cache });
+            const dataUri = await fileReadResultToDataUri(read.data, contentType);
+            if (await saveToPhotos(dataUri, "cached data URI")) return;
+          } catch (readErr) {
+            console.warn("[downloadImage] iOS cached file read failed:", readErr);
           }
+
+          if (await saveToPhotos(localPath, "local file")) return;
         }
 
-        if (!localPath) {
-          try {
-            localPath = (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
-          } catch {}
-        }
-
-        if (!localPath) {
-          toast.error("Download failed", { id: toastId, description: "Could not fetch the photo. Check your connection." });
-          return;
-        }
-
-        // Step 2 — save to Photos via the Media plugin (no share sheet).
+        // Fallback 2: WebView fetch. This can fail for cross-origin storage
+        // URLs, but when it works we again pass a data URI rather than a local
+        // file path to avoid iOS plugin path handling inconsistencies.
         try {
-          const { Media } = await import("@capacitor-community/media");
-          const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
-          await (Media as any).savePhoto({
-            path: localPath,
-            albumIdentifier: undefined, // default Camera Roll
-            fileName: baseName,
+          const response = await CapacitorHttp.get({
+            url: resolvedUrl,
+            responseType: "arraybuffer",
+            connectTimeout: 15000,
+            readTimeout: 30000,
           });
-          toast.success("Saved to Photos", {
-            id: toastId,
-            description: "Open your Photos app to view it",
-          });
-          return;
-        } catch (mediaErr: any) {
-          const msg = String(mediaErr?.message || mediaErr).toLowerCase();
-          // Permission denied → guide the user instead of a generic error.
-          if (msg.includes("permission") || msg.includes("denied") || msg.includes("not authorized")) {
-            toast.error("Photos permission needed", {
+          if (response.status < 200 || response.status >= 300) {
+            throw new Error(`Native HTTP failed (${response.status})`);
+          }
+          const responseType = getHeaderValue(response.headers, "content-type") || contentType;
+          const dataUri = normalizeBase64DataUri(response.data, responseType);
+          if (await saveToPhotos(dataUri, "native HTTP data URI")) return;
+        } catch (httpErr) {
+          console.warn("[downloadImage] iOS native HTTP fallback failed:", httpErr);
+        }
+
+        try {
+          const response = await fetch(resolvedUrl, { credentials: "omit" });
+          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+          const blob = await response.blob();
+          const dataUri = `data:${blob.type || contentType};base64,${await blobToBase64(blob)}`;
+          if (await saveToPhotos(dataUri, "fetch data URI")) return;
+        } catch (fetchErr) {
+          console.warn("[downloadImage] iOS fetch fallback failed:", fetchErr);
+        }
+
+        // Last resort: share the cached local file if one exists, otherwise give
+        // a truthful error. This path should only be reached if both native
+        // save/download mechanisms and the WebView fetch failed.
+        if (localPath) {
+          try {
+            const { Share } = await import("@capacitor/share");
+            await Share.share({
+              title: "Save photo",
+              files: [localPath],
+              dialogTitle: "Save photo",
+            });
+            toast.success("Photo ready", {
               id: toastId,
-              description: "Enable Photos access for Ignite in iOS Settings to save downloads.",
+              description: "Tap Save Image in the share sheet",
             });
-            return;
+          } catch (shareErr: unknown) {
+            const msg = getErrorText(shareErr).toLowerCase();
+            if (msg.includes("cancel") || msg.includes("abort")) {
+              toast.dismiss(toastId);
+              return;
+            }
+            console.warn("[downloadImage] iOS share fallback failed:", shareErr);
+            toast.error("Download failed", { id: toastId, description: "Please try again" });
           }
-          console.warn("[downloadImage] iOS Media.savePhoto failed, falling back to share sheet:", mediaErr);
+          return;
         }
 
-        // Step 3 — share-sheet fallback so the user can still save manually.
-        try {
-          const { Share } = await import("@capacitor/share");
-          await Share.share({
-            title: "Save photo",
-            files: [localPath],
-            dialogTitle: "Save photo",
-          });
-          toast.success("Photo ready", {
-            id: toastId,
-            description: "Tap Save Image in the share sheet",
-          });
-        } catch (shareErr: any) {
-          const msg = String(shareErr?.message || shareErr).toLowerCase();
-          if (msg.includes("cancel") || msg.includes("abort")) {
-            toast.dismiss(toastId);
-            return;
-          }
-          console.warn("[downloadImage] iOS share fallback failed:", shareErr);
-          toast.error("Download failed", { id: toastId, description: "Please try again" });
-        }
+        toast.error("Download failed", { id: toastId, description: "Could not save this photo. Please try again." });
         return;
       }
 
       // ---- Other native fallback: write to cache then open share sheet
       let writtenUri: string | null = null;
       try {
-        const dl: any = await (Filesystem as any).downloadFile({
+        const dl = await Filesystem.downloadFile({
           url: resolvedUrl,
           path: filename,
           directory: Directory.Cache,
           recursive: true,
-        });
-        writtenUri = dl?.uri || null;
+        }) as DownloadResultWithLegacyUri;
+        writtenUri = dl?.uri || dl?.path || null;
         if (!writtenUri) {
           const uriResult = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
           writtenUri = uriResult.uri;
@@ -241,8 +251,8 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
                 files: [finalUri],
                 dialogTitle: "Save photo",
               });
-            } catch (shareErr: any) {
-              const msg = String(shareErr?.message || shareErr);
+            } catch (shareErr: unknown) {
+              const msg = getErrorText(shareErr);
               if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
                 toast.error("Could not open file", { description: msg });
@@ -303,10 +313,8 @@ function showOpenDownloadedPhotoToast(
       ? {
           label: "Open",
           onClick: async (event) => {
-            try {
-              event?.preventDefault?.();
-              event?.stopPropagation?.();
-            } catch {}
+            event?.preventDefault?.();
+            event?.stopPropagation?.();
             // Launch the system Gallery / Photos app. We don't try to open the
             // exact saved file by path: Android's MediaStore returns paths /
             // content URIs that FileOpener typically can't resolve across
@@ -329,7 +337,7 @@ function showOpenDownloadedPhotoToast(
                 }
               }
               throw new Error("No gallery app could be launched");
-            } catch (openErr: any) {
+            } catch (openErr: unknown) {
               console.warn("[downloadImage] gallery launch failed:", openErr);
               toast.error("Could not open gallery", {
                 description: "Open your Photos app from the home screen",
@@ -375,6 +383,48 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+async function fileReadResultToDataUri(data: string | Blob, contentType: string): Promise<string> {
+  if (typeof data === "string") {
+    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
+  }
+
+  return `data:${data.type || contentType};base64,${await blobToBase64(data)}`;
+}
+
+function isPhotoPermissionError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null | undefined;
+  const message = String(e?.message || err || "").toLowerCase();
+  const code = String(e?.code || "").toLowerCase();
+
+  return (
+    code.includes("access_denied") ||
+    message.includes("access to photos not allowed") ||
+    message.includes("permission") ||
+    message.includes("denied") ||
+    message.includes("not authorized")
+  );
+}
+
+function getErrorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? "");
+}
+
+function getHeaderValue(headers: Record<string, string>, name: string): string | null {
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName) return value;
+  }
+  return null;
+}
+
+function normalizeBase64DataUri(data: unknown, contentType: string): string {
+  if (typeof data === "string") {
+    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
+  }
+
+  throw new Error("Native HTTP did not return base64 image data");
+}
+
 function pickExtension(contentType: string): string {
   const ct = contentType.toLowerCase();
   if (ct.includes("png")) return "png";
@@ -391,7 +441,9 @@ function guessExtensionFromUrl(url: string): string {
     const path = new URL(url).pathname.toLowerCase();
     const m = path.match(/\.(png|webp|gif|heic|heif|svg|jpg|jpeg)(?:$|\?)/);
     if (m) return m[1] === "jpeg" ? "jpg" : m[1];
-  } catch {}
+  } catch {
+    return "jpg";
+  }
   return "jpg";
 }
 
@@ -418,8 +470,8 @@ async function ensureAndroidMediaAlbum(
 
   try {
     await Media.createAlbum({ name: albumName });
-  } catch (err: any) {
-    const message = String(err?.message || err).toLowerCase();
+  } catch (err: unknown) {
+    const message = getErrorText(err).toLowerCase();
     if (!message.includes("already exists")) throw err;
   }
 
