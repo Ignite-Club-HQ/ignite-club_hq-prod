@@ -2516,7 +2516,7 @@ export default function TeamDetailPage() {
               initialTeamSize={teamSubscription?.team_size}
               initialFormation={teamSubscription?.formation || undefined}
               readOnly={!canEditPitchBoard && !isSubsManager}
-              isSubsManager={!!isSubsManager}
+              isSubsManager={!!isSubsManager || hasNearbySubsManagerDuty}
               initialLinkedEventId={linkedEventId}
               onUnlinkEvent={() => {
                 setLinkedEventId(null);
