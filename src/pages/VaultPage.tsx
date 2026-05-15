@@ -2464,17 +2464,16 @@ export default function VaultPage() {
     items.push(
       <BreadcrumbItem key="vault">
         {currentView.type === "root" ? (
-          <BreadcrumbPage className="flex items-center gap-1">
-            <Home className="h-3.5 w-3.5" />
-            Vault
+          <BreadcrumbPage className="flex items-center gap-1" aria-label="Vault">
+            <Home className="h-4 w-4" />
           </BreadcrumbPage>
         ) : (
-          <BreadcrumbLink 
+          <BreadcrumbLink
             className="flex items-center gap-1 cursor-pointer hover:text-foreground"
             onClick={navigateToRoot}
+            aria-label="Vault"
           >
-            <Home className="h-3.5 w-3.5" />
-            Vault
+            <Home className="h-4 w-4" />
           </BreadcrumbLink>
         )}
       </BreadcrumbItem>
