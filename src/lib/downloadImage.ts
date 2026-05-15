@@ -399,22 +399,6 @@ function getErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err ?? "");
 }
 
-function getHeaderValue(headers: Record<string, string>, name: string): string | null {
-  const lowerName = name.toLowerCase();
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === lowerName) return value;
-  }
-  return null;
-}
-
-function normalizeBase64DataUri(data: unknown, contentType: string): string {
-  if (typeof data === "string") {
-    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
-  }
-
-  throw new Error("Native HTTP did not return base64 image data");
-}
-
 function pickExtension(contentType: string): string {
   const ct = contentType.toLowerCase();
   if (ct.includes("png")) return "png";
