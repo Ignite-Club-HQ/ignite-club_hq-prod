@@ -443,6 +443,7 @@ export default function EventsPage() {
           team_id,
           mini_league_id,
           is_cancelled,
+          is_bye,
           is_recurring,
           parent_event_id,
           opponent,
