@@ -50,6 +50,25 @@ interface NextUpCarouselProps {
   isLoading?: boolean;
 }
 
+function StartGameCta({ event }: { event: EventItem }) {
+  const navigate = useNavigate();
+  const { canStart, phase } = useCanStartGame(event);
+  if (!canStart) return null;
+  const label = phase === "live" ? "Open Match" : "Start Game";
+  return (
+    <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Button
+        size="sm"
+        className="w-full h-10 gap-2 font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        onClick={() => navigate(`/events/${event.id}?openPitchBoard=1`)}
+      >
+        <Play className="h-4 w-4" />
+        {label}
+      </Button>
+    </div>
+  );
+}
+
 // Reserve enough vertical space to fit the card with the Children's RSVP
 // accordion in its collapsed state. This stops the home page from jolting
 // downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
