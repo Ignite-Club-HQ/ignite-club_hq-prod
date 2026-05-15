@@ -623,11 +623,21 @@ export function createSubPlan(
   const rotationSpeed = normalizeRotationSpeed(rotationSpeedInput);
   // Resolve overrides → effective tunables (clamped to safe ranges)
   const ov = advancedOverrides || {};
+  // Ultra-thin bench auto-tighten: when bench is ≤1 the standard floors
+  // (4 min interval / 3 min shift) become the bottleneck and prevent
+  // equal-time rotations. Drop them so e.g. a 5-player / 4-a-side / 40-min
+  // squad can sub every 4 min and land each player on 32'/8'.
+  const _benchCount = (playerData ?? []).filter(p => p.position === null).length;
+  const _ultraThinBench = _benchCount > 0 && _benchCount <= 1;
+  const _autoIntervalFloor = _ultraThinBench ? 180 : 240;       // 3 min vs 4 min
+  const _autoFreqFloor     = _ultraThinBench ? 120 : 180;       // 2 min vs 3 min
+  const _autoMinShift      = _ultraThinBench ? 150 : 180;       // 2.5 min vs 3 min
+  const _autoTarget        = _ultraThinBench ? 240 : PRACTICAL_SUB_INTERVAL_SECONDS;
   const eff = {
-    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? PRACTICAL_SUB_INTERVAL_SECONDS)),
-    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? 240)),
-    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? 180)),
-    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? 180)),
+    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? _autoTarget)),
+    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? _autoIntervalFloor)),
+    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? _autoFreqFloor)),
+    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? _autoMinShift)),
     halftimeGuardSeconds: ov.halftimeGuardSeconds !== undefined
       ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
       : undefined, // undefined → fall back to interval floor at use site
