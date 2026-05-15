@@ -17,6 +17,7 @@ interface EventDisplayInput {
   type?: string | null;
   opponent?: string | null;
   mini_league_id?: string | null;
+  is_bye?: boolean | null;
   teams?: { name?: string | null } | null;
   clubs?: { name?: string | null } | null;
 }
