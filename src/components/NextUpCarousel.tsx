@@ -619,7 +619,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
                   <span className={`min-w-0 truncate ${typeAccent === "default" ? "text-foreground/85" : typeAccentClasses.text}`}>
                     {isGame
-                      ? (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary)
+                      ? (event.is_bye ? "BYE — no match" : (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary))
                       : eventDisplay.primary}
                   </span>
                 </div>
