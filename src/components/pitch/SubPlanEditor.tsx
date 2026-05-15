@@ -364,8 +364,7 @@ export default function SubPlanEditor({
                         {/* Time column - shown once per group */}
                         <div className="flex flex-col items-center pt-2 shrink-0 w-14">
                           <Badge
-                            variant="secondary"
-                            className="font-mono text-xs cursor-pointer hover:bg-secondary/80"
+                            className="font-mono text-xs cursor-pointer border-transparent bg-foreground/15 text-foreground hover:bg-foreground/25"
                             onClick={() => setEditingIndex(group.subs[0].globalIndex)}
                           >
                             {group.time === 0 && half === 2 ? "HT" : formatTime(group.time)}
