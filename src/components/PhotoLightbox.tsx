@@ -330,7 +330,7 @@ export function PhotoLightbox({
               >
                 <Share2 className="h-5 w-5" />
               </Button>
-              <DropdownMenu modal={false}>
+              <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -342,12 +342,13 @@ export function PhotoLightbox({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={8} className="z-[1000002] min-w-[180px]">
-                  <DropdownMenuItem onSelect={handleDownload}>
+                  <DropdownMenuItem onSelect={() => { setMenuOpen(false); handleDownload(); }}>
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
+                      setMenuOpen(false);
                       setReportPhotoId(currentPhoto.id);
                       onClose();
                     }}
@@ -359,7 +360,7 @@ export function PhotoLightbox({
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onSelect={() => setDeleteConfirmOpen(true)}
+                        onSelect={() => { setMenuOpen(false); setDeleteConfirmOpen(true); }}
                         className="text-destructive focus:text-destructive focus:bg-destructive/10"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
