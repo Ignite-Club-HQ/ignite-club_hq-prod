@@ -585,18 +585,20 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
 
-              {/* Optional group name when 2+ users selected */}
-              {selectedUsers.length > 1 && (
+              {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
+              {(mode === "custom-group" || selectedUsers.length > 1) && (
                 <div className="space-y-1">
                   <Input
-                    placeholder="Group name (optional)"
+                    placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     maxLength={60}
+                    className="h-11 rounded-xl"
+                    autoFocus={mode === "custom-group"}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank to use member names
-                  </p>
+                  {mode !== "custom-group" && (
+                    <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
+                  )}
                 </div>
               )}
 
