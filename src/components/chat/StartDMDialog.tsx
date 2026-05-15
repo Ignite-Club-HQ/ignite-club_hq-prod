@@ -634,35 +634,57 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   ) : (
                     filteredUsers.map((dmUser) => {
                       const isSelected = selectedUsers.some(u => u.id === dmUser.id);
+                      const teamCount = dmUser.team_ids.length;
+                      const initials = (dmUser.display_name || "?")
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map(s => s.charAt(0).toUpperCase())
+                        .join("");
                       return (
                         <button
                           key={dmUser.id}
                           onClick={() => toggleUserSelection(dmUser)}
                           disabled={isPending}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
-                            isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left active:scale-[0.99] touch-manipulation border ${
+                            isSelected
+                              ? "bg-primary/10 border-primary/40 shadow-sm shadow-primary/10"
+                              : "bg-card border-border hover:border-primary/30 hover:bg-accent/40"
                           }`}
                         >
                           <div className="relative">
-                            <Avatar className="h-10 w-10">
+                            <Avatar className={`h-11 w-11 ring-2 transition-all ${isSelected ? "ring-primary" : "ring-transparent"}`}>
                               <AvatarImage src={dmUser.avatar_url || undefined} />
-                              <AvatarFallback>
-                                {dmUser.display_name?.charAt(0).toUpperCase() || "?"}
+                              <AvatarFallback className="text-xs font-semibold bg-muted">
+                                {initials || "?"}
                               </AvatarFallback>
                             </Avatar>
                             {isSelected && (
-                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="h-3 w-3 text-primary-foreground" />
+                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center ring-2 ring-background">
+                                <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
                               </span>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate text-sm leading-tight">
                               {dmUser.display_name || "Unknown User"}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {dmUser.shared_clubs.join(", ")}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {dmUser.shared_clubs.slice(0, 1).map(c => (
+                                <span
+                                  key={c}
+                                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground max-w-[180px] truncate"
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                              {teamCount > 0 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
+                                  <Users className="h-2.5 w-2.5" />
+                                  {teamCount} {teamCount === 1 ? "team" : "teams"}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       );
