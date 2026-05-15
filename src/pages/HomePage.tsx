@@ -105,6 +105,7 @@ interface Event {
   team_id: string | null;
   mini_league_id: string | null;
   is_cancelled: boolean;
+  is_bye?: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
   amount: number | null;
