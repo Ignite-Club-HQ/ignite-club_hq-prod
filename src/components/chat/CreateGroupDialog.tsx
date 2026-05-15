@@ -378,6 +378,10 @@ export default function CreateGroupDialog({
       toast.error("Give your group a name");
       return;
     }
+    if (groupType === "team" && !teamId && !selectedTeamId) {
+      toast.error("Pick a team");
+      return;
+    }
     if (selectedRoles.length === 0) {
       toast.error("Pick at least one role");
       return;
