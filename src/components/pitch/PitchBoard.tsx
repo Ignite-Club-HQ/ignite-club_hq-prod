@@ -4787,6 +4787,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 Setup
               </Button>
             )}
+            {gameInProgress && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                onClick={() => setStatsOpen(true)}
+                aria-label="Match Stats"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Stats
+              </Button>
+            )}
             {!readOnly && (
               <>
                 <div className="w-px h-6 bg-border mx-1" />
