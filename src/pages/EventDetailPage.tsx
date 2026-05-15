@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
+import { useState, useEffect, lazy, Suspense, useRef, useMemo } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
@@ -108,6 +108,8 @@ const rsvpOptions: { value: RsvpStatus; label: string; icon: string }[] = [
   { value: "maybe", label: "Maybe", icon: "🤔" },
   { value: "not_going", label: "Can't Go", icon: "❌" },
 ];
+
+const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
 
 // Helper component for attendee display with payment status and admin RSVP controls
 const AttendeeCard = ({ 
