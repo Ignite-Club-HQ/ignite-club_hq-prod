@@ -74,13 +74,23 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       if (platform === "ios") {
-        // iOS: prefer native Filesystem.downloadFile (URLSession) which
-        // reliably handles Supabase signed URLs. The WebView's fetch() can
-        // fail intermittently on Supabase storage hosts (TLS/IPv6 quirks),
-        // surfacing to the user as "Download failed". Fall back to
-        // fetch + writeFile only if the native download path errors out.
+        // iOS: save directly to the Photos library via @capacitor-community/media,
+        // mirroring the Android path. This avoids the share sheet entirely (the
+        // share-sheet fallback was surfacing "Download failed" because some iOS
+        // versions reject Share.share() with `files` items pulled from cache when
+        // the underlying URLSession download race-conditioned with the share call).
+        //
+        // Strategy:
+        //  1) Download the bytes locally with Filesystem.downloadFile (URLSession,
+        //     reliable for Supabase signed URLs and small WebView memory).
+        //  2) Hand the resulting file:// URI to Media.savePhoto, which writes
+        //     into the user's Photos library through the Photos framework.
+        //  3) If Media is unavailable (rare — plugin not registered), fall back
+        //     to the share sheet so the user can still "Save Image" manually.
         const ext = guessExtensionFromUrl(resolvedUrl);
         const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
+
+        // Step 1 — get the bytes onto disk.
         let localPath: string | null = null;
         try {
           const dl: any = await (Filesystem as any).downloadFile({
@@ -95,29 +105,66 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         }
 
         if (!localPath) {
-          const response = await fetch(resolvedUrl);
-          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-          const blob = await response.blob();
-          const base64 = await blobToBase64(blob);
-          const written = await Filesystem.writeFile({
-            path: iosFilename,
-            data: base64,
-            directory: Directory.Cache,
-            recursive: true,
-          });
-          localPath = written.uri || null;
+          // Fallback: WebView fetch + writeFile. Useful when URLSession blocks
+          // (corporate proxies, captive portals, App Transport Security edge cases).
+          try {
+            const response = await fetch(resolvedUrl);
+            if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+            const blob = await response.blob();
+            const base64 = await blobToBase64(blob);
+            const written = await Filesystem.writeFile({
+              path: iosFilename,
+              data: base64,
+              directory: Directory.Cache,
+              recursive: true,
+            });
+            localPath = written.uri || null;
+          } catch (fetchErr) {
+            console.warn("[downloadImage] iOS fetch fallback failed:", fetchErr);
+          }
         }
 
         if (!localPath) {
-          localPath = (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+          try {
+            localPath = (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+          } catch {}
         }
 
+        if (!localPath) {
+          toast.error("Download failed", { id: toastId, description: "Could not fetch the photo. Check your connection." });
+          return;
+        }
+
+        // Step 2 — save to Photos via the Media plugin (no share sheet).
+        try {
+          const { Media } = await import("@capacitor-community/media");
+          const baseName = `${friendlyBaseName}-${stamp}-${Date.now()}`;
+          await (Media as any).savePhoto({
+            path: localPath,
+            albumIdentifier: undefined, // default Camera Roll
+            fileName: baseName,
+          });
+          toast.success("Saved to Photos", {
+            id: toastId,
+            description: "Open your Photos app to view it",
+          });
+          return;
+        } catch (mediaErr: any) {
+          const msg = String(mediaErr?.message || mediaErr).toLowerCase();
+          // Permission denied → guide the user instead of a generic error.
+          if (msg.includes("permission") || msg.includes("denied") || msg.includes("not authorized")) {
+            toast.error("Photos permission needed", {
+              id: toastId,
+              description: "Enable Photos access for Ignite in iOS Settings to save downloads.",
+            });
+            return;
+          }
+          console.warn("[downloadImage] iOS Media.savePhoto failed, falling back to share sheet:", mediaErr);
+        }
+
+        // Step 3 — share-sheet fallback so the user can still save manually.
         try {
           const { Share } = await import("@capacitor/share");
-          // iOS Share plugin: pass `files` ONLY when sharing a local file.
-          // Passing both `url` and `files` causes the share sheet to error
-          // out ("Download failed") because iOS treats `url` as a remote
-          // link and rejects the mismatched activity items.
           await Share.share({
             title: "Save photo",
             files: [localPath],
