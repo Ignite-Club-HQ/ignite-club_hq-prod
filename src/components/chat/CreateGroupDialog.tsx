@@ -549,20 +549,22 @@ export default function CreateGroupDialog({
                 <span className="text-[10px] text-muted-foreground">{isTeamMode ? "Required" : "Optional"}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTeamId("")}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
-                    "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                    selectedTeamId === ""
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                      : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                  )}
-                >
-                  {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                  Whole club
-                </button>
+                {!isTeamMode && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamId("")}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                      selectedTeamId === ""
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                    )}
+                  >
+                    {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                    Whole club
+                  </button>
+                )}
                 {clubTeams.map((t) => {
                   const isSelected = selectedTeamId === t.id;
                   return (
