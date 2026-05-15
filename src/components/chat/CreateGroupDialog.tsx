@@ -424,7 +424,7 @@ export default function CreateGroupDialog({
           )}
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 py-3 px-1">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 py-3 px-1">
           {/* Section 1: Group Details */}
           <section className="space-y-2">
             <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -467,54 +467,71 @@ export default function CreateGroupDialog({
             </section>
           )}
 
-          {/* Section 2: Roles */}
-          <section className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                <Shield className="h-3 w-3" />
-                Roles
-              </Label>
-              <span className="text-[10px] text-muted-foreground">Multi-select</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {ROLE_OPTIONS.map((role) => {
-                const isSelected = selectedRoles.includes(role.value);
-                const count = roleCounts[role.value] ?? 0;
-                if (count === 0 && !isSelected) return null;
-                return (
-                  <button
-                    key={role.value}
-                    type="button"
-                    onClick={() => toggleRole(role.value)}
-                    className={cn(
-                      "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
-                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                    )}
-                  >
-                    {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                    <span>{role.label}</span>
-                    <span
-                      className={cn(
-                        "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
-                        isSelected
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-              {Object.keys(roleCounts).length === 0 && (
-                <p className="text-xs text-muted-foreground py-2">
-                  No members found in this scope yet.
-                </p>
-              )}
-            </div>
+          {/* Section 2: Roles. In team mode this collapses behind a "Filter roles (optional)" toggle. */}
+          <section className={cn("space-y-3", isTeamMode && "order-3")}>
+            {isTeamMode && !showRoleFilter ? (
+              <button
+                type="button"
+                onClick={() => setShowRoleFilter(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-left active:scale-[0.99] transition-transform touch-manipulation hover:border-primary/40 hover:bg-accent/30"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Filter who's included</span>
+                  <span className="text-xs text-muted-foreground">Optional</span>
+                </span>
+                <span className="text-xs text-muted-foreground">All roles</span>
+              </button>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                    <Shield className="h-3 w-3" />
+                    {isTeamMode ? "Filter roles" : "Roles"}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">Multi-select</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {ROLE_OPTIONS.map((role) => {
+                    const isSelected = selectedRoles.includes(role.value);
+                    const count = roleCounts[role.value] ?? 0;
+                    if (count === 0 && !isSelected) return null;
+                    return (
+                      <button
+                        key={role.value}
+                        type="button"
+                        onClick={() => toggleRole(role.value)}
+                        className={cn(
+                          "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
+                          "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                            : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                        <span>{role.label}</span>
+                        <span
+                          className={cn(
+                            "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                            isSelected
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {Object.keys(roleCounts).length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2">
+                      No members found in this scope yet.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </section>
 
           {/* Section 3: Teams (scope narrower) */}
