@@ -50,9 +50,16 @@ interface TeamInfo {
 interface StartDMDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "dm" (default) — fast direct-message flow. Picking 1 person starts a DM
+   * instantly; picking multiple auto-creates an unnamed group.
+   * "custom-group" — manual people picker. Group name is required and shown at
+   * the top; submit always creates a group even with one person selected.
+   */
+  mode?: "dm" | "custom-group";
 }
 
-export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDialogProps) {
+export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" }: StartDMDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
@@ -443,7 +450,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
   const handleStartConversation = () => {
     if (selectedUsers.length === 0) return;
-    
+
+    if (mode === "custom-group") {
+      if (!groupName.trim()) {
+        toast.error("Give your group a name");
+        return;
+      }
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      return;
+    }
+
     if (selectedUsers.length === 1) {
       // Single user - start regular DM
       startDMMutation.mutate(selectedUsers[0].id);
@@ -506,7 +522,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            Start a Conversation
+            {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -515,7 +531,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Select one or more members to message
+            {mode === "custom-group"
+              ? "Pick people one by one and give your group a name"
+              : "Pick one person to chat 1:1, or several to start a quick group"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -567,18 +585,20 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 </div>
               )}
 
-              {/* Optional group name when 2+ users selected */}
-              {selectedUsers.length > 1 && (
+              {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
+              {(mode === "custom-group" || selectedUsers.length > 1) && (
                 <div className="space-y-1">
                   <Input
-                    placeholder="Group name (optional)"
+                    placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     maxLength={60}
+                    className="h-11 rounded-xl"
+                    autoFocus={mode === "custom-group"}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank to use member names
-                  </p>
+                  {mode !== "custom-group" && (
+                    <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
+                  )}
                 </div>
               )}
 
@@ -704,20 +724,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
             </Button>
             <Button
               onClick={handleStartConversation}
-              disabled={isPending}
+              disabled={isPending || (mode === "custom-group" && !groupName.trim())}
               className="flex-1 sm:flex-none gap-2"
             >
               {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : selectedUsers.length > 1 ? (
+              ) : mode === "custom-group" || selectedUsers.length > 1 ? (
                 <Users className="h-4 w-4" />
               ) : (
                 <MessageCircle className="h-4 w-4" />
               )}
-              {selectedUsers.length === 1 
-                ? "Start Chat" 
-                : `Create Group (${selectedUsers.length} people)`
-              }
+              {mode === "custom-group"
+                ? `Create Group (${selectedUsers.length})`
+                : selectedUsers.length === 1
+                  ? "Start Chat"
+                  : `Create Group (${selectedUsers.length} people)`}
             </Button>
           </ResponsiveDialogFooter>
         )}

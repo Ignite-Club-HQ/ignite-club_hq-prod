@@ -33,6 +33,13 @@ interface CreateGroupDialogProps {
   miniLeagueId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "role" (default) — current role-first behavior.
+   * "team" — team scope is the primary control; roles are an optional filter
+   * tucked into a collapsed "Filter roles" section. Group name is auto-suggested
+   * from the selected team.
+   */
+  groupType?: "role" | "team";
 }
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
@@ -50,6 +57,7 @@ export default function CreateGroupDialog({
   miniLeagueId,
   open: controlledOpen,
   onOpenChange,
+  groupType = "role",
 }: CreateGroupDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
@@ -59,6 +67,7 @@ export default function CreateGroupDialog({
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
+  const [showRoleFilter, setShowRoleFilter] = useState<boolean>(groupType !== "team");
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -66,6 +75,15 @@ export default function CreateGroupDialog({
     if (onOpenChange) onOpenChange(open);
     else setInternalOpen(open);
   };
+
+  // In team mode, default to all roles included so user can create a team chat
+  // without having to manually pick roles.
+  useEffect(() => {
+    if (groupType === "team" && isOpen && selectedRoles.length === 0) {
+      setSelectedRoles(ROLE_OPTIONS.map((r) => r.value));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupType, isOpen]);
 
   // Resolve the active club context. clubId prop > active club filter.
   const resolvedClubId = clubId || activeClubFilter || null;
@@ -360,6 +378,10 @@ export default function CreateGroupDialog({
       toast.error("Give your group a name");
       return;
     }
+    if (groupType === "team" && !teamId && !selectedTeamId) {
+      toast.error("Pick a team");
+      return;
+    }
     if (selectedRoles.length === 0) {
       toast.error("Pick at least one role");
       return;
@@ -379,24 +401,36 @@ export default function CreateGroupDialog({
   const showLeaguePicker =
     !isTeamScopeLocked && !isLeagueScopeLocked && !resolvedClubId && adminMiniLeagues.length > 0;
 
+  // Auto-suggest a name when a team is picked in team mode (only if user hasn't typed one)
+  useEffect(() => {
+    if (groupType !== "team" || !isOpen) return;
+    if (!selectedTeamId) return;
+    const t = clubTeams.find((ct) => ct.id === selectedTeamId);
+    if (!t) return;
+    setName((prev) => (prev.trim() ? prev : `${t.name} chat`));
+  }, [groupType, isOpen, selectedTeamId, clubTeams]);
+
+  const isTeamMode = groupType === "team";
+
   const dialogContent = (
     <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
       <ResponsiveDialogContent className="sm:max-w-lg">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            New Group Chat
+            {isTeamMode ? <Users className="h-4 w-4 text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+            {isTeamMode ? "New Team Group" : "New Role-Based Group"}
           </ResponsiveDialogTitle>
           {contextLabel && (
             <p className="text-xs text-muted-foreground pt-1">
-              Creating group in <span className="font-medium text-foreground">{contextLabel}</span>
+              {isTeamMode ? "Creating team chat in " : "Creating group in "}
+              <span className="font-medium text-foreground">{contextLabel}</span>
             </p>
           )}
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 py-3 px-1">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 py-3 px-1">
           {/* Section 1: Group Details */}
-          <section className="space-y-2">
+          <section className={cn("space-y-2", isTeamMode && "order-1")}>
             <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
               Group name
             </Label>
@@ -412,7 +446,7 @@ export default function CreateGroupDialog({
 
           {/* League fallback (rare) */}
           {showLeaguePicker && (
-            <section className="space-y-2">
+            <section className={cn("space-y-2", isTeamMode && "order-1")}>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 League
               </Label>
@@ -437,81 +471,100 @@ export default function CreateGroupDialog({
             </section>
           )}
 
-          {/* Section 2: Roles */}
-          <section className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                <Shield className="h-3 w-3" />
-                Roles
-              </Label>
-              <span className="text-[10px] text-muted-foreground">Multi-select</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {ROLE_OPTIONS.map((role) => {
-                const isSelected = selectedRoles.includes(role.value);
-                const count = roleCounts[role.value] ?? 0;
-                if (count === 0 && !isSelected) return null;
-                return (
-                  <button
-                    key={role.value}
-                    type="button"
-                    onClick={() => toggleRole(role.value)}
-                    className={cn(
-                      "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
-                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                    )}
-                  >
-                    {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                    <span>{role.label}</span>
-                    <span
-                      className={cn(
-                        "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
-                        isSelected
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-              {Object.keys(roleCounts).length === 0 && (
-                <p className="text-xs text-muted-foreground py-2">
-                  No members found in this scope yet.
-                </p>
-              )}
-            </div>
+          {/* Section 2: Roles. In team mode this collapses behind a "Filter roles (optional)" toggle. */}
+          <section className={cn("space-y-3", isTeamMode && "order-3")}>
+            {isTeamMode && !showRoleFilter ? (
+              <button
+                type="button"
+                onClick={() => setShowRoleFilter(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-left active:scale-[0.99] transition-transform touch-manipulation hover:border-primary/40 hover:bg-accent/30"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Filter who's included</span>
+                  <span className="text-xs text-muted-foreground">Optional</span>
+                </span>
+                <span className="text-xs text-muted-foreground">All roles</span>
+              </button>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                    <Shield className="h-3 w-3" />
+                    {isTeamMode ? "Filter roles" : "Roles"}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">Multi-select</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {ROLE_OPTIONS.map((role) => {
+                    const isSelected = selectedRoles.includes(role.value);
+                    const count = roleCounts[role.value] ?? 0;
+                    if (count === 0 && !isSelected) return null;
+                    return (
+                      <button
+                        key={role.value}
+                        type="button"
+                        onClick={() => toggleRole(role.value)}
+                        className={cn(
+                          "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
+                          "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                            : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                        <span>{role.label}</span>
+                        <span
+                          className={cn(
+                            "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                            isSelected
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {Object.keys(roleCounts).length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2">
+                      No members found in this scope yet.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </section>
 
           {/* Section 3: Teams (scope narrower) */}
           {showTeamPicker && (
-            <section className="space-y-3">
+            <section className={cn("space-y-3", isTeamMode && "order-2")}>
               <div className="flex items-baseline justify-between">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                   <Users className="h-3 w-3" />
-                  Scope to a team
+                  {isTeamMode ? "Pick a team" : "Scope to a team"}
                 </Label>
-                <span className="text-[10px] text-muted-foreground">Optional</span>
+                <span className="text-[10px] text-muted-foreground">{isTeamMode ? "Required" : "Optional"}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTeamId("")}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
-                    "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                    selectedTeamId === ""
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                      : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                  )}
-                >
-                  {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                  Whole club
-                </button>
+                {!isTeamMode && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamId("")}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                      selectedTeamId === ""
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                    )}
+                  >
+                    {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                    Whole club
+                  </button>
+                )}
                 {clubTeams.map((t) => {
                   const isSelected = selectedTeamId === t.id;
                   return (
@@ -546,6 +599,7 @@ export default function CreateGroupDialog({
           <section
             className={cn(
               "rounded-2xl border p-3.5 transition-all",
+              isTeamMode && "order-last",
               selectedRoles.length > 0
                 ? "border-primary/30 bg-primary/5"
                 : "border-dashed border-border bg-muted/30"
