@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play } from "lucide-react";
+import { useCanStartGame } from "@/hooks/useCanStartGame";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,25 @@ interface EventItem {
 interface NextUpCarouselProps {
   events: EventItem[];
   isLoading?: boolean;
+}
+
+function StartGameCta({ event }: { event: EventItem }) {
+  const navigate = useNavigate();
+  const { canStart, phase } = useCanStartGame(event);
+  if (!canStart) return null;
+  const label = phase === "live" ? "Open Match" : "Start Game";
+  return (
+    <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Button
+        size="sm"
+        className="w-full h-10 gap-2 font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        onClick={() => navigate(`/events/${event.id}?openPitchBoard=1`)}
+      >
+        <Play className="h-4 w-4" />
+        {label}
+      </Button>
+    </div>
+  );
 }
 
 // Reserve enough vertical space to fit the card with the Children's RSVP
@@ -666,6 +686,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             previous solid-primary "Going" so the team identity reads first, but tap targets
             stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
+        <StartGameCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
           <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
