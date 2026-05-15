@@ -4295,7 +4295,7 @@ function DialogInner({
                                 return (
                                   <div key={`${half}-${group.time}`} className="flex gap-2.5 px-3 py-2">
                                     <div className="flex flex-col items-center pt-0.5 shrink-0 w-14">
-                                      <Badge variant="secondary" className="font-mono text-xs h-5">
+                                      <Badge className="font-mono text-xs h-5 border-transparent bg-foreground/15 text-foreground hover:bg-foreground/20">
                                         {timeLabel}
                                       </Badge>
                                     </div>
