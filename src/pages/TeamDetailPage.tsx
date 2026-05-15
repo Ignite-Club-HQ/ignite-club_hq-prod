@@ -96,6 +96,7 @@ import { cn } from "@/lib/utils";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
 const SOCCER_SPORTS = ["soccer", "football", "futsal"];
+const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
 
 const teamRoleOptions: { value: TeamRole; label: string }[] = [
   { value: "player", label: "Player" },
