@@ -411,6 +411,7 @@ export default function EditEventPage() {
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
+      setIsBye((event as any).is_bye === true);
       setArrivalMinutesBefore((event as any).arrival_minutes_before != null ? String((event as any).arrival_minutes_before) : "");
       setTeamDefaultArrival((event as any).teams?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
       setAllowGuests(event.allow_guests === true);
