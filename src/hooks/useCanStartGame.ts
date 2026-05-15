@@ -30,34 +30,27 @@ export function useCanStartGame(event: EventLike | null | undefined) {
     queryKey: ["can-start-game", "role", event?.id, event?.team_id, user?.id],
     queryFn: async () => {
       if (!user || !event) return false;
-      const checks: Promise<boolean>[] = [];
-
-      if (event.team_id) {
-        checks.push(
-          supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("user_id", user.id)
-            .eq("team_id", event.team_id)
-            .in("role", ["team_admin", "coach"])
-            .limit(1)
-            .then(({ data }) => !!(data && data.length > 0)),
-        );
-      }
-
-      checks.push(
+      const [roleRes, dutyRes] = await Promise.all([
+        event.team_id
+          ? supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("user_id", user.id)
+              .eq("team_id", event.team_id)
+              .in("role", ["team_admin", "coach"])
+              .limit(1)
+          : Promise.resolve({ data: [] as any[] }),
         supabase
           .from("duties")
           .select("id")
           .eq("event_id", event.id)
           .eq("name", "Subs Manager")
           .eq("assigned_to", user.id)
-          .limit(1)
-          .then(({ data }) => !!(data && data.length > 0)),
-      );
-
-      const results = await Promise.all(checks);
-      return results.some(Boolean);
+          .limit(1),
+      ]);
+      const hasTeamRole = !!(roleRes.data && roleRes.data.length > 0);
+      const isSubsManager = !!(dutyRes.data && dutyRes.data.length > 0);
+      return hasTeamRole || isSubsManager;
     },
     enabled: !!user && !!event && eligibleType && !event.is_cancelled && !event.is_bye,
     staleTime: 5 * 60 * 1000,
