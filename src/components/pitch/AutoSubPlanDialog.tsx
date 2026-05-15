@@ -761,11 +761,15 @@ export function createSubPlan(
   // to a full multiple of the player count. Examples:
   // - 20 min match, 5 players → 5 × 4-min periods → everyone plays 16'
   // - 40 min match, 5 players → 10 × 4-min periods → everyone plays 32'
+  // Allow the exact thin-bench planner to also cover the case where there's a
+  // full-game GK locked into goal (no halftime swap). The remaining outfielders
+  // + 1 bench rotate via simple round-robin, achieving exact equal outfield
+  // minutes — e.g. 8 players / 7-aside / 40 min with locked GK → 7 outfielders
+  // each play 34.3 min, GK 40 min (mathematical floor for that config).
   const canUseExactThinBenchPlanner =
     outfieldOnBench.length === 1 &&
     totalOutfieldPlayers === outfieldOnPitch.length + 1 &&
     totalOutfieldPlayers > 1 &&
-    !gkOnPitch &&
     !halftimeGkIn &&
     startHalf === 1 &&
     clampedStartElapsed === 0 &&
