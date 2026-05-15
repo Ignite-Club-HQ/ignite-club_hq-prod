@@ -2,6 +2,9 @@ import { Capacitor } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
+import type { DownloadFileResult } from "@capacitor/filesystem";
+
+type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
 
 /**
  * Download an image without exposing the backend URL or storage filename
@@ -82,13 +85,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
 
         const saveToPhotos = async (path: string, source: string): Promise<boolean> => {
           try {
-            await (Media as any).savePhoto({ path });
+            await Media.savePhoto({ path });
             toast.success("Saved to Photos", {
               id: toastId,
               description: "Open your Photos app to view it",
             });
             return true;
-          } catch (mediaErr: any) {
+          } catch (mediaErr: unknown) {
             if (isPhotoPermissionError(mediaErr)) {
               toast.error("Photos permission needed", {
                 id: toastId,
@@ -109,12 +112,12 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         // cached bytes as a data URI. Capacitor Filesystem returns `path` on
         // native (not `uri`), so support both shapes.
         try {
-          const dl: any = await (Filesystem as any).downloadFile({
+          const dl = await Filesystem.downloadFile({
             url: resolvedUrl,
             path: iosFilename,
             directory: Directory.Cache,
             recursive: true,
-          });
+          }) as DownloadResultWithLegacyUri;
           localPath = dl?.uri || dl?.path || null;
         } catch (nativeErr) {
           console.warn("[downloadImage] iOS Filesystem.downloadFile failed, falling back to fetch:", nativeErr);
@@ -160,7 +163,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
               id: toastId,
               description: "Tap Save Image in the share sheet",
             });
-          } catch (shareErr: any) {
+          } catch (shareErr: unknown) {
             const msg = String(shareErr?.message || shareErr).toLowerCase();
             if (msg.includes("cancel") || msg.includes("abort")) {
               toast.dismiss(toastId);
@@ -179,13 +182,13 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       // ---- Other native fallback: write to cache then open share sheet
       let writtenUri: string | null = null;
       try {
-        const dl: any = await (Filesystem as any).downloadFile({
+        const dl = await Filesystem.downloadFile({
           url: resolvedUrl,
           path: filename,
           directory: Directory.Cache,
           recursive: true,
-        });
-        writtenUri = dl?.uri || null;
+        }) as DownloadResultWithLegacyUri;
+        writtenUri = dl?.uri || dl?.path || null;
         if (!writtenUri) {
           const uriResult = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
           writtenUri = uriResult.uri;
@@ -231,7 +234,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
                 files: [finalUri],
                 dialogTitle: "Save photo",
               });
-            } catch (shareErr: any) {
+            } catch (shareErr: unknown) {
               const msg = String(shareErr?.message || shareErr);
               if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
