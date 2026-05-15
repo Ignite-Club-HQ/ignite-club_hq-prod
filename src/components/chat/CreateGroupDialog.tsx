@@ -67,7 +67,10 @@ export default function CreateGroupDialog({
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
-  const [showRoleFilter, setShowRoleFilter] = useState<boolean>(groupType !== "team");
+  const [showRoleFilter, setShowRoleFilter] = useState<boolean>(false);
+  const [showTeamScope, setShowTeamScope] = useState<boolean>(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [teamSearch, setTeamSearch] = useState("");
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
