@@ -4,7 +4,7 @@ import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberChecko
 import { Capacitor } from "@capacitor/core";
 import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
@@ -229,6 +229,7 @@ export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [addDutyOpen, setAddDutyOpen] = useState(false);
@@ -526,11 +527,19 @@ export default function EventDetailPage() {
   const isNetballClub = isNetballSport(event?.clubs?.sport);
   const isBasketballClub = isBasketballSport(event?.clubs?.sport);
 
-  // Check if user can access pitch board (coach/admin) - requires Pro Football for soccer; netball + basketball are open
-  const canAccessSoccerBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
-  const canAccessNetballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
-  const canAccessBasketballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
+  const isSubsManagerForEvent = !!duties?.some(
+    (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+  );
+  const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
+
+  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
+  const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
+  const canAccessNetballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
+  const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
   const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
+
+  const wantOpenPitchBoard = searchParams.get("openPitchBoard") === "1";
+
 
   // Check if user is a team member (for read-only pitch board access)
   const { data: isTeamMember } = useQuery({
@@ -631,6 +640,21 @@ export default function EventDetailPage() {
     },
     enabled: !!event?.team_id && !!event?.id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
+
+  // Auto-open the pitch board when navigated here from the home Next Up
+  // Start Game CTA (or any other deep-link with ?openPitchBoard=1). Waits
+  // for access flags + teamMembers to resolve so we don't open a board the
+  // user can't actually use.
+  useEffect(() => {
+    if (!wantOpenPitchBoard) return;
+    if (!event || !teamMembers) return;
+    if (!(canAccessPitchBoard || canViewPitchBoardReadOnly)) return;
+    setShowPitchBoard(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("openPitchBoard");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantOpenPitchBoard, event?.id, canAccessPitchBoard, canViewPitchBoardReadOnly, !!teamMembers]);
 
   // Fetch team subscription for pitch board settings
   const { data: teamSubscription } = useQuery({
@@ -2528,9 +2552,6 @@ export default function EventDetailPage() {
 
       {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
       {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
-        const isSubsManagerForEvent = !!duties?.some(
-          (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
-        );
         const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
         return (
           <MatchScoreCard
@@ -3422,7 +3443,8 @@ export default function EventDetailPage() {
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             initialMode={event?.type === "training" ? "training" : "match"}
-            readOnly={!!canViewPitchBoardReadOnly}
+            readOnly={!!canViewPitchBoardReadOnly && !isSubsManagerForEvent}
+            isSubsManager={isSubsManagerForEvent}
           />
         </Suspense>,
         document.body

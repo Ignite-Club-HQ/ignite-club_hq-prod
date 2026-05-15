@@ -9,6 +9,7 @@ import { PitchPosition } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import SubPlanEditor from "./SubPlanEditor";
 import { buildSubWindows } from "./planner/windows";
+import { buildEqualTimePlan } from "./planner/equalTime";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -750,6 +751,90 @@ export function createSubPlan(
   const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
 
+  // EXACT EQUAL-TIME ROTATION FOR ONE-BENCH + HALFTIME GK SWAP
+  // ---------------------------------------------------------------------------
+  // Canonical case: 7-a-side, 8 available, 40 min. Everyone must get exactly
+  // 35' because each player has one equal bench stint. With a halftime GK swap,
+  // the 2H GK must be benched before HT, then the 1H GK must immediately return
+  // as an outfielder at HT. The generic planner tends to drift here because it
+  // protects GK continuity and starts H2 with the 1H GK still benched.
+  const oneBenchHalftimeGkExactEligible =
+    priorityOrder.length === 0 &&
+    rotateGkAtHalftime &&
+    !!gkOnPitch &&
+    !!halftimeGkIn &&
+    gkOnPitch.id !== halftimeGkIn.id &&
+    outfieldOnBench.length === 1 &&
+    playerData.filter(p => !p.isInjured).length === teamSize + 1 &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0;
+
+  if (oneBenchHalftimeGkExactEligible) {
+    const healthyPlayers = playerData.filter(p => !p.isInjured);
+    const totalMatchSec = halfDurationSeconds * 2;
+    const benchStintSec = totalMatchSec / healthyPlayers.length;
+    const periodsPerHalf = halfDurationSeconds / benchStintSec;
+    const exactPossible =
+      Number.isInteger(benchStintSec) &&
+      Number.isInteger(periodsPerHalf) &&
+      periodsPerHalf >= 2;
+
+    if (exactPossible) {
+      const playerById = new Map(playerData.map(p => [p.id, p]));
+      const nonGkOutfield = outfieldOnPitch.filter(p => p.id !== halftimeGkIn.id);
+      const h1RegularBenchCount = Math.max(0, periodsPerHalf - 2);
+      const h1Regulars = nonGkOutfield.slice(0, h1RegularBenchCount);
+      const h2Regulars = nonGkOutfield.slice(h1RegularBenchCount);
+      const h1BenchQueue = [outfieldOnBench[0], ...h1Regulars, halftimeGkIn];
+      const h2BenchQueue = [...h2Regulars, gkOnPitch];
+
+      if (h1BenchQueue.length === periodsPerHalf && h2BenchQueue.length === periodsPerHalf) {
+        const currentPositions = new Map<string, PitchPosition>();
+        outfieldOnPitch.forEach(p => currentPositions.set(p.id, inferredOutfieldPosition(p)));
+        const exactPlan: SubstitutionEvent[] = [];
+
+        const emitDirectSub = (half: 1 | 2, time: number, outgoing: Player, incoming: Player) => {
+          const outPos = currentPositions.get(outgoing.id) || inferredOutfieldPosition(outgoing);
+          exactPlan.push({
+            time,
+            half,
+            playerOut: { ...outgoing, currentPitchPosition: outPos },
+            playerIn: { ...incoming, currentPitchPosition: outPos },
+            executed: false,
+          });
+          currentPositions.delete(outgoing.id);
+          currentPositions.set(incoming.id, outPos);
+        };
+
+        for (let i = 1; i < h1BenchQueue.length; i++) {
+          const outgoing = playerById.get(h1BenchQueue[i].id);
+          const incoming = playerById.get(h1BenchQueue[i - 1].id);
+          if (!outgoing || !incoming) break;
+          emitDirectSub(1, Math.round(benchStintSec * i), outgoing, incoming);
+        }
+
+        exactPlan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: halftimeGkIn,
+          executed: false,
+        });
+
+        currentPositions.delete(halftimeGkIn.id);
+
+        for (let i = 0; i < h2BenchQueue.length; i++) {
+          const outgoing = playerById.get(h2BenchQueue[i].id);
+          const incoming = i === 0 ? gkOnPitch : playerById.get(h2BenchQueue[i - 1].id);
+          if (!outgoing || !incoming) break;
+          emitDirectSub(2, Math.round(benchStintSec * i), outgoing, incoming);
+        }
+
+        return exactPlan;
+      }
+    }
+  }
+
   // EXACT EQUAL-TIME ROTATION FOR ULTRA-THIN BENCHES
   // -------------------------------------------------
   // 4-a-side with 5 available players is the canonical case: one player is
@@ -760,11 +845,15 @@ export function createSubPlan(
   // to a full multiple of the player count. Examples:
   // - 20 min match, 5 players → 5 × 4-min periods → everyone plays 16'
   // - 40 min match, 5 players → 10 × 4-min periods → everyone plays 32'
+  // Allow the exact thin-bench planner to also cover the case where there's a
+  // full-game GK locked into goal (no halftime swap). The remaining outfielders
+  // + 1 bench rotate via simple round-robin, achieving exact equal outfield
+  // minutes — e.g. 8 players / 7-aside / 40 min with locked GK → 7 outfielders
+  // each play 34.3 min, GK 40 min (mathematical floor for that config).
   const canUseExactThinBenchPlanner =
     outfieldOnBench.length === 1 &&
     totalOutfieldPlayers === outfieldOnPitch.length + 1 &&
     totalOutfieldPlayers > 1 &&
-    !gkOnPitch &&
     !halftimeGkIn &&
     startHalf === 1 &&
     clampedStartElapsed === 0 &&
@@ -2896,6 +2985,68 @@ export function createSubPlan(
 
   sortPlan();
 
+  // ============================================================
+  // EQUAL-TIME POST-PASS — global fairness override.
+  // ------------------------------------------------------------
+  // When no per-player priority order is configured and we're planning from
+  // kickoff, try a deterministic deficit-driven plan that globally optimises
+  // toward equal target minutes. Adopt it if it strictly beats the current
+  // plan's spread. This makes simple cases (e.g. 8 players / 7-aside / 40 min)
+  // converge to mathematically perfect distributions instead of getting
+  // dragged off-target by starter bias / continuity / GK protection.
+  // ============================================================
+  const equalTimeEligible =
+    priorityOrder.length === 0 &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0 &&
+    outfieldOnBench.length > 0;
+
+  if (equalTimeEligible) {
+    try {
+      const eqResult = buildEqualTimePlan({
+        players: playerData,
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: gkOnPitch || undefined,
+        gk2H: rotateGkAtHalftime
+          ? halftimeGkIn || gkOnPitch || undefined
+          : gkOnPitch || undefined,
+        chunkSec: 30,
+        minShiftSec: Math.max(60, eff.minShiftSeconds),
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      });
+
+      if (eqResult.plan.length > 0) {
+        const currentSim = simulateOutfieldPlan(plan);
+        const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
+
+        // Validate the equal-time plan against the same simulator the rest of
+        // the planner uses. If it sims clean AND the spread is meaningfully
+        // tighter than the current plan, swap it in.
+        const eqSim = simulateOutfieldPlan(eqResult.plan);
+        const eqSpread = eqSim.valid ? fairnessSpread(eqSim.times) : Number.POSITIVE_INFINITY;
+
+        // Improvement threshold: 30 s (one chunk). Adopt when equal-time is
+        // strictly better OR current is already wider than the user-set cap.
+        const improvement = currentSpread - eqSpread;
+        const adoptionWorthwhile =
+          eqSim.valid &&
+          (improvement > 30 || (currentSpread > maxSpreadMinutes * 60 && eqSpread < currentSpread));
+
+        if (adoptionWorthwhile) {
+          plan.length = 0;
+          plan.push(...eqResult.plan);
+          sortPlan();
+        }
+      }
+    } catch (err) {
+      // Never break the planner — fall through to the conventional output.
+      // eslint-disable-next-line no-console
+      console.warn("[createSubPlan] equal-time post-pass failed:", err);
+    }
+  }
+
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }
 
@@ -2974,6 +3125,19 @@ function FairnessDiagnostics({
   const max = Math.max(...mins);
   const spread = max - min;
 
+  // Fairness scoring -------------------------------------------------------
+  // Max deviation: largest |actual - target| in minutes.
+  const maxDeviation = mins.reduce((acc, m) => Math.max(acc, Math.abs(m - target)), 0);
+  // Fairness %: 100 means everyone hits target exactly. We scale the largest
+  // deviation against the target — a 5-min miss on a 35-min target is ~14 %.
+  const fairnessPct = target > 0
+    ? Math.max(0, Math.min(100, 100 - (maxDeviation / target) * 100))
+    : 100;
+  // Mathematical floor: smallest spread possible given integer-minute math.
+  // 0 when (slots × T) divides evenly by N; 1 minute otherwise.
+  const totalPlayerMin = outfieldSlots * matchMinutes;
+  const perfectFloorMin = totalPlayerMin % outfieldSquad === 0 ? 0 : 1;
+
   const mathematicalMinSpread = matchMinutes - Math.floor(target) - Math.floor(target);
   // Bench size relative to outfield slots — flags large benches that need more rotations.
   const benchSize = squadSize - teamSize;
@@ -3029,6 +3193,17 @@ function FairnessDiagnostics({
           'text-right tabular-nums font-medium',
           tone === 'good' ? 'text-emerald-600' : tone === 'warn' ? 'text-amber-600' : 'text-foreground'
         )}>{spread.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Max deviation</span>
+        <span className="text-right tabular-nums text-foreground">{maxDeviation.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Fairness score</span>
+        <span className={cn(
+          'text-right tabular-nums font-medium',
+          fairnessPct >= 95 ? 'text-emerald-600' : fairnessPct >= 85 ? 'text-foreground' : 'text-amber-600'
+        )}>{fairnessPct.toFixed(0)}%</span>
+        <span className="text-muted-foreground">Mathematical floor</span>
+        <span className="text-right tabular-nums text-muted-foreground">
+          {perfectFloorMin === 0 ? '0 min (perfect possible)' : `${perfectFloorMin} min`}
+        </span>
       </div>
       <p className="text-[11px] leading-snug text-muted-foreground">{message}</p>
       {rotateGkAtHalftime && fullGameGkIds.size === 0 && forecasts.some(f => f.gkRole === '1h' || f.gkRole === '2h') && (
@@ -4295,7 +4470,7 @@ function DialogInner({
                                 return (
                                   <div key={`${half}-${group.time}`} className="flex gap-2.5 px-3 py-2">
                                     <div className="flex flex-col items-center pt-0.5 shrink-0 w-14">
-                                      <Badge variant="secondary" className="font-mono text-xs h-5">
+                                      <Badge className="font-mono text-xs h-5 border-transparent bg-foreground/15 text-foreground hover:bg-foreground/20">
                                         {timeLabel}
                                       </Badge>
                                     </div>

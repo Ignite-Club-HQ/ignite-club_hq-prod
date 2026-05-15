@@ -38,6 +38,22 @@ describe("AutoSubPlanDialog — Frequent-mode safeguards", () => {
     window.localStorage.clear();
   });
 
+  it("produces a 0-minute spread for 8 players, 7-a-side, 40 minutes with halftime GK rotation", () => {
+    const players: any[] = [
+      { ...makePlayer("gk1", { onPitch: true, number: 1 }), assignedPositions: ["GK", "MID"], currentPitchPosition: "GK" },
+      ...Array.from({ length: 5 }, (_, i) => makePlayer(`s${i}`, { onPitch: true, number: i + 2 })),
+      { ...makePlayer("gk2", { onPitch: true, number: 7 }), assignedPositions: ["GK", "MID"], currentPitchPosition: "MID" },
+      makePlayer("bench", { onPitch: false, number: 8 }),
+    ];
+
+    const plan = createSubPlan(players, 7, 20 * 60, 2, false, false, true, 0, 1, "gk2");
+    const forecasts = calculateTimeForecasts(players, plan, 20, "gk2", true);
+    const minutes = forecasts.map(f => f.predictedMinutes);
+
+    expect(new Set(minutes).size).toBe(1);
+    expect(minutes[0]).toBe(35);
+  });
+
   it("calculateTimeForecasts gives every outfield player non-zero minutes in Frequent mode", () => {
     const players = buildSquad();
     const halfSec = 10 * 60; // 10-min halves
