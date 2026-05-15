@@ -272,12 +272,12 @@ export default function CreateGroupDialog({
         return new Set((data || []).map(r => r.user_id)).size;
       }
       if (miniLeagueId) {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from("user_roles")
           .select("user_id")
           .eq("mini_league_id", miniLeagueId)
-          .in("role", selectedRoles as any);
-        return new Set((data || []).map(r => r.user_id)).size;
+          .in("role", selectedRoles);
+        return new Set(((data as any[]) || []).map((r: any) => r.user_id)).size;
       }
       if (!clubInfo?.clubId) return 0;
 
