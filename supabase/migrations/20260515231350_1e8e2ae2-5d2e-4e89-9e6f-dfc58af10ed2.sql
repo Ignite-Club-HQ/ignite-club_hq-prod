@@ -1,0 +1,2 @@
+INSERT INTO public.user_roles (user_id, team_id, club_id, role) VALUES ('514c13e7-0a31-48b1-8e1e-5a12db1f997f', 'd4e53ae5-a221-4797-a3b8-65f08b5d34ff', '966bdaec-ebf1-46da-b2b3-cc53bf05c422', 'parent') ON CONFLICT DO NOTHING;
+INSERT INTO public.child_guardians (child_id, guardian_id, relationship_type, is_primary) VALUES ('c385e556-1b0c-4cc7-9c14-a2c9dc974246', '514c13e7-0a31-48b1-8e1e-5a12db1f997f', 'parent', false) ON CONFLICT DO NOTHING;
