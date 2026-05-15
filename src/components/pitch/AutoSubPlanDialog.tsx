@@ -3105,6 +3105,17 @@ function FairnessDiagnostics({
           'text-right tabular-nums font-medium',
           tone === 'good' ? 'text-emerald-600' : tone === 'warn' ? 'text-amber-600' : 'text-foreground'
         )}>{spread.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Max deviation</span>
+        <span className="text-right tabular-nums text-foreground">{maxDeviation.toFixed(1)} min</span>
+        <span className="text-muted-foreground">Fairness score</span>
+        <span className={cn(
+          'text-right tabular-nums font-medium',
+          fairnessPct >= 95 ? 'text-emerald-600' : fairnessPct >= 85 ? 'text-foreground' : 'text-amber-600'
+        )}>{fairnessPct.toFixed(0)}%</span>
+        <span className="text-muted-foreground">Mathematical floor</span>
+        <span className="text-right tabular-nums text-muted-foreground">
+          {perfectFloorMin === 0 ? '0 min (perfect possible)' : `${perfectFloorMin} min`}
+        </span>
       </div>
       <p className="text-[11px] leading-snug text-muted-foreground">{message}</p>
       {rotateGkAtHalftime && fullGameGkIds.size === 0 && forecasts.some(f => f.gkRole === '1h' || f.gkRole === '2h') && (
