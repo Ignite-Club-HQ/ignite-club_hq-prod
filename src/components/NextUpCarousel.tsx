@@ -667,6 +667,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             previous solid-primary "Going" so the team identity reads first, but tap targets
             stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
+        <StartGameCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
           <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
