@@ -2533,9 +2533,6 @@ export default function EventDetailPage() {
 
       {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
       {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
-        const isSubsManagerForEvent = !!duties?.some(
-          (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
-        );
         const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
         return (
           <MatchScoreCard
