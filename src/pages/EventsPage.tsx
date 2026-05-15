@@ -53,6 +53,7 @@ interface Event {
   team_id: string | null;
   mini_league_id: string | null;
   is_cancelled: boolean;
+  is_bye?: boolean | null;
   is_recurring: boolean;
   parent_event_id: string | null;
   opponent: string | null;
