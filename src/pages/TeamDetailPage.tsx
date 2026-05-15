@@ -554,14 +554,15 @@ export default function TeamDetailPage() {
       if (!linkedEventId || !user) return false;
       const { data } = await supabase
         .from("duties")
-        .select("id")
+        .select("id, name")
         .eq("event_id", linkedEventId)
-        .eq("name", "Subs Manager")
         .eq("assigned_to", user.id)
-        .maybeSingle();
-      return !!data;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager");
     },
-    enabled: !!linkedEventId && !!user && !canEditPitchBoard,
+    enabled: !!linkedEventId && !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Detect a live game for this team so we can show a "Watch Live" entry
@@ -1332,7 +1333,7 @@ export default function TeamDetailPage() {
       {isMember && (() => {
         const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
-        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin) && (
+        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
           ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
         );
