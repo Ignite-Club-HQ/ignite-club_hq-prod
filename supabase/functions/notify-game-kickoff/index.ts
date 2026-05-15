@@ -98,12 +98,29 @@ Deno.serve(async (req) => {
     });
   }
 
+  // TEMPORARY ALLOWLIST: while we pilot the kickoff push, only fire for the
+  // teams listed in GAME_KICKOFF_TEAM_ALLOWLIST (comma-separated team UUIDs).
+  // To unlock for all teams later, simply unset / clear this env var — empty
+  // value disables the filter and every game-type event qualifies again.
+  // Defaults to U7 White only.
+  const allowlistRaw =
+    Deno.env.get("GAME_KICKOFF_TEAM_ALLOWLIST") ??
+    "76d94b7a-baf5-4867-8015-92fe620b3a97";
+  const allowlist = allowlistRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowlistActive = allowlist.length > 0;
+
   let processed = 0;
   let pushesSent = 0;
 
   for (const ev of (events ?? []) as EventRow[]) {
     if (ev.is_bye) continue;
     if (!ev.start_time) continue;
+    if (allowlistActive && (!ev.team_id || !allowlist.includes(ev.team_id))) {
+      continue;
+    }
 
     // Dedupe: skip if any recipient already has a kickoff notif for this event.
     const { data: existing } = await supabase
@@ -122,7 +139,9 @@ Deno.serve(async (req) => {
     const teamName = ev.teams?.name ?? "your team";
     const title = `🏁 It's game time — ${teamName}`;
     const body = `${ev.title} is starting now. Tap to open the pitch board and start the game.`;
-    const url = `/events/${ev.id}`;
+    // Deep-link straight into the pitch board (EventDetailPage honours
+    // ?openPitchBoard=1 and auto-opens the board once access resolves).
+    const url = `/events/${ev.id}?openPitchBoard=1`;
 
     const inserts = Array.from(recipients).map((userId) => ({
       user_id: userId,
