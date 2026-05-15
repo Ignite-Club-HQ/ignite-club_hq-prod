@@ -108,6 +108,11 @@ export function getEventDisplay(event: EventDisplayInput): EventDisplay {
 
   // A. Game / Match Day
   if (type === "game" || type === "mini_league" || event.mini_league_id) {
+    if (event.is_bye) {
+      // BYE rounds — opponent/title irrelevant; surface BYE prominently.
+      const secondary = cleaned && !isRedundant(cleaned, "BYE", typeLabel, event.teams?.name) ? cleaned : null;
+      return { primary: "BYE — no match", secondary, titleLed: false };
+    }
     if (opponent) {
       const primary = `vs ${opponent}`;
       // Avoid echoing "Team A vs Opponent" titles as secondary
