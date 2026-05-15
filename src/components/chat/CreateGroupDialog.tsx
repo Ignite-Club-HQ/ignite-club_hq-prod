@@ -414,7 +414,7 @@ export default function CreateGroupDialog({
 
   const dialogContent = (
     <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
-      <ResponsiveDialogContent className="sm:max-w-lg">
+      <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             {isTeamMode ? <Users className="h-4 w-4 text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}

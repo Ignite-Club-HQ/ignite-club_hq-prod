@@ -519,7 +519,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         setSelectedTeamId("all");
       }
     }}>
-      <ResponsiveDialogContent className="sm:max-w-md">
+      <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
