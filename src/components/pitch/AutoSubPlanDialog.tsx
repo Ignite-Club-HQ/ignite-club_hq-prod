@@ -3037,6 +3037,19 @@ function FairnessDiagnostics({
   const max = Math.max(...mins);
   const spread = max - min;
 
+  // Fairness scoring -------------------------------------------------------
+  // Max deviation: largest |actual - target| in minutes.
+  const maxDeviation = mins.reduce((acc, m) => Math.max(acc, Math.abs(m - target)), 0);
+  // Fairness %: 100 means everyone hits target exactly. We scale the largest
+  // deviation against the target — a 5-min miss on a 35-min target is ~14 %.
+  const fairnessPct = target > 0
+    ? Math.max(0, Math.min(100, 100 - (maxDeviation / target) * 100))
+    : 100;
+  // Mathematical floor: smallest spread possible given integer-minute math.
+  // 0 when (slots × T) divides evenly by N; 1 minute otherwise.
+  const totalPlayerMin = outfieldSlots * matchMinutes;
+  const perfectFloorMin = totalPlayerMin % outfieldSquad === 0 ? 0 : 1;
+
   const mathematicalMinSpread = matchMinutes - Math.floor(target) - Math.floor(target);
   // Bench size relative to outfield slots — flags large benches that need more rotations.
   const benchSize = squadSize - teamSize;
