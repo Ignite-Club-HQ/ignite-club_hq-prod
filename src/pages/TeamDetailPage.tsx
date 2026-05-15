@@ -520,13 +520,32 @@ export default function TeamDetailPage() {
   const isAdmin = isCoachOrAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
+  const { data: nearbySubsManagerEventId } = useQuery({
+    queryKey: ["nearby-subs-manager-event", id, user?.id],
+    queryFn: async () => {
+      const nearbyEventId = await findNearbyGameEvent(id!);
+      if (!nearbyEventId) return null;
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name")
+        .eq("event_id", nearbyEventId)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager") ? nearbyEventId : null;
+    },
+    enabled: !!id && !!user && !isCoachOrAdmin && !isClubAdmin,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+  const hasNearbySubsManagerDuty = !!nearbySubsManagerEventId;
   
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
   // All team members can view pitch board (read-only); only team admins/coaches can edit
   // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
   const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin; // Club admins, team admins, and coaches can edit; others view-only
+  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty; // Club admins, team admins, coaches, and match Subs Managers can edit
 
   // Check if user has "Subs Manager" duty for the linked event
   const { data: isSubsManager } = useQuery({
