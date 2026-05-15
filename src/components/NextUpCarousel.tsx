@@ -964,7 +964,7 @@ function CompactCard({ event }: { event: EventItem }) {
               <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && (() => {
+          {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
@@ -978,7 +978,7 @@ function CompactCard({ event }: { event: EventItem }) {
         </div>
 
         {/* RSVP Status */}
-        {!event.is_cancelled && rsvpIndicator}
+        {!event.is_cancelled && !event.is_bye && rsvpIndicator}
       </CardContent>
     </Card>
   );
