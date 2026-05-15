@@ -535,10 +535,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         />
       )}
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + needs-RSVP pill + cancelled marker */}
-        {(isToday || event.is_cancelled || needsRsvp) && (
+        {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
+        {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
-            {needsRsvp && !event.is_cancelled && (
+            {needsRsvp && !event.is_cancelled && !event.is_bye && (
               <span
                 role="status"
                 aria-label="RSVP required"
@@ -547,6 +547,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
                 RSVP Required
               </span>
+            )}
+            {event.is_bye && !event.is_cancelled && (
+              <Badge variant="secondary" className="text-[9.5px] h-[18px] px-1.5 font-bold tracking-wider">
+                BYE
+              </Badge>
             )}
             {isToday && !event.is_cancelled && (
               <Badge
