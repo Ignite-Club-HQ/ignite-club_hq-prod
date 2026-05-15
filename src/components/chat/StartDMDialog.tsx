@@ -522,7 +522,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            Start a Conversation
+            {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -531,7 +531,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Select one or more members to message
+            {mode === "custom-group"
+              ? "Pick people one by one and give your group a name"
+              : "Pick one person to chat 1:1, or several to start a quick group"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
