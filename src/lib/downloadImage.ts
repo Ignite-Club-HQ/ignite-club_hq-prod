@@ -1,10 +1,16 @@
-import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import type { DownloadFileResult } from "@capacitor/filesystem";
 
 type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
+
+interface IgnitePhotoSaverPlugin {
+  savePhoto(options: { url?: string; dataUrl?: string; base64?: string }): Promise<{ identifier?: string }>;
+}
+
+const IgnitePhotoSaver = registerPlugin<IgnitePhotoSaverPlugin>("IgnitePhotoSaver");
 
 /**
  * Download an image without exposing the backend URL or storage filename
