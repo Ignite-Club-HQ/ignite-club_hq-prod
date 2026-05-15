@@ -296,10 +296,8 @@ function showOpenDownloadedPhotoToast(
       ? {
           label: "Open",
           onClick: async (event) => {
-            try {
-              event?.preventDefault?.();
-              event?.stopPropagation?.();
-            } catch {}
+            event?.preventDefault?.();
+            event?.stopPropagation?.();
             // Launch the system Gallery / Photos app. We don't try to open the
             // exact saved file by path: Android's MediaStore returns paths /
             // content URIs that FileOpener typically can't resolve across
@@ -322,7 +320,7 @@ function showOpenDownloadedPhotoToast(
                 }
               }
               throw new Error("No gallery app could be launched");
-            } catch (openErr: any) {
+            } catch (openErr: unknown) {
               console.warn("[downloadImage] gallery launch failed:", openErr);
               toast.error("Could not open gallery", {
                 description: "Open your Photos app from the home screen",
@@ -410,7 +408,9 @@ function guessExtensionFromUrl(url: string): string {
     const path = new URL(url).pathname.toLowerCase();
     const m = path.match(/\.(png|webp|gif|heic|heif|svg|jpg|jpeg)(?:$|\?)/);
     if (m) return m[1] === "jpeg" ? "jpg" : m[1];
-  } catch {}
+  } catch {
+    return "jpg";
+  }
   return "jpg";
 }
 
@@ -437,8 +437,8 @@ async function ensureAndroidMediaAlbum(
 
   try {
     await Media.createAlbum({ name: albumName });
-  } catch (err: any) {
-    const message = String(err?.message || err).toLowerCase();
+  } catch (err: unknown) {
+    const message = getErrorText(err).toLowerCase();
     if (!message.includes("already exists")) throw err;
   }
 
