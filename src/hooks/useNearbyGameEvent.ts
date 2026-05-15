@@ -76,7 +76,7 @@ export async function findNearbyGameEvent(teamId: string): Promise<string | null
   
   // Look for games within the window
   const windowStart = new Date(now.getTime() - WINDOW_AFTER_MS); // Started up to 3 hours ago
-  const windowEnd = new Date(now.getTime() + WINDOW_BEFORE_MS); // Starting in next hour
+  const windowEnd = new Date(now.getTime() + WINDOW_BEFORE_MS); // Starting in the next 2 hours
   
   const { data: events, error } = await supabase
     .from("events")
