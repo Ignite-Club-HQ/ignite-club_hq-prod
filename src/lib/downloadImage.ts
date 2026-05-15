@@ -1,4 +1,4 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
@@ -138,6 +138,23 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
         // Fallback 2: WebView fetch. This can fail for cross-origin storage
         // URLs, but when it works we again pass a data URI rather than a local
         // file path to avoid iOS plugin path handling inconsistencies.
+        try {
+          const response = await CapacitorHttp.get({
+            url: resolvedUrl,
+            responseType: "arraybuffer",
+            connectTimeout: 15000,
+            readTimeout: 30000,
+          });
+          if (response.status < 200 || response.status >= 300) {
+            throw new Error(`Native HTTP failed (${response.status})`);
+          }
+          const responseType = getHeaderValue(response.headers, "content-type") || contentType;
+          const dataUri = normalizeBase64DataUri(response.data, responseType);
+          if (await saveToPhotos(dataUri, "native HTTP data URI")) return;
+        } catch (httpErr) {
+          console.warn("[downloadImage] iOS native HTTP fallback failed:", httpErr);
+        }
+
         try {
           const response = await fetch(resolvedUrl, { credentials: "omit" });
           if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
@@ -390,6 +407,22 @@ function isPhotoPermissionError(err: unknown): boolean {
 
 function getErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err ?? "");
+}
+
+function getHeaderValue(headers: Record<string, string>, name: string): string | null {
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName) return value;
+  }
+  return null;
+}
+
+function normalizeBase64DataUri(data: unknown, contentType: string): string {
+  if (typeof data === "string") {
+    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
+  }
+
+  throw new Error("Native HTTP did not return base64 image data");
 }
 
 function pickExtension(contentType: string): string {
