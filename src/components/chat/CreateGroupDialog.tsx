@@ -358,6 +358,10 @@ export default function CreateGroupDialog({
       setOpen(false);
       setName("");
       setSelectedRoles([]);
+      setStep(1);
+      setTeamSearch("");
+      setShowRoleFilter(false);
+      setShowTeamScope(false);
       if (!teamId) setSelectedTeamId("");
       if (!miniLeagueId) setSelectedMiniLeagueId("");
       queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
