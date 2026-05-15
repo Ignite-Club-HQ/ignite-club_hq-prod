@@ -662,24 +662,6 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           })()}
         </div>
 
-function StartGameCta({ event }: { event: EventItem }) {
-  const navigate = useNavigate();
-  const { canStart, phase } = useCanStartGame(event);
-  if (!canStart) return null;
-  const label = phase === "live" ? "Open Match" : "Start Game";
-  return (
-    <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-      <Button
-        size="sm"
-        className="w-full h-10 gap-2 font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90"
-        onClick={() => navigate(`/events/${event.id}?openPitchBoard=1`)}
-      >
-        <Play className="h-4 w-4" />
-        {label}
-      </Button>
-    </div>
-  );
-}
 
         {/* RSVP Buttons — outline, status-tinted when selected. Lower visual weight than
             previous solid-primary "Going" so the team identity reads first, but tap targets
