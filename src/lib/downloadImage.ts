@@ -365,6 +365,28 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+async function fileReadResultToDataUri(data: string | Blob, contentType: string): Promise<string> {
+  if (typeof data === "string") {
+    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
+  }
+
+  return `data:${data.type || contentType};base64,${await blobToBase64(data)}`;
+}
+
+function isPhotoPermissionError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null | undefined;
+  const message = String(e?.message || err || "").toLowerCase();
+  const code = String(e?.code || "").toLowerCase();
+
+  return (
+    code.includes("access_denied") ||
+    message.includes("access to photos not allowed") ||
+    message.includes("permission") ||
+    message.includes("denied") ||
+    message.includes("not authorized")
+  );
+}
+
 function pickExtension(contentType: string): string {
   const ct = contentType.toLowerCase();
   if (ct.includes("png")) return "png";
