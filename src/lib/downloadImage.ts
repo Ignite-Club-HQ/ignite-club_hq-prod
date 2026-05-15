@@ -164,7 +164,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
               description: "Tap Save Image in the share sheet",
             });
           } catch (shareErr: unknown) {
-            const msg = String(shareErr?.message || shareErr).toLowerCase();
+            const msg = getErrorText(shareErr).toLowerCase();
             if (msg.includes("cancel") || msg.includes("abort")) {
               toast.dismiss(toastId);
               return;
@@ -235,7 +235,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
                 dialogTitle: "Save photo",
               });
             } catch (shareErr: unknown) {
-              const msg = String(shareErr?.message || shareErr);
+              const msg = getErrorText(shareErr);
               if (!msg.toLowerCase().includes("cancel")) {
                 console.warn("[downloadImage] share failed:", shareErr);
                 toast.error("Could not open file", { description: msg });
