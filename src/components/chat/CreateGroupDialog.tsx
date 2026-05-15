@@ -33,6 +33,13 @@ interface CreateGroupDialogProps {
   miniLeagueId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "role" (default) — current role-first behavior.
+   * "team" — team scope is the primary control; roles are an optional filter
+   * tucked into a collapsed "Filter roles" section. Group name is auto-suggested
+   * from the selected team.
+   */
+  groupType?: "role" | "team";
 }
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
@@ -50,6 +57,7 @@ export default function CreateGroupDialog({
   miniLeagueId,
   open: controlledOpen,
   onOpenChange,
+  groupType = "role",
 }: CreateGroupDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
