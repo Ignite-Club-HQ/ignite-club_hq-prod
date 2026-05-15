@@ -413,12 +413,13 @@ export default function CreateGroupDialog({
       <ResponsiveDialogContent className="sm:max-w-lg">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            New Group Chat
+            {isTeamMode ? <Users className="h-4 w-4 text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+            {isTeamMode ? "New Team Group" : "New Role-Based Group"}
           </ResponsiveDialogTitle>
           {contextLabel && (
             <p className="text-xs text-muted-foreground pt-1">
-              Creating group in <span className="font-medium text-foreground">{contextLabel}</span>
+              {isTeamMode ? "Creating team chat in " : "Creating group in "}
+              <span className="font-medium text-foreground">{contextLabel}</span>
             </p>
           )}
         </ResponsiveDialogHeader>
