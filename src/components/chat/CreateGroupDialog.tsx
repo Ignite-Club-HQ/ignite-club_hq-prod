@@ -179,12 +179,12 @@ export default function CreateGroupDialog({
 
       if (miniLeagueId) {
         // mini-league member roles
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from("user_roles")
           .select("user_id, role")
           .eq("mini_league_id", miniLeagueId);
         const seen = new Map<string, Set<string>>();
-        (data || []).forEach((r: any) => {
+        ((data as any[]) || []).forEach((r: any) => {
           if (!seen.has(r.role)) seen.set(r.role, new Set());
           seen.get(r.role)!.add(r.user_id);
         });
