@@ -67,6 +67,7 @@ export default function CreateGroupDialog({
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
+  const [showRoleFilter, setShowRoleFilter] = useState<boolean>(groupType !== "team");
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -74,6 +75,15 @@ export default function CreateGroupDialog({
     if (onOpenChange) onOpenChange(open);
     else setInternalOpen(open);
   };
+
+  // In team mode, default to all roles included so user can create a team chat
+  // without having to manually pick roles.
+  useEffect(() => {
+    if (groupType === "team" && isOpen && selectedRoles.length === 0) {
+      setSelectedRoles(ROLE_OPTIONS.map((r) => r.value));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupType, isOpen]);
 
   // Resolve the active club context. clubId prop > active club filter.
   const resolvedClubId = clubId || activeClubFilter || null;
