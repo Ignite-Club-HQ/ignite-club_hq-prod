@@ -1122,8 +1122,19 @@ export default function CreateEventPage() {
                 )}
               </div>
 
-              {/* Opponent - only for game events */}
+              {/* BYE toggle - only for game events */}
               {type === "game" && (
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is-bye">Mark as BYE</Label>
+                    <p className="text-xs text-muted-foreground">No opposition this round — cards will display "BYE".</p>
+                  </div>
+                  <Switch id="is-bye" checked={isBye} onCheckedChange={setIsBye} />
+                </div>
+              )}
+
+              {/* Opponent - only for game events (hidden when BYE) */}
+              {type === "game" && !isBye && (
                 <OpponentInput
                   value={opponent}
                   onChange={setOpponent}
@@ -1132,7 +1143,7 @@ export default function CreateEventPage() {
                 />
               )}
 
-              {type === "game" && (
+              {type === "game" && !isBye && (
                 <div className="space-y-2">
                   <Label htmlFor="arrival">Arrive before kickoff (optional)</Label>
                   <div className="flex items-center gap-2">
