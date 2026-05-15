@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Time window: 1 hour before to 3 hours after the event start time
-const WINDOW_BEFORE_MS = 60 * 60 * 1000; // 1 hour before
+// Time window: 2 hours before to 3 hours after the event start time
+const WINDOW_BEFORE_MS = 120 * 60 * 1000; // 2 hours before
 const WINDOW_AFTER_MS = 3 * 60 * 60 * 1000; // 3 hours after
 
 interface PitchState {
