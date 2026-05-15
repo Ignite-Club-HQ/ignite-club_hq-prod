@@ -160,9 +160,14 @@ export function NextUpHero({ event }: NextUpHeroProps) {
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {dateLabel}
             </span>
-            {event.is_cancelled && (
-              <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {event.is_bye && !event.is_cancelled && (
+                <Badge variant="secondary" className="font-bold tracking-wider">BYE</Badge>
+              )}
+              {event.is_cancelled && (
+                <Badge variant="destructive">Cancelled</Badge>
+              )}
+            </div>
           </div>
 
           {/* Primary: Team chip — biggest scanning anchor */}
@@ -175,8 +180,12 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <h3 className={`text-lg font-medium leading-snug text-foreground/90 flex items-center gap-2 ${event.is_cancelled ? "line-through" : ""}`}>
                   <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden="true" />
                   <span className="min-w-0">
-                    {event.title}
-                    {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
+                    {event.is_bye ? `${event.title} — BYE` : (
+                      <>
+                        {event.title}
+                        {shouldAppendOpponent(event) ? ` vs ${event.opponent}` : ""}
+                      </>
+                    )}
                   </span>
                 </h3>
               );
@@ -189,13 +198,13 @@ export function NextUpHero({ event }: NextUpHeroProps) {
               <Calendar className="h-4 w-4 shrink-0 text-foreground/70" />
               <span className="font-medium text-foreground">{dateTime}</span>
             </div>
-            {(event.location_name || event.suburb || event.address) && (
+            {!event.is_bye && (event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 shrink-0 text-foreground/70" />
                 <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
-            {event.type === "game" && (() => {
+            {event.type === "game" && !event.is_bye && (() => {
               const mins = getMatchArrivalMinutes(event);
               const arrivalTime = formatMatchArrivalTime(event);
               if (mins == null || !arrivalTime) return null;
@@ -207,10 +216,13 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 </div>
               );
             })()}
+            {event.is_bye && (
+              <p className="text-sm text-muted-foreground italic">No match this round — enjoy the weekend off!</p>
+            )}
           </div>
 
           {/* RSVP Buttons */}
-          {!event.is_cancelled && (
+          {!event.is_cancelled && !event.is_bye && (
             <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
               {rsvpButtons.map(({ status, label, icon, activeClass }) => {
                 const isActive = currentStatus === status;
