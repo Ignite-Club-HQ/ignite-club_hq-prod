@@ -271,6 +271,30 @@ describe("createSubPlan", () => {
     }
   });
 
+  it("gives exact equal game time for one-bench tiny squads", () => {
+    const players = [
+      makePlayer("Finlay", "DEF"),
+      makePlayer("Fergus", "DEF"),
+      makePlayer("Winnie", "MID"),
+      makePlayer("Noah", "FWD"),
+      makePlayer("Henri", null),
+    ];
+    players.forEach(p => {
+      p.assignedPositions = ["DEF", "MID", "FWD"] as PitchPosition[];
+    });
+
+    const halfSec = 20 * 60;
+    const plan = createSubPlan(players as any, 4, halfSec, 1, false, true, false, 0, 1, undefined, 5);
+    const totals = simulateTotals(players, plan, halfSec);
+    const values = [...totals.values()];
+
+    expect(plan).toHaveLength(9);
+    expect(new Set(plan.map(sub => sub.half === 1 ? sub.time : halfSec + sub.time))).toEqual(
+      new Set([240, 480, 720, 960, 1200, 1440, 1680, 1920, 2160]),
+    );
+    values.forEach(seconds => expect(seconds).toBe(32 * 60));
+  });
+
   // Fairness matrix: a representative sweep across team sizes, bench sizes,
   // half lengths and modes. We don't assert perfect equality (the planner has
   // halftime/GK constraints) but we DO assert no player is starved of minutes
