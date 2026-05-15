@@ -143,9 +143,10 @@ export function MyTeamsScroll() {
         const m = title.match(/\s+vs?\.?\s+(.+)$/i);
         return m ? m[1].trim() : null;
       };
-      const buildLabel = (type: string | null, opponent: string | null, title: string) => {
+      const buildLabel = (type: string | null, opponent: string | null, title: string, isBye: boolean) => {
         if (type === "training") return "Training";
         if (type === "social") return "Social";
+        if ((type === "game" || type === "mini_league") && isBye) return "BYE — no match";
         const opp = opponent || extractOpponent(title);
         if ((type === "game" || type === "mini_league") && opp) return `Game v ${opp}`;
         if (type === "game" || type === "mini_league") return "Game";
@@ -155,7 +156,7 @@ export function MyTeamsScroll() {
       if (teamIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("team_id, title, type, opponent, event_date")
+          .select("team_id, title, type, opponent, event_date, is_bye")
           .in("team_id", teamIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -166,7 +167,7 @@ export function MyTeamsScroll() {
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
-                label: buildLabel(event.type, event.opponent, event.title),
+                label: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
                 dateLabel: formatShortDate(event.event_date),
               };
             }
@@ -177,7 +178,7 @@ export function MyTeamsScroll() {
       if (leagueIds.length > 0) {
         const { data } = await supabase
           .from("events")
-          .select("mini_league_id, title, type, opponent, event_date")
+          .select("mini_league_id, title, type, opponent, event_date, is_bye")
           .in("mini_league_id", leagueIds)
           .gte("event_date", now)
           .eq("is_cancelled", false)
@@ -188,7 +189,7 @@ export function MyTeamsScroll() {
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
-                label: buildLabel(event.type, event.opponent, event.title),
+                label: buildLabel(event.type, event.opponent, event.title, !!(event as any).is_bye),
                 dateLabel: formatShortDate(event.event_date),
               };
             }

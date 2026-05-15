@@ -37,6 +37,7 @@ interface EventItem {
   club_id: string;
   team_id: string | null;
   is_cancelled: boolean;
+  is_bye?: boolean;
   opponent: string | null;
   arrival_minutes_before?: number | null;
   teams: { name: string; default_match_arrival_minutes?: number | null } | null;
@@ -534,10 +535,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         />
       )}
       <CardContent className="p-3.5 pl-4 pr-9 space-y-2 flex-1 flex flex-col">
-        {/* Status row: Today badge + needs-RSVP pill + cancelled marker */}
-        {(isToday || event.is_cancelled || needsRsvp) && (
+        {/* Status row: Today badge + needs-RSVP pill + BYE + cancelled marker */}
+        {(isToday || event.is_cancelled || event.is_bye || needsRsvp) && (
           <div className="flex items-center justify-end gap-1.5 -mr-3">
-            {needsRsvp && !event.is_cancelled && (
+            {needsRsvp && !event.is_cancelled && !event.is_bye && (
               <span
                 role="status"
                 aria-label="RSVP required"
@@ -546,6 +547,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
                 RSVP Required
               </span>
+            )}
+            {event.is_bye && !event.is_cancelled && (
+              <Badge variant="secondary" className="text-[9.5px] h-[18px] px-1.5 font-bold tracking-wider">
+                BYE
+              </Badge>
             )}
             {isToday && !event.is_cancelled && (
               <Badge
@@ -613,7 +619,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
                   <span className={`min-w-0 truncate ${typeAccent === "default" ? "text-foreground/85" : typeAccentClasses.text}`}>
                     {isGame
-                      ? (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary)
+                      ? (event.is_bye ? "BYE — no match" : (event.opponent ? `vs ${event.opponent}` : eventDisplay.primary))
                       : eventDisplay.primary}
                   </span>
                 </div>
@@ -641,7 +647,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && (() => {
+          {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
@@ -660,7 +666,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             previous solid-primary "Going" so the team identity reads first, but tap targets
             stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
-        {!event.is_cancelled && (
+        {!event.is_cancelled && !event.is_bye && (
           <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
               {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
@@ -889,10 +895,15 @@ function CompactCard({ event }: { event: EventItem }) {
         aria-hidden="true"
       />
       <CardContent className="p-3.5 pr-7 space-y-2">
-        {/* Cancelled marker only */}
-        {event.is_cancelled && (
-          <div className="flex items-center justify-end">
-            <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+        {/* Status: BYE / Cancelled */}
+        {(event.is_cancelled || event.is_bye) && (
+          <div className="flex items-center justify-end gap-1.5">
+            {event.is_bye && !event.is_cancelled && (
+              <Badge variant="secondary" className="text-[10px] h-5 font-bold tracking-wider">BYE</Badge>
+            )}
+            {event.is_cancelled && (
+              <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
+            )}
           </div>
         )}
 
@@ -953,7 +964,7 @@ function CompactCard({ event }: { event: EventItem }) {
               <span className="font-semibold text-foreground leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && (() => {
+          {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
@@ -967,7 +978,7 @@ function CompactCard({ event }: { event: EventItem }) {
         </div>
 
         {/* RSVP Status */}
-        {!event.is_cancelled && rsvpIndicator}
+        {!event.is_cancelled && !event.is_bye && rsvpIndicator}
       </CardContent>
     </Card>
   );

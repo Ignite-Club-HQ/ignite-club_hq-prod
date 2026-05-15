@@ -105,6 +105,7 @@ interface Event {
   team_id: string | null;
   mini_league_id: string | null;
   is_cancelled: boolean;
+  is_bye?: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
   amount: number | null;
@@ -265,7 +266,7 @@ export default function HomePage() {
           : Promise.resolve({ data: [] as { id: string }[] }),
         supabase
           .from("events")
-          .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
+          .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
           .gte("event_date", now.toISOString())
           .order("event_date", { ascending: true })
           .limit(50),

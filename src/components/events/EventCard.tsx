@@ -55,6 +55,7 @@ export interface EventCardEvent {
   team_id: string | null;
   mini_league_id: string | null;
   is_cancelled: boolean;
+  is_bye?: boolean | null;
   is_recurring: boolean;
   parent_event_id: string | null;
   opponent: string | null;
@@ -426,9 +427,17 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
         {/* Status chips only — section header already conveys the date.
              Positioned with extra right padding so the chevron isn't crowded. */}
         {(() => {
-          if (!event.is_cancelled && !isToday) return null;
+          if (!event.is_cancelled && !isToday && !event.is_bye) return null;
           return (
             <div className="flex items-center justify-end gap-1.5 -mr-3">
+              {event.is_bye && !event.is_cancelled && (
+                <Badge
+                  variant="outline"
+                  className="text-[9.5px] h-[18px] px-1.5 font-bold uppercase tracking-wide bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40"
+                >
+                  BYE
+                </Badge>
+              )}
               {isToday && !event.is_cancelled && (
                 <Badge
                   variant="outline"
@@ -522,7 +531,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
               <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && (() => {
+          {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
