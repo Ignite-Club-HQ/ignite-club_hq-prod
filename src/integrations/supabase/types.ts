@@ -3134,6 +3134,7 @@ export type Database = {
           final_score_away: number | null
           final_score_home: number | null
           id: string
+          is_bye: boolean
           is_cancelled: boolean
           is_home_game: boolean | null
           is_recurring: boolean | null
@@ -3179,6 +3180,7 @@ export type Database = {
           final_score_away?: number | null
           final_score_home?: number | null
           id?: string
+          is_bye?: boolean
           is_cancelled?: boolean
           is_home_game?: boolean | null
           is_recurring?: boolean | null
@@ -3224,6 +3226,7 @@ export type Database = {
           final_score_away?: number | null
           final_score_home?: number | null
           id?: string
+          is_bye?: boolean
           is_cancelled?: boolean
           is_home_game?: boolean | null
           is_recurring?: boolean | null

@@ -111,6 +111,7 @@ export default function EditEventPage() {
 
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
+  const [isBye, setIsBye] = useState(false);
 
   // Arrival time before kickoff (matches only). Empty = use team default.
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
@@ -410,6 +411,7 @@ export default function EditEventPage() {
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
+      setIsBye((event as any).is_bye === true);
       setArrivalMinutesBefore((event as any).arrival_minutes_before != null ? String((event as any).arrival_minutes_before) : "");
       setTeamDefaultArrival((event as any).teams?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
       setAllowGuests(event.allow_guests === true);
@@ -509,8 +511,9 @@ export default function EditEventPage() {
         amount: type === "social" ? parsedPrice : null,
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
-        opponent: type === "game" ? opponent.trim() || null : null,
-        arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+        opponent: type === "game" && !isBye ? opponent.trim() || null : null,
+        arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+        is_bye: type === "game" ? isBye : false,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
@@ -853,8 +856,19 @@ export default function EditEventPage() {
                 )}
               </div>
 
-              {/* Opponent - only for game events */}
+              {/* BYE toggle - only for game events */}
               {type === "game" && (
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is-bye">Mark as BYE</Label>
+                    <p className="text-xs text-muted-foreground">No opposition this round — cards will display "BYE".</p>
+                  </div>
+                  <Switch id="is-bye" checked={isBye} onCheckedChange={setIsBye} />
+                </div>
+              )}
+
+              {/* Opponent - only for game events (hidden when BYE) */}
+              {type === "game" && !isBye && (
                 <OpponentInput
                   value={opponent}
                   onChange={setOpponent}
@@ -864,7 +878,7 @@ export default function EditEventPage() {
               )}
 
               {/* Arrival time - only for game events */}
-              {type === "game" && (
+              {type === "game" && !isBye && (
                 <div className="space-y-2">
                   <Label htmlFor="arrival">Arrive before kickoff</Label>
                   <div className="flex items-center gap-2">

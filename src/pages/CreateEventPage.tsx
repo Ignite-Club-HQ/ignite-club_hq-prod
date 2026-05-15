@@ -132,6 +132,7 @@ export default function CreateEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
+  const [isBye, setIsBye] = useState(false);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -710,8 +711,9 @@ export default function CreateEventPage() {
       reminder_hours_before: reminderEnabled ? reminderHours : null,
       reminder_sent: false,
       amount: type === "social" ? parsedPrice : null,
-      opponent: type === "game" ? opponent.trim() || null : null,
-      arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+      opponent: type === "game" && !isBye ? opponent.trim() || null : null,
+      arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+      is_bye: type === "game" ? isBye : false,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
@@ -1120,8 +1122,19 @@ export default function CreateEventPage() {
                 )}
               </div>
 
-              {/* Opponent - only for game events */}
+              {/* BYE toggle - only for game events */}
               {type === "game" && (
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is-bye">Mark as BYE</Label>
+                    <p className="text-xs text-muted-foreground">No opposition this round — cards will display "BYE".</p>
+                  </div>
+                  <Switch id="is-bye" checked={isBye} onCheckedChange={setIsBye} />
+                </div>
+              )}
+
+              {/* Opponent - only for game events (hidden when BYE) */}
+              {type === "game" && !isBye && (
                 <OpponentInput
                   value={opponent}
                   onChange={setOpponent}
@@ -1130,7 +1143,7 @@ export default function CreateEventPage() {
                 />
               )}
 
-              {type === "game" && (
+              {type === "game" && !isBye && (
                 <div className="space-y-2">
                   <Label htmlFor="arrival">Arrive before kickoff (optional)</Label>
                   <div className="flex items-center gap-2">
