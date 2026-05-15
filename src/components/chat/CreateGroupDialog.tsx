@@ -6,7 +6,6 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -21,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Crown } from "lucide-react";
+import { Plus, Crown, Check, Users, Shield, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -37,92 +37,191 @@ interface CreateGroupDialogProps {
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "league_admin", label: "League Admins" },
-  { value: "committee_member", label: "Committee Members" },
+  { value: "committee_member", label: "Committee" },
   { value: "team_admin", label: "Team Admins" },
   { value: "coach", label: "Coaches" },
   { value: "parent", label: "Parents" },
   { value: "player", label: "Players" },
 ];
 
-export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: controlledOpen, onOpenChange }: CreateGroupDialogProps) {
+export default function CreateGroupDialog({
+  clubId,
+  teamId,
+  miniLeagueId,
+  open: controlledOpen,
+  onOpenChange,
+}: CreateGroupDialogProps) {
   const { user } = useAuth();
-  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+  const { activeClubFilter } = useClubTheme();
   const queryClient = useQueryClient();
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
-  const [selectedClubId, setSelectedClubId] = useState<string>(clubId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
-  const [groupType, setGroupType] = useState<"team" | "club" | "league">(
-    miniLeagueId ? "league" : teamId ? "team" : clubId ? "club" : "team"
-  );
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = (open: boolean) => {
-    if (onOpenChange) {
-      onOpenChange(open);
-    } else {
-      setInternalOpen(open);
-    }
+    if (onOpenChange) onOpenChange(open);
+    else setInternalOpen(open);
   };
 
-  // Auto-select filtered club
-  useEffect(() => {
-    if (activeClubFilter && !clubId) {
-      setSelectedClubId(activeClubFilter);
-      setGroupType("club");
-    }
-  }, [activeClubFilter, clubId]);
+  // Resolve the active club context. clubId prop > active club filter.
+  const resolvedClubId = clubId || activeClubFilter || null;
 
-  // Fetch admin teams
-  const { data: adminTeams = [] } = useQuery({
-    queryKey: ["admin-teams-for-groups", user?.id],
+  // Determine what scope this group will use
+  // - explicit teamId prop -> team scope (locked)
+  // - explicit miniLeagueId prop -> league scope (locked)
+  // - resolvedClubId -> club scope, optionally narrowed by selectedTeamId
+  const isTeamScopeLocked = !!teamId;
+  const isLeagueScopeLocked = !!miniLeagueId;
+
+  // Fetch club info for context label
+  const { data: clubInfo } = useQuery({
+    queryKey: ["create-group-club-info", resolvedClubId, teamId, miniLeagueId],
     queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id")
-        .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach", "app_admin", "committee_member"]);
-      
-      // Get team IDs from team roles
-      const teamIds = roles?.map((r) => r.team_id).filter((id): id is string => id !== null) || [];
-      
-      // Also get teams from clubs where user is a committee member
-      const clubIds = roles?.filter(r => r.club_id && !r.team_id).map(r => r.club_id).filter((id): id is string => id !== null) || [];
-      
-      let allTeamIds = [...teamIds];
-      
-      // If user is committee member of a club, they can create groups for any team in that club
-      if (clubIds.length > 0) {
-        const { data: clubTeams } = await supabase
+      if (teamId) {
+        const { data } = await supabase
           .from("teams")
-          .select("id")
-          .in("club_id", clubIds);
-        
-        if (clubTeams) {
-          clubTeams.forEach(t => {
-            if (!allTeamIds.includes(t.id)) {
-              allTeamIds.push(t.id);
-            }
-          });
-        }
+          .select("id, name, club_id, clubs(id, name)")
+          .eq("id", teamId)
+          .maybeSingle();
+        return {
+          clubId: data?.club_id || null,
+          clubName: data?.clubs?.name || null,
+          teamName: data?.name || null,
+          leagueName: null as string | null,
+        };
       }
-      
-      if (allTeamIds.length === 0) return [];
-
-      const { data } = await supabase
-        .from("teams")
-        .select("id, name, club_id, clubs(name)")
-        .in("id", allTeamIds);
-      
-      return data || [];
+      if (miniLeagueId) {
+        const { data } = await supabase
+          .from("mini_leagues")
+          .select("id, name, club_id, clubs(id, name)")
+          .eq("id", miniLeagueId)
+          .maybeSingle();
+        return {
+          clubId: data?.club_id || null,
+          clubName: data?.clubs?.name || null,
+          teamName: null,
+          leagueName: data?.name || null,
+        };
+      }
+      if (resolvedClubId) {
+        const { data } = await supabase
+          .from("clubs")
+          .select("id, name")
+          .eq("id", resolvedClubId)
+          .maybeSingle();
+        return {
+          clubId: data?.id || null,
+          clubName: data?.name || null,
+          teamName: null,
+          leagueName: null,
+        };
+      }
+      return { clubId: null, clubName: null, teamName: null, leagueName: null };
     },
-    enabled: !!user && !teamId && !miniLeagueId && isOpen,
+    enabled: isOpen && !!(resolvedClubId || teamId || miniLeagueId),
   });
 
-  // Fetch admin mini-leagues (Pro Football clubs only)
+  // Fetch club Pro status (for club-wide groups)
+  const { data: clubHasPro } = useQuery({
+    queryKey: ["create-group-club-pro", clubInfo?.clubId],
+    queryFn: async () => {
+      if (!clubInfo?.clubId) return false;
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .eq("club_id", clubInfo.clubId)
+        .maybeSingle();
+      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
+    },
+    enabled: isOpen && !!clubInfo?.clubId,
+  });
+
+  // Fetch teams for the active club (for the Teams chip section)
+  const { data: clubTeams = [] } = useQuery({
+    queryKey: ["create-group-club-teams", clubInfo?.clubId],
+    queryFn: async () => {
+      if (!clubInfo?.clubId) return [];
+      const { data } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", clubInfo.clubId)
+        .order("name");
+      return data || [];
+    },
+    enabled: isOpen && !!clubInfo?.clubId && !isTeamScopeLocked && !isLeagueScopeLocked,
+  });
+
+  // Fetch member counts per role within the active club scope
+  const { data: roleCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ["create-group-role-counts", clubInfo?.clubId, selectedTeamId, teamId, miniLeagueId],
+    queryFn: async () => {
+      const counts: Record<string, number> = {};
+
+      // If a specific team is selected (or locked), count via that team's user_roles
+      const scopeTeamId = teamId || (selectedTeamId || null);
+      if (scopeTeamId) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("team_id", scopeTeamId);
+        const seen = new Map<string, Set<string>>();
+        (data || []).forEach((r: any) => {
+          if (!seen.has(r.role)) seen.set(r.role, new Set());
+          seen.get(r.role)!.add(r.user_id);
+        });
+        seen.forEach((set, role) => { counts[role] = set.size; });
+        return counts;
+      }
+
+      if (miniLeagueId) {
+        // mini-league member roles
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("mini_league_id", miniLeagueId);
+        const seen = new Map<string, Set<string>>();
+        (data || []).forEach((r: any) => {
+          if (!seen.has(r.role)) seen.set(r.role, new Set());
+          seen.get(r.role)!.add(r.user_id);
+        });
+        seen.forEach((set, role) => { counts[role] = set.size; });
+        return counts;
+      }
+
+      if (!clubInfo?.clubId) return counts;
+
+      // Club scope: union of direct club roles + roles on any team in the club
+      const [{ data: clubRows }, { data: teams }] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role").eq("club_id", clubInfo.clubId),
+        supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
+      ]);
+
+      const teamIds = (teams || []).map(t => t.id);
+      let teamRows: any[] = [];
+      if (teamIds.length > 0) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("team_id", teamIds);
+        teamRows = data || [];
+      }
+
+      const seen = new Map<string, Set<string>>();
+      [...(clubRows || []), ...teamRows].forEach((r: any) => {
+        if (!seen.has(r.role)) seen.set(r.role, new Set());
+        seen.get(r.role)!.add(r.user_id);
+      });
+      seen.forEach((set, role) => { counts[role] = set.size; });
+      return counts;
+    },
+    enabled: isOpen && !!(clubInfo?.clubId || teamId || miniLeagueId),
+  });
+
+  // Fetch admin mini-leagues (Pro Football) for league fallback when no clubId AND no scope
   const { data: adminMiniLeagues = [] } = useQuery({
     queryKey: ["admin-mini-leagues-for-groups", user?.id, activeClubFilter],
     queryFn: async () => {
@@ -131,118 +230,106 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
         .select("club_id")
         .eq("user_id", user!.id)
         .in("role", ["club_admin", "app_admin", "committee_member", "coach", "team_admin"]);
-      
-      let clubIds = roles?.map((r) => r.club_id).filter((id): id is string => id !== null) || [];
-      if (activeClubFilter) clubIds = clubIds.filter(id => id === activeClubFilter);
-      if (clubIds.length === 0) return [];
-
-      // Only Pro Football clubs can have league groups
+      let ids = roles?.map(r => r.club_id).filter((x): x is string => !!x) || [];
+      if (activeClubFilter) ids = ids.filter(id => id === activeClubFilter);
+      if (ids.length === 0) return [];
       const { data: subs } = await supabase
         .from("club_subscriptions")
         .select("club_id")
-        .in("club_id", clubIds)
+        .in("club_id", ids)
         .or("is_pro_football.eq.true,admin_pro_football_override.eq.true");
-      
-      const proFootballClubIds = subs?.map(s => s.club_id) || [];
-      if (proFootballClubIds.length === 0) return [];
-
+      const proIds = subs?.map(s => s.club_id) || [];
+      if (proIds.length === 0) return [];
       const { data } = await supabase
         .from("mini_leagues")
         .select("id, name, club_id, clubs(name)")
-        .in("club_id", proFootballClubIds);
-      
+        .in("club_id", proIds);
       return data || [];
     },
-    enabled: !!user && !miniLeagueId && isOpen,
+    enabled: isOpen && !miniLeagueId && !!user,
   });
 
-  // Fetch admin clubs with their Pro status
-  const { data: adminClubs = [] } = useQuery({
-    queryKey: ["admin-clubs-for-groups-with-pro", user?.id],
+  // Estimated total selected members (union of selected roles within the chosen scope)
+  const { data: selectedCount = 0 } = useQuery({
+    queryKey: [
+      "create-group-selected-count",
+      clubInfo?.clubId,
+      teamId,
+      miniLeagueId,
+      selectedTeamId,
+      selectedRoles.join(","),
+    ],
     queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .in("role", ["club_admin", "app_admin", "committee_member"]);
-      
-      const clubIds = roles?.map((r) => r.club_id).filter(Boolean) || [];
-      if (clubIds.length === 0) return [];
+      if (selectedRoles.length === 0) return 0;
+      const scopeTeamId = teamId || selectedTeamId || null;
 
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name")
-        .in("id", clubIds);
-      
-      if (!clubs || clubs.length === 0) return [];
+      if (scopeTeamId) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", scopeTeamId)
+          .in("role", selectedRoles);
+        return new Set((data || []).map(r => r.user_id)).size;
+      }
+      if (miniLeagueId) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("mini_league_id", miniLeagueId)
+          .in("role", selectedRoles);
+        return new Set((data || []).map(r => r.user_id)).size;
+      }
+      if (!clubInfo?.clubId) return 0;
 
-      // Fetch Pro status for each club
-      const { data: subscriptions } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .in("club_id", clubIds);
-
-      const subMap = new Map(subscriptions?.map(s => [s.club_id, s]) || []);
-
-      return clubs.map(club => {
-        const sub = subMap.get(club.id);
-        const hasPro = !!(sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override);
-        return { ...club, hasPro };
-      });
+      const [{ data: clubRows }, { data: teams }] = await Promise.all([
+        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRoles),
+        supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
+      ]);
+      const teamIds = (teams || []).map(t => t.id);
+      let teamRows: any[] = [];
+      if (teamIds.length > 0) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("team_id", teamIds)
+          .in("role", selectedRoles);
+        teamRows = data || [];
+      }
+      return new Set(
+        [...(clubRows || []), ...teamRows].map((r: any) => r.user_id)
+      ).size;
     },
-    enabled: !!user && !clubId && isOpen,
+    enabled: isOpen && selectedRoles.length > 0,
   });
-
-  // Check if a specific club has Pro (for pre-selected clubId)
-  const { data: selectedClubPro } = useQuery({
-    queryKey: ["club-pro-for-group", clubId || selectedClubId],
-    queryFn: async () => {
-      const targetClubId = clubId || selectedClubId;
-      if (!targetClubId) return false;
-      
-      const { data } = await supabase
-        .from("club_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .eq("club_id", targetClubId)
-        .maybeSingle();
-      
-      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
-    },
-    enabled: !!(clubId || selectedClubId) && isOpen,
-  });
-
-  // Check if any club has Pro (for enabling club group type)
-  const hasAnyClubWithPro = useMemo(() => {
-    if (clubId) return selectedClubPro;
-    return adminClubs.some(c => c.hasPro);
-  }, [adminClubs, clubId, selectedClubPro]);
-
-  // Filter clubs with Pro for club group type
-  const clubsWithPro = useMemo(() => {
-    return adminClubs.filter(c => c.hasPro);
-  }, [adminClubs]);
 
   const createGroupMutation = useMutation({
     mutationFn: async () => {
       if (!user || selectedRoles.length === 0) return;
-      
-      const finalTeamId = teamId || (groupType === "team" ? selectedTeamId : null);
-      const finalClubId = clubId || (groupType === "club" ? selectedClubId : null);
-      const finalMiniLeagueId = miniLeagueId || (groupType === "league" ? selectedMiniLeagueId : null);
-      
+
+      const finalTeamId = teamId || selectedTeamId || null;
+      const finalMiniLeagueId = miniLeagueId || selectedMiniLeagueId || null;
+      // Club scope only when no team / league chosen
+      const finalClubId = !finalTeamId && !finalMiniLeagueId
+        ? (clubId || clubInfo?.clubId || null)
+        : null;
+
       if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
-        throw new Error("Please select a team, club, or league");
+        throw new Error("Please pick a club, team, or league");
       }
-      
+
+      if (finalClubId && !clubHasPro) {
+        throw new Error("Club-wide groups require a Club Pro subscription");
+      }
+
       const { error } = await supabase.from("chat_groups").insert({
         name: name.trim(),
-        club_id: finalClubId || null,
-        team_id: finalTeamId || null,
-        mini_league_id: finalMiniLeagueId || null,
+        club_id: finalClubId,
+        team_id: finalTeamId,
+        mini_league_id: finalMiniLeagueId,
         allowed_roles: selectedRoles,
         created_by: user.id,
       });
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -250,10 +337,8 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
       setOpen(false);
       setName("");
       setSelectedRoles([]);
-      setSelectedTeamId("");
-      setSelectedClubId("");
-      setSelectedMiniLeagueId("");
-      // Invalidate all chat group related queries immediately
+      if (!teamId) setSelectedTeamId("");
+      if (!miniLeagueId) setSelectedMiniLeagueId("");
       queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["messages-page"] });
@@ -265,206 +350,263 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
   });
 
   const toggleRole = (role: AppRole) => {
-    setSelectedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    setSelectedRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
     );
   };
 
   const handleCreate = () => {
     if (!name.trim()) {
-      toast.error("Please enter a group name");
+      toast.error("Give your group a name");
       return;
     }
     if (selectedRoles.length === 0) {
-      toast.error("Please select at least one role");
-      return;
-    }
-    if (!teamId && !clubId && !miniLeagueId && groupType === "team" && !selectedTeamId) {
-      toast.error("Please select a team");
-      return;
-    }
-    if (!teamId && !clubId && !miniLeagueId && groupType === "club" && !selectedClubId) {
-      toast.error("Please select a club");
-      return;
-    }
-    if (!teamId && !clubId && !miniLeagueId && groupType === "league" && !selectedMiniLeagueId) {
-      toast.error("Please select a league");
+      toast.error("Pick at least one role");
       return;
     }
     createGroupMutation.mutate();
   };
 
-  const showSelector = !teamId && !clubId && !miniLeagueId;
-  const isClubFiltered = !!activeClubFilter;
+  // Decide which scope label to render
+  const contextLabel = useMemo(() => {
+    if (clubInfo?.teamName) return `${clubInfo.teamName} · ${clubInfo.clubName || ""}`.trim();
+    if (clubInfo?.leagueName) return `${clubInfo.leagueName} · ${clubInfo.clubName || ""}`.trim();
+    if (clubInfo?.clubName) return clubInfo.clubName;
+    return null;
+  }, [clubInfo]);
 
-  // Filter admin teams to only those in the filtered club
-  const filteredAdminTeams = useMemo(() => {
-    if (!activeClubFilter) return adminTeams;
-    // Filter by club_id from the team data
-    return adminTeams.filter(team => team.club_id === activeClubFilter);
-  }, [adminTeams, activeClubFilter]);
+  const showTeamPicker = !isTeamScopeLocked && !isLeagueScopeLocked && clubTeams.length > 0;
+  const showLeaguePicker =
+    !isTeamScopeLocked && !isLeagueScopeLocked && !resolvedClubId && adminMiniLeagues.length > 0;
 
-  // Render without trigger button when controlled
   const dialogContent = (
-      <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Create Chat Group</ResponsiveDialogTitle>
-          </ResponsiveDialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="group-name">Group Name</Label>
-              <Input
-                id="group-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Coaches Chat, Parents Group"
-              />
+    <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
+      <ResponsiveDialogContent className="sm:max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            New Group Chat
+          </ResponsiveDialogTitle>
+          {contextLabel && (
+            <p className="text-xs text-muted-foreground pt-1">
+              Creating group in <span className="font-medium text-foreground">{contextLabel}</span>
+            </p>
+          )}
+        </ResponsiveDialogHeader>
+
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 py-3 px-1">
+          {/* Section 1: Group Details */}
+          <section className="space-y-2">
+            <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
+              Group name
+            </Label>
+            <Input
+              id="group-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Coaches huddle, U10 Parents"
+              className="h-11 rounded-xl"
+              maxLength={60}
+            />
+          </section>
+
+          {/* League fallback (rare) */}
+          {showLeaguePicker && (
+            <section className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                League
+              </Label>
+              <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
+                <SelectTrigger className="w-full rounded-xl">
+                  <SelectValue placeholder="Pick a league (optional)" />
+                </SelectTrigger>
+                <SelectContent
+                  className="z-[100000]"
+                  position="popper"
+                  portal={false}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <SelectItem value="">None</SelectItem>
+                  {adminMiniLeagues.map((l: any) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </section>
+          )}
+
+          {/* Section 2: Roles */}
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <Shield className="h-3 w-3" />
+                Roles
+              </Label>
+              <span className="text-[10px] text-muted-foreground">Multi-select</span>
             </div>
-
-            {showSelector && (
-              <>
-                <div className="space-y-2">
-                  <Label>Group Type</Label>
-                  <Select 
-                    value={groupType} 
-                    onValueChange={(v) => {
-                      setGroupType(v as "team" | "club" | "league");
-                      if (v === "club") setSelectedClubId(activeClubFilter || "");
-                    }}
+            <div className="flex flex-wrap gap-2">
+              {ROLE_OPTIONS.map((role) => {
+                const isSelected = selectedRoles.includes(role.value);
+                const count = roleCounts[role.value] ?? 0;
+                if (count === 0 && !isSelected) return null;
+                return (
+                  <button
+                    key={role.value}
+                    type="button"
+                    onClick={() => toggleRole(role.value)}
+                    className={cn(
+                      "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
+                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                    )}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
-                      <SelectItem value="team">Team Group</SelectItem>
-                      <SelectItem value="club" disabled={!hasAnyClubWithPro}>
-                        <span className="flex items-center gap-2">
-                          Club Group
-                          {!hasAnyClubWithPro && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                              <Crown className="h-3 w-3" />
-                              Pro
-                            </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="league" disabled={adminMiniLeagues.length === 0}>
-                        <span className="flex items-center gap-2">
-                          League Group
-                          {adminMiniLeagues.length === 0 && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                              <Crown className="h-3 w-3" />
-                              Pro Football
-                            </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {!hasAnyClubWithPro && groupType === "team" && (
-                    <p className="text-xs text-muted-foreground">
-                      Club groups require a Club Pro subscription.
-                    </p>
-                  )}
-                </div>
-
-                {groupType === "team" && (
-                  <div className="space-y-2">
-                    <Label>Select Team</Label>
-                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose a team..." />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
-                        {filteredAdminTeams.map((team) => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name} ({team.clubs?.name})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {groupType === "club" && (
-                  <div className="space-y-2">
-                    <Label>Select Club</Label>
-                    <Select 
-                      value={selectedClubId} 
-                      onValueChange={setSelectedClubId}
-                      disabled={isClubFiltered}
+                    {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                    <span>{role.label}</span>
+                    <span
+                      className={cn(
+                        "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                        isSelected
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      )}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose a club with Pro..." />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
-                        {clubsWithPro.map((club) => (
-                          <SelectItem key={club.id} value={club.id}>
-                            {club.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+              {Object.keys(roleCounts).length === 0 && (
+                <p className="text-xs text-muted-foreground py-2">
+                  No members found in this scope yet.
+                </p>
+              )}
+            </div>
+          </section>
 
-                {groupType === "league" && (
-                  <div className="space-y-2">
-                    <Label>Select League</Label>
-                    <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose a league..." />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
-                        {adminMiniLeagues.map((league: any) => (
-                          <SelectItem key={league.id} value={league.id}>
-                            {league.name} ({league.clubs?.name})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </>
+          {/* Section 3: Teams (scope narrower) */}
+          {showTeamPicker && (
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <Users className="h-3 w-3" />
+                  Scope to a team
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Optional</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTeamId("")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                    "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                    selectedTeamId === ""
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                      : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                  )}
+                >
+                  {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                  Whole club
+                </button>
+                {clubTeams.map((t) => {
+                  const isSelected = selectedTeamId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTeamId(isSelected ? "" : t.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                        "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                          : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                      )}
+                    >
+                      {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {!selectedTeamId && !clubHasPro && (
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Crown className="h-3 w-3" />
+                  Whole-club groups need Club Pro. Pick a team to create now.
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* Section 4: Live summary */}
+          <section
+            className={cn(
+              "rounded-2xl border p-3.5 transition-all",
+              selectedRoles.length > 0
+                ? "border-primary/30 bg-primary/5"
+                : "border-dashed border-border bg-muted/30"
             )}
-            
-            <div className="space-y-2">
-              <Label>Who can access this group?</Label>
-              <p className="text-xs text-muted-foreground">
-                Select the roles that can participate in this chat group
-              </p>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                {ROLE_OPTIONS.map((role) => (
-                  <div key={role.value} className="flex items-center gap-2">
-                    <Checkbox
-                      id={role.value}
-                      checked={selectedRoles.includes(role.value)}
-                      onCheckedChange={() => toggleRole(role.value)}
-                    />
-                    <Label htmlFor={role.value} className="font-normal cursor-pointer text-sm">
-                      {role.label}
-                    </Label>
-                  </div>
-                ))}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={cn(
+                    "h-9 w-9 rounded-full flex items-center justify-center",
+                    selectedRoles.length > 0
+                      ? "bg-primary/15 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Users className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-tight">
+                    {selectedRoles.length === 0
+                      ? "Pick roles to include"
+                      : `${selectedCount} ${selectedCount === 1 ? "member" : "members"} selected`}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {selectedRoles.length === 0
+                      ? "Live count appears here"
+                      : selectedRoles
+                          .map(r => ROLE_OPTIONS.find(o => o.value === r)?.label)
+                          .filter(Boolean)
+                          .join(" + ")}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <ResponsiveDialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={createGroupMutation.isPending} className="flex-1 sm:flex-none">
-              {createGroupMutation.isPending ? "Creating..." : "Create Group"}
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
+          </section>
+        </div>
+
+        <ResponsiveDialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            className="flex-1 sm:flex-none"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={
+              createGroupMutation.isPending ||
+              !name.trim() ||
+              selectedRoles.length === 0
+            }
+            className="flex-1 sm:flex-none gap-2"
+          >
+            {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+          </Button>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 
-  // If not controlled, show trigger button
   if (controlledOpen === undefined) {
     return (
       <>
