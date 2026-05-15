@@ -50,9 +50,16 @@ interface TeamInfo {
 interface StartDMDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "dm" (default) — fast direct-message flow. Picking 1 person starts a DM
+   * instantly; picking multiple auto-creates an unnamed group.
+   * "custom-group" — manual people picker. Group name is required and shown at
+   * the top; submit always creates a group even with one person selected.
+   */
+  mode?: "dm" | "custom-group";
 }
 
-export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDialogProps) {
+export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" }: StartDMDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
