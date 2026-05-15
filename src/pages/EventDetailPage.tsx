@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useRef, useMemo } from "react";
+import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
