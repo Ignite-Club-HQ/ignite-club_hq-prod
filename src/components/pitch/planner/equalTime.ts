@@ -28,7 +28,7 @@ import type { PitchPosition } from "../PositionBadge";
 
 export interface EqualTimePlayer {
   id: string;
-  name?: string;
+  name: string;
   /** Currently on pitch in some position (any) — null = bench. */
   position: { x: number; y: number } | null;
   currentPitchPosition?: PitchPosition;
