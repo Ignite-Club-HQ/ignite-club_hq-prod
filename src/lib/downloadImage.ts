@@ -390,6 +390,10 @@ function isPhotoPermissionError(err: unknown): boolean {
   );
 }
 
+function getErrorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? "");
+}
+
 function pickExtension(contentType: string): string {
   const ct = contentType.toLowerCase();
   if (ct.includes("png")) return "png";
