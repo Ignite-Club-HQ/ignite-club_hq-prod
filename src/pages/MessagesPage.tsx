@@ -2405,17 +2405,58 @@ export default function MessagesPage() {
           >
             <Clock className="h-5 w-5" />
           </Button>
-          <NewMessageMenu 
-            onNewDM={() => setShowDMDialog(true)}
-            onNewGroup={() => setShowGroupDialog(true)}
-            canCreateGroups={!!canCreateGroups}
-          />
+          <Button
+            size="icon"
+            variant="default"
+            className="h-10 w-10 rounded-full shadow-sm shadow-primary/20 active:scale-95 transition-transform"
+            aria-label="New message"
+            onClick={() => setShowNewMessageSheet(true)}
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
+      {/* New message + group-type bottom sheets */}
+      <NewMessageSheet
+        open={showNewMessageSheet}
+        onOpenChange={setShowNewMessageSheet}
+        canCreateGroups={!!canCreateGroups}
+        onPickDM={() => setShowDMDialog(true)}
+        onPickGroup={() => setShowGroupTypeSheet(true)}
+      />
+      {canCreateGroups && (
+        <NewGroupTypeSheet
+          open={showGroupTypeSheet}
+          onOpenChange={setShowGroupTypeSheet}
+          onPickRole={() => {
+            setGroupDialogType("role");
+            setShowGroupDialog(true);
+          }}
+          onPickTeam={() => {
+            setGroupDialogType("team");
+            setShowGroupDialog(true);
+          }}
+          onPickCustom={() => setShowCustomGroupDialog(true)}
+        />
+      )}
+
       {/* DM and Group dialogs */}
-      <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} />
-      {canCreateGroups && <CreateGroupDialog open={showGroupDialog} onOpenChange={setShowGroupDialog} />}
+      <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
+      {canCreateGroups && (
+        <StartDMDialog
+          open={showCustomGroupDialog}
+          onOpenChange={setShowCustomGroupDialog}
+          mode="custom-group"
+        />
+      )}
+      {canCreateGroups && (
+        <CreateGroupDialog
+          open={showGroupDialog}
+          onOpenChange={setShowGroupDialog}
+          groupType={groupDialogType}
+        />
+      )}
 
       {/* Search input */}
       <div className="relative">
