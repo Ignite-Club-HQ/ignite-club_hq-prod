@@ -553,6 +553,7 @@ export default function EventDetailPage() {
   });
   const isSubsManagerForEvent = localSubsManagerForEvent || directSubsManagerForEvent;
   const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
+  const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || duties === undefined;
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
@@ -2519,7 +2520,13 @@ export default function EventDetailPage() {
               Admins & coaches can open it for any upcoming game (not just on
               game day) so they can pre-set the lineup and auto-sub plan
               ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {canAccessPitchBoard && teamMembers && (() => {
+          {isPitchBoardAccessLoading && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
+            <Button variant="outline" className="w-full mt-2" disabled>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking match access…
+            </Button>
+          )}
+          {!isPitchBoardAccessLoading && canAccessPitchBoard && teamMembers && (() => {
             const eventTime = parseISO(event.event_date);
             const now = new Date();
             const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
