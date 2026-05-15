@@ -191,6 +191,10 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [showCustomGroupDialog, setShowCustomGroupDialog] = useState(false);
+  const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
+  const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
+  const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
