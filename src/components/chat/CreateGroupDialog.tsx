@@ -536,13 +536,13 @@ export default function CreateGroupDialog({
 
           {/* Section 3: Teams (scope narrower) */}
           {showTeamPicker && (
-            <section className="space-y-3">
+            <section className={cn("space-y-3", isTeamMode && "order-2")}>
               <div className="flex items-baseline justify-between">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                   <Users className="h-3 w-3" />
-                  Scope to a team
+                  {isTeamMode ? "Pick a team" : "Scope to a team"}
                 </Label>
-                <span className="text-[10px] text-muted-foreground">Optional</span>
+                <span className="text-[10px] text-muted-foreground">{isTeamMode ? "Required" : "Optional"}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
