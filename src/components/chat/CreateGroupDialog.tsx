@@ -268,7 +268,7 @@ export default function CreateGroupDialog({
           .from("user_roles")
           .select("user_id")
           .eq("team_id", scopeTeamId)
-          .in("role", selectedRoles);
+          .in("role", selectedRoles as string[]);
         return new Set((data || []).map(r => r.user_id)).size;
       }
       if (miniLeagueId) {
@@ -276,13 +276,13 @@ export default function CreateGroupDialog({
           .from("user_roles")
           .select("user_id")
           .eq("mini_league_id", miniLeagueId)
-          .in("role", selectedRoles);
+          .in("role", selectedRoles as string[]);
         return new Set((data || []).map(r => r.user_id)).size;
       }
       if (!clubInfo?.clubId) return 0;
 
       const [{ data: clubRows }, { data: teams }] = await Promise.all([
-        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRoles),
+        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRoles as string[]),
         supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
       ]);
       const teamIds = (teams || []).map(t => t.id);
@@ -292,7 +292,7 @@ export default function CreateGroupDialog({
           .from("user_roles")
           .select("user_id")
           .in("team_id", teamIds)
-          .in("role", selectedRoles);
+          .in("role", selectedRoles as string[]);
         teamRows = data || [];
       }
       return new Set(
