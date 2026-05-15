@@ -751,6 +751,90 @@ export function createSubPlan(
   const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
 
+  // EXACT EQUAL-TIME ROTATION FOR ONE-BENCH + HALFTIME GK SWAP
+  // ---------------------------------------------------------------------------
+  // Canonical case: 7-a-side, 8 available, 40 min. Everyone must get exactly
+  // 35' because each player has one equal bench stint. With a halftime GK swap,
+  // the 2H GK must be benched before HT, then the 1H GK must immediately return
+  // as an outfielder at HT. The generic planner tends to drift here because it
+  // protects GK continuity and starts H2 with the 1H GK still benched.
+  const oneBenchHalftimeGkExactEligible =
+    priorityOrder.length === 0 &&
+    rotateGkAtHalftime &&
+    !!gkOnPitch &&
+    !!halftimeGkIn &&
+    gkOnPitch.id !== halftimeGkIn.id &&
+    outfieldOnBench.length === 1 &&
+    playerData.filter(p => !p.isInjured).length === teamSize + 1 &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0;
+
+  if (oneBenchHalftimeGkExactEligible) {
+    const healthyPlayers = playerData.filter(p => !p.isInjured);
+    const totalMatchSec = halfDurationSeconds * 2;
+    const benchStintSec = totalMatchSec / healthyPlayers.length;
+    const periodsPerHalf = halfDurationSeconds / benchStintSec;
+    const exactPossible =
+      Number.isInteger(benchStintSec) &&
+      Number.isInteger(periodsPerHalf) &&
+      periodsPerHalf >= 2;
+
+    if (exactPossible) {
+      const playerById = new Map(playerData.map(p => [p.id, p]));
+      const nonGkOutfield = outfieldOnPitch.filter(p => p.id !== halftimeGkIn.id);
+      const h1RegularBenchCount = Math.max(0, periodsPerHalf - 2);
+      const h1Regulars = nonGkOutfield.slice(0, h1RegularBenchCount);
+      const h2Regulars = nonGkOutfield.slice(h1RegularBenchCount);
+      const h1BenchQueue = [outfieldOnBench[0], ...h1Regulars, halftimeGkIn];
+      const h2BenchQueue = [...h2Regulars, gkOnPitch];
+
+      if (h1BenchQueue.length === periodsPerHalf && h2BenchQueue.length === periodsPerHalf) {
+        const currentPositions = new Map<string, PitchPosition>();
+        outfieldOnPitch.forEach(p => currentPositions.set(p.id, inferredOutfieldPosition(p)));
+        const exactPlan: SubstitutionEvent[] = [];
+
+        const emitDirectSub = (half: 1 | 2, time: number, outgoing: Player, incoming: Player) => {
+          const outPos = currentPositions.get(outgoing.id) || inferredOutfieldPosition(outgoing);
+          exactPlan.push({
+            time,
+            half,
+            playerOut: { ...outgoing, currentPitchPosition: outPos },
+            playerIn: { ...incoming, currentPitchPosition: outPos },
+            executed: false,
+          });
+          currentPositions.delete(outgoing.id);
+          currentPositions.set(incoming.id, outPos);
+        };
+
+        for (let i = 1; i < h1BenchQueue.length; i++) {
+          const outgoing = playerById.get(h1BenchQueue[i].id);
+          const incoming = playerById.get(h1BenchQueue[i - 1].id);
+          if (!outgoing || !incoming) break;
+          emitDirectSub(1, Math.round(benchStintSec * i), outgoing, incoming);
+        }
+
+        exactPlan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: halftimeGkIn,
+          executed: false,
+        });
+
+        currentPositions.delete(halftimeGkIn.id);
+
+        for (let i = 0; i < h2BenchQueue.length; i++) {
+          const outgoing = playerById.get(h2BenchQueue[i].id);
+          const incoming = i === 0 ? gkOnPitch : playerById.get(h2BenchQueue[i - 1].id);
+          if (!outgoing || !incoming) break;
+          emitDirectSub(2, Math.round(benchStintSec * i), outgoing, incoming);
+        }
+
+        return exactPlan;
+      }
+    }
+  }
+
   // EXACT EQUAL-TIME ROTATION FOR ULTRA-THIN BENCHES
   // -------------------------------------------------
   // 4-a-side with 5 available players is the canonical case: one player is
