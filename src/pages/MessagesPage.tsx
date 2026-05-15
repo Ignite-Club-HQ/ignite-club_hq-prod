@@ -26,7 +26,8 @@ import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText a
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
-import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
+import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
+import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import {
   AlertDialog,
