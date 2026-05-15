@@ -1,10 +1,16 @@
-import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { toast } from "sonner";
 import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
 import type { DownloadFileResult } from "@capacitor/filesystem";
 
 type DownloadResultWithLegacyUri = DownloadFileResult & { uri?: string };
+
+interface IgnitePhotoSaverPlugin {
+  savePhoto(options: { url?: string; dataUrl?: string; base64?: string }): Promise<{ identifier?: string }>;
+}
+
+const IgnitePhotoSaver = registerPlugin<IgnitePhotoSaverPlugin>("IgnitePhotoSaver");
 
 /**
  * Download an image without exposing the backend URL or storage filename
@@ -77,36 +83,42 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       if (platform === "ios") {
-        const { Media } = await import("@capacitor-community/media");
         const ext = guessExtensionFromUrl(resolvedUrl);
         const contentType = pickContentTypeFromExtension(ext);
         const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
         let localPath: string | null = null;
 
-        const saveToPhotos = async (path: string, source: string): Promise<boolean> => {
+        const showSaved = () => {
+          toast.success("Saved to Photos", {
+            id: toastId,
+            description: "Open your Photos app to view it",
+          });
+        };
+
+        const saveWithIgnitePlugin = async (options: { url?: string; dataUrl?: string; base64?: string }, source: string): Promise<boolean> => {
           try {
-            await Media.savePhoto({ path });
-            toast.success("Saved to Photos", {
-              id: toastId,
-              description: "Open your Photos app to view it",
-            });
+            await IgnitePhotoSaver.savePhoto(options);
+            showSaved();
             return true;
-          } catch (mediaErr: unknown) {
-            if (isPhotoPermissionError(mediaErr)) {
+          } catch (nativeErr: unknown) {
+            if (isPhotoPermissionError(nativeErr)) {
               toast.error("Photos permission needed", {
                 id: toastId,
                 description: "Enable Photos access for Ignite in iOS Settings to save downloads.",
               });
               return true;
             }
-            console.warn(`[downloadImage] iOS Media.savePhoto failed from ${source}:`, mediaErr);
+            console.warn(`[downloadImage] iOS IgnitePhotoSaver failed from ${source}:`, nativeErr);
             return false;
           }
         };
 
-        // First let the native Media plugin download the signed HTTPS URL and
-        // write it straight to Photos. This avoids WKWebView fetch/CORS issues.
-        if (await saveToPhotos(resolvedUrl, "remote URL")) return;
+        // iOS needs a native Photos write. The community Media plugin currently
+        // routes all inputs through SDWebImage download, which is exactly where
+        // the user's signed/chat URLs were failing. Our app plugin downloads the
+        // bytes with URLSession (or accepts data) and writes them directly via
+        // PHAssetCreationRequest.
+        if (await saveWithIgnitePlugin({ url: resolvedUrl }, "remote URL")) return;
 
         // Fallback 1: native URLSession download to app cache, then save the
         // cached bytes as a data URI. Capacitor Filesystem returns `path` on
@@ -127,32 +139,10 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           try {
             const read = await Filesystem.readFile({ path: iosFilename, directory: Directory.Cache });
             const dataUri = await fileReadResultToDataUri(read.data, contentType);
-            if (await saveToPhotos(dataUri, "cached data URI")) return;
+            if (await saveWithIgnitePlugin({ dataUrl: dataUri }, "cached data URI")) return;
           } catch (readErr) {
             console.warn("[downloadImage] iOS cached file read failed:", readErr);
           }
-
-          if (await saveToPhotos(localPath, "local file")) return;
-        }
-
-        // Fallback 2: WebView fetch. This can fail for cross-origin storage
-        // URLs, but when it works we again pass a data URI rather than a local
-        // file path to avoid iOS plugin path handling inconsistencies.
-        try {
-          const response = await CapacitorHttp.get({
-            url: resolvedUrl,
-            responseType: "arraybuffer",
-            connectTimeout: 15000,
-            readTimeout: 30000,
-          });
-          if (response.status < 200 || response.status >= 300) {
-            throw new Error(`Native HTTP failed (${response.status})`);
-          }
-          const responseType = getHeaderValue(response.headers, "content-type") || contentType;
-          const dataUri = normalizeBase64DataUri(response.data, responseType);
-          if (await saveToPhotos(dataUri, "native HTTP data URI")) return;
-        } catch (httpErr) {
-          console.warn("[downloadImage] iOS native HTTP fallback failed:", httpErr);
         }
 
         try {
@@ -160,7 +150,7 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
           if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
           const blob = await response.blob();
           const dataUri = `data:${blob.type || contentType};base64,${await blobToBase64(blob)}`;
-          if (await saveToPhotos(dataUri, "fetch data URI")) return;
+          if (await saveWithIgnitePlugin({ dataUrl: dataUri }, "fetch data URI")) return;
         } catch (fetchErr) {
           console.warn("[downloadImage] iOS fetch fallback failed:", fetchErr);
         }
@@ -407,22 +397,6 @@ function isPhotoPermissionError(err: unknown): boolean {
 
 function getErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err ?? "");
-}
-
-function getHeaderValue(headers: Record<string, string>, name: string): string | null {
-  const lowerName = name.toLowerCase();
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === lowerName) return value;
-  }
-  return null;
-}
-
-function normalizeBase64DataUri(data: unknown, contentType: string): string {
-  if (typeof data === "string") {
-    return data.startsWith("data:") ? data : `data:${contentType};base64,${data}`;
-  }
-
-  throw new Error("Native HTTP did not return base64 image data");
 }
 
 function pickExtension(contentType: string): string {
