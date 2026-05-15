@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Crown, Check, Users, Shield, Sparkles } from "lucide-react";
+import { Plus, Crown, Check, Users, Shield, Sparkles, ChevronLeft, ChevronRight, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
