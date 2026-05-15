@@ -426,7 +426,7 @@ export default function CreateGroupDialog({
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 py-3 px-1">
           {/* Section 1: Group Details */}
-          <section className="space-y-2">
+          <section className={cn("space-y-2", isTeamMode && "order-1")}>
             <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
               Group name
             </Label>
@@ -442,7 +442,7 @@ export default function CreateGroupDialog({
 
           {/* League fallback (rare) */}
           {showLeaguePicker && (
-            <section className="space-y-2">
+            <section className={cn("space-y-2", isTeamMode && "order-1")}>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                 League
               </Label>
