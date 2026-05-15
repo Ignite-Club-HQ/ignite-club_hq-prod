@@ -647,7 +647,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <span className="min-w-0 font-medium leading-snug break-words">{locationDisplay}</span>
             </div>
           )}
-          {event.type === "game" && (() => {
+          {event.type === "game" && !event.is_bye && (() => {
             const mins = getMatchArrivalMinutes(event);
             const arrivalTime = formatMatchArrivalTime(event);
             if (mins == null || !arrivalTime) return null;
