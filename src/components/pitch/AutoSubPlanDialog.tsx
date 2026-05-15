@@ -750,6 +750,70 @@ export function createSubPlan(
   const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
 
+  // EXACT EQUAL-TIME ROTATION FOR ULTRA-THIN BENCHES
+  // -------------------------------------------------
+  // 4-a-side with 5 available players is the canonical case: one player is
+  // always off, so equal game time means equal BENCH periods. The generic
+  // planner spaces `N` windows across the match, which accidentally creates
+  // short first/long later bench stints (e.g. 18/17/17/16/13). For exactly one
+  // bench player and no GK constraint, use a simple queue with periods snapped
+  // to a full multiple of the player count. Examples:
+  // - 20 min match, 5 players → 5 × 4-min periods → everyone plays 16'
+  // - 40 min match, 5 players → 10 × 4-min periods → everyone plays 32'
+  const canUseExactThinBenchPlanner =
+    outfieldOnBench.length === 1 &&
+    totalOutfieldPlayers === outfieldOnPitch.length + 1 &&
+    totalOutfieldPlayers > 1 &&
+    !gkOnPitch &&
+    !halftimeGkIn &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0 &&
+    totalRemainingSeconds > 0;
+
+  if (canUseExactThinBenchPlanner) {
+    const preferredPeriodSeconds = 4 * 60;
+    const minimumPeriodsForCadence = Math.max(
+      totalOutfieldPlayers,
+      Math.ceil(totalRemainingSeconds / preferredPeriodSeconds),
+    );
+    const equalPeriodCount = Math.max(
+      totalOutfieldPlayers,
+      Math.ceil(minimumPeriodsForCadence / totalOutfieldPlayers) * totalOutfieldPlayers,
+    );
+    const thinPlayerById = new Map(playerData.map(p => [p.id, p]));
+    const rotationOnPitch = outfieldOnPitch.map(p => ({
+      id: p.id,
+      position: (p.currentPitchPosition || "MID") as PitchPosition,
+    }));
+    let benchId = outfieldOnBench[0].id;
+    const exactPlan: SubstitutionEvent[] = [];
+
+    for (let period = 1; period < equalPeriodCount; period++) {
+      const absoluteSeconds = Math.round((totalRemainingSeconds * period) / equalPeriodCount);
+      const outgoing = rotationOnPitch.shift();
+      const incoming = thinPlayerById.get(benchId);
+      const playerOut = outgoing ? thinPlayerById.get(outgoing.id) : undefined;
+      if (!outgoing || !incoming || !playerOut) break;
+
+      const { half, time } = absoluteSeconds < halfDurationSeconds
+        ? { half: 1 as const, time: absoluteSeconds }
+        : { half: 2 as const, time: absoluteSeconds - halfDurationSeconds };
+
+      exactPlan.push({
+        time,
+        half,
+        playerOut,
+        playerIn: { ...incoming, currentPitchPosition: outgoing.position },
+        executed: false,
+      });
+
+      rotationOnPitch.push({ id: incoming.id, position: outgoing.position });
+      benchId = outgoing.id;
+    }
+
+    return exactPlan;
+  }
+
   // ===========================================================================
   // PRACTICAL MODE (rotationSpeed === 1) — early return.
   // FIFO queue rotation, ~7 min between sub windows, max 2 swaps per window.
