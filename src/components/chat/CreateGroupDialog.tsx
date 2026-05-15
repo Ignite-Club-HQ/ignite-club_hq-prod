@@ -443,154 +443,52 @@ export default function CreateGroupDialog({
               <span className="font-medium text-foreground">{contextLabel}</span>
             </p>
           )}
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 pt-3">
+            {[1, 2].map((n) => (
+              <div
+                key={n}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  step >= n ? "bg-primary" : "bg-muted"
+                )}
+              />
+            ))}
+            <span className="text-[10px] text-muted-foreground tabular-nums ml-1">
+              {step}/2
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground pt-2">
+            {step === 1
+              ? isTeamMode
+                ? "Step 1 — Pick a team"
+                : "Step 1 — Pick who's included"
+              : "Step 2 — Name your group"}
+          </p>
         </ResponsiveDialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 py-3 px-1">
-          {/* Section 1: Group Details */}
-          <section className={cn("space-y-2", isTeamMode && "order-1")}>
-            <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
-              Group name
-            </Label>
-            <Input
-              id="group-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Coaches huddle, U10 Parents"
-              className="h-11 rounded-xl"
-              maxLength={60}
-            />
-          </section>
-
-          {/* League fallback (rare) */}
-          {showLeaguePicker && (
-            <section className={cn("space-y-2", isTeamMode && "order-1")}>
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                League
-              </Label>
-              <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
-                <SelectTrigger className="w-full rounded-xl">
-                  <SelectValue placeholder="Pick a league (optional)" />
-                </SelectTrigger>
-                <SelectContent
-                  className="z-[100000]"
-                  position="popper"
-                  portal={false}
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                >
-                  <SelectItem value="">None</SelectItem>
-                  {adminMiniLeagues.map((l: any) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </section>
-          )}
-
-          {/* Section 2: Roles. In team mode this collapses behind a "Filter roles (optional)" toggle. */}
-          <section className={cn("space-y-3", isTeamMode && "order-3")}>
-            {isTeamMode && !showRoleFilter ? (
-              <button
-                type="button"
-                onClick={() => setShowRoleFilter(true)}
-                className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-left active:scale-[0.99] transition-transform touch-manipulation hover:border-primary/40 hover:bg-accent/30"
-              >
-                <span className="flex items-center gap-2 text-sm">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Filter who's included</span>
-                  <span className="text-xs text-muted-foreground">Optional</span>
-                </span>
-                <span className="text-xs text-muted-foreground">All roles</span>
-              </button>
-            ) : (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                    <Shield className="h-3 w-3" />
-                    {isTeamMode ? "Filter roles" : "Roles"}
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground">Multi-select</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {ROLE_OPTIONS.map((role) => {
-                    const isSelected = selectedRoles.includes(role.value);
-                    const count = roleCounts[role.value] ?? 0;
-                    if (count === 0 && !isSelected) return null;
-                    return (
-                      <button
-                        key={role.value}
-                        type="button"
-                        onClick={() => toggleRole(role.value)}
-                        className={cn(
-                          "group relative inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
-                          "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                          isSelected
-                            ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                            : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                        )}
-                      >
-                        {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                        <span>{role.label}</span>
-                        <span
-                          className={cn(
-                            "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
-                            isSelected
-                              ? "bg-primary-foreground/20 text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {Object.keys(roleCounts).length === 0 && (
-                    <p className="text-xs text-muted-foreground py-2">
-                      No members found in this scope yet.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
-
-          {/* Section 3: Teams (scope narrower) */}
-          {showTeamPicker && (
-            <section className={cn("space-y-3", isTeamMode && "order-2")}>
+          {step === 1 && !isTeamMode && (
+            <section className="space-y-3">
               <div className="flex items-baseline justify-between">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                  <Users className="h-3 w-3" />
-                  {isTeamMode ? "Pick a team" : "Scope to a team"}
+                  <Shield className="h-3 w-3" />
+                  Roles
                 </Label>
-                <span className="text-[10px] text-muted-foreground">{isTeamMode ? "Required" : "Optional"}</span>
+                <span className="text-[10px] text-muted-foreground">Multi-select</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {!isTeamMode && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTeamId("")}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
-                      "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                      selectedTeamId === ""
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                        : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                    )}
-                  >
-                    {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                    Whole club
-                  </button>
-                )}
-                {clubTeams.map((t) => {
-                  const isSelected = selectedTeamId === t.id;
+                {ROLE_OPTIONS.map((role) => {
+                  const isSelected = selectedRoles.includes(role.value);
+                  const count = roleCounts[role.value] ?? 0;
+                  if (count === 0 && !isSelected) return null;
                   return (
                     <button
-                      key={t.id}
+                      key={role.value}
                       type="button"
-                      onClick={() => setSelectedTeamId(isSelected ? "" : t.id)}
+                      onClick={() => toggleRole(role.value)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                        "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
                         "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
                         isSelected
                           ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
@@ -598,81 +496,338 @@ export default function CreateGroupDialog({
                       )}
                     >
                       {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                      {t.name}
+                      <span>{role.label}</span>
+                      <span
+                        className={cn(
+                          "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                          isSelected
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {count}
+                      </span>
                     </button>
                   );
                 })}
+                {Object.keys(roleCounts).length === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">
+                    No members found in this scope yet.
+                  </p>
+                )}
               </div>
-              {!selectedTeamId && !clubHasPro && (
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Crown className="h-3 w-3" />
-                  Whole-club groups need Club Pro. Pick a team to create now.
-                </p>
-              )}
+              <p className="text-[11px] text-muted-foreground">
+                You can narrow this to a single team in the next step.
+              </p>
             </section>
           )}
 
-          {/* Section 4: Live summary */}
-          <section
-            className={cn(
-              "rounded-2xl border p-3.5 transition-all",
-              isTeamMode && "order-last",
-              selectedRoles.length > 0
-                ? "border-primary/30 bg-primary/5"
-                : "border-dashed border-border bg-muted/30"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    "h-9 w-9 rounded-full flex items-center justify-center",
-                    selectedRoles.length > 0
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  <Users className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-tight">
-                    {selectedRoles.length === 0
-                      ? "Pick roles to include"
-                      : `${selectedCount} ${selectedCount === 1 ? "member" : "members"} selected`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {selectedRoles.length === 0
-                      ? "Live count appears here"
-                      : selectedRoles
-                          .map(r => ROLE_OPTIONS.find(o => o.value === r)?.label)
-                          .filter(Boolean)
-                          .join(" + ")}
-                  </p>
-                </div>
+          {step === 1 && isTeamMode && showTeamPicker && (
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <Users className="h-3 w-3" />
+                  Pick a team
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Required</span>
               </div>
-            </div>
-          </section>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={teamSearch}
+                  onChange={(e) => setTeamSearch(e.target.value)}
+                  placeholder="Search teams"
+                  className="h-11 rounded-xl pl-9"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {clubTeams
+                  .filter((t) =>
+                    teamSearch.trim()
+                      ? t.name.toLowerCase().includes(teamSearch.trim().toLowerCase())
+                      : true
+                  )
+                  .map((t) => {
+                    const isSelected = selectedTeamId === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTeamId(isSelected ? "" : t.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium",
+                          "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                            : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                        {t.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </section>
+          )}
+
+          {step === 2 && (
+            <>
+              <section className="space-y-2">
+                <Label htmlFor="group-name" className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Group name
+                </Label>
+                <Input
+                  id="group-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Coaches huddle, U10 Parents"
+                  className="h-11 rounded-xl"
+                  maxLength={60}
+                  autoFocus
+                />
+              </section>
+
+              {/* League fallback (rare) */}
+              {showLeaguePicker && (
+                <section className="space-y-2">
+                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                    League
+                  </Label>
+                  <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
+                    <SelectTrigger className="w-full rounded-xl">
+                      <SelectValue placeholder="Pick a league (optional)" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="z-[100000]"
+                      position="popper"
+                      portal={false}
+                      onPointerDownOutside={(e) => e.preventDefault()}
+                    >
+                      <SelectItem value="">None</SelectItem>
+                      {adminMiniLeagues.map((l: any) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </section>
+              )}
+
+              {/* Live summary card */}
+              <section
+                className={cn(
+                  "rounded-2xl border p-3.5 transition-all",
+                  selectedRoles.length > 0
+                    ? "border-primary/30 bg-primary/5"
+                    : "border-dashed border-border bg-muted/30"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "h-9 w-9 rounded-full flex items-center justify-center shrink-0",
+                      selectedRoles.length > 0
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-tight">
+                      {selectedCount} {selectedCount === 1 ? "member" : "members"} selected
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {isTeamMode
+                        ? clubTeams.find((t) => t.id === (teamId || selectedTeamId))?.name || "Team"
+                        : selectedTeamId
+                        ? clubTeams.find((t) => t.id === selectedTeamId)?.name
+                        : "Whole club"}
+                      {" · "}
+                      {selectedRoles.length === ROLE_OPTIONS.length
+                        ? "All roles"
+                        : selectedRoles
+                            .map((r) => ROLE_OPTIONS.find((o) => o.value === r)?.label)
+                            .filter(Boolean)
+                            .join(" + ") || "No roles"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Advanced: narrow scope (role mode) or filter roles (team mode) */}
+              {!isTeamMode && showTeamPicker && (
+                <section className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTeamScope((v) => !v)}
+                    className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-left active:scale-[0.99] transition-transform touch-manipulation hover:border-primary/40 hover:bg-accent/30"
+                  >
+                    <span className="flex items-center gap-2 text-sm">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Narrow to a team</span>
+                      <span className="text-xs text-muted-foreground">Optional</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {selectedTeamId
+                        ? clubTeams.find((t) => t.id === selectedTeamId)?.name
+                        : "Whole club"}
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", showTeamScope && "rotate-180")} />
+                    </span>
+                  </button>
+                  {showTeamScope && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTeamId("")}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium border transition-all active:scale-[0.97]",
+                          selectedTeamId === ""
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card text-foreground border-border hover:border-primary/40"
+                        )}
+                      >
+                        {selectedTeamId === "" && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                        Whole club
+                      </button>
+                      {clubTeams.map((t) => {
+                        const isSelected = selectedTeamId === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedTeamId(isSelected ? "" : t.id)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium border transition-all active:scale-[0.97]",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card text-foreground border-border hover:border-primary/40"
+                            )}
+                          >
+                            {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                            {t.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {!selectedTeamId && !clubHasPro && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Crown className="h-3 w-3" />
+                      Whole-club groups need Club Pro. Pick a team to create now.
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {isTeamMode && (
+                <section className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRoleFilter((v) => !v)}
+                    className="w-full flex items-center justify-between rounded-xl border border-dashed border-border px-4 py-3 text-left active:scale-[0.99] transition-transform touch-manipulation hover:border-primary/40 hover:bg-accent/30"
+                  >
+                    <span className="flex items-center gap-2 text-sm">
+                      <Shield className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Filter roles</span>
+                      <span className="text-xs text-muted-foreground">Optional</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {selectedRoles.length === ROLE_OPTIONS.length
+                        ? "All roles"
+                        : `${selectedRoles.length} role${selectedRoles.length === 1 ? "" : "s"}`}
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", showRoleFilter && "rotate-180")} />
+                    </span>
+                  </button>
+                  {showRoleFilter && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {ROLE_OPTIONS.map((role) => {
+                        const isSelected = selectedRoles.includes(role.value);
+                        const count = roleCounts[role.value] ?? 0;
+                        if (count === 0 && !isSelected) return null;
+                        return (
+                          <button
+                            key={role.value}
+                            type="button"
+                            onClick={() => toggleRole(role.value)}
+                            className={cn(
+                              "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium border transition-all active:scale-[0.97]",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card text-foreground border-border hover:border-primary/40"
+                            )}
+                          >
+                            {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                            <span>{role.label}</span>
+                            <span
+                              className={cn(
+                                "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                                isSelected
+                                  ? "bg-primary-foreground/20 text-primary-foreground"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
+            </>
+          )}
         </div>
 
         <ResponsiveDialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            className="flex-1 sm:flex-none"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={
-              createGroupMutation.isPending ||
-              !name.trim() ||
-              selectedRoles.length === 0
-            }
-            className="flex-1 sm:flex-none gap-2"
-          >
-            {createGroupMutation.isPending ? "Creating..." : "Create Group"}
-          </Button>
+          {step === 1 ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setOpen(false)}
+                className="flex-1 sm:flex-none"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={
+                  isTeamMode
+                    ? !(teamId || selectedTeamId)
+                    : selectedRoles.length === 0
+                }
+                className="flex-1 sm:flex-none gap-2"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setStep(1)}
+                className="flex-1 sm:flex-none gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                onClick={handleCreate}
+                disabled={
+                  createGroupMutation.isPending ||
+                  !name.trim() ||
+                  selectedRoles.length === 0
+                }
+                className="flex-1 sm:flex-none gap-2"
+              >
+                {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+              </Button>
+            </>
+          )}
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
