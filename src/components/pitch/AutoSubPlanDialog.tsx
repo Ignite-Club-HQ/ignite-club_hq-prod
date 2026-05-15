@@ -2897,6 +2897,68 @@ export function createSubPlan(
 
   sortPlan();
 
+  // ============================================================
+  // EQUAL-TIME POST-PASS — global fairness override.
+  // ------------------------------------------------------------
+  // When no per-player priority order is configured and we're planning from
+  // kickoff, try a deterministic deficit-driven plan that globally optimises
+  // toward equal target minutes. Adopt it if it strictly beats the current
+  // plan's spread. This makes simple cases (e.g. 8 players / 7-aside / 40 min)
+  // converge to mathematically perfect distributions instead of getting
+  // dragged off-target by starter bias / continuity / GK protection.
+  // ============================================================
+  const equalTimeEligible =
+    priorityOrder.length === 0 &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0 &&
+    outfieldOnBench.length > 0;
+
+  if (equalTimeEligible) {
+    try {
+      const eqResult = buildEqualTimePlan({
+        players: playerData,
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: gkOnPitch || undefined,
+        gk2H: rotateGkAtHalftime
+          ? halftimeGkIn || gkOnPitch || undefined
+          : gkOnPitch || undefined,
+        chunkSec: 30,
+        minShiftSec: Math.max(60, eff.minShiftSeconds),
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      });
+
+      if (eqResult.plan.length > 0) {
+        const currentSim = simulateOutfieldPlan(plan);
+        const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
+
+        // Validate the equal-time plan against the same simulator the rest of
+        // the planner uses. If it sims clean AND the spread is meaningfully
+        // tighter than the current plan, swap it in.
+        const eqSim = simulateOutfieldPlan(eqResult.plan);
+        const eqSpread = eqSim.valid ? fairnessSpread(eqSim.times) : Number.POSITIVE_INFINITY;
+
+        // Improvement threshold: 30 s (one chunk). Adopt when equal-time is
+        // strictly better OR current is already wider than the user-set cap.
+        const improvement = currentSpread - eqSpread;
+        const adoptionWorthwhile =
+          eqSim.valid &&
+          (improvement > 30 || (currentSpread > maxSpreadMinutes * 60 && eqSpread < currentSpread));
+
+        if (adoptionWorthwhile) {
+          plan.length = 0;
+          plan.push(...eqResult.plan);
+          sortPlan();
+        }
+      }
+    } catch (err) {
+      // Never break the planner — fall through to the conventional output.
+      // eslint-disable-next-line no-console
+      console.warn("[createSubPlan] equal-time post-pass failed:", err);
+    }
+  }
+
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }
 
