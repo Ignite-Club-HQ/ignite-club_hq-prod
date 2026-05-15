@@ -390,6 +390,9 @@ export default function EventDetailPage() {
       return data;
     },
     enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Check if user is app admin (global override)
@@ -529,9 +532,26 @@ export default function EventDetailPage() {
   const isNetballClub = isNetballSport(event?.clubs?.sport);
   const isBasketballClub = isBasketballSport(event?.clubs?.sport);
 
-  const isSubsManagerForEvent = !!duties?.some(
-    (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+  const localSubsManagerForEvent = !!duties?.some(
+    (d: any) => normalizeDutyName(d.name) === "subs manager" && d.assigned_to === user?.id
   );
+  const { data: directSubsManagerForEvent = false, isLoading: isDirectSubsManagerLoading } = useQuery({
+    queryKey: ["event-subs-manager-direct", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name")
+        .eq("event_id", id!)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager");
+    },
+    enabled: !!id && !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+  const isSubsManagerForEvent = localSubsManagerForEvent || directSubsManagerForEvent;
   const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
