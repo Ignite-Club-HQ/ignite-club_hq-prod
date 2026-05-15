@@ -450,7 +450,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   const handleStartConversation = () => {
     if (selectedUsers.length === 0) return;
-    
+
+    if (mode === "custom-group") {
+      if (!groupName.trim()) {
+        toast.error("Give your group a name");
+        return;
+      }
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      return;
+    }
+
     if (selectedUsers.length === 1) {
       // Single user - start regular DM
       startDMMutation.mutate(selectedUsers[0].id);
