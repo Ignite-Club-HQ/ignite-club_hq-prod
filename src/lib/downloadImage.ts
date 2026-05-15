@@ -74,35 +74,52 @@ async function downloadImageInner(url: string, friendlyBaseName: string, toastId
       }
 
       if (platform === "ios") {
-        // iOS: @capacitor-community/media's savePhoto uses SDWebImage which
-        // fails for both Supabase signed URLs (TLS/IPv6 quirks) and large
-        // data: URLs (URL(string:) returns nil above ~2MB). The reliable
-        // path is: fetch the bytes ourselves, write to the cache directory,
-        // then present the iOS Share sheet pointed at the local file. iOS
-        // shows a native "Save Image" action that writes straight into the
-        // Photos library without any third-party downloader in the loop.
-        const response = await fetch(resolvedUrl);
-        if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
-        const blob = await response.blob();
-        const contentType = blob.type || response.headers.get("content-type") || "image/jpeg";
-        const ext = pickExtension(contentType) || guessExtensionFromUrl(resolvedUrl);
+        // iOS: prefer native Filesystem.downloadFile (URLSession) which
+        // reliably handles Supabase signed URLs. The WebView's fetch() can
+        // fail intermittently on Supabase storage hosts (TLS/IPv6 quirks),
+        // surfacing to the user as "Download failed". Fall back to
+        // fetch + writeFile only if the native download path errors out.
+        const ext = guessExtensionFromUrl(resolvedUrl);
         const iosFilename = `${friendlyBaseName}-${stamp}-${Date.now()}.${ext}`;
-        const base64 = await blobToBase64(blob);
-        const written = await Filesystem.writeFile({
-          path: iosFilename,
-          data: base64,
-          directory: Directory.Cache,
-          recursive: true,
-        });
-        const localPath =
-          written.uri ||
-          (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+        let localPath: string | null = null;
+        try {
+          const dl: any = await (Filesystem as any).downloadFile({
+            url: resolvedUrl,
+            path: iosFilename,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+          localPath = dl?.uri || null;
+        } catch (nativeErr) {
+          console.warn("[downloadImage] iOS Filesystem.downloadFile failed, falling back to fetch:", nativeErr);
+        }
+
+        if (!localPath) {
+          const response = await fetch(resolvedUrl);
+          if (!response.ok) throw new Error(`Failed to fetch image (${response.status})`);
+          const blob = await response.blob();
+          const base64 = await blobToBase64(blob);
+          const written = await Filesystem.writeFile({
+            path: iosFilename,
+            data: base64,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+          localPath = written.uri || null;
+        }
+
+        if (!localPath) {
+          localPath = (await Filesystem.getUri({ path: iosFilename, directory: Directory.Cache })).uri;
+        }
 
         try {
           const { Share } = await import("@capacitor/share");
+          // iOS Share plugin: pass `files` ONLY when sharing a local file.
+          // Passing both `url` and `files` causes the share sheet to error
+          // out ("Download failed") because iOS treats `url` as a remote
+          // link and rejects the mismatched activity items.
           await Share.share({
             title: "Save photo",
-            url: localPath,
             files: [localPath],
             dialogTitle: "Save photo",
           });

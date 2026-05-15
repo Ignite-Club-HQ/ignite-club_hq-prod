@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PitchPosition } from "./PositionBadge";
 import {
   ResponsiveDialog,
@@ -31,6 +32,7 @@ export default function AddFillInPlayerDialog({
   externalOpen,
   onExternalOpenChange,
 }: AddFillInPlayerDialogProps) {
+  const isMobile = useIsMobile();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = (v: boolean) => {
@@ -89,8 +91,13 @@ export default function AddFillInPlayerDialog({
           {compact ? "Fill-In" : "Add Fill-In Player"}
         </Button>
       )}
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
-        <ResponsiveDialogContent className="sm:max-w-md">
+      <ResponsiveDialog open={open} onOpenChange={setOpen} forceDesktopDialog>
+        <ResponsiveDialogContent
+          className={cn(
+            "sm:max-w-md max-w-[calc(100vw-2rem)]",
+            isMobile && "top-[calc(env(safe-area-inset-top,0px)+1rem)] translate-y-0 max-h-[calc(100dvh-2rem)]"
+          )}
+        >
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle className="text-lg">Add Fill-In Player</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
@@ -102,7 +109,7 @@ export default function AddFillInPlayerDialog({
                 placeholder="Enter player name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                autoFocus
+                autoFocus={!isMobile}
                 className="h-11"
               />
             </div>
@@ -112,10 +119,12 @@ export default function AddFillInPlayerDialog({
               <div className="flex gap-2">
                 <Input
                   id="fillInNumber"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder={`e.g. ${suggestNumber()}`}
                   value={number}
-                  onChange={(e) => setNumber(e.target.value)}
+                  onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 2))}
                   min={1}
                   max={99}
                   className="w-24 h-11"

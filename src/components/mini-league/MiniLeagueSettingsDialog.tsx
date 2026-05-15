@@ -384,8 +384,8 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
             {/* Game length */}
             <div className="space-y-2">
               <Label className="text-sm">Game length (minutes per half)</Label>
-              <div className="flex items-center gap-2">
-                {[5, 7, 10, 12].map((mins) => (
+              <div className="flex items-center gap-2 flex-wrap">
+                {[5, 7, 10, 12, 15, 20, 25, 30].map((mins) => (
                   <Button
                     key={mins}
                     type="button"

@@ -175,18 +175,34 @@ export function ChatDetailsSheet({
                 {(() => {
                   const resolvedTeamId = chatType === "team" ? chatId : teamId;
                   const resolvedClubId = chatType === "club" ? chatId : clubId;
-                  const vaultHref = miniLeagueId
+                  const isGroup = chatType === "group";
+                  const fallbackHref = miniLeagueId
                     ? `/vault?miniLeague=${miniLeagueId}`
                     : resolvedTeamId
                     ? `/vault?team=${resolvedTeamId}`
                     : resolvedClubId
                     ? `/vault?club=${resolvedClubId}`
                     : null;
-                  if (!vaultHref) return null;
+                  if (!fallbackHref && !isGroup) return null;
                   return (
                     <NavRow
                       label="View file vault"
-                      onClick={() => handleNavigate(vaultHref)}
+                      onClick={async () => {
+                        if (isGroup) {
+                          // Look up folder linked to this group chat first
+                          const { data: folder } = await supabase
+                            .from("vault_folders")
+                            .select("id")
+                            .eq("chat_group_id", chatId)
+                            .limit(1)
+                            .maybeSingle();
+                          if (folder?.id) {
+                            handleNavigate(`/vault/folder/${folder.id}`);
+                            return;
+                          }
+                        }
+                        if (fallbackHref) handleNavigate(fallbackHref);
+                      }}
                     />
                   );
                 })()}

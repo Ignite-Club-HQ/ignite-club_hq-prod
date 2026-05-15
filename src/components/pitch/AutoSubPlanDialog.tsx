@@ -4422,12 +4422,14 @@ export default function AutoSubPlanDialog({
           )}
           aria-describedby={undefined}
         >
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <DialogPrimitive.Title className="text-lg font-semibold leading-none tracking-tight flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {editMode ? "Edit Substitution Plan" : "Auto Substitution Plan"}
+          <div className="flex items-center justify-between gap-4 p-4 border-b border-border">
+            <DialogPrimitive.Title className="min-w-0 flex-1 text-base sm:text-lg font-semibold leading-tight tracking-tight flex items-center gap-2">
+              <Clock className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 truncate">
+                {editMode ? "Edit Substitution Plan" : "Auto Substitution Plan"}
+              </span>
             </DialogPrimitive.Title>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               {!editMode && showStepper && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   {onBackToLineup ? (
