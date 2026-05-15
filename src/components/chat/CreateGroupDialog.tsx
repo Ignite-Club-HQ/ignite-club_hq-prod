@@ -593,6 +593,7 @@ export default function CreateGroupDialog({
           <section
             className={cn(
               "rounded-2xl border p-3.5 transition-all",
+              isTeamMode && "order-last",
               selectedRoles.length > 0
                 ? "border-primary/30 bg-primary/5"
                 : "border-dashed border-border bg-muted/30"
