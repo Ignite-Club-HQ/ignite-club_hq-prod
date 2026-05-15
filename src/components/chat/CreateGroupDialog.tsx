@@ -88,6 +88,16 @@ export default function CreateGroupDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupType, isOpen]);
 
+  // Reset to first step whenever the dialog reopens
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setTeamSearch("");
+      setShowRoleFilter(false);
+      setShowTeamScope(false);
+    }
+  }, [isOpen]);
+
   // Resolve the active club context. clubId prop > active club filter.
   const resolvedClubId = clubId || activeClubFilter || null;
 
