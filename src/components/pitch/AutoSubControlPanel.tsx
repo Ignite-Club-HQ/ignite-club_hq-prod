@@ -313,7 +313,7 @@ export default function AutoSubControlPanel({
                                     <div className="w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/30" />
                                   )}
                                 </div>
-                                <Badge variant="secondary" className="font-mono text-xs h-5">
+                                <Badge className="font-mono text-xs h-5 border-transparent bg-foreground/15 text-foreground hover:bg-foreground/20">
                                   {timeLabel}
                                 </Badge>
                                 {group.items.length > 1 && (
