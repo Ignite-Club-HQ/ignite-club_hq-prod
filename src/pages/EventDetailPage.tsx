@@ -641,6 +641,21 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id && !!event?.id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
+  // Auto-open the pitch board when navigated here from the home Next Up
+  // Start Game CTA (or any other deep-link with ?openPitchBoard=1). Waits
+  // for access flags + teamMembers to resolve so we don't open a board the
+  // user can't actually use.
+  useEffect(() => {
+    if (!wantOpenPitchBoard) return;
+    if (!event || !teamMembers) return;
+    if (!(canAccessPitchBoard || canViewPitchBoardReadOnly)) return;
+    setShowPitchBoard(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("openPitchBoard");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantOpenPitchBoard, event?.id, canAccessPitchBoard, canViewPitchBoardReadOnly, !!teamMembers]);
+
   // Fetch team subscription for pitch board settings
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription-for-pitch", event?.team_id],
