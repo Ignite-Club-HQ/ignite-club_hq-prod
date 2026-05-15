@@ -29,6 +29,7 @@ interface NextUpHeroProps {
     club_id: string;
     team_id: string | null;
     is_cancelled: boolean;
+    is_bye?: boolean;
     opponent: string | null;
     arrival_minutes_before?: number | null;
     teams: { name: string; default_match_arrival_minutes?: number | null } | null;
