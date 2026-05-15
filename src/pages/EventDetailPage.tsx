@@ -3424,7 +3424,8 @@ export default function EventDetailPage() {
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             initialMode={event?.type === "training" ? "training" : "match"}
-            readOnly={!!canViewPitchBoardReadOnly}
+            readOnly={!!canViewPitchBoardReadOnly && !isSubsManagerForEvent}
+            isSubsManager={isSubsManagerForEvent}
           />
         </Suspense>,
         document.body
