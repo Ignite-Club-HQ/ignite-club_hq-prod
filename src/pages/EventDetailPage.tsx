@@ -602,7 +602,7 @@ export default function EventDetailPage() {
   // STRICT: Only includes players whose RSVP status is "going" for this event.
   // Players with status "maybe", "not_going", or no response are excluded.
   // Adults (coaches/admins) are always included so they can run the board.
-  const { data: teamMembers } = useQuery({
+  const { data: teamMembers, isLoading: isTeamMembersForPitchLoading } = useQuery({
     queryKey: ["team-members-for-pitch", event?.team_id, event?.id],
     queryFn: async () => {
       const [rolesResult, childrenResult, goingRsvpsResult] = await Promise.all([
@@ -2520,7 +2520,7 @@ export default function EventDetailPage() {
               Admins & coaches can open it for any upcoming game (not just on
               game day) so they can pre-set the lineup and auto-sub plan
               ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {isPitchBoardAccessLoading && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
+          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
             <Button variant="outline" className="w-full mt-2" disabled>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Checking match access…
