@@ -96,6 +96,7 @@ import { cn } from "@/lib/utils";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
 const SOCCER_SPORTS = ["soccer", "football", "futsal"];
+const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
 
 const teamRoleOptions: { value: TeamRole; label: string }[] = [
   { value: "player", label: "Player" },
@@ -519,13 +520,32 @@ export default function TeamDetailPage() {
   const isAdmin = isCoachOrAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
+  const { data: nearbySubsManagerEventId } = useQuery({
+    queryKey: ["nearby-subs-manager-event", id, user?.id],
+    queryFn: async () => {
+      const nearbyEventId = await findNearbyGameEvent(id!);
+      if (!nearbyEventId) return null;
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name")
+        .eq("event_id", nearbyEventId)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager") ? nearbyEventId : null;
+    },
+    enabled: !!id && !!user && !isCoachOrAdmin && !isClubAdmin,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+  const hasNearbySubsManagerDuty = !!nearbySubsManagerEventId;
   
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
   // All team members can view pitch board (read-only); only team admins/coaches can edit
   // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
   const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin; // Club admins, team admins, and coaches can edit; others view-only
+  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty; // Club admins, team admins, coaches, and match Subs Managers can edit
 
   // Check if user has "Subs Manager" duty for the linked event
   const { data: isSubsManager } = useQuery({
@@ -534,14 +554,15 @@ export default function TeamDetailPage() {
       if (!linkedEventId || !user) return false;
       const { data } = await supabase
         .from("duties")
-        .select("id")
+        .select("id, name")
         .eq("event_id", linkedEventId)
-        .eq("name", "Subs Manager")
         .eq("assigned_to", user.id)
-        .maybeSingle();
-      return !!data;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager");
     },
-    enabled: !!linkedEventId && !!user && !canEditPitchBoard,
+    enabled: !!linkedEventId && !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Detect a live game for this team so we can show a "Watch Live" entry
@@ -1312,7 +1333,7 @@ export default function TeamDetailPage() {
       {isMember && (() => {
         const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
-        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin) && (
+        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
           ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
         );
@@ -2495,7 +2516,7 @@ export default function TeamDetailPage() {
               initialTeamSize={teamSubscription?.team_size}
               initialFormation={teamSubscription?.formation || undefined}
               readOnly={!canEditPitchBoard && !isSubsManager}
-              isSubsManager={!!isSubsManager}
+              isSubsManager={!!isSubsManager || hasNearbySubsManagerDuty}
               initialLinkedEventId={linkedEventId}
               onUnlinkEvent={() => {
                 setLinkedEventId(null);

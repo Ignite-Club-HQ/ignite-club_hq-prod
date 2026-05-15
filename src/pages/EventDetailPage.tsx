@@ -109,6 +109,8 @@ const rsvpOptions: { value: RsvpStatus; label: string; icon: string }[] = [
   { value: "not_going", label: "Can't Go", icon: "❌" },
 ];
 
+const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
+
 // Helper component for attendee display with payment status and admin RSVP controls
 const AttendeeCard = ({ 
   rsvp, 
@@ -377,7 +379,7 @@ export default function EventDetailPage() {
     }
   }, [myRsvp?.id]);
 
-  const { data: duties } = useQuery({
+  const { data: duties, isLoading: isDutiesLoading } = useQuery({
     queryKey: ["event-duties", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -388,6 +390,9 @@ export default function EventDetailPage() {
       return data;
     },
     enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Check if user is app admin (global override)
@@ -527,10 +532,28 @@ export default function EventDetailPage() {
   const isNetballClub = isNetballSport(event?.clubs?.sport);
   const isBasketballClub = isBasketballSport(event?.clubs?.sport);
 
-  const isSubsManagerForEvent = !!duties?.some(
-    (d: any) => d.name === "Subs Manager" && d.assigned_to === user?.id
+  const localSubsManagerForEvent = !!duties?.some(
+    (d: any) => normalizeDutyName(d.name) === "subs manager" && d.assigned_to === user?.id
   );
+  const { data: directSubsManagerForEvent = false, isLoading: isDirectSubsManagerLoading } = useQuery({
+    queryKey: ["event-subs-manager-direct", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("duties")
+        .select("id, name")
+        .eq("event_id", id!)
+        .eq("assigned_to", user!.id);
+      if (error) throw error;
+      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager");
+    },
+    enabled: !!id && !!user,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+  const isSubsManagerForEvent = localSubsManagerForEvent || directSubsManagerForEvent;
   const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
+  const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
@@ -579,7 +602,7 @@ export default function EventDetailPage() {
   // STRICT: Only includes players whose RSVP status is "going" for this event.
   // Players with status "maybe", "not_going", or no response are excluded.
   // Adults (coaches/admins) are always included so they can run the board.
-  const { data: teamMembers } = useQuery({
+  const { data: teamMembers, isLoading: isTeamMembersForPitchLoading } = useQuery({
     queryKey: ["team-members-for-pitch", event?.team_id, event?.id],
     queryFn: async () => {
       const [rolesResult, childrenResult, goingRsvpsResult] = await Promise.all([
@@ -2497,7 +2520,13 @@ export default function EventDetailPage() {
               Admins & coaches can open it for any upcoming game (not just on
               game day) so they can pre-set the lineup and auto-sub plan
               ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {canAccessPitchBoard && teamMembers && (() => {
+          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
+            <Button variant="outline" className="w-full mt-2" disabled>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking match access…
+            </Button>
+          )}
+          {!isPitchBoardAccessLoading && canAccessPitchBoard && teamMembers && (() => {
             const eventTime = parseISO(event.event_date);
             const now = new Date();
             const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);

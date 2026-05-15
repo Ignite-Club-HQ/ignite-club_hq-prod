@@ -53,7 +53,9 @@ export function useCanStartGame(event: EventLike | null | undefined) {
       return hasTeamRole || isSubsManager;
     },
     enabled: !!user && !!event && eligibleType && !event.is_cancelled && !event.is_bye,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   if (!event || !eligibleType || event.is_cancelled || event.is_bye || !hasRole) {
