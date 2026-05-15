@@ -379,7 +379,7 @@ export default function EventDetailPage() {
     }
   }, [myRsvp?.id]);
 
-  const { data: duties } = useQuery({
+  const { data: duties, isLoading: isDutiesLoading } = useQuery({
     queryKey: ["event-duties", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -553,7 +553,7 @@ export default function EventDetailPage() {
   });
   const isSubsManagerForEvent = localSubsManagerForEvent || directSubsManagerForEvent;
   const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
-  const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || duties === undefined;
+  const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
