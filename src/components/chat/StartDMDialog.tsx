@@ -50,9 +50,16 @@ interface TeamInfo {
 interface StartDMDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "dm" (default) — fast direct-message flow. Picking 1 person starts a DM
+   * instantly; picking multiple auto-creates an unnamed group.
+   * "custom-group" — manual people picker. Group name is required and shown at
+   * the top; submit always creates a group even with one person selected.
+   */
+  mode?: "dm" | "custom-group";
 }
 
-export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDialogProps) {
+export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" }: StartDMDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
@@ -443,7 +450,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
   const handleStartConversation = () => {
     if (selectedUsers.length === 0) return;
-    
+
+    if (mode === "custom-group") {
+      if (!groupName.trim()) {
+        toast.error("Give your group a name");
+        return;
+      }
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      return;
+    }
+
     if (selectedUsers.length === 1) {
       // Single user - start regular DM
       startDMMutation.mutate(selectedUsers[0].id);
@@ -503,10 +519,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         setSelectedTeamId("all");
       }
     }}>
-      <ResponsiveDialogContent className="sm:max-w-md">
+      <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            Start a Conversation
+            {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -515,7 +531,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Select one or more members to message
+            {mode === "custom-group"
+              ? "Pick people one by one and give your group a name"
+              : "Pick one person to chat 1:1, or several to start a quick group"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -567,18 +585,20 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 </div>
               )}
 
-              {/* Optional group name when 2+ users selected */}
-              {selectedUsers.length > 1 && (
+              {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
+              {(mode === "custom-group" || selectedUsers.length > 1) && (
                 <div className="space-y-1">
                   <Input
-                    placeholder="Group name (optional)"
+                    placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     maxLength={60}
+                    className="h-11 rounded-xl"
+                    autoFocus={mode === "custom-group"}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank to use member names
-                  </p>
+                  {mode !== "custom-group" && (
+                    <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
+                  )}
                 </div>
               )}
 
@@ -634,35 +654,57 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   ) : (
                     filteredUsers.map((dmUser) => {
                       const isSelected = selectedUsers.some(u => u.id === dmUser.id);
+                      const teamCount = dmUser.team_ids.length;
+                      const initials = (dmUser.display_name || "?")
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map(s => s.charAt(0).toUpperCase())
+                        .join("");
                       return (
                         <button
                           key={dmUser.id}
                           onClick={() => toggleUserSelection(dmUser)}
                           disabled={isPending}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
-                            isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left active:scale-[0.99] touch-manipulation border ${
+                            isSelected
+                              ? "bg-primary/10 border-primary/40 shadow-sm shadow-primary/10"
+                              : "bg-card border-border hover:border-primary/30 hover:bg-accent/40"
                           }`}
                         >
                           <div className="relative">
-                            <Avatar className="h-10 w-10">
+                            <Avatar className={`h-11 w-11 ring-2 transition-all ${isSelected ? "ring-primary" : "ring-transparent"}`}>
                               <AvatarImage src={dmUser.avatar_url || undefined} />
-                              <AvatarFallback>
-                                {dmUser.display_name?.charAt(0).toUpperCase() || "?"}
+                              <AvatarFallback className="text-xs font-semibold bg-muted">
+                                {initials || "?"}
                               </AvatarFallback>
                             </Avatar>
                             {isSelected && (
-                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="h-3 w-3 text-primary-foreground" />
+                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center ring-2 ring-background">
+                                <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
                               </span>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
+                            <p className="font-medium truncate text-sm leading-tight">
                               {dmUser.display_name || "Unknown User"}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {dmUser.shared_clubs.join(", ")}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {dmUser.shared_clubs.slice(0, 1).map(c => (
+                                <span
+                                  key={c}
+                                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground max-w-[180px] truncate"
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                              {teamCount > 0 && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
+                                  <Users className="h-2.5 w-2.5" />
+                                  {teamCount} {teamCount === 1 ? "team" : "teams"}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       );
@@ -682,20 +724,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
             </Button>
             <Button
               onClick={handleStartConversation}
-              disabled={isPending}
+              disabled={isPending || (mode === "custom-group" && !groupName.trim())}
               className="flex-1 sm:flex-none gap-2"
             >
               {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : selectedUsers.length > 1 ? (
+              ) : mode === "custom-group" || selectedUsers.length > 1 ? (
                 <Users className="h-4 w-4" />
               ) : (
                 <MessageCircle className="h-4 w-4" />
               )}
-              {selectedUsers.length === 1 
-                ? "Start Chat" 
-                : `Create Group (${selectedUsers.length} people)`
-              }
+              {mode === "custom-group"
+                ? `Create Group (${selectedUsers.length})`
+                : selectedUsers.length === 1
+                  ? "Start Chat"
+                  : `Create Group (${selectedUsers.length} people)`}
             </Button>
           </ResponsiveDialogFooter>
         )}

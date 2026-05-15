@@ -623,11 +623,21 @@ export function createSubPlan(
   const rotationSpeed = normalizeRotationSpeed(rotationSpeedInput);
   // Resolve overrides → effective tunables (clamped to safe ranges)
   const ov = advancedOverrides || {};
+  // Ultra-thin bench auto-tighten: when bench is ≤1 the standard floors
+  // (4 min interval / 3 min shift) become the bottleneck and prevent
+  // equal-time rotations. Drop them so e.g. a 5-player / 4-a-side / 40-min
+  // squad can sub every 4 min and land each player on 32'/8'.
+  const _benchCount = (playerData ?? []).filter(p => p.position === null).length;
+  const _ultraThinBench = _benchCount > 0 && _benchCount <= 1;
+  const _autoIntervalFloor = _ultraThinBench ? 180 : 240;       // 3 min vs 4 min
+  const _autoFreqFloor     = _ultraThinBench ? 120 : 180;       // 2 min vs 3 min
+  const _autoMinShift      = _ultraThinBench ? 150 : 180;       // 2.5 min vs 3 min
+  const _autoTarget        = _ultraThinBench ? 240 : PRACTICAL_SUB_INTERVAL_SECONDS;
   const eff = {
-    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? PRACTICAL_SUB_INTERVAL_SECONDS)),
-    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? 240)),
-    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? 180)),
-    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? 180)),
+    standardTargetInterval: Math.max(180, Math.min(900, ov.standardTargetIntervalSec ?? _autoTarget)),
+    standardIntervalFloor: Math.max(120, Math.min(600, ov.standardIntervalFloorSec ?? _autoIntervalFloor)),
+    frequentIntervalFloor: Math.max(60, Math.min(420, ov.frequentIntervalFloorSec ?? _autoFreqFloor)),
+    minShiftSeconds: Math.max(60, Math.min(360, ov.minShiftSeconds ?? _autoMinShift)),
     halftimeGuardSeconds: ov.halftimeGuardSeconds !== undefined
       ? Math.max(0, Math.min(420, ov.halftimeGuardSeconds))
       : undefined, // undefined → fall back to interval floor at use site
@@ -739,6 +749,70 @@ export function createSubPlan(
   const totalRemainingSeconds = Math.max(remainingHalves, 0);
   const fieldPositions = outfieldOnPitch.length || Math.max(teamSize - (gkOnPitch ? 1 : 0), 1);
   const totalOutfieldPlayers = outfieldPlayers.length;
+
+  // EXACT EQUAL-TIME ROTATION FOR ULTRA-THIN BENCHES
+  // -------------------------------------------------
+  // 4-a-side with 5 available players is the canonical case: one player is
+  // always off, so equal game time means equal BENCH periods. The generic
+  // planner spaces `N` windows across the match, which accidentally creates
+  // short first/long later bench stints (e.g. 18/17/17/16/13). For exactly one
+  // bench player and no GK constraint, use a simple queue with periods snapped
+  // to a full multiple of the player count. Examples:
+  // - 20 min match, 5 players → 5 × 4-min periods → everyone plays 16'
+  // - 40 min match, 5 players → 10 × 4-min periods → everyone plays 32'
+  const canUseExactThinBenchPlanner =
+    outfieldOnBench.length === 1 &&
+    totalOutfieldPlayers === outfieldOnPitch.length + 1 &&
+    totalOutfieldPlayers > 1 &&
+    !gkOnPitch &&
+    !halftimeGkIn &&
+    startHalf === 1 &&
+    clampedStartElapsed === 0 &&
+    totalRemainingSeconds > 0;
+
+  if (canUseExactThinBenchPlanner) {
+    const preferredPeriodSeconds = 4 * 60;
+    const minimumPeriodsForCadence = Math.max(
+      totalOutfieldPlayers,
+      Math.ceil(totalRemainingSeconds / preferredPeriodSeconds),
+    );
+    const equalPeriodCount = Math.max(
+      totalOutfieldPlayers,
+      Math.ceil(minimumPeriodsForCadence / totalOutfieldPlayers) * totalOutfieldPlayers,
+    );
+    const thinPlayerById = new Map(playerData.map(p => [p.id, p]));
+    const rotationOnPitch = outfieldOnPitch.map(p => ({
+      id: p.id,
+      position: (p.currentPitchPosition || "MID") as PitchPosition,
+    }));
+    let benchId = outfieldOnBench[0].id;
+    const exactPlan: SubstitutionEvent[] = [];
+
+    for (let period = 1; period < equalPeriodCount; period++) {
+      const absoluteSeconds = Math.round((totalRemainingSeconds * period) / equalPeriodCount);
+      const outgoing = rotationOnPitch.shift();
+      const incoming = thinPlayerById.get(benchId);
+      const playerOut = outgoing ? thinPlayerById.get(outgoing.id) : undefined;
+      if (!outgoing || !incoming || !playerOut) break;
+
+      const { half, time } = absoluteSeconds < halfDurationSeconds
+        ? { half: 1 as const, time: absoluteSeconds }
+        : { half: 2 as const, time: absoluteSeconds - halfDurationSeconds };
+
+      exactPlan.push({
+        time,
+        half,
+        playerOut,
+        playerIn: { ...incoming, currentPitchPosition: outgoing.position },
+        executed: false,
+      });
+
+      rotationOnPitch.push({ id: incoming.id, position: outgoing.position });
+      benchId = outgoing.id;
+    }
+
+    return exactPlan;
+  }
 
   // ===========================================================================
   // PRACTICAL MODE (rotationSpeed === 1) — early return.
