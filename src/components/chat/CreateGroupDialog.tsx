@@ -397,6 +397,17 @@ export default function CreateGroupDialog({
   const showLeaguePicker =
     !isTeamScopeLocked && !isLeagueScopeLocked && !resolvedClubId && adminMiniLeagues.length > 0;
 
+  // Auto-suggest a name when a team is picked in team mode (only if user hasn't typed one)
+  useEffect(() => {
+    if (groupType !== "team" || !isOpen) return;
+    if (!selectedTeamId) return;
+    const t = clubTeams.find((ct) => ct.id === selectedTeamId);
+    if (!t) return;
+    setName((prev) => (prev.trim() ? prev : `${t.name} chat`));
+  }, [groupType, isOpen, selectedTeamId, clubTeams]);
+
+  const isTeamMode = groupType === "team";
+
   const dialogContent = (
     <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
       <ResponsiveDialogContent className="sm:max-w-lg">
