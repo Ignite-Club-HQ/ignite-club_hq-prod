@@ -511,8 +511,9 @@ export default function EditEventPage() {
         amount: type === "social" ? parsedPrice : null,
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
-        opponent: type === "game" ? opponent.trim() || null : null,
-        arrival_minutes_before: type === "game" && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+        opponent: type === "game" && !isBye ? opponent.trim() || null : null,
+        arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+        is_bye: type === "game" ? isBye : false,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
