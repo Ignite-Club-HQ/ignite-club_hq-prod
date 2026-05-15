@@ -103,6 +103,7 @@ export function PhotoLightbox({
   const currentPhoto = photos[currentIndex];
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   
   const {
     scale,
