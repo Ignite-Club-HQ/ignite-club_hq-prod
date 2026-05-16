@@ -46,7 +46,10 @@ interface TimerState {
   teamId?: string;
   teamName?: string;
   isGameFinished?: boolean;
+  gameFinishedAt?: number;
 }
+
+const POST_GAME_VISIBILITY_MS = 60 * 60 * 1000; // 60 minutes
 
 interface Player {
   id: string;
