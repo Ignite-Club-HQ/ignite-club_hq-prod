@@ -3,6 +3,7 @@ import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
 import { getShareUrl } from "@/lib/shareUtils";
+import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -3464,7 +3465,7 @@ export default function EventDetailPage() {
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
             initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
             initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
-            initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+            initialMinutesPerHalf={teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(event.teams?.name)}
             initialMaxSpreadMinutes={(teamSubscription as any)?.max_spread_minutes ?? 5}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
