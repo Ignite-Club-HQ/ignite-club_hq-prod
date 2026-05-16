@@ -172,9 +172,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       setSnapAnim({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
       setIsAnimating(true);
       pinchDoubleClick({} as React.MouseEvent);
-      window.setTimeout(() => setIsAnimating(false), 240);
+      scheduleAnimEnd(240);
     }
-  }, [pinchDoubleClick, resetZoom, scale, translateX, translateY]);
+  }, [pinchDoubleClick, resetZoom, scale, translateX, translateY, scheduleAnimEnd]);
 
   // Stable ref to triggerZoomToggle so the touch-listener effect below can
   // call the latest version WITHOUT having to re-run (and thus tear down +
