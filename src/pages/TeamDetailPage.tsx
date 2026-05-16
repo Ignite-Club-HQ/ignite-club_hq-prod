@@ -91,6 +91,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
+import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
