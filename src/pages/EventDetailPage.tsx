@@ -3464,7 +3464,7 @@ export default function EventDetailPage() {
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
             initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
             initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
-            initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+            initialMinutesPerHalf={teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(event.teams?.name)}
             initialMaxSpreadMinutes={(teamSubscription as any)?.max_spread_minutes ?? 5}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
