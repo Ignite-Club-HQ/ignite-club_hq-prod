@@ -139,7 +139,7 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
           <SheetContent 
             side="bottom" 
             className="rounded-t-xl max-h-[70vh]"
-            style={{ zIndex: 100000 }}
+            style={{ zIndex: 100010 }}
           >
             <SheetHeader className="pb-2">
               <SheetTitle className="flex items-center gap-2">
@@ -370,7 +370,7 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
         <SheetContent 
           side="bottom" 
           className="h-[85vh] sm:h-[70vh] rounded-t-xl"
-          style={{ zIndex: 100000 }}
+          style={{ zIndex: 100010 }}
         >
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
@@ -464,7 +464,7 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
         <SheetContent 
           side="bottom" 
           className="rounded-t-xl"
-          style={{ zIndex: 100000 }}
+          style={{ zIndex: 100010 }}
         >
           <div className="py-4 space-y-4">
             <div className="flex items-center justify-center">
