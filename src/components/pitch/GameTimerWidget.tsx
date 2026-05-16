@@ -753,12 +753,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xl font-bold text-primary">
-                  {formatTime(displaySeconds)}
+                  {isGameConcluded ? "FT" : formatTime(displaySeconds)}
                 </span>
-               {timerState.isRunning && (
+                {timerState.isRunning && !isGameConcluded && (
                   <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-destructive/50 text-destructive gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
                     LIVE
+                  </Badge>
+                )}
+                {isGameConcluded && (
+                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-primary/50 text-primary">
+                    FULL TIME
                   </Badge>
                 )}
                 {hasScore && (
