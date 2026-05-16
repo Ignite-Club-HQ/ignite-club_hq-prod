@@ -1533,6 +1533,33 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
   }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasPlayersOutsideCurrentRoster, savedRosterHasNoPlayersOnPitch]);
 
+  // Shared-session fill-in sync. The soccer pitch board hydrates from each
+  // device's own localStorage, so a fill-in added by one controller (e.g. an
+  // admin) is invisible to another controller (e.g. the Subs Manager) until
+  // we explicitly merge in remote fill-ins from the shared `active_games`
+  // row. Additions only — removals are intentionally not auto-applied to
+  // avoid wiping a fill-in the local user just added before their own sync
+  // write has landed in the DB.
+  const remoteFillIns = useRemoteFillInSync(teamId, !readOnly);
+  useEffect(() => {
+    if (readOnly) return;
+    if (!remoteFillIns || remoteFillIns.length === 0) return;
+    setPlayers(prev => {
+      const knownIds = new Set(prev.map(p => p.id));
+      const additions = remoteFillIns.filter(p => !knownIds.has(p.id));
+      if (additions.length === 0) return prev;
+      // Drop incoming pitch positions — start them on our bench so we don't
+      // collide with the local formation layout.
+      const normalised = additions.map(p => ({
+        ...p,
+        position: null,
+        currentPitchPosition: undefined,
+        isFillIn: true,
+      }));
+      return [...prev, ...normalised];
+    });
+  }, [remoteFillIns, readOnly]);
+
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
   const [elapsedGameTime, setElapsedGameTime] = useState(0);
