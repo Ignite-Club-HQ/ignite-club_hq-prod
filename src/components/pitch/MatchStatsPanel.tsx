@@ -43,8 +43,15 @@ interface MatchStatsPanelProps {
 export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGameTime = 0, goals = [], teamName = "Team", opponentName = "Opponent", hideScores = false }: MatchStatsPanelProps) {
   const sortedPlayers = [...players].sort((a, b) => (b.minutesPlayed || 0) - (a.minutesPlayed || 0));
   
-  const totalMinutesAll = players.reduce((sum, p) => sum + (p.minutesPlayed || 0), 0);
-  const avgMinutes = players.length > 0 ? Math.round(totalMinutesAll / players.length) : 0;
+  // Defensive cap: a player's on-pitch time can never logically exceed
+  // total game elapsed. Protects the displayed stats even if the underlying
+  // state has been inflated by an upstream bug.
+  const cappedMinutes = (p: Player) => Math.min(p.minutesPlayed || 0, elapsedGameTime);
+  const totalMinutesAll = players.reduce((sum, p) => sum + cappedMinutes(p), 0);
+  // Average across players who actually took the field — including bench
+  // players who never came on would always understate the figure.
+  const playedCount = players.filter(p => (p.minutesPlayed || 0) > 0).length;
+  const avgMinutes = playedCount > 0 ? Math.round(totalMinutesAll / playedCount) : 0;
   const onPitchCount = players.filter(p => p.position !== null).length;
   const benchCount = players.filter(p => p.position === null).length;
   const teamGoals = goals.filter(g => !g.isOpponentGoal);
@@ -140,8 +147,8 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
             </div>
             <div className="space-y-1.5">
               {sortedPlayers.map((player, index) => {
-                const minutes = player.minutesPlayed || 0;
-                const maxMinutes = sortedPlayers.length > 0 ? (sortedPlayers[0].minutesPlayed || 0) : 0;
+                const minutes = cappedMinutes(player);
+                const maxMinutes = sortedPlayers.length > 0 ? cappedMinutes(sortedPlayers[0]) : 0;
                 const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
                 const isOnPitch = player.position !== null;
                 const playerGoals = goals.filter(g => g.scorerId === player.id);
