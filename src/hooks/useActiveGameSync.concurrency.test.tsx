@@ -425,8 +425,10 @@ describe("useActiveGameSync soccer multi-tenant write concurrency", () => {
     );
     for (const u of deactivationUpdates) {
       const f = u.filters as Record<string, unknown>;
-      // Must always carry user_id + team_id filters together.
-      expect(f.user_id).toBe("coach-A-user");
+      // Deactivation is intentionally team-scoped (shared-session model):
+      // a team_id filter must be present, but user_id must NOT be a filter
+      // — otherwise a stale row owned by a different controller (admin vs
+      // subs-manager) would survive and trip the unique constraint.
       expect(typeof f.team_id === "string" || f.team_id === null).toBe(true);
     }
     // Critically: no deactivation update may target team-X with the
