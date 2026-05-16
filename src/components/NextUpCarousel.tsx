@@ -755,7 +755,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     disabled={rsvpMutation.isPending || isActive}
                     onClick={() => !isActive && rsvpMutation.mutate(status)}
                   >
-                    {rsvpMutation.isPending ? (
+                    {rsvpMutation.isPending && rsvpMutation.variables === status ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
                     ) : isActive ? (
                       <Check className="h-3.5 w-3.5" />
