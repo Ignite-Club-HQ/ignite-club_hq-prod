@@ -784,7 +784,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0">
-              {!readOnly && (() => {
+              {!readOnly && !isGameConcluded && (() => {
                 const isEffectivelyPaused = !timerState.isRunning || 
                   (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
                 return (
