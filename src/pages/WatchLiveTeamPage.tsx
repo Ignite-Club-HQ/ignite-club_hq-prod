@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCourtSpectator } from "@/hooks/useCourtSpectator";
 import BasketballSpectatorView from "@/components/scoreboard/BasketballSpectatorView";
 import NetballSpectatorView from "@/components/scoreboard/NetballSpectatorView";
+import SoccerSpectatorView from "@/components/scoreboard/SoccerSpectatorView";
 
 /**
  * Watch Live page for parents/players.
@@ -118,8 +119,16 @@ export default function WatchLiveTeamPage() {
           receivedAt={state.receivedAt}
           onClose={close}
         />
-      ) : (
+      ) : state.sport === "netball" ? (
         <NetballSpectatorView
+          teamName={team.name}
+          board={state.board}
+          timer={state.timer}
+          receivedAt={state.receivedAt}
+          onClose={close}
+        />
+      ) : (
+        <SoccerSpectatorView
           teamName={team.name}
           board={state.board}
           timer={state.timer}

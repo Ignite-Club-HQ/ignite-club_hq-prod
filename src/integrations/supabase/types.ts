@@ -8404,6 +8404,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      can_control_pitch_board: {
+        Args: { _event_id: string; _team_id: string }
+        Returns: boolean
+      }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
       can_edit_drill: {
         Args: { _drill_id: string; _user_id: string }

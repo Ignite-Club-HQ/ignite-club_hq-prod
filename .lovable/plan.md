@@ -1,53 +1,67 @@
-
 ## Goal
 
-Reduce information overload in the Auto Substitution Plan "Forecast" tab. Replace the current always-on stack (fairness diagnostics + suggested fixes + impact preview + simulator + full player bars) with a guided, plain-English layout for junior coaches.
+Make the pitch board a **shared, team-wide** game session instead of a per-device session, with role-scoped permissions:
 
-All work is UI-only inside `src/components/pitch/AutoSubPlanDialog.tsx`. No planner, override storage, or fairness-calculation logic changes.
+- **Team admins + Subs Managers (duty for the event)**: full read/write control of the same live game. Either can start it, run the timer, accept subs, change pitch state — and they all see the same state in real time.
+- **Coaches, team_admins not assigned + everyone else with team visibility**: read-only spectator view of the same live game (currently only basketball/netball has Watch Live — extend to soccer).
+- **Notifications** (pending sub, half time, full time, auto-sub fired): only delivered to team admins + the event's Subs Manager. No-one else gets pushes.
 
-## New Forecast tab layout (top → bottom)
+## Architecture changes
 
-1. **Plan status card** (NEW `PlanStatusCard`) — single calm card with:
-   - Headline status: "Plan looks good" / "Plan needs review" / "Plan is uneven" / "Too many short shifts" (derived from existing `spreadMin`, `shortShifts`, `hasHalftimeClash`).
-   - 3 chips: `Substitutions`, `Playing-time spread`, `Short shifts`.
-   - No technical jargon, no targets/highest/lowest grid.
+### 1. `active_games` becomes team-scoped, not user-scoped
 
-2. **Recommended fix card** (refactored `PlanFixSuggestions`) — one primary fix only:
-   - Title (e.g. "Stop players coming off too quickly").
-   - One-sentence trade-off.
-   - One **primary button**: "Apply recommended fix".
-   - Below: collapsible "Other fixes" link revealing the remaining suggestions as compact rows. Hidden by default. Applied fixes still show an "Applied" badge.
-   - Priority order for picking the recommended fix:
-     1. `hasHalftimeClash` → "Avoid subs near halftime"
-     2. `shortShifts > 0` → "Stop players coming off too quickly"
-     3. `bounceBacks > 0` → "Space out substitution moments"
-     4. `spreadMin > 6` → "Make minutes fairer"
-     5. `spreadMin > 3 && constrainedByMinShift` → "Allow shorter shifts"
-     6. busy + fair spread → "Reduce stoppages"
-   - If no fixes available → card hidden.
+Today the row is keyed by `(user_id, team_id)` and only the writer can read/update it. New model:
 
-3. **Impact preview** (existing `PlanImpactPreview`) — only rendered after the user applies/selects a fix (gated by `appliedFixIds.size > 0`). Shows before/after style summary (Substitutions / Spread / Short shifts / Halftime clash). Already collapsible — keep that.
+- One active row per `team_id` (the unique constraint `uniq_active_games_team_active` already enforces this).
+- `user_id` becomes "last writer" metadata (kept for audit), not the access key.
+- RLS:
+  - **SELECT**: any user with team visibility (admin/coach/parent/player on that team).
+  - **UPDATE/INSERT**: only `team_admin` for the team OR user assigned the `Subs Manager` duty on the linked event (timer state stores `linkedEventId` already).
+  - **No DELETE** from clients.
+- New helper function `public.can_control_pitch_board(team_id, event_id)` to centralise the admin-or-subs-manager check, used by RLS and the client.
 
-4. **Players needing attention** (NEW compact summary) — replaces the always-on full bar list:
-   - Lists only outfielders flagged as: lowest minutes, highest minutes, has short shifts, or has bounce-backs. Max ~5 rows. Each row: number, name, predicted minutes, single reason badge.
-   - Footer button: "Show all player minutes" → expands the existing full forecast list (current per-player progress bars, unchanged).
+### 2. Sync hook collaborates instead of owning
 
-5. **Preview changes** (renamed `FairnessSimulatorPanel`) — moved to the bottom and demoted:
-   - Header label changed from "Fairness simulator" to "Preview changes" (aka "Check plan again"), with subtle styling so it doesn't compete with the status card.
-   - Behavior unchanged.
+`useActiveGameSync` (and the basketball/netball equivalents where relevant):
 
-6. **Show expert settings** — already-renamed `AdvancedSettingsPanel`, untouched, stays at the very bottom (existing position).
+- On mount, **subscribe** (Realtime) to the team's `active_games` row.
+- If the row exists and the current user **cannot control**, run in **spectator mode**: ignore local state, render the server row.
+- If the user **can control**:
+  - Adopt the existing row's `id` instead of always inserting their own.
+  - Last-writer-wins on each 10s tick (timer keeps ticking locally; server merges).
+  - When two controllers are open at once, the latest `updated_at` wins — acceptable because subs managers coordinate verbally.
 
-## Mapping to existing code
+### 3. Watch Live extended to soccer
 
-- `PlanStatusCard`: NEW small component near `FairnessDiagnostics` (which we stop rendering in the Forecast tab — keep the function for now in case it's referenced elsewhere, but remove it from the JSX).
-- `PlanFixSuggestions`: change to accept `fixes` + a derived `recommendedId`. Render the recommended fix prominently with a `Button` ("Apply recommended fix"); render the rest behind a "Other fixes" disclosure (`useState`).
-- `PlayersNeedingAttention`: NEW component above the existing `forecasts.map(...)` loop. Wrap the existing per-player rows in a `useState`-gated `<Collapsible>`-style block, default closed, toggled by "Show all player minutes".
-- `FairnessSimulatorPanel`: keep impl, just relabel header to "Preview changes" and tone down the empty-state CTA (smaller, secondary variant).
-- Order in JSX (lines 3546-3702): `PlanStatusCard` → recommended fix block → impact preview (gated) → players-needing-attention → expandable full list → preview-changes panel.
+`WatchLiveTeamPage` currently filters to basketball/netball. Extend it to render a soccer read-only pitch when the team's `active_games.timer_state.sport === 'soccer'` (or absence of sport, which is current default). Re-use the existing `PitchBoard` in a `readOnly` mode (already partially supported for spectators).
 
-## Out of scope
+### 4. Notification recipients tightened
 
-- No edits to planner, `usePitchSettings`, override persistence, simulator math, or per-player forecast calculation.
-- No new dependencies.
-- Tests: existing 258 should continue to pass; no new tests required.
+`usePitchBoardNotifications`, server-side `pitch-board-cron`, and `useAutoSubNotify` all already include `team_admin + coach + Subs Manager`. Per the request, **drop `coach`** from these recipient lists so only admins + the active Subs Manager get notified. Other coaches can still open Watch Live to follow along, but won't be pinged.
+
+### 5. Entry points
+
+The "Open Pitch Board" / "Start Game" buttons on `EventDetailPage` and `NextUpCarousel` already use `useCanStartGame` (admin OR subs-manager). When a server-side `active_games` row already exists for the team, those entry points should:
+
+- Route controllers (admin/subs-mgr) into the live board (joining the shared session).
+- Route everyone else with team visibility into Watch Live.
+
+## Files touched
+
+- `supabase/migrations/<new>.sql` — new RLS on `active_games`, new `can_control_pitch_board` function.
+- `src/hooks/useActiveGameSync.ts` — adopt-shared-row semantics, realtime subscribe, role-gated writes.
+- `src/components/pitch/PitchBoard.tsx` — react to realtime row updates when current user is a non-controller (read-only render path).
+- `src/pages/WatchLiveTeamPage.tsx` — handle soccer (currently basketball/netball only).
+- `src/hooks/useCanStartGame.ts` — re-use the new `can_control_pitch_board` RPC.
+- `src/hooks/useAutoSubNotify.ts` — drop generic `coach` role, keep `team_admin` + `Subs Manager` duty.
+- `src/hooks/usePitchBoardNotifications.ts` + `supabase/functions/pitch-board-cron/*` — same recipient tightening.
+- `src/pages/EventDetailPage.tsx` + `src/components/NextUpCarousel.tsx` — route non-controllers to Watch Live when a shared session is live.
+
+## Risks / call-outs
+
+- **Two controllers editing simultaneously** = last write wins. There's no operational-transform / merge. In practice subs managers don't edit the pitch at the same time, but flag it.
+- **Mini-league `event-group-*` games** use a separate sync path (`useEventGroupSync`) and already share state — not in scope unless you want the same treatment.
+- **Coaches losing push notifications** is a deliberate scope change per your message — confirm before I ship it.
+- This is a meaningful refactor (touches ~8 files plus a migration). I'll do it in one migration + one code pass, then verify the build.
+
+Confirm and I'll execute.
