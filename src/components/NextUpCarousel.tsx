@@ -69,6 +69,55 @@ function StartGameCta({ event }: { event: EventItem }) {
   );
 }
 
+/**
+ * Shown to non-controllers (no team_admin/coach role and not Subs Manager)
+ * when there is an active live game on the event's team. Opens the read-only
+ * spectator view. Hidden for controllers — they already have Start/Open Match.
+ */
+function WatchLiveCta({ event }: { event: EventItem }) {
+  const navigate = useNavigate();
+  const { canStart } = useCanStartGame(event);
+  const eligible =
+    event.type === "game" &&
+    !event.is_cancelled &&
+    !event.is_bye &&
+    !!event.team_id &&
+    !canStart;
+
+  const { data: hasLive } = useQuery({
+    queryKey: ["watch-live-active", event.team_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("active_games")
+        .select("id")
+        .eq("team_id", event.team_id!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: eligible,
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (!eligible || !hasLive) return null;
+  return (
+    <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-10 gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive/10"
+        onClick={() => navigate(`/teams/${event.team_id}/watch-live`)}
+      >
+        <Eye className="h-4 w-4" />
+        Watch Live
+      </Button>
+    </div>
+  );
+}
+
 // Reserve enough vertical space to fit the card with the Children's RSVP
 // accordion in its collapsed state. This stops the home page from jolting
 // downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
