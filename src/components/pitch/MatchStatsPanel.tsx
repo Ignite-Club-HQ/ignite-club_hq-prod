@@ -147,8 +147,8 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
             </div>
             <div className="space-y-1.5">
               {sortedPlayers.map((player, index) => {
-                const minutes = player.minutesPlayed || 0;
-                const maxMinutes = sortedPlayers.length > 0 ? (sortedPlayers[0].minutesPlayed || 0) : 0;
+                const minutes = cappedMinutes(player);
+                const maxMinutes = sortedPlayers.length > 0 ? cappedMinutes(sortedPlayers[0]) : 0;
                 const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
                 const isOnPitch = player.position !== null;
                 const playerGoals = goals.filter(g => g.scorerId === player.id);
