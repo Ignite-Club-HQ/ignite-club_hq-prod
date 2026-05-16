@@ -825,6 +825,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                             <div className="grid grid-cols-3 gap-1.5">
                               {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
                                 const isActive = childRsvp?.status === status;
+                                const pendingVars = childRsvpMutation.variables;
+                                const isThisPending =
+                                  childRsvpMutation.isPending &&
+                                  pendingVars?.childId === child.id &&
+                                  pendingVars?.status === status;
                                 return (
                                   <Button
                                     key={`${child.id}-${status}`}
@@ -838,7 +843,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                     disabled={childRsvpMutation.isPending || isActive}
                                     onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
                                   >
-                                    {childRsvpMutation.isPending ? (
+                                    {isThisPending ? (
                                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
                                     ) : isActive ? (
                                       <Check className="h-3 w-3" />
