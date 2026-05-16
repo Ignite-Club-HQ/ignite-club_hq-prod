@@ -461,7 +461,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       {isVideoUrl(effectiveSrc) ? (
         <video
           src={effectiveSrc}
-          className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-[95vw] h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           controls
           autoPlay
           playsInline
