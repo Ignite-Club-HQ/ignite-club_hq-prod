@@ -51,14 +51,16 @@ export function useActiveGameSync() {
     async (teamId: string | null, currentGameId?: string | null) => {
       if (!user?.id) return;
 
+      // Shared-session model: deactivation must be scoped by team only.
+      // Filtering by user_id would leave a stale row owned by a different
+      // controller (admin vs subs-mgr) and trip the unique constraint.
       let query = supabase
         .from('active_games')
         .update({ is_active: false })
-        .eq('user_id', user.id)
         .eq('is_active', true);
 
       if (teamId) query = query.eq('team_id', teamId);
-      else query = query.is('team_id', null);
+      else query = query.eq('user_id', user.id).is('team_id', null);
 
       if (currentGameId) {
         query = query.neq('id', currentGameId);
@@ -218,18 +220,20 @@ export function useActiveGameSync() {
           activeGameIdRef.current = null;
         }
       } else {
-        // Look up an existing active row that BELONGS to this exact (user, team).
-        // The previous fallback `?? existingGames?.[0]` would silently adopt a
-        // different team's row and overwrite it — corrupting the other game at
-        // scale. Now scoped server-side to (user, team).
+        // Look up an existing active row for this TEAM (any controller).
+        // Shared-session model: team admins and the assigned Subs Manager all
+        // collaborate on the same active_games row. The unique index
+        // `uniq_active_games_team_active` guarantees at most one. Falling back
+        // to (user_id) for the personal/null-team legacy path.
         let existingQ = supabase
           .from('active_games')
           .select('id, team_id, updated_at')
-          .eq('user_id', user.id)
           .eq('is_active', true)
           .order('updated_at', { ascending: false })
           .limit(5);
-        existingQ = teamId ? existingQ.eq('team_id', teamId) : existingQ.is('team_id', null);
+        existingQ = teamId
+          ? existingQ.eq('team_id', teamId)
+          : existingQ.eq('user_id', user.id).is('team_id', null);
         const { data: existingGames, error: existingError } = await existingQ;
 
         if (existingError) {
