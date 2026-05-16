@@ -153,7 +153,7 @@ export function AddDutySheet({
           )}
         </div>
 
-        <ResponsiveDialogFooter className="gap-2 sm:gap-0">
+        <ResponsiveDialogFooter className="gap-2 sm:gap-0 sticky bottom-0 bg-background pt-3 pb-[env(safe-area-inset-bottom,0px)] border-t">
           <Button
             variant="outline"
             onClick={() => handleOpenChange(false)}
