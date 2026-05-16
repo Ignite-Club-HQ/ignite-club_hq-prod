@@ -162,15 +162,21 @@ export function LazyImage({ src, alt, className = "", priority = false, thumbWid
       )}
       {showAsVideo && !isLoadingSignedUrl && (
         <>
+          {/* Append #t=0.1 media fragment so Android WebView / iOS Safari
+              decode and paint the first frame as a poster instead of showing
+              the native gray play-button placeholder. */}
           <video
             ref={imgRef as unknown as React.RefObject<HTMLVideoElement>}
-            src={isInView ? baseSrc : undefined}
+            src={isInView ? `${baseSrc}${baseSrc.includes("#") ? "" : "#t=0.1"}` : undefined}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
               isLoaded ? "opacity-100" : "opacity-0"
             } ${className}`}
             preload="metadata"
             muted
             playsInline
+            // Loaded-metadata fires reliably on Android WebView; loadeddata
+            // sometimes never fires for short clips with metadata-only preload.
+            onLoadedMetadata={() => setIsLoaded(true)}
             onLoadedData={() => setIsLoaded(true)}
             onError={handleError}
           />
