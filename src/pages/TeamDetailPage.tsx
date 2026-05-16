@@ -91,6 +91,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
+import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2336,7 +2337,7 @@ export default function TeamDetailPage() {
                     <DefaultPitchSettings
                     teamSize={teamSubscription?.team_size || 7}
                     formation={teamSubscription?.formation || null}
-                    minutesPerHalf={teamSubscription?.minutes_per_half || 10}
+                    minutesPerHalf={teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name)}
                     rotationSpeed={teamSubscription?.rotation_speed || 1}
                     disableAutoSubs={teamSubscription?.disable_auto_subs || false}
                     disablePositionSwaps={teamSubscription?.disable_position_swaps || false}
@@ -2356,7 +2357,7 @@ export default function TeamDetailPage() {
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
                           rotation_speed: teamSubscription?.rotation_speed || 1,
-                          minutes_per_half: teamSubscription?.minutes_per_half || 10,
+                          minutes_per_half: teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name),
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
@@ -2402,7 +2403,7 @@ export default function TeamDetailPage() {
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
-                          minutes_per_half: teamSubscription?.minutes_per_half || 10,
+                          minutes_per_half: teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name),
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
@@ -2425,7 +2426,7 @@ export default function TeamDetailPage() {
                           is_pro: teamSubscription?.is_pro || false,
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           rotation_speed: teamSubscription?.rotation_speed || 1,
-                          minutes_per_half: teamSubscription?.minutes_per_half || 10,
+                          minutes_per_half: teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name),
                           disable_position_swaps: teamSubscription?.disable_position_swaps || false
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
@@ -2449,7 +2450,7 @@ export default function TeamDetailPage() {
                           is_pro_football: teamSubscription?.is_pro_football || false,
                           disable_auto_subs: teamSubscription?.disable_auto_subs || false,
                           rotation_speed: teamSubscription?.rotation_speed || 1,
-                          minutes_per_half: teamSubscription?.minutes_per_half || 10
+                          minutes_per_half: teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name)
                         }, { onConflict: 'team_id' });
                       setIsSavingPitchSettings(false);
                       if (error) {
@@ -2511,7 +2512,7 @@ export default function TeamDetailPage() {
               initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
               initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
               initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
-              initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+              initialMinutesPerHalf={teamSubscription?.minutes_per_half || defaultMinutesPerHalfForTeamName(team?.name)}
               initialMaxSpreadMinutes={(teamSubscription as any)?.max_spread_minutes ?? 5}
               initialTeamSize={teamSubscription?.team_size}
               initialFormation={teamSubscription?.formation || undefined}
