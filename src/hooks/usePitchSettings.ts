@@ -89,16 +89,23 @@ export function usePitchSettings({ teamId, readOnly, settingsRef }: UsePitchSett
     async (overrides?: Record<string, unknown>) => {
       if (readOnly) return;
       try {
-        await supabase
+        const { error } = await supabase
           .from("team_subscriptions")
           .upsert(buildPayload(teamId, settingsRef.current, overrides), {
             onConflict: "team_id",
           });
+        if (error) throw error;
+
+        // Invalidate cached subscription queries so the next PitchBoard mount
+        // (or parent re-read) sees the new value instead of reverting to a
+        // stale cached default (e.g. minutes_per_half snapping back to 10).
+        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] });
       } catch (e) {
         console.error("Failed to persist setting:", e);
       }
     },
-    [teamId, readOnly, settingsRef]
+    [teamId, readOnly, settingsRef, queryClient]
   );
 
   /** Persist team size (with optional formation name override). */
