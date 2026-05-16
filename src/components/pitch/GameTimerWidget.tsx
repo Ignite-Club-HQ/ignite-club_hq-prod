@@ -695,13 +695,26 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     setShowConfirmDialog(false);
   };
 
-  // Don't show if no timer state, timer hasn't started, or game has concluded
-  const isGameConcluded = timerState?.currentHalf === 2 && displaySeconds >= (timerState?.minutesPerHalf || 0) * 60;
-  if (!timerState || (timerState.elapsedSeconds === 0 && !timerState.isRunning && timerState.currentHalf === 1) || isGameConcluded) {
+  // Don't show if no timer state or timer hasn't started.
+  // When the game has concluded, keep the widget visible for 60 minutes
+  // showing "Full Time" so users can review the final score and lineup.
+  const halfDurSec = (timerState?.minutesPerHalf || 0) * 60;
+  const isGameConcluded = !!timerState && (
+    timerState.isGameFinished === true ||
+    (timerState.currentHalf === 2 && displaySeconds >= halfDurSec)
+  );
+  const finishedAt = timerState?.gameFinishedAt ?? (isGameConcluded ? timerState?.lastUpdateTime : undefined);
+  const postGameExpired = isGameConcluded && finishedAt
+    ? Date.now() - finishedAt > POST_GAME_VISIBILITY_MS
+    : false;
+
+  if (!timerState || (timerState.elapsedSeconds === 0 && !timerState.isRunning && timerState.currentHalf === 1) || postGameExpired) {
     return null;
   }
 
-  const halfLabel = timerState.currentHalf === 1 ? "1st Half" : "2nd Half";
+  const halfLabel = isGameConcluded
+    ? "Full Time"
+    : timerState.currentHalf === 1 ? "1st Half" : "2nd Half";
   const hasScore = homeGoals > 0 || awayGoals > 0;
   const firstSub = allSubs[0] || null;
 
