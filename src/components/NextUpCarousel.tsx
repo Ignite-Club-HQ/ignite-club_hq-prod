@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown, User, AlertCircle, Play, Eye } from "lucide-react";
 import { useCanStartGame } from "@/hooks/useCanStartGame";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,55 @@ function StartGameCta({ event }: { event: EventItem }) {
       >
         <Play className="h-4 w-4" />
         {label}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Shown to non-controllers (no team_admin/coach role and not Subs Manager)
+ * when there is an active live game on the event's team. Opens the read-only
+ * spectator view. Hidden for controllers — they already have Start/Open Match.
+ */
+function WatchLiveCta({ event }: { event: EventItem }) {
+  const navigate = useNavigate();
+  const { canStart } = useCanStartGame(event);
+  const eligible =
+    event.type === "game" &&
+    !event.is_cancelled &&
+    !event.is_bye &&
+    !!event.team_id &&
+    !canStart;
+
+  const { data: hasLive } = useQuery({
+    queryKey: ["watch-live-active", event.team_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("active_games")
+        .select("id")
+        .eq("team_id", event.team_id!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: eligible,
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (!eligible || !hasLive) return null;
+  return (
+    <div className="pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-10 gap-2 font-semibold border-destructive/40 text-destructive hover:bg-destructive/10"
+        onClick={() => navigate(`/teams/${event.team_id}/watch-live`)}
+      >
+        <Eye className="h-4 w-4" />
+        Watch Live
       </Button>
     </div>
   );
@@ -687,6 +736,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             stay generous (h-9 = 36px, full row width). */}
         <div className="mt-auto" />
         <StartGameCta event={event} />
+        <WatchLiveCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
           <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">

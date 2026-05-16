@@ -85,7 +85,6 @@ const projectRow = (row: ActiveGameRow | null): CourtSpectatorState | null => {
   const pitch = (row.pitch_state ?? {}) as Record<string, unknown>;
   const timer = (row.timer_state ?? {}) as Record<string, unknown>;
   const sport = detectSport(pitch, timer);
-  if (sport !== "basketball" && sport !== "netball") return null;
   const receivedAt = row.updated_at ? Date.parse(row.updated_at) : Date.now();
   if (sport === "basketball") {
     return {
@@ -95,10 +94,21 @@ const projectRow = (row: ActiveGameRow | null): CourtSpectatorState | null => {
       receivedAt,
     };
   }
+  if (sport === "netball") {
+    return {
+      sport: "netball",
+      board: pitch as Partial<NetballBoardState>,
+      timer: timer as Partial<NetballTimerState>,
+      receivedAt,
+    };
+  }
+  // Default → soccer. Soccer rows historically don't tag a sport, and the
+  // position vocabulary is free-form coordinates rather than NB/BB position
+  // codes, so anything that doesn't look like NB/BB is treated as soccer.
   return {
-    sport: "netball",
-    board: pitch as Partial<NetballBoardState>,
-    timer: timer as Partial<NetballTimerState>,
+    sport: "soccer",
+    board: pitch,
+    timer,
     receivedAt,
   };
 };

@@ -35,7 +35,19 @@ export interface NetballSpectatorState {
   receivedAt: number;
 }
 
-export type CourtSpectatorState = BasketballSpectatorState | NetballSpectatorState;
+export interface SoccerSpectatorState {
+  sport: "soccer";
+  /** Raw pitch_state payload — soccer players + autoSub plan. */
+  board: Record<string, unknown>;
+  /** Raw timer_state payload — elapsedSeconds, currentHalf, etc. */
+  timer: Record<string, unknown>;
+  receivedAt: number;
+}
+
+export type CourtSpectatorState =
+  | BasketballSpectatorState
+  | NetballSpectatorState
+  | SoccerSpectatorState;
 
 /** Default poll interval for spectator views. Matches the SYNC_INTERVAL on the coach side. */
 export const SPECTATOR_POLL_INTERVAL_MS = 10_000;
