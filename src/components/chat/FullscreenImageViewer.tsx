@@ -124,6 +124,29 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Track pending animation timers so we can clear them on unmount. Without
+  // this, a snap-back timeout firing after teardown (e.g. between tests, or
+  // when the viewer closes mid-animation) calls setIsAnimating on an unmounted
+  // tree — which reaches into React internals that touch `window` and throws
+  // "window is not defined" in jsdom, surfacing as an unhandled error in CI.
+  const animTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      animTimersRef.current.forEach((t) => clearTimeout(t));
+      animTimersRef.current.clear();
+    };
+  }, []);
+  const scheduleAnimEnd = useCallback((delay: number) => {
+    const id = setTimeout(() => {
+      animTimersRef.current.delete(id);
+      if (isMountedRef.current) setIsAnimating(false);
+    }, delay);
+    animTimersRef.current.add(id);
+  }, []);
+
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
 
