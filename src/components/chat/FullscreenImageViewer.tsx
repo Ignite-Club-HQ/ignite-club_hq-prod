@@ -166,7 +166,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       setSnapAnim({ duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
       setIsAnimating(true);
       resetZoom();
-      window.setTimeout(() => setIsAnimating(false), duration + 20);
+      scheduleAnimEnd(duration + 20);
     } else {
       // Zoom-in toggle (1× → 2.2×) keeps the snappier baseline curve.
       setSnapAnim({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
