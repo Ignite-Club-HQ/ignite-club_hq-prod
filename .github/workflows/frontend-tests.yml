@@ -47,7 +47,7 @@ jobs:
       # "FullscreenImageViewer.*.test.tsx" matches zero files and exits 1
       # with "No test files found". Use a plain substring instead.
       - name: Smoke-test iOS gesture suites
-        run: bunx vitest run FullscreenImageViewer
+        run: bunx vitest run src/components/chat/FullscreenImageViewer.*.test.tsx
 
       - name: Run full test suite
         run: bunx vitest run

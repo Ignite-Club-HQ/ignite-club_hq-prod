@@ -37,6 +37,7 @@ import { DOUBLE_TAP_MS } from "./fullscreenImageViewerConfig";
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: { isNativePlatform: () => false },
+  registerPlugin: () => ({}),
 }));
 vi.mock("@/lib/statusBarControl", () => ({
   applyStatusBarForViewer: vi.fn(),

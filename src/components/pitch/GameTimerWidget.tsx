@@ -46,7 +46,10 @@ interface TimerState {
   teamId?: string;
   teamName?: string;
   isGameFinished?: boolean;
+  gameFinishedAt?: number;
 }
+
+const POST_GAME_VISIBILITY_MS = 60 * 60 * 1000; // 60 minutes
 
 interface Player {
   id: string;
@@ -251,8 +254,21 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         // Subs - don't show if game is finished
         const mph = saved.minutesPerHalf || 20;
         const halfDur = mph * 60;
-        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= halfDur;
+        const isGameFinished = saved.isGameFinished === true ||
+          (saved.currentHalf === 2 && currentElapsed >= halfDur);
         const isHalftimeBreak = !saved.isRunning && saved.currentHalf === 2 && currentElapsed === 0;
+
+        // Stamp gameFinishedAt the first time we observe full time so the
+        // widget can stay visible for 60 minutes after the match ends.
+        if (isGameFinished && !saved.gameFinishedAt) {
+          const stamped: TimerState = {
+            ...saved,
+            isGameFinished: true,
+            gameFinishedAt: Date.now(),
+            isRunning: false,
+          };
+          saveTimerState(stamped);
+        }
 
         // At halftime, auto-skip stale first-half subs that were never executed
         if (isHalftimeBreak) {
@@ -679,13 +695,26 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     setShowConfirmDialog(false);
   };
 
-  // Don't show if no timer state, timer hasn't started, or game has concluded
-  const isGameConcluded = timerState?.currentHalf === 2 && displaySeconds >= (timerState?.minutesPerHalf || 0) * 60;
-  if (!timerState || (timerState.elapsedSeconds === 0 && !timerState.isRunning && timerState.currentHalf === 1) || isGameConcluded) {
+  // Don't show if no timer state or timer hasn't started.
+  // When the game has concluded, keep the widget visible for 60 minutes
+  // showing "Full Time" so users can review the final score and lineup.
+  const halfDurSec = (timerState?.minutesPerHalf || 0) * 60;
+  const isGameConcluded = !!timerState && (
+    timerState.isGameFinished === true ||
+    (timerState.currentHalf === 2 && displaySeconds >= halfDurSec)
+  );
+  const finishedAt = timerState?.gameFinishedAt ?? (isGameConcluded ? timerState?.lastUpdateTime : undefined);
+  const postGameExpired = isGameConcluded && finishedAt
+    ? Date.now() - finishedAt > POST_GAME_VISIBILITY_MS
+    : false;
+
+  if (!timerState || (timerState.elapsedSeconds === 0 && !timerState.isRunning && timerState.currentHalf === 1) || postGameExpired) {
     return null;
   }
 
-  const halfLabel = timerState.currentHalf === 1 ? "1st Half" : "2nd Half";
+  const halfLabel = isGameConcluded
+    ? "Full Time"
+    : timerState.currentHalf === 1 ? "1st Half" : "2nd Half";
   const hasScore = homeGoals > 0 || awayGoals > 0;
   const firstSub = allSubs[0] || null;
 
@@ -724,12 +753,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xl font-bold text-primary">
-                  {formatTime(displaySeconds)}
+                  {isGameConcluded ? "FT" : formatTime(displaySeconds)}
                 </span>
-               {timerState.isRunning && (
+                {timerState.isRunning && !isGameConcluded && (
                   <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-destructive/50 text-destructive gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
                     LIVE
+                  </Badge>
+                )}
+                {isGameConcluded && (
+                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-primary/50 text-primary">
+                    FULL TIME
                   </Badge>
                 )}
                 {hasScore && (
@@ -750,7 +784,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0">
-              {!readOnly && (() => {
+              {!readOnly && !isGameConcluded && (() => {
                 const isEffectivelyPaused = !timerState.isRunning || 
                   (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
                 return (

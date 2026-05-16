@@ -36,6 +36,7 @@ import { TAP_MAX_HOLD_MS } from "./fullscreenImageViewerConfig";
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: { isNativePlatform: () => false },
+  registerPlugin: () => ({}),
 }));
 vi.mock("@/lib/statusBarControl", () => ({
   applyStatusBarForViewer: vi.fn(),

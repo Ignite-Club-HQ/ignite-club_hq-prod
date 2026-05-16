@@ -124,6 +124,29 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Track pending animation timers so we can clear them on unmount. Without
+  // this, a snap-back timeout firing after teardown (e.g. between tests, or
+  // when the viewer closes mid-animation) calls setIsAnimating on an unmounted
+  // tree — which reaches into React internals that touch `window` and throws
+  // "window is not defined" in jsdom, surfacing as an unhandled error in CI.
+  const animTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      animTimersRef.current.forEach((t) => clearTimeout(t));
+      animTimersRef.current.clear();
+    };
+  }, []);
+  const scheduleAnimEnd = useCallback((delay: number) => {
+    const id = setTimeout(() => {
+      animTimersRef.current.delete(id);
+      if (isMountedRef.current) setIsAnimating(false);
+    }, delay);
+    animTimersRef.current.add(id);
+  }, []);
+
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
 
@@ -143,15 +166,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       setSnapAnim({ duration, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
       setIsAnimating(true);
       resetZoom();
-      window.setTimeout(() => setIsAnimating(false), duration + 20);
+      scheduleAnimEnd(duration + 20);
     } else {
       // Zoom-in toggle (1× → 2.2×) keeps the snappier baseline curve.
       setSnapAnim({ duration: 220, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
       setIsAnimating(true);
       pinchDoubleClick({} as React.MouseEvent);
-      window.setTimeout(() => setIsAnimating(false), 240);
+      scheduleAnimEnd(240);
     }
-  }, [pinchDoubleClick, resetZoom, scale, translateX, translateY]);
+  }, [pinchDoubleClick, resetZoom, scale, translateX, translateY, scheduleAnimEnd]);
 
   // Stable ref to triggerZoomToggle so the touch-listener effect below can
   // call the latest version WITHOUT having to re-run (and thus tear down +
@@ -461,7 +484,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       {isVideoUrl(effectiveSrc) ? (
         <video
           src={effectiveSrc}
-          className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-[95vw] h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
           controls
           autoPlay
           playsInline
