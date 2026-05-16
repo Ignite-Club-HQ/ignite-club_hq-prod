@@ -3227,9 +3227,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
       }
       if (secondsElapsed > 0) {
+        // Compute the cumulative game clock so we can cap each player's
+        // minutesPlayed at the total elapsed game time. This is a defensive
+        // guard against any double-accumulation (e.g. duplicated tick events,
+        // half-transition catchup colliding with a normal tick, or stale
+        // refs after remount). A player's on-pitch time can never logically
+        // exceed total game elapsed.
+        const halfDurationForCap = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
+        const totalElapsedNow = currentHalf === 2
+          ? halfDurationForCap + elapsedSeconds
+          : elapsedSeconds;
         setPlayers(prev => prev.map(p => {
           if (p.position !== null) {
-            return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
+            const next = (p.minutesPlayed || 0) + secondsElapsed;
+            return { ...p, minutesPlayed: Math.min(next, totalElapsedNow) };
           }
           return p;
         }));
