@@ -34,6 +34,7 @@ import { TAP_SLOP } from "./fullscreenImageViewerConfig";
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: { isNativePlatform: () => false },
+  registerPlugin: () => ({}),
 }));
 vi.mock("@/lib/statusBarControl", () => ({
   applyStatusBarForViewer: vi.fn(),

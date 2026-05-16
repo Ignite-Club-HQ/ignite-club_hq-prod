@@ -42,6 +42,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: { isNativePlatform: () => false },
+  registerPlugin: () => ({}),
 }));
 vi.mock("@/lib/statusBarControl", () => ({
   applyStatusBarForViewer: vi.fn(),
