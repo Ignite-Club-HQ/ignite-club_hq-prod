@@ -900,6 +900,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }));
   }, []);
 
+  // RSVP'd-going filter — when the board is linked to a fixture, only players
+  // who RSVP'd "going" should appear on the pitch/bench/autosubs. Mini-league
+  // mode uses its own team-builder and is exempt. Staff aren't in realPlayers
+  // (filtered to role==='player') so this doesn't affect them.
+  const { data: goingAttendeeIds } = useEventGoingAttendees(linkedEventId);
+  const shouldFilterByGoing = !!linkedEventId && !miniLeagueTeams && !!goingAttendeeIds;
+
   // Get real players from team members with preferred positions from database
   // For mini-league mode, also assign team sides based on miniLeagueTeams config
   const realPlayers = useMemo(() => {
@@ -912,6 +919,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (m.role !== "player") return false;
       if (!m.user_id || seen.has(m.user_id)) return false;
       seen.add(m.user_id);
+      // When linked to an event, restrict to RSVP'd "going" players only.
+      if (shouldFilterByGoing && !goingAttendeeIds!.has(m.user_id)) return false;
       return true;
     });
     return uniquePlayers.map((m, index) => {
@@ -936,7 +945,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         teamSide,
       };
     });
-  }, [members, teamPlayerPositions, miniLeagueTeams]);
+  }, [members, teamPlayerPositions, miniLeagueTeams, shouldFilterByGoing, goingAttendeeIds]);
+
 
   const savedPlayers = savedState?.players || [];
   const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
