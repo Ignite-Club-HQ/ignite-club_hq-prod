@@ -254,8 +254,21 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         // Subs - don't show if game is finished
         const mph = saved.minutesPerHalf || 20;
         const halfDur = mph * 60;
-        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= halfDur;
+        const isGameFinished = saved.isGameFinished === true ||
+          (saved.currentHalf === 2 && currentElapsed >= halfDur);
         const isHalftimeBreak = !saved.isRunning && saved.currentHalf === 2 && currentElapsed === 0;
+
+        // Stamp gameFinishedAt the first time we observe full time so the
+        // widget can stay visible for 60 minutes after the match ends.
+        if (isGameFinished && !saved.gameFinishedAt) {
+          const stamped: TimerState = {
+            ...saved,
+            isGameFinished: true,
+            gameFinishedAt: Date.now(),
+            isRunning: false,
+          };
+          saveTimerState(stamped);
+        }
 
         // At halftime, auto-skip stale first-half subs that were never executed
         if (isHalftimeBreak) {
