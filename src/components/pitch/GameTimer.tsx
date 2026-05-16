@@ -313,20 +313,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Cannot resume if game is finished
     if (isGameFinished) return false;
 
-    // If linked to an event, allow manual start from 30 min before kickoff
-    // up to 2 hours after kickoff. Outside that window, block.
+    // If linked to an event, block manual start only after the post-kickoff window closes.
     if (!isRunning && kickoffMs && elapsedSeconds === 0 && currentHalf === 1) {
       const now = Date.now();
-      const earliest = kickoffMs - 30 * 60 * 1000;
       const latest = kickoffMs + 2 * 60 * 60 * 1000;
-      if (now < earliest) {
-        const minsUntil = Math.ceil((earliest - now) / 60000);
-        toast({
-          title: "Too early to start",
-          description: `Manual start opens 30 min before kick-off (in ~${minsUntil} min). Timer will auto-start at kick-off.`,
-        });
-        return false;
-      }
       if (now > latest) {
         toast({
           title: "Kick-off window closed",
