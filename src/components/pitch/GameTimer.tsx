@@ -313,20 +313,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     // Cannot resume if game is finished
     if (isGameFinished) return false;
 
-    // If linked to an event, allow manual start from 30 min before kickoff
-    // up to 2 hours after kickoff. Outside that window, block.
+    // If linked to an event, block manual start only after the post-kickoff window closes.
     if (!isRunning && kickoffMs && elapsedSeconds === 0 && currentHalf === 1) {
       const now = Date.now();
-      const earliest = kickoffMs - 30 * 60 * 1000;
       const latest = kickoffMs + 2 * 60 * 60 * 1000;
-      if (now < earliest) {
-        const minsUntil = Math.ceil((earliest - now) / 60000);
-        toast({
-          title: "Too early to start",
-          description: `Manual start opens 30 min before kick-off (in ~${minsUntil} min). Timer will auto-start at kick-off.`,
-        });
-        return false;
-      }
       if (now > latest) {
         toast({
           title: "Kick-off window closed",
@@ -381,49 +371,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     resetTimer,
   }), [elapsedSeconds, currentHalf, minutesPerHalf, isRunning, isGameFinished, toggleTimer, resetTimer]);
 
-  // Auto-start at kickoff when linked to an event.
-  // - Only starts the timer AT kickoff (not fast-forwarded later).
-  // - If the app is open at kickoff, fires immediately.
-  // - If the app opens AFTER kickoff, do NOT auto-start (no fast-forward).
-  //   The coach can manually start, and the saved state from a prior
-  //   in-app auto-start will be restored normally by the load effect.
-  // - Skipped if the coach manually reset the timer (manualReset flag).
-  useEffect(() => {
-    if (!hasInitialized || readOnly || !kickoffMs) return;
-    if (isRunning || isGameFinished) return;
-    if (currentHalf !== 1 || elapsedSeconds !== 0) return;
+  // Auto-start on kickoff has been removed — coach must press Play to start the timer.
 
-    // Respect manual reset
-    try {
-      const saved = loadTimerState(teamId);
-      if (saved?.manualReset) return;
-    } catch {}
-
-    const now = Date.now();
-    const delta = now - kickoffMs;
-
-    // Already past kickoff — do nothing. Coach must start manually.
-    if (delta > 0) return;
-
-    // Schedule the auto-start exactly at kickoff (only if within 2h window).
-    const msUntilKickoff = -delta;
-    if (msUntilKickoff > 2 * 60 * 60 * 1000) return;
-
-    const t = window.setTimeout(() => {
-      // Re-check guards at fire time
-      try {
-        const saved = loadTimerState(teamId);
-        if (saved?.manualReset) return;
-      } catch {}
-      setIsRunning(true);
-      toast({
-        title: "Kick-off!",
-        description: "Match timer started automatically.",
-      });
-    }, msUntilKickoff + 250);
-
-    return () => window.clearTimeout(t);
-  }, [hasInitialized, readOnly, kickoffMs, isRunning, isGameFinished, currentHalf, elapsedSeconds, teamId]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -615,22 +564,18 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             {getDisplayTime(false)}
           </span>
         </div>
-        {!readOnly && !hidePlayPause && (() => {
-          const beforeKickoff = !!kickoffMs && Date.now() < kickoffMs && elapsedSeconds === 0 && currentHalf === 1 && !isRunning;
-          const minsUntil = beforeKickoff ? Math.ceil((kickoffMs! - Date.now()) / 60000) : 0;
-          return (
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")}
-              onClick={toggleTimer}
-              disabled={isGameFinished || beforeKickoff}
-              title={beforeKickoff ? `Kick-off in ~${minsUntil} min — timer auto-starts` : undefined}
-            >
-              {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
-            </Button>
-          );
-        })()}
+        {!readOnly && !hidePlayPause && (
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")}
+            onClick={toggleTimer}
+            disabled={isGameFinished}
+          >
+            {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
+          </Button>
+        )}
+
       </div>
     );
   }
@@ -676,22 +621,17 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime(false)}</span>
       </div>
       
-      {!readOnly && !hidePlayPause && (() => {
-        const beforeKickoff = !!kickoffMs && Date.now() < kickoffMs && elapsedSeconds === 0 && currentHalf === 1 && !isRunning;
-        const minsUntil = beforeKickoff ? Math.ceil((kickoffMs! - Date.now()) / 60000) : 0;
-        return (
-          <Button
-            variant="outline"
-            size={large ? "default" : "icon"}
-            className={large ? "h-12 w-12" : undefined}
-            onClick={toggleTimer}
-            disabled={isGameFinished || beforeKickoff}
-            title={beforeKickoff ? `Kick-off in ~${minsUntil} min — timer auto-starts` : undefined}
-          >
-            {isRunning ? <Pause className={large ? "h-5 w-5" : "h-4 w-4"} /> : <Play className={large ? "h-5 w-5" : "h-4 w-4"} />}
-          </Button>
-        );
-      })()}
+      {!readOnly && !hidePlayPause && (
+        <Button
+          variant="outline"
+          size={large ? "default" : "icon"}
+          className={large ? "h-12 w-12" : undefined}
+          onClick={toggleTimer}
+          disabled={isGameFinished}
+        >
+          {isRunning ? <Pause className={large ? "h-5 w-5" : "h-4 w-4"} /> : <Play className={large ? "h-5 w-5" : "h-4 w-4"} />}
+        </Button>
+      )}
       
       </div>
     </div>

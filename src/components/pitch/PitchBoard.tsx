@@ -58,6 +58,7 @@ import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 import { useRemoteFillInSync } from "@/hooks/useRemoteFillInSync";
+import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
 import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 
 // Import types and utils from extracted files
@@ -899,6 +900,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }));
   }, []);
 
+  // RSVP'd-going filter — when the board is linked to a fixture, only players
+  // who RSVP'd "going" should appear on the pitch/bench/autosubs. Mini-league
+  // mode uses its own team-builder and is exempt. Staff aren't in realPlayers
+  // (filtered to role==='player') so this doesn't affect them.
+  const { data: goingAttendeeIds } = useEventGoingAttendees(linkedEventId);
+  const shouldFilterByGoing = !!linkedEventId && !miniLeagueTeams && !!goingAttendeeIds;
+
   // Get real players from team members with preferred positions from database
   // For mini-league mode, also assign team sides based on miniLeagueTeams config
   const realPlayers = useMemo(() => {
@@ -911,6 +919,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (m.role !== "player") return false;
       if (!m.user_id || seen.has(m.user_id)) return false;
       seen.add(m.user_id);
+      // When linked to an event, restrict to RSVP'd "going" players only.
+      if (shouldFilterByGoing && !goingAttendeeIds!.has(m.user_id)) return false;
       return true;
     });
     return uniquePlayers.map((m, index) => {
@@ -935,7 +945,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         teamSide,
       };
     });
-  }, [members, teamPlayerPositions, miniLeagueTeams]);
+  }, [members, teamPlayerPositions, miniLeagueTeams, shouldFilterByGoing, goingAttendeeIds]);
+
 
   const savedPlayers = savedState?.players || [];
   const isStrictMatchEventRoster = !!(initialLinkedEventId || savedState?.linkedEventId) && !miniLeagueTeams;
@@ -3216,9 +3227,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
       }
       if (secondsElapsed > 0) {
+        // Compute the cumulative game clock so we can cap each player's
+        // minutesPlayed at the total elapsed game time. This is a defensive
+        // guard against any double-accumulation (e.g. duplicated tick events,
+        // half-transition catchup colliding with a normal tick, or stale
+        // refs after remount). A player's on-pitch time can never logically
+        // exceed total game elapsed.
+        const halfDurationForCap = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
+        const totalElapsedNow = currentHalf === 2
+          ? halfDurationForCap + elapsedSeconds
+          : elapsedSeconds;
         setPlayers(prev => prev.map(p => {
           if (p.position !== null) {
-            return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
+            const next = (p.minutesPlayed || 0) + secondsElapsed;
+            return { ...p, minutesPlayed: Math.min(next, totalElapsedNow) };
           }
           return p;
         }));
