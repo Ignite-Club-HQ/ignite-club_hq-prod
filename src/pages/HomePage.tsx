@@ -1876,24 +1876,38 @@ export default function HomePage() {
                 placeholder="Choose a role..."
               />
             )}
-            {/* Optional child linking when parent role selected */}
-            {showChildLinker && teamChildren && teamChildren.length > 0 && (
-              <MobileCardSelect
-                value={selectedChildForLink || "skip"}
-                onValueChange={(v) => setSelectedChildForLink(v === "skip" ? "" : v)}
-                options={[
-                  { value: "skip", label: "Skip — link later" },
-                  ...teamChildren.map((child) => ({
-                    value: child.id,
-                    label: child.name,
-                  })),
-                ]}
-                label="Link to Your Child (optional)"
-                placeholder="Select your child..."
-                searchable
-                searchPlaceholder="Search children..."
-                emptyMessage="No children found on this team."
-              />
+            {/* Required child linking when parent role selected */}
+            {showChildLinker && (
+              <>
+                <MobileCardSelect
+                  value={selectedChildForLink || (teamChildren && teamChildren.length > 0 ? "" : "__new__")}
+                  onValueChange={(v) => setSelectedChildForLink(v)}
+                  options={[
+                    ...((teamChildren || []).map((child) => ({
+                      value: child.id,
+                      label: child.name,
+                    }))),
+                    { value: "__new__", label: "➕ Add new child" },
+                  ]}
+                  label="Link to Your Child"
+                  placeholder="Select your child..."
+                  searchable
+                  searchPlaceholder="Search children..."
+                  emptyMessage="No existing children — add one below."
+                />
+                {(selectedChildForLink === "__new__" || (!selectedChildForLink && (!teamChildren || teamChildren.length === 0))) && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Child's name</label>
+                    <input
+                      type="text"
+                      value={newChildName}
+                      onChange={(e) => setNewChildName(e.target.value)}
+                      placeholder="Enter your child's full name"
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
           <ResponsiveDialogFooter>
