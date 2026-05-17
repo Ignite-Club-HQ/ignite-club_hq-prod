@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send } from "lucide-react";
+import { ArrowLeft, Trophy, Plus, Loader2, Check, X, Shield, Megaphone, Send, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +133,11 @@ export default function CompetitionDetailPage() {
             {isAdmin && <Badge><Shield className="h-3 w-3 mr-1" /> Admin</Badge>}
           </div>
         </div>
+        {isAdmin && (
+          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+            <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
+          </Button>
+        )}
       </header>
 
       {competition.description && (
@@ -146,7 +151,6 @@ export default function CompetitionDetailPage() {
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder">Ladder</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="manage">Manage</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="entries" className="space-y-2">
@@ -220,11 +224,6 @@ export default function CompetitionDetailPage() {
           </TabsContent>
         )}
 
-        {isAdmin && (
-          <TabsContent value="manage" className="space-y-3">
-            <EditCompetitionForm competition={competition} onDone={() => qc.invalidateQueries({ queryKey: ["competition", id] })} />
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   );
@@ -562,102 +561,6 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function EditCompetitionForm({ competition, onDone }: { competition: any; onDone: () => void }) {
-  const { toast } = useToast();
-  const [name, setName] = useState(competition.name);
-  const [status, setStatus] = useState(competition.status);
-  const [visibility, setVisibility] = useState(competition.visibility);
-  const [description, setDescription] = useState(competition.description ?? "");
-  const [pointsWin, setPointsWin] = useState<string>(String(competition.points_win ?? 3));
-  const [pointsDraw, setPointsDraw] = useState<string>(String(competition.points_draw ?? 1));
-  const [pointsLoss, setPointsLoss] = useState<string>(String(competition.points_loss ?? 0));
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    const { error } = await supabase
-      .from("competitions")
-      .update({
-        name: name.trim(),
-        status,
-        visibility,
-        description: description.trim() || null,
-        points_win: Number.parseInt(pointsWin, 10) || 0,
-        points_draw: Number.parseInt(pointsDraw, 10) || 0,
-        points_loss: Number.parseInt(pointsLoss, 10) || 0,
-      })
-      .eq("id", competition.id);
-    setSaving(false);
-    if (error) {
-      toast({ title: "Could not save", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Saved" });
-    onDone();
-  };
-
-  return (
-    <Card>
-      <CardContent className="p-4 space-y-3">
-        <div>
-          <Label>Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {["draft","open","active","completed","archived"].map(s => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Visibility</Label>
-            <Select value={visibility} onValueChange={setVisibility}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">Private</SelectItem>
-                <SelectItem value="unlisted">Unlisted</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div>
-          <Label>Description</Label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-        </div>
-        <div className="pt-2 border-t">
-          <Label className="text-sm font-medium">Ladder points</Label>
-          <p className="text-xs text-muted-foreground mb-2">How many points each result is worth on the ladder.</p>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <Label className="text-xs">Win</Label>
-              <Input type="number" inputMode="numeric" value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">Draw</Label>
-              <Input type="number" inputMode="numeric" value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">Loss</Label>
-              <Input type="number" inputMode="numeric" value={pointsLoss} onChange={(e) => setPointsLoss(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <Button size="sm" onClick={save} disabled={saving || !name.trim()}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Save changes
-        </Button>
       </CardContent>
     </Card>
   );
