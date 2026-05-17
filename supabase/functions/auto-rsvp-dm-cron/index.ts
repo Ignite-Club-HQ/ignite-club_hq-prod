@@ -33,7 +33,12 @@ interface EventRow {
   type: string;
   team_id: string;
   club_id: string | null;
-  teams: { name: string; auto_rsvp_dm_enabled: boolean | null } | null;
+  teams: {
+    name: string;
+    auto_rsvp_dm_enabled: boolean | null;
+    auto_rsvp_dm_cadences: string[] | null;
+    auto_rsvp_dm_event_types: string[] | null;
+  } | null;
   clubs: { name: string; logo_url: string | null; bot_user_id: string | null } | null;
 }
 
