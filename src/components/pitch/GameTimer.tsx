@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
@@ -211,6 +212,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [isRunning, setIsRunning] = useState(false);
   const [isGameFinished, setIsGameFinished] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Keep the screen awake while the timer is running so iOS/Android don't
+  // sleep mid-half and suspend the JS runtime.
+  useWakeLock(isRunning && !isGameFinished);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   

@@ -22,6 +22,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
@@ -188,6 +189,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [selectedSubIndex, setSelectedSubIndex] = useState<number>(0);
   const [editedPlayerOutId, setEditedPlayerOutId] = useState<string | null>(null);
   const [editedPlayerInId, setEditedPlayerInId] = useState<string | null>(null);
+
+  // Keep the screen awake while a game is actively running.
+  useWakeLock(!!timerState?.isRunning && !gameFinished);
 
   const playersOnPitch = useMemo(() => allPlayers.filter(p => p.position !== null), [allPlayers]);
   const availableBenchPlayers = useMemo(() => allPlayers.filter(p => p.position === null && !p.isInjured), [allPlayers]);
