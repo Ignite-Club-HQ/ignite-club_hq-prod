@@ -408,6 +408,39 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
     <Card>
       <CardContent className="p-4 space-y-3">
         <div>
+          <Label>Filter by club (optional)</Label>
+          {selectedClub ? (
+            <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+              <div className="text-sm font-medium">{selectedClub.name}</div>
+              <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
+            </div>
+          ) : (
+            <>
+              <Input
+                value={clubSearch}
+                onChange={(e) => setClubSearch(e.target.value)}
+                placeholder="Search clubs"
+              />
+              {clubSearch.trim().length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
+                  {clubs.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
+                  ) : clubs.map((c: any) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div>
           <Label>Find team</Label>
           <Input
             value={search}
