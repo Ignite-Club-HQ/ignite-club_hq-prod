@@ -199,11 +199,126 @@ export default function CompetitionDetailPage() {
         </TabsContent>
 
         {isAdmin && (
+          <TabsContent value="broadcasts" className="space-y-3">
+            <BroadcastsPanel competitionId={id!} divisions={divisions} acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length} />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
           <TabsContent value="manage" className="space-y-3">
             <EditCompetitionForm competition={competition} onDone={() => qc.invalidateQueries({ queryKey: ["competition", id] })} />
           </TabsContent>
         )}
       </Tabs>
+    </div>
+  );
+}
+
+function BroadcastsPanel({ competitionId, divisions, acceptedTeamCount }: { competitionId: string; divisions: any[]; acceptedTeamCount: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [message, setMessage] = useState("");
+  const [selectedDivisionIds, setSelectedDivisionIds] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["competition-broadcasts", competitionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competition_broadcasts")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return data ?? [];
+    },
+  });
+
+  const toggleDivision = (divId: string) => {
+    setSelectedDivisionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(divId)) next.delete(divId); else next.add(divId);
+      return next;
+    });
+  };
+
+  const send = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    const { data, error } = await supabase.functions.invoke("send-competition-broadcast", {
+      body: {
+        competition_id: competitionId,
+        message: message.trim(),
+        division_ids: selectedDivisionIds.size > 0 ? Array.from(selectedDivisionIds) : null,
+      },
+    });
+    setSending(false);
+    if (error || (data as any)?.error) {
+      toast({ title: "Could not send broadcast", description: (data as any)?.error || error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `Broadcast sent to ${(data as any).recipient_team_count} team${(data as any).recipient_team_count === 1 ? "" : "s"}` });
+    setMessage("");
+    setSelectedDivisionIds(new Set());
+    qc.invalidateQueries({ queryKey: ["competition-broadcasts", competitionId] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Megaphone className="h-4 w-4 text-primary" />
+            <span className="font-medium">Send broadcast</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Posts as a competition announcement in the team chat of every accepted team
+            {selectedDivisionIds.size > 0 ? " in the selected divisions" : ""}.
+          </p>
+          <div>
+            <Label>Message</Label>
+            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="e.g. Round 4 fixtures are up — check the schedule." />
+          </div>
+          {divisions.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Limit to divisions (optional)</Label>
+              <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
+                {divisions.map((d: any) => (
+                  <label key={d.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                    <Checkbox checked={selectedDivisionIds.has(d.id)} onCheckedChange={() => toggleDivision(d.id)} />
+                    <span>{d.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{acceptedTeamCount} accepted team{acceptedTeamCount === 1 ? "" : "s"} total</span>
+            <Button size="sm" onClick={send} disabled={!message.trim() || sending || acceptedTeamCount === 0}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Send
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        <div className="text-sm font-medium">Recent broadcasts</div>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No broadcasts yet.</p>
+        ) : (
+          history.map((b: any) => (
+            <Card key={b.id}>
+              <CardContent className="p-4 space-y-1">
+                <div className="text-sm whitespace-pre-wrap">{b.message}</div>
+                <div className="text-xs text-muted-foreground">
+                  {b.recipient_team_count} team{b.recipient_team_count === 1 ? "" : "s"} · {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   );
 }
