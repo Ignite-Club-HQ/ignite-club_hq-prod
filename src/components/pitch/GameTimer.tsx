@@ -253,39 +253,43 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       if (externalMinutesPerHalf === undefined) {
         setInternalMinutesPerHalf(saved.minutesPerHalf);
       }
-      setCurrentHalf(saved.currentHalf);
       setIsGameFinished(saved.isGameFinished || false);
-      
+
       // Use the correct half duration (external prop takes priority)
       const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
-      
+
       // Check if game was finished
       if (saved.isGameFinished) {
+        setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-        // Keep the clock running across backgrounding / screen lock — coaches
-        // routinely lock their phone during a half. The natural halfDuration
-        // cap below prevents runaway, and end-of-half / full-time transitions
-        // are handled the same way as a normal tick.
-        const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
-        if (newElapsed >= halfDuration) {
-          if (saved.currentHalf === 1) {
-            setCurrentHalf(2);
-            setElapsedSeconds(0);
-            setIsRunning(false);
-            onHalfChangeRef.current?.(2);
-          } else {
-            setElapsedSeconds(halfDuration);
-            setIsRunning(false);
-            setIsGameFinished(true);
-          }
-        } else {
-          setElapsedSeconds(newElapsed);
-          setIsRunning(true);
+        // Carry drift through end-of-half so a long phone lock (e.g. whole
+        // game spent backgrounded) still advances correctly instead of
+        // freezing at the half boundary.
+        let half: 1 | 2 = saved.currentHalf;
+        let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
+        let running = true;
+        let finished = false;
+        if (half === 1 && elapsed >= halfDuration) {
+          half = 2;
+          elapsed = elapsed - halfDuration;
+          // Half boundary itself: coach must press play for 2nd half
+          running = false;
+          onHalfChangeRef.current?.(2);
         }
+        if (half === 2 && elapsed >= halfDuration) {
+          elapsed = halfDuration;
+          running = false;
+          finished = true;
+        }
+        setCurrentHalf(half);
+        setElapsedSeconds(elapsed);
+        setIsRunning(running);
+        if (finished) setIsGameFinished(true);
       } else {
+        setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(saved.isRunning);
       }
@@ -450,57 +454,88 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // Reconcile timer when app resumes from background (no 30s cap)
   useEffect(() => {
     const reconcileAfterResume = () => {
-      if (!isRunning || isGameFinished) return;
+      if (isGameFinished) return;
       // Re-read from localStorage to get the lastUpdateTime from when we were last active
       const saved = loadTimerState(teamId);
       if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
-      
+
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-      // Always reconcile if drift > 1s. The in-app setInterval is paused while
-      // backgrounded (iOS/Android lock screen, app switched away), so even a
-      // few seconds of drift need to be added back — otherwise the clock
-      // appears to freeze whenever the phone is locked.
       if (uncappedDrift < 2) return;
 
-      // Keep the clock advancing across long backgrounding (screen lock,
-      // app switch). halfDurationSeconds caps it below; end-of-half handling
-      // runs the same as a normal foreground tick.
-
-      const reconciledElapsed = Math.min(saved.elapsedSeconds + uncappedDrift, halfDurationSeconds);
-      console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, elapsed ${saved.elapsedSeconds} -> ${reconciledElapsed}`);
-      setElapsedSeconds(reconciledElapsed);
-
-      // Check if half ended during background
-      if (reconciledElapsed >= halfDurationSeconds) {
-        if (currentHalf === 1) {
-          setIsRunning(false);
-          setCurrentHalf(2);
-          onHalfChangeRef.current?.(2);
-          setElapsedSeconds(0);
-          playTimerBeep("Half Time! First half complete.");
-        } else {
-          setIsRunning(false);
-          setIsGameFinished(true);
-          setElapsedSeconds(halfDurationSeconds);
-          playTimerBeep("Full Time! Match complete.");
-        }
+      // Carry-over: a long lock can span the rest of half 1 + into half 2
+      let half: 1 | 2 = saved.currentHalf;
+      let elapsed = (saved.elapsedSeconds || 0) + uncappedDrift;
+      let running = true;
+      let finished = false;
+      let crossedHalf = false;
+      if (half === 1 && elapsed >= halfDurationSeconds) {
+        half = 2;
+        elapsed = elapsed - halfDurationSeconds;
+        running = false; // coach must press play for 2nd half
+        crossedHalf = true;
       }
+      if (half === 2 && elapsed >= halfDurationSeconds) {
+        elapsed = halfDurationSeconds;
+        running = false;
+        finished = true;
+      }
+
+      console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, half ${saved.currentHalf}->${half}, elapsed ${saved.elapsedSeconds}->${elapsed}`);
+      setCurrentHalf(half);
+      setElapsedSeconds(elapsed);
+      setIsRunning(running);
+      if (finished) {
+        setIsGameFinished(true);
+        playTimerBeep("Full Time! Match complete.");
+      } else if (crossedHalf) {
+        onHalfChangeRef.current?.(2);
+        playTimerBeep("Half Time! First half complete.");
+      }
+    };
+
+    // Flush a fresh lastUpdateTime snapshot when the page is about to be
+    // suspended so the next resume can compute drift accurately even if
+    // the last setInterval tick hasn't fired yet.
+    const flushOnHide = () => {
+      if (!isRunning || isGameFinished) return;
+      try {
+        saveTimerState({
+          minutesPerHalf,
+          currentHalf,
+          elapsedSeconds,
+          isRunning: true,
+          lastUpdateTime: Date.now(),
+          teamId,
+          teamName,
+          isGameFinished: false,
+        }, teamId);
+      } catch {}
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         reconcileAfterResume();
+      } else {
+        flushOnHide();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', reconcileAfterResume);
+    window.addEventListener('focus', reconcileAfterResume);
+    window.addEventListener('pagehide', flushOnHide);
+    window.addEventListener('beforeunload', flushOnHide);
+    // Chromium "freeze" event fires when the tab is about to be discarded
+    document.addEventListener('freeze', flushOnHide as any);
+    document.addEventListener('resume', reconcileAfterResume as any);
 
-    // Also listen for Capacitor app resume
+    // Also listen for Capacitor app resume / pause
     let appListener: any = null;
     const setupNative = async () => {
       try {
         const { App: CapApp } = await import('@capacitor/app');
         appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
           if (isActive) reconcileAfterResume();
+          else flushOnHide();
         });
       } catch {}
     };
@@ -513,9 +548,15 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', reconcileAfterResume);
+      window.removeEventListener('focus', reconcileAfterResume);
+      window.removeEventListener('pagehide', flushOnHide);
+      window.removeEventListener('beforeunload', flushOnHide);
+      document.removeEventListener('freeze', flushOnHide as any);
+      document.removeEventListener('resume', reconcileAfterResume as any);
       appListener?.remove?.();
     };
-  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf]);
+  }, [isRunning, isGameFinished, teamId, teamName, halfDurationSeconds, currentHalf, elapsedSeconds, minutesPerHalf]);
 
   // Notify parent of time updates — use stable ref to avoid re-firing
   // when the callback identity changes (which was doubling player minutes).
