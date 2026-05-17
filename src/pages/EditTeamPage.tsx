@@ -48,6 +48,8 @@ export default function EditTeamPage() {
   const [classCapacity, setClassCapacity] = useState<number | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [autoRsvpDm, setAutoRsvpDm] = useState(false);
+  const [autoRsvpCadences, setAutoRsvpCadences] = useState<string[]>(["t72", "t24", "t3"]);
+  const [autoRsvpEventTypes, setAutoRsvpEventTypes] = useState<string[]>(["match", "training", "game"]);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
