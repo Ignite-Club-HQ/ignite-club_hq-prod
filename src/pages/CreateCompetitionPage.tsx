@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { ensureFreshSession } from "@/lib/ensureFreshSession";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 const PERSONAL_ORGANISER = "__personal__";
