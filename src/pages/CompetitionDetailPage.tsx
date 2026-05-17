@@ -124,7 +124,7 @@ export default function CompetitionDetailPage() {
           <Trophy className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold truncate">{competition.name}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold break-words">{competition.name}</h1>
           <p className="text-sm text-muted-foreground">
             {[competition.sport, competition.season, competition.clubs?.name].filter(Boolean).join(" · ")}
           </p>
