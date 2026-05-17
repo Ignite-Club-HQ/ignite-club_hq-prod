@@ -92,6 +92,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
+import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
 
 type ClubRole = "club_admin";
 
