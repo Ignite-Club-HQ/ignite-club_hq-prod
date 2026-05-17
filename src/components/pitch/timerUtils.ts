@@ -55,9 +55,9 @@ export const projectRunningTimerState = <T extends ProjectableTimerState>(
   }
 
   const secondsAdvanced = getSecondsSinceUpdateUncapped(timerState.lastUpdateTime, now);
-  let currentHalf = timerState.currentHalf;
+  let currentHalf: 1 | 2 = timerState.currentHalf;
   let elapsedSeconds = Math.max(0, timerState.elapsedSeconds || 0) + secondsAdvanced;
-  let isRunning = timerState.isRunning;
+  let isRunning: boolean = timerState.isRunning;
   let crossedHalf = false;
   let finished = false;
 
