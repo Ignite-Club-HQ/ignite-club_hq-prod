@@ -456,7 +456,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
               </div>
               <Button size="sm" variant="ghost" onClick={() => setTeamId("")}>Change</Button>
             </div>
-          ) : search.trim().length > 0 && (
+          ) : (search.trim().length > 0 || clubFilterId) && (
             <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
               {teams.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
