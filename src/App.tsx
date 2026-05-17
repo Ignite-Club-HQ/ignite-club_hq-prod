@@ -41,6 +41,7 @@ const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
 const ClubsPage = lazy(() => import("./pages/ClubsPage"));
 const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
 const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
+const StartPage = lazy(() => import("./pages/StartPage"));
 const EditClubPage = lazy(() => import("./pages/EditClubPage"));
 const CreateTeamPage = lazy(() => import("./pages/CreateTeamPage"));
 const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
