@@ -420,7 +420,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
   const [landscapeEventSelectorOpen, setLandscapeEventSelectorOpen] = useState(false); // Event selector for landscape toolbar
-  const [minutesPerHalf, setMinutesPerHalf] = useState(() => initialMinutesPerHalf); // Time per half for settings
+  const [minutesPerHalf, setMinutesPerHalf] = useState(() => {
+    // If a game is already in progress for this team, the saved timer state
+    // is the source of truth — using the parent prop here can land on a
+    // transient `|| 10` fallback during a React Query refetch and silently
+    // shorten the live half.
+    try {
+      const t = loadTimerStateForMinutes(teamId);
+      if (t && t.minutesPerHalf && (t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished)) {
+        return t.minutesPerHalf;
+      }
+    } catch {}
+    return initialMinutesPerHalf;
+  }); // Time per half for settings
   const [rotationSpeed, setRotationSpeed] = useState(() => initialRotationSpeed); // Subs speed
   const [disablePositionSwaps, setDisablePositionSwaps] = useState(() => initialDisablePositionSwaps); // Disable position swaps in auto sub generation
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
