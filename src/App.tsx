@@ -98,6 +98,7 @@ const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
 const CompetitionsPage = lazy(() => import("./pages/CompetitionsPage"));
 const CreateCompetitionPage = lazy(() => import("./pages/CreateCompetitionPage"));
 const CompetitionDetailPage = lazy(() => import("./pages/CompetitionDetailPage"));
+const CompetitionSettingsPage = lazy(() => import("./pages/CompetitionSettingsPage"));
 const AssociationsPage = lazy(() => import("./pages/AssociationsPage"));
 const CreateAssociationPage = lazy(() => import("./pages/CreateAssociationPage"));
 const AssociationDetailPage = lazy(() => import("./pages/AssociationDetailPage"));
