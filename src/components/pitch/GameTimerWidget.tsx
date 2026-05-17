@@ -400,14 +400,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     document.addEventListener('freeze', flushOnHide as any);
     document.addEventListener('resume', reconcileAfterResume as any);
 
-    let appListener: any;
+    let appListener: any = null;
+    let cancelled = false;
     (async () => {
       try {
         const { App: CapApp } = await import('@capacitor/app');
-        appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
+        const listener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
           if (isActive) reconcileAfterResume();
           else flushOnHide();
         });
+        if (cancelled) listener.remove();
+        else appListener = listener;
       } catch {}
     })();
 
