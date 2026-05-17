@@ -128,6 +128,26 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     opponent: event.opponent,
   });
   const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+
+  // Fetch final score for past match events to display inline.
+  const isPastMatch =
+    event.type === "game" &&
+    !event.is_cancelled &&
+    !event.is_bye &&
+    new Date(event.event_date).getTime() < Date.now();
+  const { data: matchScore } = useQuery({
+    queryKey: ["event-card-score", event.id],
+    enabled: isPastMatch,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("game_results")
+        .select("home_score, away_score, home_label, away_label")
+        .eq("event_id", event.id)
+        .maybeSingle();
+      return data;
+    },
+  });
   // "Today" boost — full-strength rail; otherwise dim slightly so today reads first.
   const isToday = (() => {
     try {
