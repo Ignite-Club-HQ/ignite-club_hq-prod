@@ -2072,6 +2072,47 @@ export type Database = {
           },
         ]
       }
+      competition_broadcasts: {
+        Row: {
+          competition_id: string
+          created_at: string
+          division_ids: string[] | null
+          id: string
+          message: string
+          recipient_team_count: number
+          sent_by: string
+          team_ids: string[]
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string
+          division_ids?: string[] | null
+          id?: string
+          message: string
+          recipient_team_count?: number
+          sent_by: string
+          team_ids?: string[]
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string
+          division_ids?: string[] | null
+          id?: string
+          message?: string
+          recipient_team_count?: number
+          sent_by?: string
+          team_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_broadcasts_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_divisions: {
         Row: {
           age_group: string | null
