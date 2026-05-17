@@ -14,6 +14,7 @@ import { SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
+const PERSONAL_ORGANISER = "__personal__";
 
 export default function CreateCompetitionPage() {
   usePageTitle("New competition");
@@ -25,19 +26,19 @@ export default function CreateCompetitionPage() {
   const [description, setDescription] = useState("");
   const [sport, setSport] = useState("");
   const [season, setSeason] = useState("");
-  const [organizerClubId, setOrganizerClubId] = useState("");
+  const [organizerClubId, setOrganizerClubId] = useState(PERSONAL_ORGANISER);
   const [visibility, setVisibility] = useState<"private" | "unlisted" | "public">("private");
   const [saving, setSaving] = useState(false);
 
-  const { data: clubs = [], isLoading: loadingClubs } = useQuery({
-    queryKey: ["my-admin-clubs", user?.id],
+  const { data: organisers = [], isLoading: loadingClubs } = useQuery({
+    queryKey: ["my-organiser-clubs", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("club_id, clubs:club_id(id, name, kind)")
+        .select("club_id, role, clubs:club_id(id, name, kind)")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "app_admin"]);
+        .in("role", ["club_admin", "association_admin", "app_admin"]);
       const seen = new Set<string>();
       return (data ?? [])
         .map((r: any) => r.clubs)
@@ -47,8 +48,42 @@ export default function CreateCompetitionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !organizerClubId || !name.trim()) return;
+    if (!user || !name.trim() || !organizerClubId) return;
     setSaving(true);
+
+    let clubIdToUse = organizerClubId;
+
+    // Auto-create a personal shell club if the user picked "Personal organiser"
+    if (organizerClubId === PERSONAL_ORGANISER) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const who = profile?.display_name?.trim() || "My";
+      const shellName = `${who}'s competitions`;
+
+      const { data: shell, error: shellErr } = await supabase
+        .from("clubs")
+        .insert({ name: shellName, kind: "shell", created_by: user.id })
+        .select("id")
+        .single();
+      if (shellErr || !shell) {
+        setSaving(false);
+        toast({ title: "Could not create organiser", description: shellErr?.message, variant: "destructive" });
+        return;
+      }
+      const { error: roleErr } = await supabase
+        .from("user_roles")
+        .insert({ user_id: user.id, club_id: shell.id, role: "club_admin" });
+      if (roleErr) {
+        setSaving(false);
+        toast({ title: "Couldn't set you as organiser admin", description: roleErr.message, variant: "destructive" });
+        return;
+      }
+      clubIdToUse = shell.id;
+    }
+
     const { data, error } = await supabase
       .from("competitions")
       .insert({
@@ -56,7 +91,7 @@ export default function CreateCompetitionPage() {
         description: description.trim() || null,
         sport: sport || null,
         season: season.trim() || null,
-        organizer_club_id: organizerClubId,
+        organizer_club_id: clubIdToUse,
         visibility,
         status: "draft",
         created_by: user.id,
@@ -72,6 +107,9 @@ export default function CreateCompetitionPage() {
     navigate(`/competitions/${data.id}`);
   };
 
+  const kindLabel = (kind: string) =>
+    kind === "association" ? "Association" : kind === "full" ? "Club" : kind;
+
   return (
     <div className="container max-w-2xl mx-auto px-4 py-6">
       <Button asChild variant="ghost" size="sm" className="mb-4">
@@ -85,70 +123,74 @@ export default function CreateCompetitionPage() {
         Set up a league or tournament that teams can be invited to.
       </p>
 
-      {loadingClubs ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : clubs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          You need to be a club admin to create a competition.
-        </p>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="club">Organiser</Label>
+          <Select value={organizerClubId} onValueChange={setOrganizerClubId}>
+            <SelectTrigger id="club"><SelectValue placeholder="Choose organiser" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PERSONAL_ORGANISER}>
+                Personal organiser (just me)
+              </SelectItem>
+              {!loadingClubs && organisers.length > 0 && (
+                <>
+                  {organisers.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} <span className="text-muted-foreground">· {kindLabel(c.kind)}</span>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Pick a club or association if this competition belongs to one, or run it under a personal organiser.
+          </p>
+        </div>
+
+        <div>
+          <Label htmlFor="name">Competition name</Label>
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Twilight Twenty 2026" required />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label htmlFor="club">Organising club</Label>
-            <Select value={organizerClubId} onValueChange={setOrganizerClubId}>
-              <SelectTrigger id="club"><SelectValue placeholder="Select club" /></SelectTrigger>
+            <Label htmlFor="sport">Sport</Label>
+            <Select value={sport} onValueChange={setSport}>
+              <SelectTrigger id="sport"><SelectValue placeholder="Optional" /></SelectTrigger>
               <SelectContent>
-                {clubs.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
+                {SPORTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-
           <div>
-            <Label htmlFor="name">Competition name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Twilight Twenty 2026" required />
+            <Label htmlFor="season">Season</Label>
+            <Input id="season" value={season} onChange={(e) => setSeason(e.target.value)} placeholder="e.g. 2026" />
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="sport">Sport</Label>
-              <Select value={sport} onValueChange={setSport}>
-                <SelectTrigger id="sport"><SelectValue placeholder="Optional" /></SelectTrigger>
-                <SelectContent>
-                  {SPORTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="season">Season</Label>
-              <Input id="season" value={season} onChange={(e) => setSeason(e.target.value)} placeholder="e.g. 2026" />
-            </div>
-          </div>
+        <div>
+          <Label htmlFor="visibility">Visibility</Label>
+          <Select value={visibility} onValueChange={(v: any) => setVisibility(v)}>
+            <SelectTrigger id="visibility"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="private">Private — admins and entered teams only</SelectItem>
+              <SelectItem value="unlisted">Unlisted — admins and entered teams only</SelectItem>
+              <SelectItem value="public">Public — anyone signed in</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div>
-            <Label htmlFor="visibility">Visibility</Label>
-            <Select value={visibility} onValueChange={(v: any) => setVisibility(v)}>
-              <SelectTrigger id="visibility"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">Private — admins and entered teams only</SelectItem>
-                <SelectItem value="unlisted">Unlisted — admins and entered teams only</SelectItem>
-                <SelectItem value="public">Public — anyone signed in</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div>
+          <Label htmlFor="description">Description</Label>
+          <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+        </div>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-          </div>
-
-          <Button type="submit" disabled={saving || !organizerClubId || !name.trim()} className="w-full">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create competition
-          </Button>
-        </form>
-      )}
+        <Button type="submit" disabled={saving || !organizerClubId || !name.trim()} className="w-full">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Create competition
+        </Button>
+      </form>
     </div>
   );
 }
