@@ -195,8 +195,9 @@ export default function HomePage() {
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
   const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
-  const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("player");
+  const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("parent");
   const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
+  const [newChildName, setNewChildName] = useState<string>("");
   const [selectedLeagueRole, setSelectedLeagueRole] = useState<LeagueRole>("league_admin");
   // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
   const isLeagueSelected = selectedTeam.startsWith("league_");
