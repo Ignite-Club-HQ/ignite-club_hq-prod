@@ -476,8 +476,13 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Invite a team to this competition</h3>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
         <div>
           <Label>Filter by club (optional)</Label>
           {selectedClub ? (
