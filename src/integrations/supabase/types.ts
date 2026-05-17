@@ -2398,6 +2398,9 @@ export type Database = {
           logo_url: string | null
           name: string
           organizer_club_id: string
+          points_draw: number
+          points_loss: number
+          points_win: number
           season: string | null
           slug: string | null
           sport: string | null
@@ -2416,6 +2419,9 @@ export type Database = {
           logo_url?: string | null
           name: string
           organizer_club_id: string
+          points_draw?: number
+          points_loss?: number
+          points_win?: number
           season?: string | null
           slug?: string | null
           sport?: string | null
@@ -2434,6 +2440,9 @@ export type Database = {
           logo_url?: string | null
           name?: string
           organizer_club_id?: string
+          points_draw?: number
+          points_loss?: number
+          points_win?: number
           season?: string | null
           slug?: string | null
           sport?: string | null
