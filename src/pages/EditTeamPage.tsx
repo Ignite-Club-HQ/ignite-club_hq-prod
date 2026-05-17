@@ -417,7 +417,18 @@ export default function EditTeamPage() {
             </div>
           )}
 
-          {/* Class Mode Fields */}
+          {/* Auto RSVP DM Reminders */}
+          <div className="flex items-start justify-between gap-3 pt-2 border-t">
+            <div className="space-y-0.5">
+              <Label className="text-base">Auto RSVP reminders</Label>
+              <p className="text-sm text-muted-foreground">
+                When on, the club bot DMs members who haven't responded at 72h, 24h and 3h before an event. Off by default.
+              </p>
+            </div>
+            <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
+          </div>
+
+
           {(team?.clubs as any)?.class_mode_enabled && (
             <ClassFieldsSection
               classDay={classDay}
