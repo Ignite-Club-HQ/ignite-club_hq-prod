@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Users, Building2, Trophy, ChevronRight } from "lucide-react";
+import { Users, Building2, Trophy, ChevronRight, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,14 @@ const options: Option[] = [
     subtitle: "League, twilight comp, tournament",
     description:
       "Invite teams from any club into divisions and manage league admins. You must be a club admin to organise one.",
+  },
+  {
+    to: "/associations/new",
+    icon: Network,
+    title: "Start an Association",
+    subtitle: "Federation or umbrella body for multiple clubs",
+    description:
+      "Group several clubs under one association for rollup views, top-down broadcasts and association-wide competitions.",
   },
 ];
 
