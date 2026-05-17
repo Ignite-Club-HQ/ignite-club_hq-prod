@@ -77,6 +77,7 @@ const MyTeamsPremiumCarousel = lazy(() =>
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
+import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
 import { LazyMount } from "@/components/LazyMount";
 
@@ -1687,6 +1688,9 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
+      {/* Pending competition invites for team/club admins */}
+      <HomePendingCompetitionInvitesCard />
+
       {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
           minHeight matches the rendered carousel (section title 28px + gap 12px +
           card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
@@ -1698,13 +1702,7 @@ export default function HomePage() {
 
       {/* Team Actions — compact secondary utilities below primary team content */}
       <HomeQuickActions
-        onCreateTeam={() => {
-          if (activeClubFilter) {
-            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-          } else {
-            navigate("/clubs", { state: { fromCreateTeam: true } });
-          }
-        }}
+        onCreateTeam={() => navigate("/start")}
         onInvite={() => setMemberInviteOpen(true)}
         onJoinTeam={() => setTeamDialogOpen(true)}
         hasTeams={!!userRoles?.some(r => r.team_id)}

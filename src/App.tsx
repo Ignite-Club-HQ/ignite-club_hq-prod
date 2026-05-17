@@ -41,6 +41,8 @@ const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
 const ClubsPage = lazy(() => import("./pages/ClubsPage"));
 const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
 const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
+const StartPage = lazy(() => import("./pages/StartPage"));
+const StartTeamPage = lazy(() => import("./pages/StartTeamPage"));
 const EditClubPage = lazy(() => import("./pages/EditClubPage"));
 const CreateTeamPage = lazy(() => import("./pages/CreateTeamPage"));
 const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
@@ -93,6 +95,14 @@ const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPreferencesPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
+const CompetitionsPage = lazy(() => import("./pages/CompetitionsPage"));
+const CreateCompetitionPage = lazy(() => import("./pages/CreateCompetitionPage"));
+const CompetitionDetailPage = lazy(() => import("./pages/CompetitionDetailPage"));
+const CompetitionSettingsPage = lazy(() => import("./pages/CompetitionSettingsPage"));
+const AssociationsPage = lazy(() => import("./pages/AssociationsPage"));
+const CreateAssociationPage = lazy(() => import("./pages/CreateAssociationPage"));
+const AssociationDetailPage = lazy(() => import("./pages/AssociationDetailPage"));
+const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
@@ -275,6 +285,8 @@ const App = () => {
                   <Route path="/events/:id/groups/:groupId/duties" element={<EventGroupPitchPage />} />
                   <Route path="/clubs" element={<ClubsPage />} />
                   <Route path="/clubs/new" element={<CreateClubPage />} />
+                  <Route path="/start" element={<StartPage />} />
+                  <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
@@ -342,8 +354,16 @@ const App = () => {
                   <Route path="/clubs/:clubId/eois" element={<EoiAdminPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
+                  <Route path="/competitions" element={<CompetitionsPage />} />
+                  <Route path="/competitions/new" element={<CreateCompetitionPage />} />
+                  <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
+                  <Route path="/competitions/:id/settings" element={<CompetitionSettingsPage />} />
+                  <Route path="/associations" element={<AssociationsPage />} />
+                  <Route path="/associations/new" element={<CreateAssociationPage />} />
+                  <Route path="/associations/:id" element={<AssociationDetailPage />} />
                 </Route>
-                
+
+                <Route path="/c/:id" element={<PublicCompetitionPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

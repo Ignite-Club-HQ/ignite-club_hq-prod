@@ -92,6 +92,7 @@ import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
+import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2472,6 +2473,10 @@ export default function TeamDetailPage() {
           )}
         </Accordion>
       )}
+
+      {/* Competitions Section */}
+      <TeamCompetitionsSection teamId={id!} canManage={isAdmin || isCoachOrAdmin || isClubAdmin} />
+
       {/* Pitch Board Modal — soccer */}
       {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={

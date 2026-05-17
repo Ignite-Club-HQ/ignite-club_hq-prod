@@ -4,9 +4,9 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { Capacitor } from "@capacitor/core";
 import {
   IOS_LAYOUT_RESET_EVENT,
@@ -31,21 +31,42 @@ const DEFAULT_NAV_GUARD_MS = 900;
 
 export function BottomNav() {
   const { unreadMessagesCount: globalMessagesCount, user } = useAuth();
-  const { activeClubFilter } = useClubTheme();
+  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
-  // Per-club message unread count: count message-type notifications scoped to active club
+  // Per-club message unread count: derive from the same breakdown the inbox/bell use
+  // (fetchUnreadMessageCounts), then sum the slices that belong to the active club —
+  // club chat + teams in the club + groups in the club — plus DMs and broadcasts
+  // which are always visible in the inbox regardless of filter.
   const { data: clubMessagesCount = 0 } = useQuery({
-    queryKey: ["club-messages-unread", user?.id, activeClubFilter],
+    queryKey: ["club-messages-unread", user?.id, activeClubFilter, activeClubTeamIds],
     queryFn: async () => {
       if (!user?.id || !activeClubFilter) return 0;
-      const { count } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("club_id", activeClubFilter)
-        .eq("is_read", false)
-        .in("type", MESSAGE_NOTIFICATION_TYPES);
-      return count || 0;
+      const counts = await fetchUnreadMessageCounts(user.id);
+
+      // Resolve which chat groups belong to this club (team-scoped or club-scoped).
+      const groupIds = Object.keys(counts.groups);
+      let clubGroupIds = new Set<string>();
+      if (groupIds.length > 0) {
+        const { data: groups } = await supabase
+          .from("chat_groups")
+          .select("id, club_id, team_id")
+          .in("id", groupIds);
+        groups?.forEach((g) => {
+          if (g.club_id === activeClubFilter) clubGroupIds.add(g.id);
+          else if (g.team_id && activeClubTeamIds.includes(g.team_id)) clubGroupIds.add(g.id);
+        });
+      }
+
+      const sumRecord = (rec: Record<string, number>, keys: string[]) =>
+        keys.reduce((acc, k) => acc + (rec[k] || 0), 0);
+
+      return (
+        counts.broadcast +
+        (counts.clubs[activeClubFilter] || 0) +
+        sumRecord(counts.teams, activeClubTeamIds) +
+        sumRecord(counts.groups, Array.from(clubGroupIds)) +
+        Object.values(counts.dms).reduce((a, b) => a + b, 0)
+      );
     },
     enabled: !!user?.id && !!activeClubFilter,
     staleTime: 10_000,
@@ -68,8 +89,9 @@ export function BottomNav() {
     return false;
   }, [location.pathname]);
 
-  // Use both keyboard detection signals for maximum reliability on native
-  const shouldHideNav = isChatThreadRoute && (isKeyboardOpen || nativeKbHeight > 0);
+  // Hide the nav whenever the on-screen keyboard is up so it doesn't cover
+  // the focused input on form pages (and stays out of the way in chat threads).
+  const shouldHideNav = isKeyboardOpen || nativeKbHeight > 0;
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],

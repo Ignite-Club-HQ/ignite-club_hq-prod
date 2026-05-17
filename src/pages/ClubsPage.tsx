@@ -64,6 +64,7 @@ export default function ClubsPage() {
         .from("clubs")
         .select("id, name, logo_url, description, sport, is_pro, created_by, primary_sponsor_id")
         .is("deleted_at", null)
+        .eq("kind", "full")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
