@@ -7936,7 +7936,9 @@ export type Database = {
         Row: {
           archived_at: string | null
           auto_chat_post_enabled: boolean
+          auto_rsvp_dm_cadences: string[]
           auto_rsvp_dm_enabled: boolean
+          auto_rsvp_dm_event_types: string[]
           class_capacity: number | null
           class_day: string | null
           class_duration_minutes: number | null
@@ -7972,7 +7974,9 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           auto_chat_post_enabled?: boolean
+          auto_rsvp_dm_cadences?: string[]
           auto_rsvp_dm_enabled?: boolean
+          auto_rsvp_dm_event_types?: string[]
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -8008,7 +8012,9 @@ export type Database = {
         Update: {
           archived_at?: string | null
           auto_chat_post_enabled?: boolean
+          auto_rsvp_dm_cadences?: string[]
           auto_rsvp_dm_enabled?: boolean
+          auto_rsvp_dm_event_types?: string[]
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null

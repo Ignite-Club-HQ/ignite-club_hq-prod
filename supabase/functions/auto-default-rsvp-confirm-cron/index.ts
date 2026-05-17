@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const trainings = events.filter((e) => e.teams?.auto_rsvp_dm_enabled ?? true);
+    const trainings = events.filter((e) => e.teams?.auto_rsvp_dm_enabled ?? false);
     if (trainings.length === 0) {
       return new Response(JSON.stringify({ ok: true, totalEvents: 0, totalSent: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

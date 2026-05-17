@@ -47,6 +47,9 @@ export default function EditTeamPage() {
   const [classDuration, setClassDuration] = useState<number | null>(null);
   const [classCapacity, setClassCapacity] = useState<number | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [autoRsvpDm, setAutoRsvpDm] = useState(false);
+  const [autoRsvpCadences, setAutoRsvpCadences] = useState<string[]>(["t72", "t24", "t3"]);
+  const [autoRsvpEventTypes, setAutoRsvpEventTypes] = useState<string[]>(["match", "training", "game"]);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
@@ -90,6 +93,11 @@ export default function EditTeamPage() {
       setClassDuration((team as any).class_duration_minutes ?? null);
       setClassCapacity((team as any).class_capacity ?? null);
       setIsActive(!team.is_archived);
+      setAutoRsvpDm(!!(team as any).auto_rsvp_dm_enabled);
+      const cad = (team as any).auto_rsvp_dm_cadences;
+      if (Array.isArray(cad) && cad.length) setAutoRsvpCadences(cad);
+      const types = (team as any).auto_rsvp_dm_event_types;
+      if (Array.isArray(types) && types.length) setAutoRsvpEventTypes(types);
     }
   }, [team]);
 
@@ -181,6 +189,13 @@ export default function EditTeamPage() {
         folder_id: folderId || null,
         team_type: teamType,
         is_archived: !isActive,
+        auto_rsvp_dm_enabled: autoRsvpDm,
+        auto_rsvp_dm_cadences: autoRsvpCadences.length ? autoRsvpCadences : ["t72", "t24", "t3"],
+        auto_rsvp_dm_event_types: autoRsvpEventTypes.length
+          ? (autoRsvpEventTypes.includes("match") && !autoRsvpEventTypes.includes("game")
+              ? [...autoRsvpEventTypes, "game"]
+              : autoRsvpEventTypes)
+          : ["match", "training", "game"],
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
@@ -414,7 +429,92 @@ export default function EditTeamPage() {
             </div>
           )}
 
-          {/* Class Mode Fields */}
+          {/* Auto RSVP DM Reminders */}
+          <div className="pt-2 border-t space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label className="text-base">Auto RSVP reminders</Label>
+                <p className="text-sm text-muted-foreground">
+                  When on, the club bot DMs members who haven't responded. Off by default.
+                </p>
+              </div>
+              <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
+            </div>
+
+            {autoRsvpDm && (
+              <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="space-y-2">
+                  <Label className="text-sm">When to send</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: "t72", label: "3 days before" },
+                      { v: "t24", label: "1 day before" },
+                      { v: "t3", label: "3h before" },
+                    ].map((opt) => {
+                      const active = autoRsvpCadences.includes(opt.v);
+                      return (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() =>
+                            setAutoRsvpCadences((prev) =>
+                              active ? prev.filter((c) => c !== opt.v) : [...prev, opt.v]
+                            )
+                          }
+                          className={`p-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                            active
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {autoRsvpCadences.length === 0 && (
+                    <p className="text-xs text-destructive">Pick at least one time, or nothing will be sent.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Send for</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { v: "match", label: "Matches" },
+                      { v: "training", label: "Training" },
+                    ].map((opt) => {
+                      const active = autoRsvpEventTypes.includes(opt.v);
+                      return (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() =>
+                            setAutoRsvpEventTypes((prev) =>
+                              active ? prev.filter((c) => c !== opt.v && c !== "game") :
+                                opt.v === "match" ? [...prev, "match", "game"] : [...prev, opt.v]
+                            )
+                          }
+                          className={`p-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                            active
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {autoRsvpEventTypes.length === 0 && (
+                    <p className="text-xs text-destructive">Pick at least one event type.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+
           {(team?.clubs as any)?.class_mode_enabled && (
             <ClassFieldsSection
               classDay={classDay}
