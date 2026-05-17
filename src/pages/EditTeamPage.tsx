@@ -91,6 +91,7 @@ export default function EditTeamPage() {
       setClassDuration((team as any).class_duration_minutes ?? null);
       setClassCapacity((team as any).class_capacity ?? null);
       setIsActive(!team.is_archived);
+      setAutoRsvpDm(!!(team as any).auto_rsvp_dm_enabled);
     }
   }, [team]);
 
