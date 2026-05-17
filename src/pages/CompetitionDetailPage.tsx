@@ -609,8 +609,13 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Add a new division</h3>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Divisions group teams (e.g. by age or skill) so fixtures and ladders are organised.</p>
         <div>
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. U12 Mixed Div 1" />
