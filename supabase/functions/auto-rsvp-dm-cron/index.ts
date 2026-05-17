@@ -33,7 +33,12 @@ interface EventRow {
   type: string;
   team_id: string;
   club_id: string | null;
-  teams: { name: string; auto_rsvp_dm_enabled: boolean | null } | null;
+  teams: {
+    name: string;
+    auto_rsvp_dm_enabled: boolean | null;
+    auto_rsvp_dm_cadences: string[] | null;
+    auto_rsvp_dm_event_types: string[] | null;
+  } | null;
   clubs: { name: string; logo_url: string | null; bot_user_id: string | null } | null;
 }
 
@@ -177,7 +182,7 @@ Deno.serve(async (req) => {
         .from("events")
         .select(`
           id, title, event_date, start_time, type, team_id, club_id,
-          teams!inner (name, auto_rsvp_dm_enabled),
+          teams!inner (name, auto_rsvp_dm_enabled, auto_rsvp_dm_cadences, auto_rsvp_dm_event_types),
           clubs (name, logo_url, bot_user_id)
         `)
         .gte("event_date", lo)
@@ -191,11 +196,14 @@ Deno.serve(async (req) => {
       }
       if (!events || events.length === 0) continue;
 
-      // Restrict to match/training/game events ("game" is treated as match).
-      const rsvpEvents = events.filter((e) =>
-        ["match", "training", "game"].includes((e.type || "").toLowerCase())
-        && (e.teams?.auto_rsvp_dm_enabled ?? false)
-      );
+      // Apply per-team toggle + cadence allow-list + event-type allow-list.
+      const rsvpEvents = events.filter((e) => {
+        if (!(e.teams?.auto_rsvp_dm_enabled ?? false)) return false;
+        const allowedTypes = e.teams?.auto_rsvp_dm_event_types ?? ["match", "training", "game"];
+        const allowedCadences = e.teams?.auto_rsvp_dm_cadences ?? ["t72", "t24", "t3"];
+        if (!allowedCadences.includes(cadence)) return false;
+        return allowedTypes.includes((e.type || "").toLowerCase());
+      });
       if (rsvpEvents.length === 0) continue;
 
       // Pro check — batch by team_id and club_id.
