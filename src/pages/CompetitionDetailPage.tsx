@@ -181,7 +181,12 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      <Tabs defaultValue={competition.status === "draft" && isAdmin ? "teams" : "fixtures"}>
+      
+      <Tabs defaultValue={
+        entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+          ? "teams"
+          : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
+      }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
