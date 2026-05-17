@@ -224,11 +224,6 @@ export default function CompetitionDetailPage() {
           </TabsContent>
         )}
 
-        {isAdmin && (
-          <TabsContent value="manage" className="space-y-3">
-            <EditCompetitionForm competition={competition} onDone={() => qc.invalidateQueries({ queryKey: ["competition", id] })} />
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   );
