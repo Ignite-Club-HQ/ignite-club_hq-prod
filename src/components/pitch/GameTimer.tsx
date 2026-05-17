@@ -452,30 +452,56 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   }, [isRunning, halfDurationSeconds, currentHalf]);
 
   // Reconcile timer when app resumes from background (no 30s cap)
+  // CRITICAL: register listeners ONCE per teamId. Previously the dep array
+  // included elapsedSeconds/currentHalf/isRunning, causing this effect to
+  // tear down + re-register every tick. On Android Capacitor the async
+  // `import('@capacitor/app')` couldn't keep up, leaking listeners and
+  // racing with cleanup (so reconcile sometimes never ran on resume).
+  const reconcileRefs = useRef({
+    isRunning,
+    isGameFinished,
+    currentHalf,
+    elapsedSeconds,
+    minutesPerHalf,
+    halfDurationSeconds,
+    teamId,
+    teamName,
+  });
+  reconcileRefs.current = {
+    isRunning,
+    isGameFinished,
+    currentHalf,
+    elapsedSeconds,
+    minutesPerHalf,
+    halfDurationSeconds,
+    teamId,
+    teamName,
+  };
+
   useEffect(() => {
     const reconcileAfterResume = () => {
-      if (isGameFinished) return;
-      // Re-read from localStorage to get the lastUpdateTime from when we were last active
-      const saved = loadTimerState(teamId);
+      const r = reconcileRefs.current;
+      if (r.isGameFinished) return;
+      const saved = loadTimerState(r.teamId);
       if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
 
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
       if (uncappedDrift < 2) return;
 
-      // Carry-over: a long lock can span the rest of half 1 + into half 2
+      const halfDur = (r.minutesPerHalf || saved.minutesPerHalf) * 60;
       let half: 1 | 2 = saved.currentHalf;
       let elapsed = (saved.elapsedSeconds || 0) + uncappedDrift;
       let running = true;
       let finished = false;
       let crossedHalf = false;
-      if (half === 1 && elapsed >= halfDurationSeconds) {
+      if (half === 1 && elapsed >= halfDur) {
         half = 2;
-        elapsed = elapsed - halfDurationSeconds;
-        running = false; // coach must press play for 2nd half
+        elapsed = elapsed - halfDur;
+        running = false;
         crossedHalf = true;
       }
-      if (half === 2 && elapsed >= halfDurationSeconds) {
-        elapsed = halfDurationSeconds;
+      if (half === 2 && elapsed >= halfDur) {
+        elapsed = halfDur;
         running = false;
         finished = true;
       }
@@ -493,53 +519,52 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     };
 
-    // Flush a fresh lastUpdateTime snapshot when the page is about to be
-    // suspended so the next resume can compute drift accurately even if
-    // the last setInterval tick hasn't fired yet.
     const flushOnHide = () => {
-      if (!isRunning || isGameFinished) return;
+      const r = reconcileRefs.current;
+      if (!r.isRunning || r.isGameFinished) return;
       try {
         saveTimerState({
-          minutesPerHalf,
-          currentHalf,
-          elapsedSeconds,
+          minutesPerHalf: r.minutesPerHalf,
+          currentHalf: r.currentHalf,
+          elapsedSeconds: r.elapsedSeconds,
           isRunning: true,
           lastUpdateTime: Date.now(),
-          teamId,
-          teamName,
+          teamId: r.teamId,
+          teamName: r.teamName,
           isGameFinished: false,
-        }, teamId);
+        }, r.teamId);
       } catch {}
     };
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        reconcileAfterResume();
-      } else {
-        flushOnHide();
-      }
+      if (document.visibilityState === 'visible') reconcileAfterResume();
+      else flushOnHide();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('pageshow', reconcileAfterResume);
     window.addEventListener('focus', reconcileAfterResume);
     window.addEventListener('pagehide', flushOnHide);
     window.addEventListener('beforeunload', flushOnHide);
-    // Chromium "freeze" event fires when the tab is about to be discarded
     document.addEventListener('freeze', flushOnHide as any);
     document.addEventListener('resume', reconcileAfterResume as any);
 
-    // Also listen for Capacitor app resume / pause
+    // Capacitor app state — track listener + cancellation so cleanup can't race
     let appListener: any = null;
-    const setupNative = async () => {
+    let cancelled = false;
+    (async () => {
       try {
         const { App: CapApp } = await import('@capacitor/app');
-        appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
+        const listener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
           if (isActive) reconcileAfterResume();
           else flushOnHide();
         });
+        if (cancelled) {
+          listener.remove();
+        } else {
+          appListener = listener;
+        }
       } catch {}
-    };
-    setupNative();
+    })();
 
     // Run reconciliation immediately on mount — handles the case where
     // the app resumed (visibilitychange/appStateChange already fired)
@@ -547,6 +572,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     reconcileAfterResume();
 
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('pageshow', reconcileAfterResume);
       window.removeEventListener('focus', reconcileAfterResume);
@@ -556,7 +582,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       document.removeEventListener('resume', reconcileAfterResume as any);
       appListener?.remove?.();
     };
-  }, [isRunning, isGameFinished, teamId, teamName, halfDurationSeconds, currentHalf, elapsedSeconds, minutesPerHalf]);
+  }, [teamId]);
 
   // Notify parent of time updates — use stable ref to avoid re-firing
   // when the callback identity changes (which was doubling player minutes).
