@@ -140,7 +140,7 @@ export default function CompetitionDetailPage() {
       )}
 
       <Tabs defaultValue="entries">
-        <TabsList>
+        <TabsList className="w-full overflow-x-auto justify-start no-scrollbar">
           <TabsTrigger value="entries">Teams</TabsTrigger>
           <TabsTrigger value="divisions">Divisions</TabsTrigger>
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
