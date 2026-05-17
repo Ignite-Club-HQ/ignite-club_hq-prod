@@ -22,6 +22,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
