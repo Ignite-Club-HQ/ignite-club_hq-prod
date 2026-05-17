@@ -190,6 +190,12 @@ export default function EditTeamPage() {
         team_type: teamType,
         is_archived: !isActive,
         auto_rsvp_dm_enabled: autoRsvpDm,
+        auto_rsvp_dm_cadences: autoRsvpCadences.length ? autoRsvpCadences : ["t72", "t24", "t3"],
+        auto_rsvp_dm_event_types: autoRsvpEventTypes.length
+          ? (autoRsvpEventTypes.includes("match") && !autoRsvpEventTypes.includes("game")
+              ? [...autoRsvpEventTypes, "game"]
+              : autoRsvpEventTypes)
+          : ["match", "training", "game"],
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
