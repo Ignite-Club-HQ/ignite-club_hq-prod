@@ -587,6 +587,24 @@ function EditCompetitionForm({ competition, onDone }: { competition: any; onDone
           <Label>Description</Label>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
+        <div className="pt-2 border-t">
+          <Label className="text-sm font-medium">Ladder points</Label>
+          <p className="text-xs text-muted-foreground mb-2">How many points each result is worth on the ladder.</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Win</Label>
+              <Input type="number" inputMode="numeric" value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Draw</Label>
+              <Input type="number" inputMode="numeric" value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Loss</Label>
+              <Input type="number" inputMode="numeric" value={pointsLoss} onChange={(e) => setPointsLoss(e.target.value)} />
+            </div>
+          </div>
+        </div>
         <Button size="sm" onClick={save} disabled={saving || !name.trim()}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           Save changes
