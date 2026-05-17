@@ -456,7 +456,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
       
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-      if (uncappedDrift <= 30) return; // Normal tick would have handled this
+      // Always reconcile if drift > 1s. The in-app setInterval is paused while
+      // backgrounded (iOS/Android lock screen, app switched away), so even a
+      // few seconds of drift need to be added back — otherwise the clock
+      // appears to freeze whenever the phone is locked.
+      if (uncappedDrift < 2) return;
 
       // Keep the clock advancing across long backgrounding (screen lock,
       // app switch). halfDurationSeconds caps it below; end-of-half handling
