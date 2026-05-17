@@ -21,7 +21,7 @@ const options: Option[] = [
     title: "Start a Team",
     subtitle: "Social, twilight, or one-off team",
     description:
-      "Quickest path. Run a single team with chat, schedule, RSVPs and the pitch board. You can attach a club later.",
+      "Quickest path. Run a single team with chat, schedule, RSVPs and the game board. You can attach a club later.",
   },
   {
     to: "/clubs/new",
