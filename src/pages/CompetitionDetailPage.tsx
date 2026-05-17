@@ -133,6 +133,11 @@ export default function CompetitionDetailPage() {
             {isAdmin && <Badge><Shield className="h-3 w-3 mr-1" /> Admin</Badge>}
           </div>
         </div>
+        {isAdmin && (
+          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+            <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
+          </Button>
+        )}
       </header>
 
       {competition.description && (
