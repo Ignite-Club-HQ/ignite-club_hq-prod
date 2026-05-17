@@ -403,7 +403,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
-  const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
+  // Track if game has started. Initialize from saved timer state so that
+  // a page reload mid-match (or a parent re-render before the first timer
+  // tick) cannot let the prop-sync effect below clobber the live
+  // minutesPerHalf with a transient `|| 10` fallback from the parent.
+  const [gameInProgress, setGameInProgress] = useState(() => {
+    try {
+      const t = loadTimerStateForMinutes(teamId);
+      if (!t) return false;
+      return !!(t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished);
+    } catch {
+      return false;
+    }
+  });
   const [timerResetKey, setTimerResetKey] = useState(0); // Key to force remount GameTimer instances on reset
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
