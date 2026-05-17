@@ -246,6 +246,5 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
         )}
       </CardContent>
     </Card>
-    </div>
   );
 }
