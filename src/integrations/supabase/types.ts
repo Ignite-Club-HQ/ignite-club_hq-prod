@@ -297,6 +297,54 @@ export type Database = {
         }
         Relationships: []
       }
+      association_broadcasts: {
+        Row: {
+          association_id: string
+          club_ids: string[] | null
+          created_at: string
+          id: string
+          message: string
+          recipient_team_count: number
+          sent_by: string
+          team_ids: string[]
+        }
+        Insert: {
+          association_id: string
+          club_ids?: string[] | null
+          created_at?: string
+          id?: string
+          message: string
+          recipient_team_count?: number
+          sent_by: string
+          team_ids?: string[]
+        }
+        Update: {
+          association_id?: string
+          club_ids?: string[] | null
+          created_at?: string
+          id?: string
+          message?: string
+          recipient_team_count?: number
+          sent_by?: string
+          team_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "association_broadcasts_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "association_broadcasts_association_id_fkey"
+            columns: ["association_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action_type: string
@@ -9403,6 +9451,10 @@ export type Database = {
       increment_user_club_points: {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
+      }
+      is_association_admin: {
+        Args: { _association_id: string; _user_id: string }
+        Returns: boolean
       }
       is_blocked_by: {
         Args: { _blocked_id: string; _blocker_id: string }
