@@ -181,7 +181,7 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      {(() => null)()}
+      
       <Tabs defaultValue={
         entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
           ? "teams"
