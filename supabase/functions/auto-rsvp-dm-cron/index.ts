@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       // Restrict to match/training/game events ("game" is treated as match).
       const rsvpEvents = events.filter((e) =>
         ["match", "training", "game"].includes((e.type || "").toLowerCase())
-        && (e.teams?.auto_rsvp_dm_enabled ?? true)
+        && (e.teams?.auto_rsvp_dm_enabled ?? false)
       );
       if (rsvpEvents.length === 0) continue;
 

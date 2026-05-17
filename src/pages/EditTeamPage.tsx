@@ -47,6 +47,7 @@ export default function EditTeamPage() {
   const [classDuration, setClassDuration] = useState<number | null>(null);
   const [classCapacity, setClassCapacity] = useState<number | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [autoRsvpDm, setAutoRsvpDm] = useState(false);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
@@ -90,6 +91,7 @@ export default function EditTeamPage() {
       setClassDuration((team as any).class_duration_minutes ?? null);
       setClassCapacity((team as any).class_capacity ?? null);
       setIsActive(!team.is_archived);
+      setAutoRsvpDm(!!(team as any).auto_rsvp_dm_enabled);
     }
   }, [team]);
 
@@ -181,6 +183,7 @@ export default function EditTeamPage() {
         folder_id: folderId || null,
         team_type: teamType,
         is_archived: !isActive,
+        auto_rsvp_dm_enabled: autoRsvpDm,
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
@@ -414,7 +417,18 @@ export default function EditTeamPage() {
             </div>
           )}
 
-          {/* Class Mode Fields */}
+          {/* Auto RSVP DM Reminders */}
+          <div className="flex items-start justify-between gap-3 pt-2 border-t">
+            <div className="space-y-0.5">
+              <Label className="text-base">Auto RSVP reminders</Label>
+              <p className="text-sm text-muted-foreground">
+                When on, the club bot DMs members who haven't responded at 72h, 24h and 3h before an event. Off by default.
+              </p>
+            </div>
+            <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
+          </div>
+
+
           {(team?.clubs as any)?.class_mode_enabled && (
             <ClassFieldsSection
               classDay={classDay}
