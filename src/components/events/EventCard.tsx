@@ -532,6 +532,32 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                     {eventDisplay.secondary}
                   </p>
                 )}
+                {isPastMatch && matchScore && (matchScore.home_score != null || matchScore.away_score != null) && (() => {
+                  const hs = matchScore.home_score ?? 0;
+                  const as = matchScore.away_score ?? 0;
+                  const teamName = event.teams?.name?.trim();
+                  const homeLabel = matchScore.home_label?.trim();
+                  const isTeamHome = !!teamName && !!homeLabel && homeLabel.toLowerCase() === teamName.toLowerCase();
+                  const ourScore = isTeamHome ? hs : as;
+                  const theirScore = isTeamHome ? as : hs;
+                  const result = ourScore > theirScore ? "W" : ourScore < theirScore ? "L" : "D";
+                  const resultClass =
+                    result === "W"
+                      ? "bg-success/15 text-success border-success/30"
+                      : result === "L"
+                      ? "bg-destructive/15 text-destructive border-destructive/30"
+                      : "bg-muted text-muted-foreground border-border";
+                  return (
+                    <div className="mt-1 pl-5 flex items-center gap-1.5">
+                      <Badge variant="outline" className={`text-[10.5px] h-[18px] px-1.5 font-bold ${resultClass}`}>
+                        {result}
+                      </Badge>
+                      <span className="text-[13px] font-bold tabular-nums text-foreground">
+                        {ourScore} – {theirScore}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
