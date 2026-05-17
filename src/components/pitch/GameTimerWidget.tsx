@@ -418,6 +418,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     reconcileAfterResume();
 
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('pageshow', reconcileAfterResume);
       window.removeEventListener('focus', reconcileAfterResume);
