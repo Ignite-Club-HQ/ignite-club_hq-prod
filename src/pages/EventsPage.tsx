@@ -590,9 +590,13 @@ export default function EventsPage() {
   const upcomingEvents = events?.filter(
     (e) => new Date(e.event_date) >= startOfDay(new Date())
   );
-  const pastEvents = events?.filter(
-    (e) => new Date(e.event_date) < startOfDay(new Date())
-  );
+  const pastEvents = events
+    ?.filter((e) => new Date(e.event_date) < startOfDay(new Date()))
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
+    );
 
   // Get events for selected date in calendar view
   const selectedDateEvents = selectedDate

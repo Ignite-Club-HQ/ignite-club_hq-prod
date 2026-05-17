@@ -128,6 +128,26 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     opponent: event.opponent,
   });
   const typeAccentClasses = getEventTypeAccentClasses(typeAccent);
+
+  // Fetch final score for past match events to display inline.
+  const isPastMatch =
+    event.type === "game" &&
+    !event.is_cancelled &&
+    !event.is_bye &&
+    new Date(event.event_date).getTime() < Date.now();
+  const { data: matchScore } = useQuery({
+    queryKey: ["event-card-score", event.id],
+    enabled: isPastMatch,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("game_results")
+        .select("home_score, away_score, home_label, away_label")
+        .eq("event_id", event.id)
+        .maybeSingle();
+      return data;
+    },
+  });
   // "Today" boost — full-strength rail; otherwise dim slightly so today reads first.
   const isToday = (() => {
     try {
@@ -512,6 +532,32 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                     {eventDisplay.secondary}
                   </p>
                 )}
+                {isPastMatch && matchScore && (matchScore.home_score != null || matchScore.away_score != null) && (() => {
+                  const hs = matchScore.home_score ?? 0;
+                  const as = matchScore.away_score ?? 0;
+                  const teamName = event.teams?.name?.trim();
+                  const homeLabel = matchScore.home_label?.trim();
+                  const isTeamHome = !!teamName && !!homeLabel && homeLabel.toLowerCase() === teamName.toLowerCase();
+                  const ourScore = isTeamHome ? hs : as;
+                  const theirScore = isTeamHome ? as : hs;
+                  const result = ourScore > theirScore ? "W" : ourScore < theirScore ? "L" : "D";
+                  const resultClass =
+                    result === "W"
+                      ? "bg-success/15 text-success border-success/30"
+                      : result === "L"
+                      ? "bg-destructive/15 text-destructive border-destructive/30"
+                      : "bg-muted text-muted-foreground border-border";
+                  return (
+                    <div className="mt-1 pl-5 flex items-center gap-1.5">
+                      <Badge variant="outline" className={`text-[10.5px] h-[18px] px-1.5 font-bold ${resultClass}`}>
+                        {result}
+                      </Badge>
+                      <span className="text-[13px] font-bold tabular-nums text-foreground">
+                        {ourScore} – {theirScore}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
