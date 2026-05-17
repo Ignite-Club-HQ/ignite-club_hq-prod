@@ -198,7 +198,7 @@ export default function CompetitionDetailPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {isAdmin && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
