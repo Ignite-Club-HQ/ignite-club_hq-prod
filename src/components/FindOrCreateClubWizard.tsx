@@ -86,6 +86,7 @@ export default function FindOrCreateClubWizard({
       let query = supabase
         .from("clubs")
         .select("id, name, logo_url, city, state, sport")
+        .eq("kind", "full")
         .ilike("name", `%${searchQuery.trim()}%`)
         .order("name")
         .limit(10);
