@@ -411,6 +411,11 @@ export function MatchScoreCard({
                     <SelectValue placeholder="Select a player…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64 z-[1000010]">
+                    {!scorers.some((s) => s.id === OWN_GOAL_ID) && (
+                      <SelectItem value={OWN_GOAL_ID}>
+                        {OWN_GOAL_NAME}
+                      </SelectItem>
+                    )}
                     {availableToAdd.length === 0 ? (
                       <div className="px-2 py-3 text-xs text-muted-foreground">
                         {roster?.length ? "All players added" : "No players found"}
