@@ -347,13 +347,29 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
   const [divisionId, setDivisionId] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [clubFilterId, setClubFilterId] = useState<string>("");
+  const [clubSearch, setClubSearch] = useState("");
+
+  const { data: clubs = [] } = useQuery({
+    queryKey: ["clubs-for-team-invite", clubSearch],
+    enabled: open,
+    queryFn: async () => {
+      let q = supabase.from("clubs").select("id, name").order("name").limit(50);
+      if (clubSearch.trim()) q = q.ilike("name", `%${clubSearch.trim()}%`);
+      const { data } = await q;
+      return data ?? [];
+    },
+  });
+
+  const selectedClub = clubs.find((c: any) => c.id === clubFilterId);
 
   const { data: teams = [] } = useQuery({
-    queryKey: ["all-teams-for-invite", search],
+    queryKey: ["all-teams-for-invite", search, clubFilterId],
     enabled: open,
     queryFn: async () => {
       let q = supabase.from("teams").select("id, name, clubs:club_id(name)").order("name").limit(50);
       if (search.trim()) q = q.ilike("name", `%${search.trim()}%`);
+      if (clubFilterId) q = q.eq("club_id", clubFilterId);
       const { data } = await q;
       return data ?? [];
     },
@@ -392,6 +408,39 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
     <Card>
       <CardContent className="p-4 space-y-3">
         <div>
+          <Label>Filter by club (optional)</Label>
+          {selectedClub ? (
+            <div className="mt-1 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+              <div className="text-sm font-medium">{selectedClub.name}</div>
+              <Button size="sm" variant="ghost" onClick={() => { setClubFilterId(""); setClubSearch(""); setTeamId(""); }}>Clear</Button>
+            </div>
+          ) : (
+            <>
+              <Input
+                value={clubSearch}
+                onChange={(e) => setClubSearch(e.target.value)}
+                placeholder="Search clubs"
+              />
+              {clubSearch.trim().length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-md border divide-y">
+                  {clubs.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No clubs found.</div>
+                  ) : clubs.map((c: any) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => { setClubFilterId(c.id); setClubSearch(""); setTeamId(""); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div>
           <Label>Find team</Label>
           <Input
             value={search}
@@ -407,7 +456,7 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
               </div>
               <Button size="sm" variant="ghost" onClick={() => setTeamId("")}>Change</Button>
             </div>
-          ) : search.trim().length > 0 && (
+          ) : (search.trim().length > 0 || clubFilterId) && (
             <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
               {teams.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
