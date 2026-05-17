@@ -94,6 +94,10 @@ export default function EditTeamPage() {
       setClassCapacity((team as any).class_capacity ?? null);
       setIsActive(!team.is_archived);
       setAutoRsvpDm(!!(team as any).auto_rsvp_dm_enabled);
+      const cad = (team as any).auto_rsvp_dm_cadences;
+      if (Array.isArray(cad) && cad.length) setAutoRsvpCadences(cad);
+      const types = (team as any).auto_rsvp_dm_event_types;
+      if (Array.isArray(types) && types.length) setAutoRsvpEventTypes(types);
     }
   }, [team]);
 
