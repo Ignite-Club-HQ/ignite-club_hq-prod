@@ -1698,13 +1698,7 @@ export default function HomePage() {
 
       {/* Team Actions — compact secondary utilities below primary team content */}
       <HomeQuickActions
-        onCreateTeam={() => {
-          if (activeClubFilter) {
-            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-          } else {
-            navigate("/clubs", { state: { fromCreateTeam: true } });
-          }
-        }}
+        onCreateTeam={() => navigate("/start")}
         onInvite={() => setMemberInviteOpen(true)}
         onJoinTeam={() => setTeamDialogOpen(true)}
         hasTeams={!!userRoles?.some(r => r.team_id)}
