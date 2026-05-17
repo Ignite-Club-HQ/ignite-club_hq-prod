@@ -142,6 +142,7 @@ export default function CompetitionDetailPage() {
         <TabsList>
           <TabsTrigger value="entries">Teams</TabsTrigger>
           <TabsTrigger value="divisions">Divisions</TabsTrigger>
+          {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
           {isAdmin && <TabsTrigger value="manage">Manage</TabsTrigger>}
         </TabsList>
 
