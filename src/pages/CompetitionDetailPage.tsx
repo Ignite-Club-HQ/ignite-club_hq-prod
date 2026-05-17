@@ -272,7 +272,7 @@ function TeamsByDivision({
               const canRespond = e.status === "invited" && myAdminTeamIds.includes(e.team_id);
               return (
                 <Card key={e.id}>
-                  <CardContent className="p-4 flex items-center gap-3">
+                  <CardContent className="p-4 flex flex-wrap items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{e.teams?.name}</div>
                       <div className="text-xs text-muted-foreground truncate">
