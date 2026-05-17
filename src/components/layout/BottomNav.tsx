@@ -89,8 +89,9 @@ export function BottomNav() {
     return false;
   }, [location.pathname]);
 
-  // Use both keyboard detection signals for maximum reliability on native
-  const shouldHideNav = isChatThreadRoute && (isKeyboardOpen || nativeKbHeight > 0);
+  // Hide the nav whenever the on-screen keyboard is up so it doesn't cover
+  // the focused input on form pages (and stays out of the way in chat threads).
+  const shouldHideNav = isKeyboardOpen || nativeKbHeight > 0;
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
