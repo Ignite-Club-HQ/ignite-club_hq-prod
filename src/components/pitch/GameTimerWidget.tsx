@@ -190,6 +190,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [editedPlayerOutId, setEditedPlayerOutId] = useState<string | null>(null);
   const [editedPlayerInId, setEditedPlayerInId] = useState<string | null>(null);
 
+  // Keep the screen awake while a game is actively running.
+  useWakeLock(!!timerState?.isRunning && !gameFinished);
+
   const playersOnPitch = useMemo(() => allPlayers.filter(p => p.position !== null), [allPlayers]);
   const availableBenchPlayers = useMemo(() => allPlayers.filter(p => p.position === null && !p.isInjured), [allPlayers]);
 
