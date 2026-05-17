@@ -119,7 +119,7 @@ export default function CompetitionDetailPage() {
         <Link to="/competitions"><ArrowLeft className="h-4 w-4 mr-1" /> Competitions</Link>
       </Button>
 
-      <header className="flex items-start gap-3">
+      <header className="flex items-start gap-2">
         <div className="rounded-xl bg-primary/10 p-3">
           <Trophy className="h-6 w-6 text-primary" />
         </div>
@@ -130,10 +130,46 @@ export default function CompetitionDetailPage() {
           </p>
           <div className="flex gap-2 mt-2 flex-wrap">
             <Badge variant="secondary" className="capitalize">{competition.status}</Badge>
-            <Badge variant="outline" className="capitalize">{competition.visibility}</Badge>
-            {isAdmin && <Badge><Shield className="h-3 w-3 mr-1" /> Admin</Badge>}
+            {competition.visibility === "public" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/c/${id}`;
+                  navigator.clipboard?.writeText(url).then(
+                    () => toast({ title: "Public link copied" }),
+                    () => toast({ title: "Public link", description: url }),
+                  );
+                }}
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold hover:bg-muted"
+              >
+                <LinkIcon className="h-3 w-3" /> Public
+              </button>
+            ) : (
+              <Badge variant="outline" className="capitalize">{competition.visibility}</Badge>
+            )}
           </div>
         </div>
+        {isAdmin && (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Broadcasts">
+                <Megaphone className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Broadcasts</SheetTitle>
+              </SheetHeader>
+              <div className="pt-4">
+                <BroadcastsPanel
+                  competitionId={id!}
+                  divisions={divisions}
+                  acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
         {isAdmin && (
           <Button asChild variant="ghost" size="icon" aria-label="Settings">
             <Link to={`/competitions/${id}/settings`}><Settings className="h-5 w-5" /></Link>
@@ -145,21 +181,94 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      <Tabs defaultValue="entries">
-        <TabsList className="w-full max-w-full overflow-x-auto justify-start [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <TabsTrigger value="entries">Teams</TabsTrigger>
-          <TabsTrigger value="divisions">Divisions</TabsTrigger>
-          <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
-          <TabsTrigger value="ladder">Ladder</TabsTrigger>
-          {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
+      <Tabs defaultValue={competition.status === "draft" && isAdmin ? "teams" : "fixtures"}>
+        <TabsList className="w-full">
+          <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
+          <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
+          <TabsTrigger value="teams" className="flex-1">Teams</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="entries" className="space-y-2">
-          {isAdmin && <InviteTeamForm competitionId={id!} divisions={divisions} onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })} />}
-          {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No teams yet.</p>
+        <TabsContent value="fixtures" className="space-y-2">
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
+        </TabsContent>
+
+        <TabsContent value="ladder" className="space-y-2">
+          <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
+        </TabsContent>
+
+        <TabsContent value="teams" className="space-y-4">
+          {isAdmin && (
+            <div className="flex flex-wrap gap-2">
+              <InviteTeamForm
+                competitionId={id!}
+                divisions={divisions}
+                onDone={() => qc.invalidateQueries({ queryKey: ["competition-entries", id] })}
+              />
+              <AddDivisionForm
+                competitionId={id!}
+                onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })}
+              />
+            </div>
+          )}
+
+          <TeamsByDivision
+            divisions={divisions}
+            entries={entries}
+            myAdminTeamIds={myAdminTeamIds}
+            onRespond={respondToInvite}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function TeamsByDivision({
+  divisions,
+  entries,
+  myAdminTeamIds,
+  onRespond,
+}: {
+  divisions: any[];
+  entries: any[];
+  myAdminTeamIds: string[];
+  onRespond: (entryId: string, status: "accepted" | "declined") => void;
+}) {
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted-foreground">No teams yet.</p>;
+  }
+
+  const groups: { id: string | null; name: string; meta?: string; entries: any[] }[] = [];
+  for (const d of divisions) {
+    groups.push({
+      id: d.id,
+      name: d.name,
+      meta: [d.age_group, d.gender, d.skill_level].filter(Boolean).join(" · "),
+      entries: entries.filter((e: any) => e.division_id === d.id),
+    });
+  }
+  const unassigned = entries.filter((e: any) => !e.division_id);
+  if (unassigned.length > 0) {
+    groups.push({ id: null, name: "Unassigned", entries: unassigned });
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((g) => (
+        <div key={g.id ?? "unassigned"} className="space-y-2">
+          <div className="flex items-baseline justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">{g.name}</h3>
+              {g.meta && <p className="text-xs text-muted-foreground">{g.meta}</p>}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {g.entries.length} team{g.entries.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {g.entries.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No teams in this division yet.</p>
           ) : (
-            entries.map((e: any) => {
+            g.entries.map((e: any) => {
               const canRespond = e.status === "invited" && myAdminTeamIds.includes(e.team_id);
               return (
                 <Card key={e.id}>
@@ -167,16 +276,16 @@ export default function CompetitionDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{e.teams?.name}</div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {[e.teams?.clubs?.name, e.competition_divisions?.name].filter(Boolean).join(" · ") || "—"}
+                        {e.teams?.clubs?.name || "—"}
                       </div>
                     </div>
                     <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
                     {canRespond && (
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => respondToInvite(e.id, "accepted")}>
+                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "accepted")}>
                           <Check className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => respondToInvite(e.id, "declined")}>
+                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")}>
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
@@ -186,46 +295,8 @@ export default function CompetitionDetailPage() {
               );
             })
           )}
-        </TabsContent>
-
-        <TabsContent value="divisions" className="space-y-2">
-          {isAdmin && <AddDivisionForm competitionId={id!} onDone={() => qc.invalidateQueries({ queryKey: ["competition-divisions", id] })} />}
-          {divisions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No divisions yet.</p>
-          ) : (
-            divisions.map((d: any) => (
-              <Card key={d.id}>
-                <CardContent className="p-4">
-                  <div className="font-medium">{d.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {[d.age_group, d.gender, d.skill_level].filter(Boolean).join(" · ") || "—"}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
-        </TabsContent>
-
-        <TabsContent value="ladder" className="space-y-2">
-          {competition.visibility === "public" && (
-            <p className="text-xs text-muted-foreground">
-              Public link: <a href={`/c/${id}`} className="underline" target="_blank" rel="noreferrer">/c/{id}</a>
-            </p>
-          )}
-          <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
-        </TabsContent>
-
-        {isAdmin && (
-          <TabsContent value="broadcasts" className="space-y-3">
-            <BroadcastsPanel competitionId={id!} divisions={divisions} acceptedTeamCount={entries.filter((e: any) => e.status === "accepted").length} />
-          </TabsContent>
-        )}
-
-      </Tabs>
+        </div>
+      ))}
     </div>
   );
 }
