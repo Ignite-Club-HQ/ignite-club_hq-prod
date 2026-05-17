@@ -386,25 +386,44 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
     );
   }
 
+  const selectedTeam = teams.find((t: any) => t.id === teamId);
+
   return (
     <Card>
       <CardContent className="p-4 space-y-3">
         <div>
           <Label>Find team</Label>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" />
-        </div>
-        <div>
-          <Label>Team</Label>
-          <Select value={teamId} onValueChange={setTeamId}>
-            <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
-            <SelectContent>
-              {teams.map((t: any) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}{t.clubs?.name ? ` — ${t.clubs.name}` : ""}
-                </SelectItem>
+          <Input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setTeamId(""); }}
+            placeholder="Search by team name"
+            autoFocus
+          />
+          {selectedTeam ? (
+            <div className="mt-2 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+              <div className="text-sm">
+                <span className="font-medium">{selectedTeam.name}</span>
+                {selectedTeam.clubs?.name ? <span className="text-muted-foreground"> — {selectedTeam.clubs.name}</span> : null}
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setTeamId("")}>Change</Button>
+            </div>
+          ) : search.trim().length > 0 && (
+            <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y">
+              {teams.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No teams found.</div>
+              ) : teams.map((t: any) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTeamId(t.id)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                >
+                  <div className="font-medium">{t.name}</div>
+                  {t.clubs?.name && <div className="text-xs text-muted-foreground">{t.clubs.name}</div>}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
         </div>
         {divisions.length > 0 && (
           <div>
