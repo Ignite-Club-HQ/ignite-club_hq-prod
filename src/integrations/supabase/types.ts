@@ -1797,6 +1797,7 @@ export type Database = {
           description: string | null
           id: string
           is_pro: boolean
+          kind: string
           latitude: number | null
           listed_on_marketplace: boolean
           logo_only_mode: boolean | null
@@ -1808,6 +1809,7 @@ export type Database = {
           name: string
           notify_committee: boolean
           notify_committee_chat: boolean
+          parent_org_id: string | null
           points_display_name: string | null
           points_icon_url: string | null
           primary_sponsor_id: string | null
@@ -1866,6 +1868,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_pro?: boolean
+          kind?: string
           latitude?: number | null
           listed_on_marketplace?: boolean
           logo_only_mode?: boolean | null
@@ -1877,6 +1880,7 @@ export type Database = {
           name: string
           notify_committee?: boolean
           notify_committee_chat?: boolean
+          parent_org_id?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -1935,6 +1939,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_pro?: boolean
+          kind?: string
           latitude?: number | null
           listed_on_marketplace?: boolean
           logo_only_mode?: boolean | null
@@ -1946,6 +1951,7 @@ export type Database = {
           name?: string
           notify_committee?: boolean
           notify_committee_chat?: boolean
+          parent_org_id?: string | null
           points_display_name?: string | null
           points_icon_url?: string | null
           primary_sponsor_id?: string | null
@@ -1994,6 +2000,20 @@ export type Database = {
             columns: ["current_season_id"]
             isOneToOne: false
             referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clubs_parent_org_id_fkey"
+            columns: ["parent_org_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clubs_parent_org_id_fkey"
+            columns: ["parent_org_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
             referencedColumns: ["id"]
           },
           {
