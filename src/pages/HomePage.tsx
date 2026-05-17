@@ -195,8 +195,9 @@ export default function HomePage() {
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
   const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
-  const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("player");
+  const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("parent");
   const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
+  const [newChildName, setNewChildName] = useState<string>("");
   const [selectedLeagueRole, setSelectedLeagueRole] = useState<LeagueRole>("league_admin");
   // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
   const isLeagueSelected = selectedTeam.startsWith("league_");
@@ -1537,12 +1538,16 @@ export default function HomePage() {
         const team = teams?.find((t) => t.id === selectedTeam);
         const metadata: Record<string, any> = {};
         if (selectedTeamRole === "parent") {
-          if (!selectedChildForLink) {
-            throw new Error("Please select your child before requesting parent access");
+          const trimmedNew = newChildName.trim();
+          if (selectedChildForLink && selectedChildForLink !== "__new__") {
+            const child = teamChildren?.find(c => c.id === selectedChildForLink);
+            metadata.child_id = selectedChildForLink;
+            metadata.child_name = child?.name || "";
+          } else if (trimmedNew) {
+            metadata.child_name = trimmedNew;
+          } else {
+            throw new Error("Please select your child or add their name before requesting parent access");
           }
-          const child = teamChildren?.find(c => c.id === selectedChildForLink);
-          metadata.child_id = selectedChildForLink;
-          metadata.child_name = child?.name || "";
         }
         const { error } = await supabase.from("role_requests").insert({
           user_id: user!.id,
@@ -1567,6 +1572,7 @@ export default function HomePage() {
       setTeamDialogOpen(false);
       setSelectedTeam("");
       setSelectedChildForLink("");
+      setNewChildName("");
       queryClient.invalidateQueries({ queryKey: ["role-requests"] });
     },
     onError: (error: Error) => {
@@ -1870,24 +1876,38 @@ export default function HomePage() {
                 placeholder="Choose a role..."
               />
             )}
-            {/* Optional child linking when parent role selected */}
-            {showChildLinker && teamChildren && teamChildren.length > 0 && (
-              <MobileCardSelect
-                value={selectedChildForLink || "skip"}
-                onValueChange={(v) => setSelectedChildForLink(v === "skip" ? "" : v)}
-                options={[
-                  { value: "skip", label: "Skip — link later" },
-                  ...teamChildren.map((child) => ({
-                    value: child.id,
-                    label: child.name,
-                  })),
-                ]}
-                label="Link to Your Child (optional)"
-                placeholder="Select your child..."
-                searchable
-                searchPlaceholder="Search children..."
-                emptyMessage="No children found on this team."
-              />
+            {/* Required child linking when parent role selected */}
+            {showChildLinker && (
+              <>
+                <MobileCardSelect
+                  value={selectedChildForLink || (teamChildren && teamChildren.length > 0 ? "" : "__new__")}
+                  onValueChange={(v) => setSelectedChildForLink(v)}
+                  options={[
+                    ...((teamChildren || []).map((child) => ({
+                      value: child.id,
+                      label: child.name,
+                    }))),
+                    { value: "__new__", label: "➕ Add new child" },
+                  ]}
+                  label="Link to Your Child"
+                  placeholder="Select your child..."
+                  searchable
+                  searchPlaceholder="Search children..."
+                  emptyMessage="No existing children — add one below."
+                />
+                {(selectedChildForLink === "__new__" || (!selectedChildForLink && (!teamChildren || teamChildren.length === 0))) && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Child's name</label>
+                    <input
+                      type="text"
+                      value={newChildName}
+                      onChange={(e) => setNewChildName(e.target.value)}
+                      placeholder="Enter your child's full name"
+                      className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
           <ResponsiveDialogFooter>
