@@ -151,7 +151,6 @@ export default function CompetitionDetailPage() {
           <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder">Ladder</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="manage">Manage</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="entries" className="space-y-2">
