@@ -357,6 +357,7 @@ const App = () => {
                   <Route path="/competitions" element={<CompetitionsPage />} />
                   <Route path="/competitions/new" element={<CreateCompetitionPage />} />
                   <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
+                  <Route path="/competitions/:id/settings" element={<CompetitionSettingsPage />} />
                   <Route path="/associations" element={<AssociationsPage />} />
                   <Route path="/associations/new" element={<CreateAssociationPage />} />
                   <Route path="/associations/:id" element={<AssociationDetailPage />} />
