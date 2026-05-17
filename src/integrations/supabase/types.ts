@@ -2167,6 +2167,7 @@ export type Database = {
           competition_id: string
           created_at: string
           gender: string | null
+          hide_ladder: boolean
           id: string
           max_entries: number | null
           name: string
@@ -2179,6 +2180,7 @@ export type Database = {
           competition_id: string
           created_at?: string
           gender?: string | null
+          hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name: string
@@ -2191,6 +2193,7 @@ export type Database = {
           competition_id?: string
           created_at?: string
           gender?: string | null
+          hide_ladder?: boolean
           id?: string
           max_entries?: number | null
           name?: string
