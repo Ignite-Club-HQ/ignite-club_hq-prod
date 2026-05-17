@@ -2272,6 +2272,89 @@ export type Database = {
           },
         ]
       }
+      competition_matches: {
+        Row: {
+          away_score: number | null
+          away_team_id: string
+          competition_id: string
+          created_at: string
+          created_by: string | null
+          division_id: string | null
+          home_score: number | null
+          home_team_id: string
+          id: string
+          notes: string | null
+          round_number: number | null
+          scheduled_at: string | null
+          status: string
+          updated_at: string
+          venue: string | null
+        }
+        Insert: {
+          away_score?: number | null
+          away_team_id: string
+          competition_id: string
+          created_at?: string
+          created_by?: string | null
+          division_id?: string | null
+          home_score?: number | null
+          home_team_id: string
+          id?: string
+          notes?: string | null
+          round_number?: number | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Update: {
+          away_score?: number | null
+          away_team_id?: string
+          competition_id?: string
+          created_at?: string
+          created_by?: string | null
+          division_id?: string | null
+          home_score?: number | null
+          home_team_id?: string
+          id?: string
+          notes?: string | null
+          round_number?: number | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_matches_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_matches_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_matches_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "competition_divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_matches_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_roles: {
         Row: {
           competition_id: string
@@ -8567,6 +8650,22 @@ export type Database = {
       }
     }
     Views: {
+      competition_ladder: {
+        Row: {
+          competition_id: string | null
+          division_id: string | null
+          draws: number | null
+          goal_diff: number | null
+          goals_against: number | null
+          goals_for: number | null
+          losses: number | null
+          played: number | null
+          points: number | null
+          team_id: string | null
+          wins: number | null
+        }
+        Relationships: []
+      }
       public_clubs: {
         Row: {
           city: string | null
@@ -9482,6 +9581,10 @@ export type Database = {
         Returns: boolean
       }
       is_competition_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_competition_official: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }

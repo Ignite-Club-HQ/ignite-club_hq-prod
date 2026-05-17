@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -142,6 +143,8 @@ export default function CompetitionDetailPage() {
         <TabsList>
           <TabsTrigger value="entries">Teams</TabsTrigger>
           <TabsTrigger value="divisions">Divisions</TabsTrigger>
+          <TabsTrigger value="fixtures">Fixtures</TabsTrigger>
+          <TabsTrigger value="ladder">Ladder</TabsTrigger>
           {isAdmin && <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>}
           {isAdmin && <TabsTrigger value="manage">Manage</TabsTrigger>}
         </TabsList>
@@ -196,6 +199,19 @@ export default function CompetitionDetailPage() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="fixtures" className="space-y-2">
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={isAdmin} divisions={divisions} entries={entries} />
+        </TabsContent>
+
+        <TabsContent value="ladder" className="space-y-2">
+          {competition.visibility === "public" && (
+            <p className="text-xs text-muted-foreground">
+              Public link: <a href={`/c/${id}`} className="underline" target="_blank" rel="noreferrer">/c/{id}</a>
+            </p>
+          )}
+          <CompetitionLadderPanel competitionId={id!} divisions={divisions} />
         </TabsContent>
 
         {isAdmin && (

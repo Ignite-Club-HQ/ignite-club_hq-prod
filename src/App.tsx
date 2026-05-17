@@ -100,6 +100,7 @@ const CompetitionDetailPage = lazy(() => import("./pages/CompetitionDetailPage")
 const AssociationsPage = lazy(() => import("./pages/AssociationsPage"));
 const CreateAssociationPage = lazy(() => import("./pages/CreateAssociationPage"));
 const AssociationDetailPage = lazy(() => import("./pages/AssociationDetailPage"));
+const PublicCompetitionPage = lazy(() => import("./pages/PublicCompetitionPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
@@ -357,7 +358,8 @@ const App = () => {
                   <Route path="/associations/new" element={<CreateAssociationPage />} />
                   <Route path="/associations/:id" element={<AssociationDetailPage />} />
                 </Route>
-                
+
+                <Route path="/c/:id" element={<PublicCompetitionPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
