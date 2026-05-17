@@ -181,7 +181,12 @@ export default function CompetitionDetailPage() {
         <p className="text-sm whitespace-pre-wrap">{competition.description}</p>
       )}
 
-      <Tabs defaultValue={competition.status === "draft" && isAdmin ? "teams" : "fixtures"}>
+      
+      <Tabs defaultValue={
+        entries.some((e: any) => e.status === "invited" && myAdminTeamIds.includes(e.team_id))
+          ? "teams"
+          : competition.status === "draft" && isAdmin ? "teams" : "fixtures"
+      }>
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>
@@ -272,7 +277,7 @@ function TeamsByDivision({
               const canRespond = e.status === "invited" && myAdminTeamIds.includes(e.team_id);
               return (
                 <Card key={e.id}>
-                  <CardContent className="p-4 flex items-center gap-3">
+                  <CardContent className="p-4 flex flex-wrap items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{e.teams?.name}</div>
                       <div className="text-xs text-muted-foreground truncate">
@@ -282,11 +287,13 @@ function TeamsByDivision({
                     <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
                     {canRespond && (
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "accepted")}>
-                          <Check className="h-4 w-4" />
+                        <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
+                          <Check className="h-4 w-4 mr-1" />
+                          Accept
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")}>
-                          <X className="h-4 w-4" />
+                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
+                          <X className="h-4 w-4 mr-1" />
+                          Decline
                         </Button>
                       </div>
                     )}

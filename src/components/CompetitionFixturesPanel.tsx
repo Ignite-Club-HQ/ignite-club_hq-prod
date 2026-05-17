@@ -371,12 +371,20 @@ export function CompetitionLadderPanel({ competitionId, divisions }: { competiti
     return <p className="text-sm text-muted-foreground">No completed matches yet — once results are entered, the ladder will appear here.</p>;
   }
 
+  const hiddenDivisionIds = new Set(
+    divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)
+  );
   const groups = new Map<string, any[]>();
   rows.forEach((r: any) => {
+    if (r.division_id && hiddenDivisionIds.has(r.division_id)) return;
     const key = r.division_id ?? "__none";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   });
+
+  if (groups.size === 0) {
+    return <p className="text-sm text-muted-foreground">Ladder is hidden for all divisions in this competition.</p>;
+  }
 
   return (
     <div className="space-y-4">

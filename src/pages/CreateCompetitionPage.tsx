@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { ensureFreshSession } from "@/lib/ensureFreshSession";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 const PERSONAL_ORGANISER = "__personal__";
@@ -52,6 +53,14 @@ export default function CreateCompetitionPage() {
     e.preventDefault();
     if (!user || !name.trim() || !organizerClubId) return;
     setSaving(true);
+
+    try {
+      await ensureFreshSession();
+    } catch (err: any) {
+      setSaving(false);
+      toast({ title: "Session expired", description: "Please sign in again and retry.", variant: "destructive" });
+      return;
+    }
 
     let clubIdToUse = organizerClubId;
 

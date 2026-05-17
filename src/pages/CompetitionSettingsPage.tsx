@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -175,6 +176,75 @@ export default function CompetitionSettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <DivisionLadderVisibility competitionId={id!} />
     </div>
+  );
+}
+
+function DivisionLadderVisibility({ competitionId }: { competitionId: string }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: divisions = [], isLoading } = useQuery({
+    queryKey: ["competition-divisions", competitionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competition_divisions")
+        .select("*")
+        .eq("competition_id", competitionId)
+        .order("sort_order");
+      return data ?? [];
+    },
+  });
+
+  const toggle = async (divisionId: string, hide: boolean) => {
+    const { error } = await supabase
+      .from("competition_divisions")
+      .update({ hide_ladder: hide })
+      .eq("id", divisionId);
+    if (error) {
+      toast({ title: "Could not update", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-divisions", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div>
+          <Label className="text-sm font-medium">Ladder visibility by division / grade</Label>
+          <p className="text-xs text-muted-foreground">Hide the ladder for non-competitive divisions or grades. Fixtures and results stay visible.</p>
+        </div>
+        {isLoading ? (
+          <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+        ) : divisions.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No divisions yet.</p>
+        ) : (
+          <div className="divide-y border rounded-md">
+            {divisions.map((d: any) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{d.name}</div>
+                  {[d.age_group, d.gender, d.skill_level].filter(Boolean).length > 0 && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[d.age_group, d.gender, d.skill_level].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">Hide ladder</span>
+                  <Switch
+                    checked={!!d.hide_ladder}
+                    onCheckedChange={(v) => toggle(d.id, v)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
