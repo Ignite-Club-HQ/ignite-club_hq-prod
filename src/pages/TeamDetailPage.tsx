@@ -2473,6 +2473,10 @@ export default function TeamDetailPage() {
           )}
         </Accordion>
       )}
+
+      {/* Competitions Section */}
+      <TeamCompetitionsSection teamId={id!} canManage={isAdmin || isCoachOrAdmin || isClubAdmin} />
+
       {/* Pitch Board Modal — soccer */}
       {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
