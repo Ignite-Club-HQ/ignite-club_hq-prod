@@ -16,7 +16,7 @@ interface Option {
 
 const options: Option[] = [
   {
-    to: "/clubs",
+    to: "/teams/new",
     icon: Users,
     title: "Start a Team",
     subtitle: "Social, twilight, or one-off team",
