@@ -77,6 +77,7 @@ const MyTeamsPremiumCarousel = lazy(() =>
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import HomeInviteFlow from "@/components/HomeInviteFlow";
+import HomePendingCompetitionInvitesCard from "@/components/competitions/HomePendingCompetitionInvitesCard";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
 import { LazyMount } from "@/components/LazyMount";
 
@@ -1686,6 +1687,9 @@ export default function HomePage() {
 
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
+
+      {/* Pending competition invites for team/club admins */}
+      <HomePendingCompetitionInvitesCard />
 
       {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
           minHeight matches the rendered carousel (section title 28px + gap 12px +

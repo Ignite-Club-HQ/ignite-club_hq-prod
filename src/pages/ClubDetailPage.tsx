@@ -92,6 +92,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
+import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
 
 type ClubRole = "club_admin";
 
@@ -1539,6 +1540,9 @@ export default function ClubDetailPage() {
           </AccordionItem>
         </Accordion>
       )}
+
+      {/* Competitions Section */}
+      <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} />
 
       {/* Mini Leagues Section - soccer/football only, hidden for class-mode clubs */}
       {isSoccerClub && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
