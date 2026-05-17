@@ -7,10 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { useMemo } from "react";
 
 export default function CompetitionsPage() {
   usePageTitle("Competitions");
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
 
   // Clubs I admin (eligible to organise competitions)
   const { data: adminClubs = [] } = useQuery({
@@ -28,19 +31,31 @@ export default function CompetitionsPage() {
     },
   });
 
-  // Competitions I can see (RLS handles visibility)
-  const { data: competitions = [], isLoading } = useQuery({
+  // Competitions I can see (RLS handles visibility). When viewing a specific
+  // club context (header switcher), we narrow the list to comps organised by
+  // that club or which include a team from that club — otherwise app/club
+  // admins would see every competition across the platform.
+  const { data: allCompetitions = [], isLoading } = useQuery({
     queryKey: ["my-competitions", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, clubs:organizer_club_id(name)")
+        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
+
+  const competitions = useMemo(() => {
+    if (!activeClubFilter) return allCompetitions;
+    return (allCompetitions as any[]).filter((c) => {
+      if (c.organizer_club_id === activeClubFilter) return true;
+      const entries = Array.isArray(c.competition_entries) ? c.competition_entries : [];
+      return entries.some((e: any) => e?.teams?.club_id === activeClubFilter);
+    });
+  }, [allCompetitions, activeClubFilter]);
 
   // Pending invitations on teams I admin
   const { data: pendingInvites = [] } = useQuery({
