@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
