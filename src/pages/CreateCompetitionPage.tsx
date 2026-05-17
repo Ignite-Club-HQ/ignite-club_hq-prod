@@ -54,6 +54,14 @@ export default function CreateCompetitionPage() {
     if (!user || !name.trim() || !organizerClubId) return;
     setSaving(true);
 
+    try {
+      await ensureFreshSession();
+    } catch (err: any) {
+      setSaving(false);
+      toast({ title: "Session expired", description: "Please sign in again and retry.", variant: "destructive" });
+      return;
+    }
+
     let clubIdToUse = organizerClubId;
 
     // Auto-create a personal shell club if the user picked "Personal organiser"
