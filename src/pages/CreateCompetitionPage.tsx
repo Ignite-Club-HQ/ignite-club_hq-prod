@@ -21,12 +21,14 @@ export default function CreateCompetitionPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedOrganizer = searchParams.get("organizer");
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sport, setSport] = useState("");
   const [season, setSeason] = useState("");
-  const [organizerClubId, setOrganizerClubId] = useState(PERSONAL_ORGANISER);
+  const [organizerClubId, setOrganizerClubId] = useState(preselectedOrganizer || PERSONAL_ORGANISER);
   const [visibility, setVisibility] = useState<"private" | "unlisted" | "public">("private");
   const [saving, setSaving] = useState(false);
 
