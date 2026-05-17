@@ -79,8 +79,12 @@ export default function PublicCompetitionPage() {
     );
   }
 
+  const hiddenDivisionIds = new Set(
+    (divisions as any[]).filter((d: any) => d.hide_ladder).map((d: any) => d.id)
+  );
   const ladderByDivision = new Map<string, any[]>();
   ladder.forEach((r: any) => {
+    if (r.division_id && hiddenDivisionIds.has(r.division_id)) return;
     const k = r.division_id ?? "__none";
     if (!ladderByDivision.has(k)) ladderByDivision.set(k, []);
     ladderByDivision.get(k)!.push(r);
@@ -108,8 +112,8 @@ export default function PublicCompetitionPage() {
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Ladder</h2>
-        {ladder.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No completed matches yet.</p>
+        {ladderByDivision.size === 0 ? (
+          <p className="text-sm text-muted-foreground">No ladder to display.</p>
         ) : (
           Array.from(ladderByDivision.entries()).map(([divId, list]) => {
             const div = divisions.find((d: any) => d.id === divId);
