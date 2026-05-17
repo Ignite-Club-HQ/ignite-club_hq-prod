@@ -32,13 +32,12 @@ const options: Option[] = [
       "For real clubs with several teams, committee admins, branding, sponsorships and a club-wide chat.",
   },
   {
-    to: null,
+    to: "/competitions/new",
     icon: Trophy,
     title: "Start a Competition",
     subtitle: "League, twilight comp, tournament",
     description:
-      "Invite teams from any club into divisions, broadcast announcements, and manage league admins.",
-    comingSoon: true,
+      "Invite teams from any club into divisions and manage league admins. You must be a club admin to organise one.",
   },
 ];
 
