@@ -524,13 +524,24 @@ function EditCompetitionForm({ competition, onDone }: { competition: any; onDone
   const [status, setStatus] = useState(competition.status);
   const [visibility, setVisibility] = useState(competition.visibility);
   const [description, setDescription] = useState(competition.description ?? "");
+  const [pointsWin, setPointsWin] = useState<string>(String(competition.points_win ?? 3));
+  const [pointsDraw, setPointsDraw] = useState<string>(String(competition.points_draw ?? 1));
+  const [pointsLoss, setPointsLoss] = useState<string>(String(competition.points_loss ?? 0));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     const { error } = await supabase
       .from("competitions")
-      .update({ name: name.trim(), status, visibility, description: description.trim() || null })
+      .update({
+        name: name.trim(),
+        status,
+        visibility,
+        description: description.trim() || null,
+        points_win: Number.parseInt(pointsWin, 10) || 0,
+        points_draw: Number.parseInt(pointsDraw, 10) || 0,
+        points_loss: Number.parseInt(pointsLoss, 10) || 0,
+      })
       .eq("id", competition.id);
     setSaving(false);
     if (error) {
@@ -575,6 +586,24 @@ function EditCompetitionForm({ competition, onDone }: { competition: any; onDone
         <div>
           <Label>Description</Label>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="pt-2 border-t">
+          <Label className="text-sm font-medium">Ladder points</Label>
+          <p className="text-xs text-muted-foreground mb-2">How many points each result is worth on the ladder.</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Win</Label>
+              <Input type="number" inputMode="numeric" value={pointsWin} onChange={(e) => setPointsWin(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Draw</Label>
+              <Input type="number" inputMode="numeric" value={pointsDraw} onChange={(e) => setPointsDraw(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Loss</Label>
+              <Input type="number" inputMode="numeric" value={pointsLoss} onChange={(e) => setPointsLoss(e.target.value)} />
+            </div>
+          </div>
         </div>
         <Button size="sm" onClick={save} disabled={saving || !name.trim()}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
