@@ -276,6 +276,7 @@ const App = () => {
                   <Route path="/events/:id/groups/:groupId/duties" element={<EventGroupPitchPage />} />
                   <Route path="/clubs" element={<ClubsPage />} />
                   <Route path="/clubs/new" element={<CreateClubPage />} />
+                  <Route path="/start" element={<StartPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
