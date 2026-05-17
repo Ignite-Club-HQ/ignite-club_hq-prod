@@ -353,7 +353,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       if (!saved || !saved.isRunning || saved.isGameFinished) return;
 
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-      if (uncappedDrift <= 30) return;
+      // Always reconcile any meaningful drift — setInterval is paused while
+      // the app is backgrounded / phone locked, so we can't rely on a "normal
+      // tick" to cover short away periods.
+      if (uncappedDrift < 2) return;
 
       const halfDuration = saved.minutesPerHalf * 60;
       const reconciledElapsed = Math.min((saved.elapsedSeconds || 0) + uncappedDrift, halfDuration);
