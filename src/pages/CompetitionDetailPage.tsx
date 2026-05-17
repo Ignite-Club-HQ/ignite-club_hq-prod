@@ -198,7 +198,7 @@ export default function CompetitionDetailPage() {
 
         <TabsContent value="teams" className="space-y-4">
           {isAdmin && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               <InviteTeamForm
                 competitionId={id!}
                 divisions={divisions}
@@ -476,8 +476,13 @@ function InviteTeamForm({ competitionId, divisions, onDone }: { competitionId: s
   const selectedTeam = teams.find((t: any) => t.id === teamId);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Invite a team to this competition</h3>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Search for an existing team — optionally filter by club to narrow it down.</p>
         <div>
           <Label>Filter by club (optional)</Label>
           {selectedClub ? (
@@ -604,8 +609,13 @@ function AddDivisionForm({ competitionId, onDone }: { competitionId: string; onD
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Add a new division</h3>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Divisions group teams (e.g. by age or skill) so fixtures and ladders are organised.</p>
         <div>
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. U12 Mixed Div 1" />
