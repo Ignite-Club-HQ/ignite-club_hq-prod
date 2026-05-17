@@ -161,9 +161,15 @@ export function MatchScoreCard({
   const overAttributed =
     !isNaN(homeNum) && totalAttributedGoals > homeNum && homeNum >= 0;
 
+  const OWN_GOAL_ID = "__own_goal__";
+  const OWN_GOAL_NAME = "Own goal (opposition)";
+
   const addScorer = () => {
     if (!pendingScorerId) return;
-    const player = roster?.find((p) => p.id === pendingScorerId);
+    const isOwn = pendingScorerId === OWN_GOAL_ID;
+    const player = isOwn
+      ? { id: OWN_GOAL_ID, name: OWN_GOAL_NAME }
+      : roster?.find((p) => p.id === pendingScorerId);
     if (!player) return;
     setScorers((prev) => {
       const existing = prev.find((s) => s.id === player.id);
