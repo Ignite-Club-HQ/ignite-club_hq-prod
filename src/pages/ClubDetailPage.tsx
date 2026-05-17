@@ -1540,6 +1540,9 @@ export default function ClubDetailPage() {
         </Accordion>
       )}
 
+      {/* Competitions Section */}
+      <ClubCompetitionsSection clubId={id!} teamIds={userTeamIds} isAdmin={isAdmin} />
+
       {/* Mini Leagues Section - soccer/football only, hidden for class-mode clubs */}
       {isSoccerClub && !club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
         <Accordion type="multiple" defaultValue={[]} className="space-y-4">
