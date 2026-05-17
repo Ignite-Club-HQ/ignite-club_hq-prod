@@ -57,13 +57,10 @@ export default function CreateCompetitionPage() {
     if (organizerClubId === PERSONAL_ORGANISER) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name, first_name, last_name")
+        .select("display_name")
         .eq("id", user.id)
         .maybeSingle();
-      const who =
-        profile?.display_name?.trim() ||
-        [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
-        "My";
+      const who = profile?.display_name?.trim() || "My";
       const shellName = `${who}'s competitions`;
 
       const { data: shell, error: shellErr } = await supabase
