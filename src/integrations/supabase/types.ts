@@ -3542,6 +3542,8 @@ export type Database = {
           coach_note: string | null
           coach_note_author: string | null
           coach_note_updated_at: string | null
+          competition_match_id: string | null
+          competition_side: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -3588,6 +3590,8 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_match_id?: string | null
+          competition_side?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -3634,6 +3638,8 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_match_id?: string | null
+          competition_side?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -3683,6 +3689,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_competition_match_id_fkey"
+            columns: ["competition_match_id"]
+            isOneToOne: false
+            referencedRelation: "competition_matches"
             referencedColumns: ["id"]
           },
           {
