@@ -253,39 +253,43 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       if (externalMinutesPerHalf === undefined) {
         setInternalMinutesPerHalf(saved.minutesPerHalf);
       }
-      setCurrentHalf(saved.currentHalf);
       setIsGameFinished(saved.isGameFinished || false);
-      
+
       // Use the correct half duration (external prop takes priority)
       const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
-      
+
       // Check if game was finished
       if (saved.isGameFinished) {
+        setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-        // Keep the clock running across backgrounding / screen lock — coaches
-        // routinely lock their phone during a half. The natural halfDuration
-        // cap below prevents runaway, and end-of-half / full-time transitions
-        // are handled the same way as a normal tick.
-        const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
-        if (newElapsed >= halfDuration) {
-          if (saved.currentHalf === 1) {
-            setCurrentHalf(2);
-            setElapsedSeconds(0);
-            setIsRunning(false);
-            onHalfChangeRef.current?.(2);
-          } else {
-            setElapsedSeconds(halfDuration);
-            setIsRunning(false);
-            setIsGameFinished(true);
-          }
-        } else {
-          setElapsedSeconds(newElapsed);
-          setIsRunning(true);
+        // Carry drift through end-of-half so a long phone lock (e.g. whole
+        // game spent backgrounded) still advances correctly instead of
+        // freezing at the half boundary.
+        let half: 1 | 2 = saved.currentHalf;
+        let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
+        let running = true;
+        let finished = false;
+        if (half === 1 && elapsed >= halfDuration) {
+          half = 2;
+          elapsed = elapsed - halfDuration;
+          // Half boundary itself: coach must press play for 2nd half
+          running = false;
+          onHalfChangeRef.current?.(2);
         }
+        if (half === 2 && elapsed >= halfDuration) {
+          elapsed = halfDuration;
+          running = false;
+          finished = true;
+        }
+        setCurrentHalf(half);
+        setElapsedSeconds(elapsed);
+        setIsRunning(running);
+        if (finished) setIsGameFinished(true);
       } else {
+        setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(saved.isRunning);
       }
