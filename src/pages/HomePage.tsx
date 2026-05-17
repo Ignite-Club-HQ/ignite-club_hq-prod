@@ -1572,6 +1572,7 @@ export default function HomePage() {
       setTeamDialogOpen(false);
       setSelectedTeam("");
       setSelectedChildForLink("");
+      setNewChildName("");
       queryClient.invalidateQueries({ queryKey: ["role-requests"] });
     },
     onError: (error: Error) => {
