@@ -524,9 +524,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setRotateGkAtHalftime(initialRotateGkAtHalftime);
   }, [initialRotateGkAtHalftime]);
 
+  // Sync minutesPerHalf from props ONLY before the game starts. Once the
+  // timer is running (or the user has accumulated any elapsed time), a
+  // re-render from a React Query refetch must NEVER clobber the live
+  // half-duration — that would silently shorten/extend the current half
+  // and was the cause of the "resets to 10 mins as soon as game starts" bug
+  // (mini-league / event-group entry points fall back to `|| 10` when the
+  // backing row is briefly nullish during an invalidation/refetch).
   useEffect(() => {
+    if (gameInProgress) return;
+    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) return;
     setMinutesPerHalf(initialMinutesPerHalf);
-  }, [initialMinutesPerHalf]);
+  }, [initialMinutesPerHalf, gameInProgress]);
 
   useEffect(() => {
     setMaxSpreadMinutes(initialMaxSpreadMinutes);
