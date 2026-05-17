@@ -5,8 +5,8 @@
  */
 import { TimerState } from "./types";
 
-/** Maximum seconds to extrapolate forward from the last persisted timestamp.
- *  Prevents overshoot when the app backgrounds (JS timers freeze but Date.now() keeps ticking). */
+/** Maximum seconds for UI-only optimistic extrapolation where callers explicitly
+ *  want a short visual prediction rather than authoritative wall-clock time. */
 export const MAX_EXTRAPOLATION_SECS = 30;
 
 /**
@@ -26,8 +26,8 @@ export const getSecondsSinceUpdate = (
 
 /**
  * Like getSecondsSinceUpdate but WITHOUT the 30s cap.
- * Used when the app resumes from background to reconcile the full elapsed time.
- * Capped only by halfDuration to prevent overshoot.
+ * Used for authoritative timer persistence/resume. Native WebViews throttle or
+ * suspend JS timers while locked/backgrounded, so Date.now() is the source of truth.
  */
 export const getSecondsSinceUpdateUncapped = (
   lastUpdateTime: number | undefined | null,
@@ -35,6 +35,59 @@ export const getSecondsSinceUpdateUncapped = (
 ): number => {
   if (!lastUpdateTime) return 0;
   return Math.max(0, Math.floor((now - lastUpdateTime) / 1000));
+};
+
+type ProjectableTimerState = Pick<
+  TimerState,
+  "minutesPerHalf" | "currentHalf" | "elapsedSeconds" | "isRunning" | "lastUpdateTime"
+> & {
+  isGameFinished?: boolean;
+  gameFinishedAt?: number;
+};
+
+export const projectRunningTimerState = <T extends ProjectableTimerState>(
+  timerState: T,
+  now: number = Date.now()
+): { timerState: T; secondsAdvanced: number; crossedHalf: boolean; finished: boolean } => {
+  const halfDuration = Math.max(0, (timerState.minutesPerHalf || 0) * 60);
+  if (!timerState.isRunning || timerState.isGameFinished || halfDuration <= 0) {
+    return { timerState: { ...timerState, lastUpdateTime: now }, secondsAdvanced: 0, crossedHalf: false, finished: !!timerState.isGameFinished };
+  }
+
+  const secondsAdvanced = getSecondsSinceUpdateUncapped(timerState.lastUpdateTime, now);
+  let currentHalf = timerState.currentHalf;
+  let elapsedSeconds = Math.max(0, timerState.elapsedSeconds || 0) + secondsAdvanced;
+  let isRunning = timerState.isRunning;
+  let crossedHalf = false;
+  let finished = false;
+
+  if (currentHalf === 1 && elapsedSeconds >= halfDuration) {
+    currentHalf = 2;
+    elapsedSeconds -= halfDuration;
+    isRunning = false;
+    crossedHalf = true;
+  }
+
+  if (currentHalf === 2 && elapsedSeconds >= halfDuration) {
+    elapsedSeconds = halfDuration;
+    isRunning = false;
+    finished = true;
+  }
+
+  return {
+    timerState: {
+      ...timerState,
+      currentHalf,
+      elapsedSeconds,
+      isRunning,
+      lastUpdateTime: now,
+      isGameFinished: finished || timerState.isGameFinished,
+      ...(finished && !timerState.gameFinishedAt ? { gameFinishedAt: now } : {}),
+    },
+    secondsAdvanced,
+    crossedHalf,
+    finished,
+  };
 };
 
 /**
@@ -58,6 +111,6 @@ export const getCurrentGameSeconds = (
     return Math.min(base, halfDuration);
   }
 
-  const extrapolated = base + getSecondsSinceUpdate(timerState.lastUpdateTime, now);
+  const extrapolated = base + getSecondsSinceUpdateUncapped(timerState.lastUpdateTime, now);
   return Math.min(extrapolated, halfDuration);
 };
