@@ -1538,12 +1538,16 @@ export default function HomePage() {
         const team = teams?.find((t) => t.id === selectedTeam);
         const metadata: Record<string, any> = {};
         if (selectedTeamRole === "parent") {
-          if (!selectedChildForLink) {
-            throw new Error("Please select your child before requesting parent access");
+          const trimmedNew = newChildName.trim();
+          if (selectedChildForLink && selectedChildForLink !== "__new__") {
+            const child = teamChildren?.find(c => c.id === selectedChildForLink);
+            metadata.child_id = selectedChildForLink;
+            metadata.child_name = child?.name || "";
+          } else if (trimmedNew) {
+            metadata.child_name = trimmedNew;
+          } else {
+            throw new Error("Please select your child or add their name before requesting parent access");
           }
-          const child = teamChildren?.find(c => c.id === selectedChildForLink);
-          metadata.child_id = selectedChildForLink;
-          metadata.child_name = child?.name || "";
         }
         const { error } = await supabase.from("role_requests").insert({
           user_id: user!.id,
