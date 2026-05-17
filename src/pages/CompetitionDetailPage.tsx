@@ -524,13 +524,24 @@ function EditCompetitionForm({ competition, onDone }: { competition: any; onDone
   const [status, setStatus] = useState(competition.status);
   const [visibility, setVisibility] = useState(competition.visibility);
   const [description, setDescription] = useState(competition.description ?? "");
+  const [pointsWin, setPointsWin] = useState<string>(String(competition.points_win ?? 3));
+  const [pointsDraw, setPointsDraw] = useState<string>(String(competition.points_draw ?? 1));
+  const [pointsLoss, setPointsLoss] = useState<string>(String(competition.points_loss ?? 0));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     const { error } = await supabase
       .from("competitions")
-      .update({ name: name.trim(), status, visibility, description: description.trim() || null })
+      .update({
+        name: name.trim(),
+        status,
+        visibility,
+        description: description.trim() || null,
+        points_win: Number.parseInt(pointsWin, 10) || 0,
+        points_draw: Number.parseInt(pointsDraw, 10) || 0,
+        points_loss: Number.parseInt(pointsLoss, 10) || 0,
+      })
       .eq("id", competition.id);
     setSaving(false);
     if (error) {
