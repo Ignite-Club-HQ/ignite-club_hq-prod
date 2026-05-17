@@ -60,6 +60,7 @@ export function ClubThemeToggle() {
           name,
           logo_url,
           is_pro,
+          kind,
           theme_primary_h,
           theme_primary_s,
           theme_primary_l,
@@ -67,7 +68,8 @@ export function ClubThemeToggle() {
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
         .in("id", clubIds)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("kind", "shell");
 
       if (!clubs) return [];
 
