@@ -94,6 +94,9 @@ const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPreferencesPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
+const CompetitionsPage = lazy(() => import("./pages/CompetitionsPage"));
+const CreateCompetitionPage = lazy(() => import("./pages/CreateCompetitionPage"));
+const CompetitionDetailPage = lazy(() => import("./pages/CompetitionDetailPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
@@ -344,6 +347,9 @@ const App = () => {
                   <Route path="/clubs/:clubId/eois" element={<EoiAdminPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
+                  <Route path="/competitions" element={<CompetitionsPage />} />
+                  <Route path="/competitions/new" element={<CreateCompetitionPage />} />
+                  <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />
