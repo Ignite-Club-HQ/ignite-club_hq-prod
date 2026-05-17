@@ -124,7 +124,7 @@ export default function CreateCompetitionPage() {
   return (
     <div className="container max-w-2xl mx-auto px-4 py-6">
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/competitions"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
+        <Link to="/start"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
       </Button>
 
       <h1 className="text-2xl font-bold flex items-center gap-2 mb-1">

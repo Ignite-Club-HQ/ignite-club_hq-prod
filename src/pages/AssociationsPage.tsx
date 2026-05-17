@@ -32,15 +32,15 @@ export default function AssociationsPage() {
 
   return (
     <div className="container max-w-2xl mx-auto px-4 py-6 space-y-5">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-3"><Network className="h-5 w-5 text-primary" /></div>
-          <div>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="rounded-xl bg-primary/10 p-3 shrink-0"><Network className="h-5 w-5 text-primary" /></div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold">Associations</h1>
             <p className="text-xs text-muted-foreground">Federations and umbrella bodies you manage</p>
           </div>
         </div>
-        <Button asChild size="sm"><Link to="/associations/new"><Plus className="h-4 w-4 mr-1" /> New</Link></Button>
+        <Button asChild size="sm" className="shrink-0"><Link to="/associations/new"><Plus className="h-4 w-4 mr-1" /> New</Link></Button>
       </header>
 
       {isLoading ? (

@@ -353,26 +353,25 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       if (!saved || !saved.isRunning || saved.isGameFinished) return;
 
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-      if (uncappedDrift <= 30) return;
+      if (uncappedDrift < 2) return;
 
       const halfDuration = saved.minutesPerHalf * 60;
-      const reconciledElapsed = Math.min((saved.elapsedSeconds || 0) + uncappedDrift, halfDuration);
-
-      if (reconciledElapsed >= halfDuration) {
-        if (saved.currentHalf === 1) {
-          // Half 1 ended during background — transition to half 2 properly
-          // so GameTimer sees the correct state on mount.
-          saved.currentHalf = 2;
-          saved.elapsedSeconds = 0;
-          saved.isRunning = false;
-        } else {
-          saved.elapsedSeconds = halfDuration;
-          saved.isRunning = false;
-          saved.isGameFinished = true;
-        }
+      // Carry-over: long lock can span end of half 1 into half 2 or full time
+      let half: 1 | 2 = saved.currentHalf;
+      let elapsed = (saved.elapsedSeconds || 0) + uncappedDrift;
+      if (half === 1 && elapsed >= halfDuration) {
+        half = 2;
+        elapsed = elapsed - halfDuration;
+        saved.currentHalf = 2;
+        saved.isRunning = false; // coach must press play for 2nd half
+      }
+      if (half === 2 && elapsed >= halfDuration) {
+        saved.elapsedSeconds = halfDuration;
+        saved.isRunning = false;
+        saved.isGameFinished = true;
       } else {
-        saved.elapsedSeconds = reconciledElapsed;
-        // Keep isRunning = true so GameTimer resumes on mount
+        saved.elapsedSeconds = elapsed;
+        // Preserve running flag set above (false if we just crossed half)
       }
 
       saved.lastUpdateTime = Date.now();
@@ -381,10 +380,25 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(saved.currentHalf === 2 && saved.elapsedSeconds === 0 ? 0 : saved.elapsedSeconds);
     };
 
+    const flushOnHide = () => {
+      const saved = loadActiveTimerState();
+      if (!saved || !saved.isRunning || saved.isGameFinished) return;
+      try {
+        saveTimerState({ ...saved, lastUpdateTime: Date.now() });
+      } catch {}
+    };
+
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') reconcileAfterResume();
+      else flushOnHide();
     };
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pageshow', reconcileAfterResume);
+    window.addEventListener('focus', reconcileAfterResume);
+    window.addEventListener('pagehide', flushOnHide);
+    window.addEventListener('beforeunload', flushOnHide);
+    document.addEventListener('freeze', flushOnHide as any);
+    document.addEventListener('resume', reconcileAfterResume as any);
 
     let appListener: any;
     (async () => {
@@ -392,6 +406,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         const { App: CapApp } = await import('@capacitor/app');
         appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
           if (isActive) reconcileAfterResume();
+          else flushOnHide();
         });
       } catch {}
     })();
@@ -401,6 +416,12 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pageshow', reconcileAfterResume);
+      window.removeEventListener('focus', reconcileAfterResume);
+      window.removeEventListener('pagehide', flushOnHide);
+      window.removeEventListener('beforeunload', flushOnHide);
+      document.removeEventListener('freeze', flushOnHide as any);
+      document.removeEventListener('resume', reconcileAfterResume as any);
       appListener?.remove?.();
     };
   }, []);
