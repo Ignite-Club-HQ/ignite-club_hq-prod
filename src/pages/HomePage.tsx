@@ -1688,6 +1688,9 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
+      {/* Pending competition invites for team/club admins */}
+      <HomePendingCompetitionInvitesCard />
+
       {/* My Teams & Leagues - Primary content. Premium Carousel (lazy chunk + viewport-deferred).
           minHeight matches the rendered carousel (section title 28px + gap 12px +
           card 212px + pb-2 8px ≈ 260px) so the page doesn't reflow when it mounts. */}
