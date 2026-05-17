@@ -282,11 +282,13 @@ function TeamsByDivision({
                     <Badge variant={e.status === "accepted" ? "default" : "secondary"} className="capitalize">{e.status}</Badge>
                     {canRespond && (
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "accepted")}>
-                          <Check className="h-4 w-4" />
+                        <Button size="sm" onClick={() => onRespond(e.id, "accepted")} aria-label="Accept invite">
+                          <Check className="h-4 w-4 mr-1" />
+                          Accept
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")}>
-                          <X className="h-4 w-4" />
+                        <Button size="sm" variant="outline" onClick={() => onRespond(e.id, "declined")} aria-label="Decline invite">
+                          <X className="h-4 w-4 mr-1" />
+                          Decline
                         </Button>
                       </div>
                     )}
