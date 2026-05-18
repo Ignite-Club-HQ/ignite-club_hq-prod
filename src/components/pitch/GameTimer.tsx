@@ -114,13 +114,20 @@ const getTeamTimerStorageKey = (teamId: string) => {
 
 const saveTimerState = (state: TimerState, teamId?: string) => {
   try {
+    // Stamp schema_version: 2 on every write so useActiveGameSync's legacy
+    // 10s sync correctly skips this row and does NOT clobber the
+    // server-anchored timer_state written by pitch-timer-event.
+    // GameTimer is fully server-anchored in Phase 2; every state we save
+    // is part of that contract — the marker is purely a "do not touch"
+    // signal for the legacy sync path.
+    const stamped = { ...state, schema_version: 2 } as TimerState & { schema_version: 2 };
     // Always save to the active timer key for widgets to find
-    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
-    
+    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(stamped));
+
     // Also save to team-specific key for isolation between games
     if (teamId) {
       const teamKey = getTeamTimerStorageKey(teamId);
-      localStorage.setItem(teamKey, JSON.stringify(state));
+      localStorage.setItem(teamKey, JSON.stringify(stamped));
     }
     // Dispatch custom event so GlobalSubMonitor can react in same-tab (Android WebView)
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer' } }));
@@ -128,6 +135,7 @@ const saveTimerState = (state: TimerState, teamId?: string) => {
     console.error('Failed to save timer state:', e);
   }
 };
+
 
 const loadTimerState = (teamId?: string): TimerState | null => {
   try {

@@ -389,10 +389,43 @@ async function checkGames(supabase: any): Promise<number> {
   let notificationsSent = 0;
 
   for (const game of uniqueGames) {
-    const timerState = game.timer_state as TimerState;
+    let timerState = game.timer_state as TimerState;
     const pitchState = game.pitch_state as PitchState;
 
     if (!timerState || !pitchState) continue;
+
+    // ---- Server-anchored (schema_version 2) projection ----
+    // The new pitch-timer-event edge function writes a different shape:
+    //   { schema_version: 2, current_half, minutes_per_half,
+    //     half_started_at, half_paused_at, accumulated_pause_ms,
+    //     is_running, is_game_finished }
+    // Project it back into the legacy v1 TimerState shape so all the
+    // halftime / sub / fulltime detection below keeps working unchanged.
+    const rawTs = game.timer_state as any;
+    const isServerAnchored = rawTs?.schema_version === 2;
+    if (isServerAnchored) {
+      const mph = Number(rawTs.minutes_per_half) || 0;
+      const halfDur = mph * 60;
+      const startMs = rawTs.half_started_at ? new Date(rawTs.half_started_at).getTime() : 0;
+      const pausedMs = rawTs.half_paused_at ? new Date(rawTs.half_paused_at).getTime() : 0;
+      const accPauseMs = Number(rawTs.accumulated_pause_ms) || 0;
+      const refMs = pausedMs || Date.now();
+      const elapsedMs = startMs ? Math.max(0, refMs - startMs - accPauseMs) : 0;
+      const elapsedSecs = Math.min(Math.floor(elapsedMs / 1000), halfDur);
+      timerState = {
+        elapsedSeconds: elapsedSecs,
+        isRunning: !!rawTs.is_running,
+        currentHalf: Number(rawTs.current_half) || 1,
+        minutesPerHalf: mph,
+        // lastUpdateTime is informational only on the v2 path — the
+        // cron uses game.updated_at as the anchor for sub extrapolation.
+        // Stamp it to now so legacy downstream consumers don't see 0.
+        lastUpdateTime: Date.now(),
+        teamName: rawTs.teamName,
+        teamId: rawTs.teamId,
+      } as TimerState;
+    }
+
 
     const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
@@ -447,7 +480,11 @@ async function checkGames(supabase: any): Promise<number> {
     // doesn't affect notification accuracy — it just delays cleanup of truly abandoned games.
     const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 900_000; // 10min at breaks, 15min normally
     const gameUpdatedAt = new Date(game.updated_at).getTime();
-    if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
+    // Schema v2 rows only get an updated_at bump on explicit timer events
+    // (start/pause/halftime/end). A running half with no pauses can easily
+    // exceed the stale threshold while still being a live game — never
+    // auto-deactivate v2 rows here; they are deactivated only on end_game.
+    if (!isServerAnchored && gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
       console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
       await supabase
         .from('active_games')
@@ -455,6 +492,7 @@ async function checkGames(supabase: any): Promise<number> {
         .eq('id', game.id);
       continue;
     }
+
 
     // If at half-time boundary, don't process subs - the game is paused between halves
     if (isAtHalfTimeBoundary) {
@@ -527,8 +565,31 @@ async function checkGames(supabase: any): Promise<number> {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }
       }
+
+      // Schema v2: also flip the server-anchored timer into the halftime
+      // break state so the client (and spectators) see a paused half=2/0:00
+      // instead of a frozen running clock at minutes_per_half * 60.
+      if (isServerAnchored && (rawTs.current_half === 1 || rawTs.is_running)) {
+        const nowIso = new Date().toISOString();
+        const nextTs = {
+          ...rawTs,
+          current_half: 2,
+          half_started_at: null,
+          half_paused_at: null,
+          accumulated_pause_ms: 0,
+          is_running: false,
+          half_ended_at: nowIso,
+          last_event_at: nowIso,
+        };
+        await supabase
+          .from('active_games')
+          .update({ timer_state: nextTs, updated_at: nowIso })
+          .eq('id', game.id);
+        console.log(`[CHECK-SUBS] v2 auto-transitioned game ${game.id} to halftime`);
+      }
       continue; // Skip sub processing during half-time
     }
+
     const teamId = game.team_id || timerState.teamId;
     const teamName = timerState.teamName || 'Your team';
     const linkedEventId = pitchState.linkedEventId;
@@ -646,12 +707,27 @@ async function checkGames(supabase: any): Promise<number> {
 
     if (isGameFinished) {
       // Atomically claim by marking inactive — only the winner sends notifications
+      // For v2, also write the finished server timer state alongside the
+      // is_active flip so any in-flight client sees the end_game transition.
+      const finishUpdate: Record<string, unknown> = { is_active: false };
+      if (isServerAnchored) {
+        const nowIso = new Date().toISOString();
+        finishUpdate.timer_state = {
+          ...rawTs,
+          is_running: false,
+          is_game_finished: true,
+          half_ended_at: nowIso,
+          last_event_at: nowIso,
+        };
+        finishUpdate.updated_at = nowIso;
+      }
       const { data: claimResult, error: claimError } = await supabase
         .from('active_games')
-        .update({ is_active: false })
+        .update(finishUpdate)
         .eq('id', game.id)
         .eq('is_active', true)
         .select('id');
+
       
       if (!claimError && claimResult && claimResult.length > 0) {
         console.log(`[CHECK-SUBS] Game ${game.id} finished — claimed full-time notification`);

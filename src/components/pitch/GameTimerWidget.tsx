@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCurrentGameSeconds, getSecondsSinceUpdateUncapped } from "./timerUtils";
 import { cn } from "@/lib/utils";
+import {
+  readServerTimer,
+  sendTimerEvent,
+  deriveElapsedSeconds,
+  type ServerTimer,
+} from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -128,6 +134,38 @@ const saveTimerState = (state: TimerState) => {
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer-widget' } }));
   } catch { /* ignore */ }
 };
+
+/**
+ * Map a server-anchored ServerTimer row into the widget's legacy TimerState
+ * shape so the rest of this component (display, subs, halftime detection)
+ * keeps working unchanged. Elapsed is derived from event timestamps + the
+ * server_now echo so device clock drift / phone-lock cannot lose seconds.
+ */
+const serverToTimerState = (
+  t: ServerTimer,
+  serverNowIso: string,
+  fallback: { teamId?: string; teamName?: string; gameFinishedAt?: number },
+): TimerState => {
+  const clockSkewMs = new Date(serverNowIso).getTime() - Date.now();
+  const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMs);
+  return {
+    minutesPerHalf: t.minutes_per_half,
+    currentHalf: (t.current_half as 1 | 2) || 1,
+    elapsedSeconds: elapsed,
+    isRunning: !!t.is_running,
+    soundEnabled: true,
+    // Stamp lastUpdateTime to "now" so the local 1Hz visual tick continues
+    // smoothly from the server-derived value until the next hydrate.
+    lastUpdateTime: Date.now(),
+    teamId: fallback.teamId,
+    teamName: fallback.teamName,
+    isGameFinished: !!t.is_game_finished,
+    gameFinishedAt: t.is_game_finished
+      ? fallback.gameFinishedAt ?? Date.now()
+      : fallback.gameFinishedAt,
+  };
+};
+
 
 // Read pitch state: prefer team-specific key, fall back to active key ONLY if teamId matches
 const readPitchState = (teamId?: string): PitchBoardState | null => {
@@ -352,22 +390,42 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   // Reconcile timer after app resumes from background (uncapped drift)
   useEffect(() => {
-    const reconcileAfterResume = () => {
+    const reconcileAfterResume = async () => {
       const saved = loadActiveTimerState();
-      if (!saved || !saved.isRunning || saved.isGameFinished) return;
+      if (!saved) return;
 
+      // Server-first: ask the authoritative timer row for current elapsed.
+      // Immune to phone-lock, app-kill, or stale localStorage projections.
+      try {
+        const res = await readServerTimer(saved.teamId ?? null);
+        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+          const mapped = serverToTimerState(
+            res.timer_state as ServerTimer,
+            res.server_now,
+            { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+          );
+          saveTimerState(mapped);
+          setTimerState(mapped);
+          setDisplaySeconds(mapped.elapsedSeconds);
+          return;
+        }
+      } catch (e) {
+        console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
+      }
+
+      // Legacy fallback (offline / pre-v2 row): project uncapped drift locally.
+      if (!saved.isRunning || saved.isGameFinished) return;
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
       if (uncappedDrift < 2) return;
 
       const halfDuration = saved.minutesPerHalf * 60;
-      // Carry-over: long lock can span end of half 1 into half 2 or full time
       let half: 1 | 2 = saved.currentHalf;
       let elapsed = (saved.elapsedSeconds || 0) + uncappedDrift;
       if (half === 1 && elapsed >= halfDuration) {
         half = 2;
         elapsed = elapsed - halfDuration;
         saved.currentHalf = 2;
-        saved.isRunning = false; // coach must press play for 2nd half
+        saved.isRunning = false;
       }
       if (half === 2 && elapsed >= halfDuration) {
         saved.elapsedSeconds = halfDuration;
@@ -375,7 +433,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         saved.isGameFinished = true;
       } else {
         saved.elapsedSeconds = elapsed;
-        // Preserve running flag set above (false if we just crossed half)
       }
 
       saved.lastUpdateTime = Date.now();
@@ -383,6 +440,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setTimerState({ ...saved });
       setDisplaySeconds(saved.currentHalf === 2 && saved.elapsedSeconds === 0 ? 0 : saved.elapsedSeconds);
     };
+
 
     const flushOnHide = () => {
       const saved = loadActiveTimerState();
@@ -458,28 +516,55 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
     // Mark user action so polling doesn't revert this change
     userActionAtRef.current = Date.now();
-    
+
     const currentElapsed = getCurrentElapsed(fresh);
     const mph = fresh.minutesPerHalf || 20;
     const atHalfTimeLimit = currentElapsed >= mph * 60;
-    
+
+    // Determine which server event this press maps to.
+    let serverEvent: Parameters<typeof sendTimerEvent>[0]["event"] | null = null;
+
     // If currently in 1st half and at the time limit, transition to 2nd half
     if (!fresh.isRunning && fresh.currentHalf === 1 && atHalfTimeLimit) {
       const newState = { ...fresh, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
       saveTimerState(newState);
       setTimerState(newState);
       setDisplaySeconds(0);
+      serverEvent = "start_half_2";
+    } else if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) {
+      // Don't allow resuming if game is finished (2nd half at limit)
       return;
+    } else {
+      const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
+      saveTimerState(newState);
+      setTimerState(newState);
+      setDisplaySeconds(currentElapsed);
+      serverEvent = !fresh.isRunning
+        ? (currentElapsed === 0 && fresh.currentHalf === 1 ? "start_half"
+          : currentElapsed === 0 && fresh.currentHalf === 2 ? "start_half_2"
+          : "resume")
+        : "pause";
     }
-    
-    // Don't allow resuming if game is finished (2nd half at limit)
-    if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
-    
-    const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
-    saveTimerState(newState);
-    setTimerState(newState);
-    setDisplaySeconds(currentElapsed);
+
+    // Mirror to the server-anchored timer so resume / lock / cross-device
+    // all snap to the same elapsed seconds. Re-hydrate from the response so
+    // the widget reflects the authoritative state immediately.
+    if (serverEvent) {
+      sendTimerEvent({ teamId: fresh.teamId ?? null, event: serverEvent, minutesPerHalf: mph })
+        .then((res) => {
+          const mapped = serverToTimerState(
+            res.timer_state,
+            res.server_now,
+            { teamId: fresh.teamId, teamName: fresh.teamName, gameFinishedAt: fresh.gameFinishedAt },
+          );
+          saveTimerState(mapped);
+          setTimerState(mapped);
+          setDisplaySeconds(mapped.elapsedSeconds);
+        })
+        .catch((err) => console.warn("[GameTimerWidget] sendTimerEvent failed", serverEvent, err));
+    }
   };
+
 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -110,12 +110,32 @@ export function useActiveGameSync() {
 
     const timerState = loadTimerState();
     // If the server-anchored timer (schema v2) is in play, the new
-    // `pitch-timer-event` edge function owns timer_state. Don't let the
-    // legacy 10s sync clobber it with the old elapsedSeconds/lastUpdateTime
-    // shape — that would re-introduce drift on resume.
-    if ((timerState as unknown as { schema_version?: number } | null)?.schema_version === 2) {
+    // `pitch-timer-event` edge function owns timer_state. We must not
+    // clobber it with the v1 elapsedSeconds/lastUpdateTime shape — but we
+    // STILL need to keep pitch_state in sync so the cron can read
+    // autoSubPlan / players for sub & halftime notifications. Update
+    // pitch_state only on existing rows; never timer_state.
+    const isServerAnchored = (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+    if (isServerAnchored) {
+      try {
+        const ps = loadPitchState(timerState?.teamId);
+        if (!ps) return;
+        const teamId = timerState?.teamId || null;
+        let q = supabase
+          .from('active_games')
+          .update({
+            pitch_state: ps as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('is_active', true);
+        q = teamId ? q.eq('team_id', teamId) : q.eq('user_id', user.id).is('team_id', null);
+        await q;
+      } catch (e) {
+        console.warn('[SYNC] v2 pitch_state sync failed', e);
+      }
       return;
     }
+
     const pitchState = loadPitchState(timerState?.teamId);
 
     const deactivateActiveGame = async () => {
