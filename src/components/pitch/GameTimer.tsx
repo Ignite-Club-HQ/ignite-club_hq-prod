@@ -418,9 +418,13 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       intervalRef.current = setInterval(() => {
         const now = Date.now();
         const anchor = tickAnchorRef.current ?? now;
-        const deltaSec = Math.max(1, Math.floor((now - anchor) / 1000));
-        // Advance anchor by exactly the seconds we credited, preserving sub-
-        // second remainder so we don't drift over long halves.
+        const deltaSec = Math.floor((now - anchor) / 1000);
+        // If the interval fired early (sub-second since last credit), skip
+        // this tick rather than over-crediting a full second. The anchor is
+        // left untouched so the next fire picks up the full elapsed delta.
+        if (deltaSec < 1) return;
+        // Advance anchor by exactly the seconds we credited, preserving the
+        // sub-second remainder so we don't drift over a full half.
         tickAnchorRef.current = anchor + deltaSec * 1000;
         setElapsedSeconds(prev => {
           const newValue = prev + deltaSec;
