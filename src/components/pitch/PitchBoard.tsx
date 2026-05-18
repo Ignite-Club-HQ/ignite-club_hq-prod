@@ -90,6 +90,8 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
+import { exportTimerAuditLog } from "@/lib/timerAuditLog";
+import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
@@ -556,10 +558,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // (mini-league / event-group entry points fall back to `|| 10` when the
   // backing row is briefly nullish during an invalidation/refetch).
   useEffect(() => {
-    if (gameInProgress) return;
-    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) return;
+    if (gameInProgress) {
+      console.info('[TimerAudit] PitchBoard mph-sync skipped: gameInProgress', {
+        teamId, initialMinutesPerHalf, currentMph: minutesPerHalf,
+      });
+      return;
+    }
+    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) {
+      console.info('[TimerAudit] PitchBoard mph-sync skipped: invalid prop', {
+        teamId, initialMinutesPerHalf,
+      });
+      return;
+    }
+    // Belt-and-braces: also consult localStorage so a parent refetch landing
+    // in the ~1s gap between Play press and the first tick (where
+    // `gameInProgress` is still false) cannot snap the live half to a stale
+    // `|| 10` fallback. The timer writes `isRunning: true` synchronously on
+    // start, so this catches the race window.
+    try {
+      const t = loadTimerStateForMinutes(teamId);
+      if (t && (t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished)) {
+        console.info('[TimerAudit] PitchBoard mph-sync blocked by localStorage', {
+          teamId, initialMinutesPerHalf, currentMph: minutesPerHalf, localStorageState: t,
+        });
+        return;
+      }
+    } catch {}
+    console.info('[TimerAudit] PitchBoard setMinutesPerHalf', {
+      teamId, from: minutesPerHalf, to: initialMinutesPerHalf, gameInProgress,
+      ts: new Date().toISOString(),
+    });
     setMinutesPerHalf(initialMinutesPerHalf);
-  }, [initialMinutesPerHalf, gameInProgress]);
+  }, [initialMinutesPerHalf, gameInProgress, teamId]);
 
   useEffect(() => {
     setMaxSpreadMinutes(initialMaxSpreadMinutes);
@@ -5001,6 +5031,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <BarChart3 className="h-4 w-4" />
                         Match Stats
                       </button>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={async () => {
+                          setSettingsMenuOpen(false);
+                          const r = await exportTimerAuditLog();
+                          toast({
+                            title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                            description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                          });
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        Export Timer Log
+                      </button>
                     </div>
                   </>,
                   document.body
@@ -6533,6 +6577,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={async () => {
+                            setSettingsMenuOpen(false);
+                            const r = await exportTimerAuditLog();
+                            toast({
+                              title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                              description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                            });
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          Export Timer Log
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings

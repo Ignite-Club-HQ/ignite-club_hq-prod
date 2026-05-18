@@ -135,7 +135,9 @@ const loadTimerState = (teamId?: string): TimerState | null => {
       const teamKey = getTeamTimerStorageKey(teamId);
       const teamSaved = localStorage.getItem(teamKey);
       if (teamSaved) {
-        return JSON.parse(teamSaved);
+        const parsed = JSON.parse(teamSaved) as TimerState;
+        console.info('[TimerAudit] loadTimerState (team key)', { teamId, key: teamKey, state: parsed });
+        return parsed;
       }
       
       // Fallback: check legacy/active key and migrate if it matches this team
@@ -145,10 +147,11 @@ const loadTimerState = (teamId?: string): TimerState | null => {
         if (activeState.teamId === teamId) {
           // Save to team-specific key for future isolation
           localStorage.setItem(teamKey, active);
+          console.info('[TimerAudit] loadTimerState (migrated active->team)', { teamId, state: activeState });
           return activeState;
         }
       }
-      // No timer state for this team
+      console.info('[TimerAudit] loadTimerState miss', { teamId });
       return null;
     }
     
@@ -242,16 +245,51 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   const halfDurationSeconds = minutesPerHalf * 60;
 
-  // Cap elapsed time if half duration was reduced (e.g. user changed from 10 to 5 min halves)
+  // Cap elapsed time ONLY when paused. Capping while running/in-progress is
+  // unsafe: a transient parent re-render that briefly drops
+  // `externalMinutesPerHalf` to a smaller fallback (e.g. `|| 10` during a
+  // React Query refetch) would otherwise instantly truncate a live clock
+  // mid-half (the "stopped at 3:31, reverted to 10 min" bug).
   useEffect(() => {
-    if (hasInitialized && elapsedSeconds > halfDurationSeconds) {
+    if (!hasInitialized) return;
+    if (isRunning) return;
+    if (elapsedSeconds > 0 || currentHalf === 2 || isGameFinished) return;
+    if (elapsedSeconds > halfDurationSeconds) {
+      console.info('[TimerAudit] cap-elapsed-to-half', {
+        teamId, halfDurationSeconds, elapsedSeconds, minutesPerHalf,
+      });
       setElapsedSeconds(halfDurationSeconds);
     }
-  }, [halfDurationSeconds, hasInitialized]);
+  }, [halfDurationSeconds, hasInitialized, isRunning, elapsedSeconds, currentHalf, isGameFinished, teamId, minutesPerHalf]);
 
-  // Load state from localStorage on mount
+  // Trace every prop-driven minutesPerHalf change so we can correlate
+  // mid-game reverts (e.g. "reverted to 10 min halves") with the upstream
+  // refetch that caused them.
+  const prevExternalMphRef = useRef<number | undefined>(externalMinutesPerHalf);
+  useEffect(() => {
+    if (prevExternalMphRef.current !== externalMinutesPerHalf) {
+      console.info('[TimerAudit] externalMinutesPerHalf changed', {
+        teamId,
+        from: prevExternalMphRef.current,
+        to: externalMinutesPerHalf,
+        liveState: { isRunning, currentHalf, elapsedSeconds, isGameFinished },
+        ts: new Date().toISOString(),
+      });
+      prevExternalMphRef.current = externalMinutesPerHalf;
+    }
+  }, [externalMinutesPerHalf, teamId, isRunning, currentHalf, elapsedSeconds, isGameFinished]);
+
+  // Load state from localStorage on mount. CRITICAL: only run once per
+  // teamId — previously this depended on `externalMinutesPerHalf` too, which
+  // re-ran the entire restore (including resume drift) every time the parent
+  // prop flickered, intermittently snapping the half/elapsed back to a stale
+  // localStorage write and pausing the live timer.
   useEffect(() => {
     const saved = loadTimerState(teamId);
+    console.info('[TimerAudit] mount/teamId-load', {
+      teamId, externalMinutesPerHalf, savedExists: !!saved, saved,
+      ts: new Date().toISOString(),
+    });
     // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
     if (saved && saved.teamId === teamId) {
       // Only use saved minutesPerHalf if no external value is provided
@@ -268,6 +306,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
+        console.info('[TimerAudit] restored: finished', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
       } else if (saved.isRunning && saved.lastUpdateTime) {
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
         // Carry drift through end-of-half so a long phone lock (e.g. whole
@@ -293,19 +332,28 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(elapsed);
         setIsRunning(running);
         if (finished) setIsGameFinished(true);
+        console.info('[TimerAudit] restored: running+drift', {
+          teamId, secondsPassed, savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds,
+          finalHalf: half, finalElapsed: elapsed, running, finished, halfDuration,
+        });
       } else {
         setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(saved.isRunning);
+        console.info('[TimerAudit] restored: paused', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
       }
+    } else if (saved) {
+      console.info('[TimerAudit] saved teamId mismatch — not restoring', { teamId, savedTeamId: saved.teamId });
     }
     setHasInitialized(true);
-  }, [externalMinutesPerHalf, teamId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
 
   // Save state to localStorage whenever it changes (only after initialization)
+  const lastSavedSnapshotRef = useRef<string>('');
   useEffect(() => {
     if (!hasInitialized) return;
-    
+
     saveTimerState({
       minutesPerHalf,
       currentHalf,
@@ -316,6 +364,20 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       teamName,
       isGameFinished,
     }, teamId);
+
+    // Log only on meaningful transitions (not every 1s tick) so we can see
+    // exactly when isRunning/half/mph/finished flipped.
+    const snap = `${minutesPerHalf}|${currentHalf}|${isRunning}|${isGameFinished}`;
+    if (snap !== lastSavedSnapshotRef.current) {
+      console.info('[TimerAudit] state-transition', {
+        teamId,
+        from: lastSavedSnapshotRef.current,
+        to: snap,
+        elapsedSeconds,
+        ts: new Date().toISOString(),
+      });
+      lastSavedSnapshotRef.current = snap;
+    }
   }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, hasInitialized, teamId, teamName, isGameFinished]);
 
   const toggleTimer = useCallback(() => {
@@ -530,7 +592,16 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         finished = true;
       }
 
-      console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, half ${saved.currentHalf}->${half}, elapsed ${saved.elapsedSeconds}->${elapsed}`);
+      console.info('[TimerAudit] reconcileAfterResume', {
+        teamId: r.teamId,
+        driftSec: uncappedDrift,
+        halfDur,
+        savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds, savedIsRunning: saved.isRunning,
+        savedLastUpdate: new Date(saved.lastUpdateTime).toISOString(),
+        liveBefore: { half: r.currentHalf, elapsed: r.elapsedSeconds, isRunning: r.isRunning, mph: r.minutesPerHalf },
+        result: { half, elapsed, running, finished, crossedHalf },
+        ts: new Date().toISOString(),
+      });
       // Re-anchor the wall-clock tick so the next setInterval fire doesn't
       // double-credit the drift we just added here.
       tickAnchorRef.current = Date.now();
