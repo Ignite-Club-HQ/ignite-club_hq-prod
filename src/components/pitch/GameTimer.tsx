@@ -577,7 +577,16 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         finished = true;
       }
 
-      console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, half ${saved.currentHalf}->${half}, elapsed ${saved.elapsedSeconds}->${elapsed}`);
+      console.info('[TimerAudit] reconcileAfterResume', {
+        teamId: r.teamId,
+        driftSec: uncappedDrift,
+        halfDur,
+        savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds, savedIsRunning: saved.isRunning,
+        savedLastUpdate: new Date(saved.lastUpdateTime).toISOString(),
+        liveBefore: { half: r.currentHalf, elapsed: r.elapsedSeconds, isRunning: r.isRunning, mph: r.minutesPerHalf },
+        result: { half, elapsed, running, finished, crossedHalf },
+        ts: new Date().toISOString(),
+      });
       // Re-anchor the wall-clock tick so the next setInterval fire doesn't
       // double-credit the drift we just added here.
       tickAnchorRef.current = Date.now();
