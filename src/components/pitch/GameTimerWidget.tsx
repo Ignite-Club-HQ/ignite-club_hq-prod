@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCurrentGameSeconds, getSecondsSinceUpdateUncapped } from "./timerUtils";
 import { cn } from "@/lib/utils";
+import {
+  readServerTimer,
+  sendTimerEvent,
+  deriveElapsedSeconds,
+  type ServerTimer,
+} from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
