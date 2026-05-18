@@ -404,11 +404,26 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     }
   }, [isRunning]);
 
+  // Wall-clock anchor for the running tick. Set when the timer transitions
+  // to running and re-anchored on every tick. Using Date.now() deltas (rather
+  // than `prev + 1`) ensures the clock catches up when iOS/Android WebViews
+  // throttle or skip setInterval callbacks while backgrounded or in low-power
+  // mode — which is what caused U12 boys at Riverside to show 7:00 when 11:00
+  // of real time had elapsed.
+  const tickAnchorRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (isRunning) {
+      tickAnchorRef.current = Date.now();
       intervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const anchor = tickAnchorRef.current ?? now;
+        const deltaSec = Math.max(1, Math.floor((now - anchor) / 1000));
+        // Advance anchor by exactly the seconds we credited, preserving sub-
+        // second remainder so we don't drift over long halves.
+        tickAnchorRef.current = anchor + deltaSec * 1000;
         setElapsedSeconds(prev => {
-          const newValue = prev + 1;
+          const newValue = prev + deltaSec;
           // Check if half is complete
           if (newValue >= halfDurationSeconds) {
             if (currentHalf === 1) {
@@ -512,6 +527,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
 
       console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, half ${saved.currentHalf}->${half}, elapsed ${saved.elapsedSeconds}->${elapsed}`);
+      // Re-anchor the wall-clock tick so the next setInterval fire doesn't
+      // double-credit the drift we just added here.
+      tickAnchorRef.current = Date.now();
       setCurrentHalf(half);
       setElapsedSeconds(elapsed);
       setIsRunning(running);
