@@ -527,6 +527,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
 
       console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, half ${saved.currentHalf}->${half}, elapsed ${saved.elapsedSeconds}->${elapsed}`);
+      // Re-anchor the wall-clock tick so the next setInterval fire doesn't
+      // double-credit the drift we just added here.
+      tickAnchorRef.current = Date.now();
       setCurrentHalf(half);
       setElapsedSeconds(elapsed);
       setIsRunning(running);
