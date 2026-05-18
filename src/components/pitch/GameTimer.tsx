@@ -413,8 +413,23 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       return nextIsRunning;
     });
 
+    // Mirror to server so resume / cross-device / lock-phone never lose time.
+    // Determine the event type from current state at moment of press.
+    const evt = !isRunning
+      ? (elapsedSeconds === 0 && currentHalf === 1 ? 'start_half'
+        : elapsedSeconds === 0 && currentHalf === 2 ? 'start_half_2'
+        : 'resume')
+      : 'pause';
+    sendTimerEvent({
+      teamId: teamId ?? null,
+      event: evt,
+      minutesPerHalf,
+    }).then((res) => {
+      applyServerSnapshot(res.timer_state, res.server_now);
+    }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
+
     return nextIsRunning;
-  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf]);
+  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, minutesPerHalf, applyServerSnapshot]);
 
   const resetTimer = useCallback(() => {
     setIsRunning(false);
