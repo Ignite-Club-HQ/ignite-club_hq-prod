@@ -255,9 +255,29 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     if (isRunning) return;
     if (elapsedSeconds > 0 || currentHalf === 2 || isGameFinished) return;
     if (elapsedSeconds > halfDurationSeconds) {
+      console.info('[TimerAudit] cap-elapsed-to-half', {
+        teamId, halfDurationSeconds, elapsedSeconds, minutesPerHalf,
+      });
       setElapsedSeconds(halfDurationSeconds);
     }
-  }, [halfDurationSeconds, hasInitialized, isRunning, elapsedSeconds, currentHalf, isGameFinished]);
+  }, [halfDurationSeconds, hasInitialized, isRunning, elapsedSeconds, currentHalf, isGameFinished, teamId, minutesPerHalf]);
+
+  // Trace every prop-driven minutesPerHalf change so we can correlate
+  // mid-game reverts (e.g. "reverted to 10 min halves") with the upstream
+  // refetch that caused them.
+  const prevExternalMphRef = useRef<number | undefined>(externalMinutesPerHalf);
+  useEffect(() => {
+    if (prevExternalMphRef.current !== externalMinutesPerHalf) {
+      console.info('[TimerAudit] externalMinutesPerHalf changed', {
+        teamId,
+        from: prevExternalMphRef.current,
+        to: externalMinutesPerHalf,
+        liveState: { isRunning, currentHalf, elapsedSeconds, isGameFinished },
+        ts: new Date().toISOString(),
+      });
+      prevExternalMphRef.current = externalMinutesPerHalf;
+    }
+  }, [externalMinutesPerHalf, teamId, isRunning, currentHalf, elapsedSeconds, isGameFinished]);
 
   // Load state from localStorage on mount. CRITICAL: only run once per
   // teamId — previously this depended on `externalMinutesPerHalf` too, which
