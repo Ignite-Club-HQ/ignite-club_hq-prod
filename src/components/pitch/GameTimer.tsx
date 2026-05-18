@@ -242,14 +242,25 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   const halfDurationSeconds = minutesPerHalf * 60;
 
-  // Cap elapsed time if half duration was reduced (e.g. user changed from 10 to 5 min halves)
+  // Cap elapsed time ONLY when paused. Capping while running/in-progress is
+  // unsafe: a transient parent re-render that briefly drops
+  // `externalMinutesPerHalf` to a smaller fallback (e.g. `|| 10` during a
+  // React Query refetch) would otherwise instantly truncate a live clock
+  // mid-half (the "stopped at 3:31, reverted to 10 min" bug).
   useEffect(() => {
-    if (hasInitialized && elapsedSeconds > halfDurationSeconds) {
+    if (!hasInitialized) return;
+    if (isRunning) return;
+    if (elapsedSeconds > 0 || currentHalf === 2 || isGameFinished) return;
+    if (elapsedSeconds > halfDurationSeconds) {
       setElapsedSeconds(halfDurationSeconds);
     }
-  }, [halfDurationSeconds, hasInitialized]);
+  }, [halfDurationSeconds, hasInitialized, isRunning, elapsedSeconds, currentHalf, isGameFinished]);
 
-  // Load state from localStorage on mount
+  // Load state from localStorage on mount. CRITICAL: only run once per
+  // teamId — previously this depended on `externalMinutesPerHalf` too, which
+  // re-ran the entire restore (including resume drift) every time the parent
+  // prop flickered, intermittently snapping the half/elapsed back to a stale
+  // localStorage write and pausing the live timer.
   useEffect(() => {
     const saved = loadTimerState(teamId);
     // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
@@ -300,7 +311,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     }
     setHasInitialized(true);
-  }, [externalMinutesPerHalf, teamId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
 
   // Save state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
