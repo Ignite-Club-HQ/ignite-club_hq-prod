@@ -621,10 +621,22 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       const r = reconcileRefs.current;
       if (!r.isRunning || r.isGameFinished) return;
       try {
+        // Re-anchor the wall-clock by reading the most recent saved snapshot
+        // and rolling its drift forward. Using React state directly can be up
+        // to one tick stale, which compounds across background/foreground
+        // cycles (lost seconds on every lock/unlock). Read-then-write keeps
+        // (elapsedSeconds, lastUpdateTime) self-consistent.
+        const saved = loadTimerState(r.teamId);
+        const halfDur = (r.minutesPerHalf || saved?.minutesPerHalf || 20) * 60;
+        const baseElapsed = saved?.elapsedSeconds ?? r.elapsedSeconds;
+        const baseAnchor = saved?.lastUpdateTime ?? Date.now();
+        const wasRunning = saved?.isRunning ?? r.isRunning;
+        const drift = wasRunning ? getSecondsSinceUpdateUncapped(baseAnchor) : 0;
+        const projected = Math.min(baseElapsed + drift, halfDur);
         saveTimerState({
           minutesPerHalf: r.minutesPerHalf,
-          currentHalf: r.currentHalf,
-          elapsedSeconds: r.elapsedSeconds,
+          currentHalf: saved?.currentHalf ?? r.currentHalf,
+          elapsedSeconds: projected,
           isRunning: true,
           lastUpdateTime: Date.now(),
           teamId: r.teamId,
