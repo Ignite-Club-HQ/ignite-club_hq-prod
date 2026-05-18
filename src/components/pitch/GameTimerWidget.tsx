@@ -516,28 +516,55 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
     // Mark user action so polling doesn't revert this change
     userActionAtRef.current = Date.now();
-    
+
     const currentElapsed = getCurrentElapsed(fresh);
     const mph = fresh.minutesPerHalf || 20;
     const atHalfTimeLimit = currentElapsed >= mph * 60;
-    
+
+    // Determine which server event this press maps to.
+    let serverEvent: Parameters<typeof sendTimerEvent>[0]["event"] | null = null;
+
     // If currently in 1st half and at the time limit, transition to 2nd half
     if (!fresh.isRunning && fresh.currentHalf === 1 && atHalfTimeLimit) {
       const newState = { ...fresh, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
       saveTimerState(newState);
       setTimerState(newState);
       setDisplaySeconds(0);
+      serverEvent = "start_half_2";
+    } else if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) {
+      // Don't allow resuming if game is finished (2nd half at limit)
       return;
+    } else {
+      const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
+      saveTimerState(newState);
+      setTimerState(newState);
+      setDisplaySeconds(currentElapsed);
+      serverEvent = !fresh.isRunning
+        ? (currentElapsed === 0 && fresh.currentHalf === 1 ? "start_half"
+          : currentElapsed === 0 && fresh.currentHalf === 2 ? "start_half_2"
+          : "resume")
+        : "pause";
     }
-    
-    // Don't allow resuming if game is finished (2nd half at limit)
-    if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
-    
-    const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
-    saveTimerState(newState);
-    setTimerState(newState);
-    setDisplaySeconds(currentElapsed);
+
+    // Mirror to the server-anchored timer so resume / lock / cross-device
+    // all snap to the same elapsed seconds. Re-hydrate from the response so
+    // the widget reflects the authoritative state immediately.
+    if (serverEvent) {
+      sendTimerEvent({ teamId: fresh.teamId ?? null, event: serverEvent, minutesPerHalf: mph })
+        .then((res) => {
+          const mapped = serverToTimerState(
+            res.timer_state,
+            res.server_now,
+            { teamId: fresh.teamId, teamName: fresh.teamName, gameFinishedAt: fresh.gameFinishedAt },
+          );
+          saveTimerState(mapped);
+          setTimerState(mapped);
+          setDisplaySeconds(mapped.elapsedSeconds);
+        })
+        .catch((err) => console.warn("[GameTimerWidget] sendTimerEvent failed", serverEvent, err));
+    }
   };
+
 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
     e.stopPropagation();
