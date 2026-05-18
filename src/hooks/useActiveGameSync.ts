@@ -109,6 +109,13 @@ export function useActiveGameSync() {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     const timerState = loadTimerState();
+    // If the server-anchored timer (schema v2) is in play, the new
+    // `pitch-timer-event` edge function owns timer_state. Don't let the
+    // legacy 10s sync clobber it with the old elapsedSeconds/lastUpdateTime
+    // shape — that would re-introduce drift on resume.
+    if ((timerState as unknown as { schema_version?: number } | null)?.schema_version === 2) {
+      return;
+    }
     const pitchState = loadPitchState(timerState?.teamId);
 
     const deactivateActiveGame = async () => {
