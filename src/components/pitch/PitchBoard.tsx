@@ -556,8 +556,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // (mini-league / event-group entry points fall back to `|| 10` when the
   // backing row is briefly nullish during an invalidation/refetch).
   useEffect(() => {
-    if (gameInProgress) return;
-    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) return;
+    if (gameInProgress) {
+      console.info('[TimerAudit] PitchBoard mph-sync skipped: gameInProgress', {
+        teamId, initialMinutesPerHalf, currentMph: minutesPerHalf,
+      });
+      return;
+    }
+    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) {
+      console.info('[TimerAudit] PitchBoard mph-sync skipped: invalid prop', {
+        teamId, initialMinutesPerHalf,
+      });
+      return;
+    }
     // Belt-and-braces: also consult localStorage so a parent refetch landing
     // in the ~1s gap between Play press and the first tick (where
     // `gameInProgress` is still false) cannot snap the live half to a stale
@@ -566,9 +576,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     try {
       const t = loadTimerStateForMinutes(teamId);
       if (t && (t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished)) {
+        console.info('[TimerAudit] PitchBoard mph-sync blocked by localStorage', {
+          teamId, initialMinutesPerHalf, currentMph: minutesPerHalf, localStorageState: t,
+        });
         return;
       }
     } catch {}
+    console.info('[TimerAudit] PitchBoard setMinutesPerHalf', {
+      teamId, from: minutesPerHalf, to: initialMinutesPerHalf, gameInProgress,
+      ts: new Date().toISOString(),
+    });
     setMinutesPerHalf(initialMinutesPerHalf);
   }, [initialMinutesPerHalf, gameInProgress, teamId]);
 
