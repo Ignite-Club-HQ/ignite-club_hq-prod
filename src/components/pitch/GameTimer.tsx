@@ -297,7 +297,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
     setElapsedSeconds(elapsed);
     setIsRunning(!!t.is_running);
-    tickAnchorRef.current = Date.now();
+    // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
     console.info('[TimerAudit] server-hydrate', { teamId, t, elapsed });
   }, [externalMinutesPerHalf, teamId]);
 
