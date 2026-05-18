@@ -286,6 +286,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // localStorage write and pausing the live timer.
   useEffect(() => {
     const saved = loadTimerState(teamId);
+    console.info('[TimerAudit] mount/teamId-load', {
+      teamId, externalMinutesPerHalf, savedExists: !!saved, saved,
+      ts: new Date().toISOString(),
+    });
     // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
     if (saved && saved.teamId === teamId) {
       // Only use saved minutesPerHalf if no external value is provided
@@ -302,6 +306,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
+        console.info('[TimerAudit] restored: finished', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
       } else if (saved.isRunning && saved.lastUpdateTime) {
         const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
         // Carry drift through end-of-half so a long phone lock (e.g. whole
@@ -327,11 +332,18 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(elapsed);
         setIsRunning(running);
         if (finished) setIsGameFinished(true);
+        console.info('[TimerAudit] restored: running+drift', {
+          teamId, secondsPassed, savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds,
+          finalHalf: half, finalElapsed: elapsed, running, finished, halfDuration,
+        });
       } else {
         setCurrentHalf(saved.currentHalf);
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(saved.isRunning);
+        console.info('[TimerAudit] restored: paused', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
       }
+    } else if (saved) {
+      console.info('[TimerAudit] saved teamId mismatch — not restoring', { teamId, savedTeamId: saved.teamId });
     }
     setHasInitialized(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
