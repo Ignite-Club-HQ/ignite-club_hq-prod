@@ -42,6 +42,10 @@
 
 // IMPORTANT: silencer must be imported before anything that logs on evaluation
 import "./lib/prodConsoleSilencer";
+// Install AFTER silencer so we wrap the (potentially silenced) console fns.
+// console.info is preserved in production so [TimerAudit] entries are captured.
+import { installTimerAuditCapture } from "./lib/timerAuditLog";
+installTimerAuditCapture();
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";

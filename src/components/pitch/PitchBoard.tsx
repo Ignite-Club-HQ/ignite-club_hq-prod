@@ -90,6 +90,8 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
+import { exportTimerAuditLog } from "@/lib/timerAuditLog";
+import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
@@ -5029,6 +5031,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <BarChart3 className="h-4 w-4" />
                         Match Stats
                       </button>
+                      <button
+                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                        onClick={async () => {
+                          setSettingsMenuOpen(false);
+                          const r = await exportTimerAuditLog();
+                          toast({
+                            title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                            description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                          });
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        Export Timer Log
+                      </button>
                     </div>
                   </>,
                   document.body
@@ -6561,6 +6577,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
+                        <button
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={async () => {
+                            setSettingsMenuOpen(false);
+                            const r = await exportTimerAuditLog();
+                            toast({
+                              title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                              description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                            });
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          Export Timer Log
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
