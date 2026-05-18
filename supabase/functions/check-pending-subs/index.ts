@@ -565,8 +565,31 @@ async function checkGames(supabase: any): Promise<number> {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }
       }
+
+      // Schema v2: also flip the server-anchored timer into the halftime
+      // break state so the client (and spectators) see a paused half=2/0:00
+      // instead of a frozen running clock at minutes_per_half * 60.
+      if (isServerAnchored && (rawTs.current_half === 1 || rawTs.is_running)) {
+        const nowIso = new Date().toISOString();
+        const nextTs = {
+          ...rawTs,
+          current_half: 2,
+          half_started_at: null,
+          half_paused_at: null,
+          accumulated_pause_ms: 0,
+          is_running: false,
+          half_ended_at: nowIso,
+          last_event_at: nowIso,
+        };
+        await supabase
+          .from('active_games')
+          .update({ timer_state: nextTs, updated_at: nowIso })
+          .eq('id', game.id);
+        console.log(`[CHECK-SUBS] v2 auto-transitioned game ${game.id} to halftime`);
+      }
       continue; // Skip sub processing during half-time
     }
+
     const teamId = game.team_id || timerState.teamId;
     const teamName = timerState.teamName || 'Your team';
     const linkedEventId = pitchState.linkedEventId;
