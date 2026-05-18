@@ -454,6 +454,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         }, teamId);
       } catch {}
     }
+    // Server reset so spectators / cron / next mount all snap to zero.
+    sendTimerEvent({ teamId: teamId ?? null, event: 'reset', minutesPerHalf })
+      .catch((e) => console.warn('[TimerAudit] reset send failed', e));
   }, [teamId, kickoffMs, minutesPerHalf, teamName]);
 
   // Expose state via ref
