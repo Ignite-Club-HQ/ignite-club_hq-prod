@@ -597,9 +597,34 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   };
 
   useEffect(() => {
-    const reconcileAfterResume = () => {
+    const reconcileAfterResume = async () => {
       const r = reconcileRefs.current;
       if (r.isGameFinished) return;
+
+      // Server-first: pull authoritative timer and snap to it. Drift is
+      // impossible because the server derives elapsed from event timestamps.
+      try {
+        const res = await readServerTimer(r.teamId ?? null);
+        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+          const prevHalf = r.currentHalf;
+          const prevFinished = r.isGameFinished;
+          applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
+          // Fire half/full-time chimes if the server says we crossed those
+          // boundaries while we were backgrounded.
+          if (!prevFinished && res.timer_state.is_game_finished) {
+            playTimerBeep("Full Time! Match complete.");
+          } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
+            onHalfChangeRef.current?.(2);
+            playTimerBeep("Half Time! First half complete.");
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn('[TimerAudit] reconcile: server read failed, falling back', e);
+      }
+
+      // Fallback: legacy localStorage drift projection (for games still on
+      // the old path or fully offline). Same logic as before.
       const saved = loadTimerState(r.teamId);
       if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
 
@@ -613,29 +638,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       let finished = false;
       let crossedHalf = false;
       if (half === 1 && elapsed >= halfDur) {
-        half = 2;
-        elapsed = elapsed - halfDur;
-        running = false;
-        crossedHalf = true;
+        half = 2; elapsed = elapsed - halfDur; running = false; crossedHalf = true;
       }
       if (half === 2 && elapsed >= halfDur) {
-        elapsed = halfDur;
-        running = false;
-        finished = true;
+        elapsed = halfDur; running = false; finished = true;
       }
 
-      console.info('[TimerAudit] reconcileAfterResume', {
-        teamId: r.teamId,
-        driftSec: uncappedDrift,
-        halfDur,
-        savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds, savedIsRunning: saved.isRunning,
-        savedLastUpdate: new Date(saved.lastUpdateTime).toISOString(),
-        liveBefore: { half: r.currentHalf, elapsed: r.elapsedSeconds, isRunning: r.isRunning, mph: r.minutesPerHalf },
-        result: { half, elapsed, running, finished, crossedHalf },
-        ts: new Date().toISOString(),
-      });
-      // Re-anchor the wall-clock tick so the next setInterval fire doesn't
-      // double-credit the drift we just added here.
       tickAnchorRef.current = Date.now();
       setCurrentHalf(half);
       setElapsedSeconds(elapsed);
@@ -649,34 +657,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     };
 
-    const flushOnHide = () => {
-      const r = reconcileRefs.current;
-      if (!r.isRunning || r.isGameFinished) return;
-      try {
-        // Re-anchor the wall-clock by reading the most recent saved snapshot
-        // and rolling its drift forward. Using React state directly can be up
-        // to one tick stale, which compounds across background/foreground
-        // cycles (lost seconds on every lock/unlock). Read-then-write keeps
-        // (elapsedSeconds, lastUpdateTime) self-consistent.
-        const saved = loadTimerState(r.teamId);
-        const halfDur = (r.minutesPerHalf || saved?.minutesPerHalf || 20) * 60;
-        const baseElapsed = saved?.elapsedSeconds ?? r.elapsedSeconds;
-        const baseAnchor = saved?.lastUpdateTime ?? Date.now();
-        const wasRunning = saved?.isRunning ?? r.isRunning;
-        const drift = wasRunning ? getSecondsSinceUpdateUncapped(baseAnchor) : 0;
-        const projected = Math.min(baseElapsed + drift, halfDur);
-        saveTimerState({
-          minutesPerHalf: r.minutesPerHalf,
-          currentHalf: saved?.currentHalf ?? r.currentHalf,
-          elapsedSeconds: projected,
-          isRunning: true,
-          lastUpdateTime: Date.now(),
-          teamId: r.teamId,
-          teamName: r.teamName,
-          isGameFinished: false,
-        }, r.teamId);
-      } catch {}
-    };
+    // flushOnHide is no longer needed — server holds the truth via event
+    // timestamps, so there's nothing to "flush" on hide. Keeping a no-op
+    // for the event handlers below.
+    const flushOnHide = () => {};
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') reconcileAfterResume();
