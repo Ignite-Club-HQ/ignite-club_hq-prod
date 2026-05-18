@@ -390,22 +390,42 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   // Reconcile timer after app resumes from background (uncapped drift)
   useEffect(() => {
-    const reconcileAfterResume = () => {
+    const reconcileAfterResume = async () => {
       const saved = loadActiveTimerState();
-      if (!saved || !saved.isRunning || saved.isGameFinished) return;
+      if (!saved) return;
 
+      // Server-first: ask the authoritative timer row for current elapsed.
+      // Immune to phone-lock, app-kill, or stale localStorage projections.
+      try {
+        const res = await readServerTimer(saved.teamId ?? null);
+        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+          const mapped = serverToTimerState(
+            res.timer_state as ServerTimer,
+            res.server_now,
+            { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+          );
+          saveTimerState(mapped);
+          setTimerState(mapped);
+          setDisplaySeconds(mapped.elapsedSeconds);
+          return;
+        }
+      } catch (e) {
+        console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
+      }
+
+      // Legacy fallback (offline / pre-v2 row): project uncapped drift locally.
+      if (!saved.isRunning || saved.isGameFinished) return;
       const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
       if (uncappedDrift < 2) return;
 
       const halfDuration = saved.minutesPerHalf * 60;
-      // Carry-over: long lock can span end of half 1 into half 2 or full time
       let half: 1 | 2 = saved.currentHalf;
       let elapsed = (saved.elapsedSeconds || 0) + uncappedDrift;
       if (half === 1 && elapsed >= halfDuration) {
         half = 2;
         elapsed = elapsed - halfDuration;
         saved.currentHalf = 2;
-        saved.isRunning = false; // coach must press play for 2nd half
+        saved.isRunning = false;
       }
       if (half === 2 && elapsed >= halfDuration) {
         saved.elapsedSeconds = halfDuration;
@@ -413,7 +433,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         saved.isGameFinished = true;
       } else {
         saved.elapsedSeconds = elapsed;
-        // Preserve running flag set above (false if we just crossed half)
       }
 
       saved.lastUpdateTime = Date.now();
@@ -421,6 +440,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setTimerState({ ...saved });
       setDisplaySeconds(saved.currentHalf === 2 && saved.elapsedSeconds === 0 ? 0 : saved.elapsedSeconds);
     };
+
 
     const flushOnHide = () => {
       const saved = loadActiveTimerState();
