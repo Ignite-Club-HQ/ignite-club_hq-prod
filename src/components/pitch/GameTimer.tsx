@@ -135,7 +135,9 @@ const loadTimerState = (teamId?: string): TimerState | null => {
       const teamKey = getTeamTimerStorageKey(teamId);
       const teamSaved = localStorage.getItem(teamKey);
       if (teamSaved) {
-        return JSON.parse(teamSaved);
+        const parsed = JSON.parse(teamSaved) as TimerState;
+        console.info('[TimerAudit] loadTimerState (team key)', { teamId, key: teamKey, state: parsed });
+        return parsed;
       }
       
       // Fallback: check legacy/active key and migrate if it matches this team
@@ -145,10 +147,11 @@ const loadTimerState = (teamId?: string): TimerState | null => {
         if (activeState.teamId === teamId) {
           // Save to team-specific key for future isolation
           localStorage.setItem(teamKey, active);
+          console.info('[TimerAudit] loadTimerState (migrated active->team)', { teamId, state: activeState });
           return activeState;
         }
       }
-      // No timer state for this team
+      console.info('[TimerAudit] loadTimerState miss', { teamId });
       return null;
     }
     
