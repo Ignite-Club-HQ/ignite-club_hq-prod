@@ -350,9 +350,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   }, [teamId]);
 
   // Save state to localStorage whenever it changes (only after initialization)
+  const lastSavedSnapshotRef = useRef<string>('');
   useEffect(() => {
     if (!hasInitialized) return;
-    
+
     saveTimerState({
       minutesPerHalf,
       currentHalf,
@@ -363,6 +364,20 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       teamName,
       isGameFinished,
     }, teamId);
+
+    // Log only on meaningful transitions (not every 1s tick) so we can see
+    // exactly when isRunning/half/mph/finished flipped.
+    const snap = `${minutesPerHalf}|${currentHalf}|${isRunning}|${isGameFinished}`;
+    if (snap !== lastSavedSnapshotRef.current) {
+      console.info('[TimerAudit] state-transition', {
+        teamId,
+        from: lastSavedSnapshotRef.current,
+        to: snap,
+        elapsedSeconds,
+        ts: new Date().toISOString(),
+      });
+      lastSavedSnapshotRef.current = snap;
+    }
   }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, hasInitialized, teamId, teamName, isGameFinished]);
 
   const toggleTimer = useCallback(() => {
