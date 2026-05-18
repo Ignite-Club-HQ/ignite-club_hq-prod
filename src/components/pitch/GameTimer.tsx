@@ -242,6 +242,14 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     } else {
       setInternalMinutesPerHalf(mins);
     }
+    // Propagate to server so spectators / cron see the new half length and
+    // the next mount (anywhere) hydrates with the right value.
+    sendTimerEvent({
+      teamId: teamId ?? null,
+      event: 'set_minutes',
+      minutesPerHalf: mins,
+      payload: { minutes_per_half: mins },
+    }).catch((e) => console.warn('[TimerAudit] set_minutes send failed', e));
   };
 
   const halfDurationSeconds = minutesPerHalf * 60;
