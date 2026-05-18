@@ -526,6 +526,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               setCurrentHalf(2);
               onHalfChangeRef.current?.(2);
               playTimerBeep("Half Time! First half complete.");
+              sendTimerEvent({ teamId: teamId ?? null, event: 'end_half', minutesPerHalf })
+                .catch((e) => console.warn('[TimerAudit] end_half send failed', e));
               return 0;
             } else {
               // End of match - mark game as finished
@@ -545,6 +547,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               };
               saveTimerState(finishedState, teamId);
               playTimerBeep("Full Time! Match complete.");
+              sendTimerEvent({ teamId: teamId ?? null, event: 'end_game', minutesPerHalf })
+                .catch((e) => console.warn('[TimerAudit] end_game send failed', e));
               return halfDurationSeconds;
             }
           }
