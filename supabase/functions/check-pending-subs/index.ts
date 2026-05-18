@@ -389,10 +389,43 @@ async function checkGames(supabase: any): Promise<number> {
   let notificationsSent = 0;
 
   for (const game of uniqueGames) {
-    const timerState = game.timer_state as TimerState;
+    let timerState = game.timer_state as TimerState;
     const pitchState = game.pitch_state as PitchState;
 
     if (!timerState || !pitchState) continue;
+
+    // ---- Server-anchored (schema_version 2) projection ----
+    // The new pitch-timer-event edge function writes a different shape:
+    //   { schema_version: 2, current_half, minutes_per_half,
+    //     half_started_at, half_paused_at, accumulated_pause_ms,
+    //     is_running, is_game_finished }
+    // Project it back into the legacy v1 TimerState shape so all the
+    // halftime / sub / fulltime detection below keeps working unchanged.
+    const rawTs = game.timer_state as any;
+    const isServerAnchored = rawTs?.schema_version === 2;
+    if (isServerAnchored) {
+      const mph = Number(rawTs.minutes_per_half) || 0;
+      const halfDur = mph * 60;
+      const startMs = rawTs.half_started_at ? new Date(rawTs.half_started_at).getTime() : 0;
+      const pausedMs = rawTs.half_paused_at ? new Date(rawTs.half_paused_at).getTime() : 0;
+      const accPauseMs = Number(rawTs.accumulated_pause_ms) || 0;
+      const refMs = pausedMs || Date.now();
+      const elapsedMs = startMs ? Math.max(0, refMs - startMs - accPauseMs) : 0;
+      const elapsedSecs = Math.min(Math.floor(elapsedMs / 1000), halfDur);
+      timerState = {
+        elapsedSeconds: elapsedSecs,
+        isRunning: !!rawTs.is_running,
+        currentHalf: Number(rawTs.current_half) || 1,
+        minutesPerHalf: mph,
+        // lastUpdateTime is informational only on the v2 path — the
+        // cron uses game.updated_at as the anchor for sub extrapolation.
+        // Stamp it to now so legacy downstream consumers don't see 0.
+        lastUpdateTime: Date.now(),
+        teamName: rawTs.teamName,
+        teamId: rawTs.teamId,
+      } as TimerState;
+    }
+
 
     const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
