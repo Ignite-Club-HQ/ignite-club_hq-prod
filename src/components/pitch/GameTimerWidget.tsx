@@ -388,7 +388,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const saved = loadActiveTimerState();
       if (!saved || !saved.isRunning || saved.isGameFinished) return;
       try {
-        saveTimerState({ ...saved, lastUpdateTime: Date.now() });
+        // CRITICAL: roll accumulated drift into elapsedSeconds BEFORE re-stamping
+        // lastUpdateTime. The widget is a read-only display when no GameTimer is
+        // mounted — nobody else has been advancing elapsedSeconds tick-by-tick.
+        // Resetting the anchor without crediting the drift would silently lose
+        // every second that passed between the last writer's save and now
+        // (e.g. user navigates Pitch → Home → locks phone: the gap on Home
+        // disappears from the clock on resume).
+        const halfDur = (saved.minutesPerHalf || 20) * 60;
+        const drift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+        const projected = Math.min((saved.elapsedSeconds || 0) + drift, halfDur);
+        saveTimerState({ ...saved, elapsedSeconds: projected, lastUpdateTime: Date.now() });
       } catch {}
     };
 

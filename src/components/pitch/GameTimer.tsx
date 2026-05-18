@@ -7,6 +7,7 @@ import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, type ServerTimer } from "@/lib/serverTimer";
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
@@ -241,6 +242,14 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     } else {
       setInternalMinutesPerHalf(mins);
     }
+    // Propagate to server so spectators / cron see the new half length and
+    // the next mount (anywhere) hydrates with the right value.
+    sendTimerEvent({
+      teamId: teamId ?? null,
+      event: 'set_minutes',
+      minutesPerHalf: mins,
+      payload: { minutes_per_half: mins },
+    }).catch((e) => console.warn('[TimerAudit] set_minutes send failed', e));
   };
 
   const halfDurationSeconds = minutesPerHalf * 60;
@@ -279,73 +288,82 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     }
   }, [externalMinutesPerHalf, teamId, isRunning, currentHalf, elapsedSeconds, isGameFinished]);
 
-  // Load state from localStorage on mount. CRITICAL: only run once per
-  // teamId — previously this depended on `externalMinutesPerHalf` too, which
-  // re-ran the entire restore (including resume drift) every time the parent
-  // prop flickered, intermittently snapping the half/elapsed back to a stale
-  // localStorage write and pausing the live timer.
-  useEffect(() => {
-    const saved = loadTimerState(teamId);
-    console.info('[TimerAudit] mount/teamId-load', {
-      teamId, externalMinutesPerHalf, savedExists: !!saved, saved,
-      ts: new Date().toISOString(),
-    });
-    // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
-    if (saved && saved.teamId === teamId) {
-      // Only use saved minutesPerHalf if no external value is provided
-      if (externalMinutesPerHalf === undefined) {
-        setInternalMinutesPerHalf(saved.minutesPerHalf);
-      }
-      setIsGameFinished(saved.isGameFinished || false);
-
-      // Use the correct half duration (external prop takes priority)
-      const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
-
-      // Check if game was finished
-      if (saved.isGameFinished) {
-        setCurrentHalf(saved.currentHalf);
-        setElapsedSeconds(saved.elapsedSeconds);
-        setIsRunning(false);
-        console.info('[TimerAudit] restored: finished', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
-      } else if (saved.isRunning && saved.lastUpdateTime) {
-        const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
-        // Carry drift through end-of-half so a long phone lock (e.g. whole
-        // game spent backgrounded) still advances correctly instead of
-        // freezing at the half boundary.
-        let half: 1 | 2 = saved.currentHalf;
-        let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
-        let running = true;
-        let finished = false;
-        if (half === 1 && elapsed >= halfDuration) {
-          half = 2;
-          elapsed = elapsed - halfDuration;
-          // Half boundary itself: coach must press play for 2nd half
-          running = false;
-          onHalfChangeRef.current?.(2);
-        }
-        if (half === 2 && elapsed >= halfDuration) {
-          elapsed = halfDuration;
-          running = false;
-          finished = true;
-        }
-        setCurrentHalf(half);
-        setElapsedSeconds(elapsed);
-        setIsRunning(running);
-        if (finished) setIsGameFinished(true);
-        console.info('[TimerAudit] restored: running+drift', {
-          teamId, secondsPassed, savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds,
-          finalHalf: half, finalElapsed: elapsed, running, finished, halfDuration,
-        });
-      } else {
-        setCurrentHalf(saved.currentHalf);
-        setElapsedSeconds(saved.elapsedSeconds);
-        setIsRunning(saved.isRunning);
-        console.info('[TimerAudit] restored: paused', { teamId, half: saved.currentHalf, elapsed: saved.elapsedSeconds });
-      }
-    } else if (saved) {
-      console.info('[TimerAudit] saved teamId mismatch — not restoring', { teamId, savedTeamId: saved.teamId });
+  // Server-anchored hydration. On mount we ask the server for the
+  // authoritative timer (immune to phone-lock drift, app-kill, etc). If
+  // present, that wins over any localStorage projection. Falls back to
+  // localStorage only when the server has no row (offline, brand-new game).
+  const serverTimerRef = useRef<ServerTimer | null>(null);
+  const clockSkewMsRef = useRef<number>(0); // server_now - Date.now()
+  const applyServerSnapshot = useCallback((t: ServerTimer, serverNowIso: string) => {
+    serverTimerRef.current = t;
+    clockSkewMsRef.current = new Date(serverNowIso).getTime() - Date.now();
+    if (externalMinutesPerHalf === undefined) {
+      setInternalMinutesPerHalf(t.minutes_per_half);
     }
-    setHasInitialized(true);
+    setCurrentHalf((t.current_half as 1 | 2) || 1);
+    setIsGameFinished(!!t.is_game_finished);
+    const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
+    setElapsedSeconds(elapsed);
+    setIsRunning(!!t.is_running);
+    // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
+    console.info('[TimerAudit] server-hydrate', { teamId, t, elapsed });
+  }, [externalMinutesPerHalf, teamId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Try server first.
+      try {
+        const res = await readServerTimer(teamId ?? null);
+        if (cancelled) return;
+        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+          applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
+          setHasInitialized(true);
+          return;
+        }
+      } catch (e) {
+        console.warn('[TimerAudit] server-hydrate failed, fallback to localStorage', e);
+      }
+      if (cancelled) return;
+
+      // Fallback: legacy localStorage hydration (unchanged from before so
+      // mid-flight games on the old path keep working).
+      const saved = loadTimerState(teamId);
+      console.info('[TimerAudit] mount/teamId-load (fallback)', { teamId, externalMinutesPerHalf, savedExists: !!saved, saved });
+      if (saved && saved.teamId === teamId) {
+        if (externalMinutesPerHalf === undefined) setInternalMinutesPerHalf(saved.minutesPerHalf);
+        setIsGameFinished(saved.isGameFinished || false);
+        const halfDuration = (externalMinutesPerHalf ?? saved.minutesPerHalf) * 60;
+        if (saved.isGameFinished) {
+          setCurrentHalf(saved.currentHalf);
+          setElapsedSeconds(saved.elapsedSeconds);
+          setIsRunning(false);
+        } else if (saved.isRunning && saved.lastUpdateTime) {
+          const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+          let half: 1 | 2 = saved.currentHalf;
+          let elapsed = (saved.elapsedSeconds || 0) + secondsPassed;
+          let running = true;
+          let finished = false;
+          if (half === 1 && elapsed >= halfDuration) {
+            half = 2; elapsed = elapsed - halfDuration; running = false;
+            onHalfChangeRef.current?.(2);
+          }
+          if (half === 2 && elapsed >= halfDuration) {
+            elapsed = halfDuration; running = false; finished = true;
+          }
+          setCurrentHalf(half);
+          setElapsedSeconds(elapsed);
+          setIsRunning(running);
+          if (finished) setIsGameFinished(true);
+        } else {
+          setCurrentHalf(saved.currentHalf);
+          setElapsedSeconds(saved.elapsedSeconds);
+          setIsRunning(saved.isRunning);
+        }
+      }
+      setHasInitialized(true);
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
@@ -403,8 +421,23 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       return nextIsRunning;
     });
 
+    // Mirror to server so resume / cross-device / lock-phone never lose time.
+    // Determine the event type from current state at moment of press.
+    const evt = !isRunning
+      ? (elapsedSeconds === 0 && currentHalf === 1 ? 'start_half'
+        : elapsedSeconds === 0 && currentHalf === 2 ? 'start_half_2'
+        : 'resume')
+      : 'pause';
+    sendTimerEvent({
+      teamId: teamId ?? null,
+      event: evt,
+      minutesPerHalf,
+    }).then((res) => {
+      applyServerSnapshot(res.timer_state, res.server_now);
+    }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
+
     return nextIsRunning;
-  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf]);
+  }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, minutesPerHalf, applyServerSnapshot]);
 
   const resetTimer = useCallback(() => {
     setIsRunning(false);
@@ -429,6 +462,9 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         }, teamId);
       } catch {}
     }
+    // Server reset so spectators / cron / next mount all snap to zero.
+    sendTimerEvent({ teamId: teamId ?? null, event: 'reset', minutesPerHalf })
+      .catch((e) => console.warn('[TimerAudit] reset send failed', e));
   }, [teamId, kickoffMs, minutesPerHalf, teamName]);
 
   // Expose state via ref
@@ -498,6 +534,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               setCurrentHalf(2);
               onHalfChangeRef.current?.(2);
               playTimerBeep("Half Time! First half complete.");
+              sendTimerEvent({ teamId: teamId ?? null, event: 'end_half', minutesPerHalf })
+                .catch((e) => console.warn('[TimerAudit] end_half send failed', e));
               return 0;
             } else {
               // End of match - mark game as finished
@@ -517,6 +555,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               };
               saveTimerState(finishedState, teamId);
               playTimerBeep("Full Time! Match complete.");
+              sendTimerEvent({ teamId: teamId ?? null, event: 'end_game', minutesPerHalf })
+                .catch((e) => console.warn('[TimerAudit] end_game send failed', e));
               return halfDurationSeconds;
             }
           }
@@ -565,9 +605,34 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   };
 
   useEffect(() => {
-    const reconcileAfterResume = () => {
+    const reconcileAfterResume = async () => {
       const r = reconcileRefs.current;
       if (r.isGameFinished) return;
+
+      // Server-first: pull authoritative timer and snap to it. Drift is
+      // impossible because the server derives elapsed from event timestamps.
+      try {
+        const res = await readServerTimer(r.teamId ?? null);
+        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+          const prevHalf = r.currentHalf;
+          const prevFinished = r.isGameFinished;
+          applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
+          // Fire half/full-time chimes if the server says we crossed those
+          // boundaries while we were backgrounded.
+          if (!prevFinished && res.timer_state.is_game_finished) {
+            playTimerBeep("Full Time! Match complete.");
+          } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
+            onHalfChangeRef.current?.(2);
+            playTimerBeep("Half Time! First half complete.");
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn('[TimerAudit] reconcile: server read failed, falling back', e);
+      }
+
+      // Fallback: legacy localStorage drift projection (for games still on
+      // the old path or fully offline). Same logic as before.
       const saved = loadTimerState(r.teamId);
       if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
 
@@ -581,29 +646,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       let finished = false;
       let crossedHalf = false;
       if (half === 1 && elapsed >= halfDur) {
-        half = 2;
-        elapsed = elapsed - halfDur;
-        running = false;
-        crossedHalf = true;
+        half = 2; elapsed = elapsed - halfDur; running = false; crossedHalf = true;
       }
       if (half === 2 && elapsed >= halfDur) {
-        elapsed = halfDur;
-        running = false;
-        finished = true;
+        elapsed = halfDur; running = false; finished = true;
       }
 
-      console.info('[TimerAudit] reconcileAfterResume', {
-        teamId: r.teamId,
-        driftSec: uncappedDrift,
-        halfDur,
-        savedHalf: saved.currentHalf, savedElapsed: saved.elapsedSeconds, savedIsRunning: saved.isRunning,
-        savedLastUpdate: new Date(saved.lastUpdateTime).toISOString(),
-        liveBefore: { half: r.currentHalf, elapsed: r.elapsedSeconds, isRunning: r.isRunning, mph: r.minutesPerHalf },
-        result: { half, elapsed, running, finished, crossedHalf },
-        ts: new Date().toISOString(),
-      });
-      // Re-anchor the wall-clock tick so the next setInterval fire doesn't
-      // double-credit the drift we just added here.
       tickAnchorRef.current = Date.now();
       setCurrentHalf(half);
       setElapsedSeconds(elapsed);
@@ -617,22 +665,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     };
 
-    const flushOnHide = () => {
-      const r = reconcileRefs.current;
-      if (!r.isRunning || r.isGameFinished) return;
-      try {
-        saveTimerState({
-          minutesPerHalf: r.minutesPerHalf,
-          currentHalf: r.currentHalf,
-          elapsedSeconds: r.elapsedSeconds,
-          isRunning: true,
-          lastUpdateTime: Date.now(),
-          teamId: r.teamId,
-          teamName: r.teamName,
-          isGameFinished: false,
-        }, r.teamId);
-      } catch {}
-    };
+    // flushOnHide is no longer needed — server holds the truth via event
+    // timestamps, so there's nothing to "flush" on hide. Keeping a no-op
+    // for the event handlers below.
+    const flushOnHide = () => {};
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') reconcileAfterResume();
