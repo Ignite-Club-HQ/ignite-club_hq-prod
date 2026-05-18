@@ -135,6 +135,38 @@ const saveTimerState = (state: TimerState) => {
   } catch { /* ignore */ }
 };
 
+/**
+ * Map a server-anchored ServerTimer row into the widget's legacy TimerState
+ * shape so the rest of this component (display, subs, halftime detection)
+ * keeps working unchanged. Elapsed is derived from event timestamps + the
+ * server_now echo so device clock drift / phone-lock cannot lose seconds.
+ */
+const serverToTimerState = (
+  t: ServerTimer,
+  serverNowIso: string,
+  fallback: { teamId?: string; teamName?: string; gameFinishedAt?: number },
+): TimerState => {
+  const clockSkewMs = new Date(serverNowIso).getTime() - Date.now();
+  const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMs);
+  return {
+    minutesPerHalf: t.minutes_per_half,
+    currentHalf: (t.current_half as 1 | 2) || 1,
+    elapsedSeconds: elapsed,
+    isRunning: !!t.is_running,
+    soundEnabled: true,
+    // Stamp lastUpdateTime to "now" so the local 1Hz visual tick continues
+    // smoothly from the server-derived value until the next hydrate.
+    lastUpdateTime: Date.now(),
+    teamId: fallback.teamId,
+    teamName: fallback.teamName,
+    isGameFinished: !!t.is_game_finished,
+    gameFinishedAt: t.is_game_finished
+      ? fallback.gameFinishedAt ?? Date.now()
+      : fallback.gameFinishedAt,
+  };
+};
+
+
 // Read pitch state: prefer team-specific key, fall back to active key ONLY if teamId matches
 const readPitchState = (teamId?: string): PitchBoardState | null => {
   try {
