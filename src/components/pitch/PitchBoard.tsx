@@ -558,8 +558,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   useEffect(() => {
     if (gameInProgress) return;
     if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) return;
+    // Belt-and-braces: also consult localStorage so a parent refetch landing
+    // in the ~1s gap between Play press and the first tick (where
+    // `gameInProgress` is still false) cannot snap the live half to a stale
+    // `|| 10` fallback. The timer writes `isRunning: true` synchronously on
+    // start, so this catches the race window.
+    try {
+      const t = loadTimerStateForMinutes(teamId);
+      if (t && (t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished)) {
+        return;
+      }
+    } catch {}
     setMinutesPerHalf(initialMinutesPerHalf);
-  }, [initialMinutesPerHalf, gameInProgress]);
+  }, [initialMinutesPerHalf, gameInProgress, teamId]);
 
   useEffect(() => {
     setMaxSpreadMinutes(initialMaxSpreadMinutes);
