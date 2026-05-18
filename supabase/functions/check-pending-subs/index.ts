@@ -707,12 +707,27 @@ async function checkGames(supabase: any): Promise<number> {
 
     if (isGameFinished) {
       // Atomically claim by marking inactive — only the winner sends notifications
+      // For v2, also write the finished server timer state alongside the
+      // is_active flip so any in-flight client sees the end_game transition.
+      const finishUpdate: Record<string, unknown> = { is_active: false };
+      if (isServerAnchored) {
+        const nowIso = new Date().toISOString();
+        finishUpdate.timer_state = {
+          ...rawTs,
+          is_running: false,
+          is_game_finished: true,
+          half_ended_at: nowIso,
+          last_event_at: nowIso,
+        };
+        finishUpdate.updated_at = nowIso;
+      }
       const { data: claimResult, error: claimError } = await supabase
         .from('active_games')
-        .update({ is_active: false })
+        .update(finishUpdate)
         .eq('id', game.id)
         .eq('is_active', true)
         .select('id');
+
       
       if (!claimError && claimResult && claimResult.length > 0) {
         console.log(`[CHECK-SUBS] Game ${game.id} finished — claimed full-time notification`);
