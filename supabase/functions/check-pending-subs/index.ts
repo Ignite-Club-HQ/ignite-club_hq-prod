@@ -480,7 +480,11 @@ async function checkGames(supabase: any): Promise<number> {
     // doesn't affect notification accuracy — it just delays cleanup of truly abandoned games.
     const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 900_000; // 10min at breaks, 15min normally
     const gameUpdatedAt = new Date(game.updated_at).getTime();
-    if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
+    // Schema v2 rows only get an updated_at bump on explicit timer events
+    // (start/pause/halftime/end). A running half with no pauses can easily
+    // exceed the stale threshold while still being a live game — never
+    // auto-deactivate v2 rows here; they are deactivated only on end_game.
+    if (!isServerAnchored && gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
       console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
       await supabase
         .from('active_games')
@@ -488,6 +492,7 @@ async function checkGames(supabase: any): Promise<number> {
         .eq('id', game.id);
       continue;
     }
+
 
     // If at half-time boundary, don't process subs - the game is paused between halves
     if (isAtHalfTimeBoundary) {
