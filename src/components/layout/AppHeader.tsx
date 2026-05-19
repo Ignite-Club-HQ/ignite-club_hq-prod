@@ -1065,10 +1065,12 @@ export function AppHeader() {
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/vault"); }} className="py-3 px-3">
-                <Folder className="mr-3 h-5 w-5" />
-                <span className="text-sm">File Vault</span>
-              </DropdownMenuItem>
+              {hasVaultRole && (
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/vault"); }} className="py-3 px-3">
+                  <Folder className="mr-3 h-5 w-5" />
+                  <span className="text-sm">File Vault</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onSelect={(e) => {
                   e.preventDefault();
