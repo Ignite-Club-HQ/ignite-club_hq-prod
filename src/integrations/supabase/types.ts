@@ -646,6 +646,7 @@ export type Database = {
       chat_groups: {
         Row: {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
+          category: string | null
           club_id: string | null
           created_at: string
           created_by: string
@@ -658,6 +659,7 @@ export type Database = {
         }
         Insert: {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
+          category?: string | null
           club_id?: string | null
           created_at?: string
           created_by: string
@@ -670,6 +672,7 @@ export type Database = {
         }
         Update: {
           allowed_roles?: Database["public"]["Enums"]["app_role"][]
+          category?: string | null
           club_id?: string | null
           created_at?: string
           created_by?: string

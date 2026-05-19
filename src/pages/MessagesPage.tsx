@@ -217,6 +217,7 @@ interface UnifiedConversation {
   canHide?: boolean;
   dmData?: any;
   draftText?: string;
+  category?: string | null;
 }
 
 export default function MessagesPage() {
@@ -1846,6 +1847,7 @@ export default function MessagesPage() {
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
+        category: (group as any).category ?? null,
       });
     });
 
@@ -2696,6 +2698,11 @@ export default function MessagesPage() {
               type Section = typeof SECTION_ORDER[number];
               const classifyGroup = (c: UnifiedConversation): Section => {
                 if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
+                // Explicit user-chosen category wins over name heuristics.
+                const explicit = (c.category || '').trim();
+                if (explicit && (SECTION_ORDER as readonly string[]).includes(explicit)) {
+                  return explicit as Section;
+                }
                 const name = (c.name || '').toLowerCase();
                 if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Club Management';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';

@@ -68,6 +68,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [groupName, setGroupName] = useState("");
+  const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
@@ -375,20 +376,23 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   // Start group DM mutation (creates a chat group)
   const startGroupDMMutation = useMutation({
-    mutationFn: async ({ users, customName }: { users: DMableUser[]; customName: string }) => {
+    mutationFn: async ({ users, customName, category }: { users: DMableUser[]; customName: string; category?: string | null }) => {
       // Use custom name if provided, otherwise auto-name from member first names
       const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
+      const insertPayload: Record<string, unknown> = {
+        name: groupName,
+        created_by: user!.id,
+        allowed_roles: allowedRoles,
+      };
+      if (category && category.trim()) insertPayload.category = category.trim();
+
       const { data: groupData, error: groupError } = await supabase
         .from("chat_groups")
-        .insert({
-          name: groupName,
-          created_by: user!.id,
-          allowed_roles: allowedRoles,
-        })
+        .insert(insertPayload as any)
         .select()
         .single();
       
@@ -456,7 +460,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: groupCategory });
       return;
     }
 
@@ -465,7 +469,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       startDMMutation.mutate(selectedUsers[0].id);
     } else {
       // Multiple users - create group chat
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: null });
     }
   };
 
@@ -587,7 +591,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
               {(mode === "custom-group" || selectedUsers.length > 1) && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Input
                     placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
@@ -596,6 +600,19 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     className="h-11 rounded-xl"
                     autoFocus={mode === "custom-group"}
                   />
+                  {mode === "custom-group" && (
+                    <Select value={groupCategory} onValueChange={setGroupCategory}>
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder="Choose a section" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000]">
+                        <SelectItem value="Club Management">Club Management</SelectItem>
+                        <SelectItem value="Operations">Operations</SelectItem>
+                        <SelectItem value="Volunteers">Volunteers</SelectItem>
+                        <SelectItem value="Custom Groups">Custom Groups</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                   {mode !== "custom-group" && (
                     <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
                   )}
