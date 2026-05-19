@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList, Link2Off } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList, Link2Off, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
+import { exportTimerAuditLog } from "@/lib/timerAuditLog";
+import { toast } from "@/hooks/use-toast";
 
 interface Formation {
   name: string;
