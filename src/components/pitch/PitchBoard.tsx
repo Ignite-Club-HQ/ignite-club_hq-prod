@@ -45,6 +45,7 @@ import TacticalModeSelector from "./TacticalModeSelector";
 import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
