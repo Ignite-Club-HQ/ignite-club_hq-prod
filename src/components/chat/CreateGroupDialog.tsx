@@ -73,6 +73,10 @@ export default function CreateGroupDialog({
   const [showTeamScope, setShowTeamScope] = useState<boolean>(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [teamSearch, setTeamSearch] = useState("");
+  // Membership mode: 'role' (auto by role, default) or 'manual' (hand-picked people).
+  const [membershipMode, setMembershipMode] = useState<"role" | "manual">("role");
+  const [pickedMembers, setPickedMembers] = useState<{ id: string; display_name: string | null; avatar_url: string | null }[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
