@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey } from "@/hooks/usePasskey";
 import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -66,6 +67,7 @@ export default function SettingsPage() {
   const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
 
   // Check if user is app admin
@@ -798,11 +800,33 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Help and Support */}
+      <Card 
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => setFeedbackOpen(true)}
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <HelpCircle className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <span className="font-medium">Help and Support</span>
+              <p className="text-xs text-muted-foreground">Report bugs or suggest features</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+
       {/* Passkey Management Dialog */}
       <PasskeyManagementDialog open={passkeyDialogOpen} onOpenChange={setPasskeyDialogOpen} />
 
       {/* Change Password Dialog */}
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+
+      {/* Feedback Dialog */}
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }
