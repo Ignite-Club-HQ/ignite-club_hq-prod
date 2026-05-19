@@ -2549,6 +2549,61 @@ export default function MessagesPage() {
         />
       </div>
 
+      {/* Lightweight type filter chips. Only chips for types the user actually
+          has appear, keeping the inbox uncluttered for simple users. */}
+      {(() => {
+        const counts = {
+          teams: 0, club: 0, league: 0, groups: 0, dms: 0,
+        };
+        unifiedConversations.forEach((c) => {
+          if (c.type === 'team') counts.teams++;
+          else if (c.type === 'club') counts.club++;
+          else if (c.type === 'league') counts.league++;
+          else if (c.type === 'group') counts.groups++;
+          else if (c.type === 'dm') counts.dms++;
+        });
+        const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
+          { id: 'all', label: 'All', visible: true },
+          { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team' },
+          { id: 'club', label: 'Club', visible: counts.club > 0, type: 'club' },
+          { id: 'groups', label: 'Groups', visible: counts.groups > 0, type: 'group' },
+          { id: 'league', label: 'League', visible: counts.league > 0, type: 'league' },
+          { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
+        ];
+        const shown = chips.filter(c => c.visible);
+        // Don't render the chip row if the user only has 1 type (or none) —
+        // keeps the simple-user inbox clean.
+        if (shown.length <= 2) return null;
+        return (
+          <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-2 pb-1">
+              {shown.map((chip) => {
+                const active = typeFilter === chip.id;
+                const accent = chip.type ? TYPE_ACCENT_HSL[chip.type] : undefined;
+                const activeStyle: React.CSSProperties | undefined = active && accent
+                  ? { backgroundColor: `hsl(${accent} / 0.12)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.4)` }
+                  : undefined;
+                return (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setTypeFilter(chip.id)}
+                    style={activeStyle}
+                    className={`shrink-0 px-3 h-7 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? (accent ? '' : 'bg-foreground text-background border-foreground')
+                        : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Active club filter indicator */}
       {hasLocalFilter && (
         <div className="flex items-center gap-2">
