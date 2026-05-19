@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog, Settings } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,7 +17,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
-import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -277,7 +276,6 @@ export function AppHeader() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   
@@ -395,6 +393,22 @@ export function AppHeader() {
         .select("id")
         .eq("user_id", user!.id)
         .eq("role", "app_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Check if user has any vault-eligible club role (club_admin, league_admin, committee_member)
+  const { data: hasVaultRole } = useQuery({
+    queryKey: ["has-vault-role", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .in("role", ["club_admin", "league_admin", "committee_member"])
+        .limit(1)
         .maybeSingle();
       return !!data;
     },
@@ -1051,10 +1065,12 @@ export function AppHeader() {
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); setFeedbackOpen(true); }} className="py-3 px-3">
-                <HelpCircle className="mr-3 h-5 w-5" />
-                <span className="text-sm">Send Feedback</span>
-              </DropdownMenuItem>
+              {hasVaultRole && (
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/vault"); }} className="py-3 px-3">
+                  <Folder className="mr-3 h-5 w-5" />
+                  <span className="text-sm">File Vault</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onSelect={(e) => {
                   e.preventDefault();
@@ -1114,8 +1130,6 @@ export function AppHeader() {
               </DropdownMenuItem>
             </SwipeableDropdownContent>
           </DropdownMenu>
-          
-          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
           {isAppAdmin && (
             <DemoLoginSection open={demoLoginOpen} onOpenChange={setDemoLoginOpen} />
           )}
