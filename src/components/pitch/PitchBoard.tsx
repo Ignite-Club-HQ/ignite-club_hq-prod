@@ -1654,6 +1654,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     try {
       const path = window.location.pathname + window.location.search;
       localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+      // Persist the active board context so HomePage can re-open the
+      // overlay after a WebView cold restart (phone lock/unlock) when the
+      // board was opened as a modal on "/" rather than via /events/:id.
+      localStorage.setItem(
+        PITCH_BOARD_LAST_CONTEXT_KEY,
+        JSON.stringify({ teamId, teamName, readOnly })
+      );
     } catch {
       /* ignore */
     }
@@ -1662,8 +1669,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
       localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
+      localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
     };
-  }, []);
+  }, [teamId, teamName, readOnly]);
 
   // Handle expired sub notification taps — if opened from a pending_sub notification
   // but no sub dialog appears, show a toast and let the user see the pitch board.
