@@ -1847,6 +1847,7 @@ export default function MessagesPage() {
         unreadCount: unreadCounts?.groups[group.id] || 0,
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
+        category: (group as any).category ?? null,
       });
     });
 
