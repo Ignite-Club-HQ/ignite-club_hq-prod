@@ -800,11 +800,33 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Help and Support */}
+      <Card 
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => setFeedbackOpen(true)}
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <HelpCircle className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <span className="font-medium">Help and Support</span>
+              <p className="text-xs text-muted-foreground">Report bugs or suggest features</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+
       {/* Passkey Management Dialog */}
       <PasskeyManagementDialog open={passkeyDialogOpen} onOpenChange={setPasskeyDialogOpen} />
 
       {/* Change Password Dialog */}
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+
+      {/* Feedback Dialog */}
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }
