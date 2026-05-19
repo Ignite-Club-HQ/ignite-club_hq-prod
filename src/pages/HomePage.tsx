@@ -1409,6 +1409,26 @@ export default function HomePage() {
     return () => window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
   }, []);
 
+  // Cold-start restore: if the pitch board was open as a modal on home
+  // when the WebView was torn down (phone lock/unlock kills iOS WebView),
+  // re-open it now using the persisted context.
+  useEffect(() => {
+    if (pitchBoardTeam) return; // already open
+    try {
+      const flag = localStorage.getItem('ignite-pitch-board-open');
+      if (flag !== 'true') return;
+      const ctxRaw = localStorage.getItem('ignite-pitch-board-last-context');
+      if (!ctxRaw) return;
+      const ctx = JSON.parse(ctxRaw);
+      if (ctx?.teamId && ctx?.teamName) {
+        openPitchBoard(ctx.teamId, ctx.teamName, !!ctx.readOnly);
+      }
+    } catch { /* ignore */ }
+    // Only run on first mount; subsequent opens are user-driven.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   const clubRequestMutation = useMutation({
     mutationFn: async () => {
       // Use activeClubFilter if in club mode, otherwise use selectedClub
