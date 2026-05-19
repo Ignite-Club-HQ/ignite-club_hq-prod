@@ -2000,7 +2000,7 @@ export default function MessagesPage() {
   const typeFilteredConversations = useMemo(() => {
     if (typeFilter === 'all') return unifiedConversations;
     return unifiedConversations.filter((c) => {
-      if (c.type === 'broadcast' || c.type === 'support') return true;
+      if (c.type === 'support') return true;
       switch (typeFilter) {
         // Mini-leagues (e.g. Maxiroos) live under Teams — users mentally treat
         // them as another team they belong to.
