@@ -221,7 +221,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Whether the "invite by name" section is expanded. Defaults to collapsed so
   // the join-link flow is the visually primary action on first open.
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
-  const inviteByNameOpen = inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
+  // When the user can't share the bulk join link (non-admins/coaches), the
+  // invite-by-name form is the only available flow, so it must be visible by
+  // default — otherwise the sheet renders an empty body.
+  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
   // Reset to collapsed each time the sheet is opened so the join-link flow
   // remains the primary action on every reopen.
