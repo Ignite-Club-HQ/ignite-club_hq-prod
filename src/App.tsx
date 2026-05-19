@@ -253,6 +253,7 @@ const App = () => {
             <ScrollToTop />
             <PWAPendingInviteHandler />
             <GlobalSubMonitorGate />
+            <PitchBoardResumeRedirect />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Public routes */}
