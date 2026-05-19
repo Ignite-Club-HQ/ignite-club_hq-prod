@@ -232,6 +232,8 @@ export default function MessagesPage() {
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
+  const [typeFilter, setTypeFilter] = usePersistedFilter<'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league'>("messages.typeFilter", "all");
+  const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
