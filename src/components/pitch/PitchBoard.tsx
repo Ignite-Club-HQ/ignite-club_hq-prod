@@ -73,6 +73,7 @@ import {
   getSpecificPositionLabel,
   PITCH_STATE_KEY,
   PITCH_BOARD_OPEN_KEY,
+  PITCH_BOARD_OPEN_PATH_KEY,
   TIMER_STORAGE_KEY,
   PitchBoardState,
   TimerState,
