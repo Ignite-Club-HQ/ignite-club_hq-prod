@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock, HelpCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey } from "@/hooks/usePasskey";
 import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -66,6 +67,7 @@ export default function SettingsPage() {
   const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
 
   // Check if user is app admin
