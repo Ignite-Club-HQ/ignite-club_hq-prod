@@ -2687,7 +2687,16 @@ export default function MessagesPage() {
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
             </div>
-            {recentItems.map(renderConversationCard)}
+            {visibleRecent.map(renderConversationCard)}
+            {hiddenOps.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllOps(true)}
+                className="w-full mt-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md border border-dashed border-border hover:border-foreground/40"
+              >
+                Show {hiddenOps.length} more inactive group{hiddenOps.length === 1 ? '' : 's'}
+              </button>
+            )}
           </>
         )}
 
