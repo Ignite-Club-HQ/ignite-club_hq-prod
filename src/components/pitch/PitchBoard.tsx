@@ -45,6 +45,7 @@ import TacticalModeSelector from "./TacticalModeSelector";
 import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
@@ -1638,6 +1639,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
   const [elapsedGameTime, setElapsedGameTime] = useState(0);
+
+  // Keep the screen awake while the pitch board is open so iOS / Android
+  // don't auto-lock mid-game and tear down the WebView (which causes a
+  // 4-5s "Loading your profile..." reload when the user returns).
+  useWakeLock(true);
 
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   // Also record the route so we can restore it after a cold app launch
