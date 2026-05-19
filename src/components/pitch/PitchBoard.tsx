@@ -6603,21 +6603,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     )}
                     {!readOnly && (
                       <>
-                        <div className="h-px bg-border mx-2 my-1" />
-                        <button
-                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                          onClick={async () => {
-                            setSettingsMenuOpen(false);
-                            const r = await exportTimerAuditLog();
-                            toast({
-                              title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
-                              description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
-                            });
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                          Export Timer Log
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings
