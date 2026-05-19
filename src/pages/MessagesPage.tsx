@@ -2711,7 +2711,7 @@ export default function MessagesPage() {
                 'Announcements': [], 'Leadership': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
               };
               visibleRecent.forEach((c) => {
-                if (c.type === 'group' || c.type === 'club' || c.type === 'league' || c.type === 'broadcast') {
+                if (c.type === 'group' || c.type === 'club' || c.type === 'broadcast') {
                   buckets[classifyGroup(c)].push(c);
                 } else {
                   buckets['Custom Groups'].push(c);
