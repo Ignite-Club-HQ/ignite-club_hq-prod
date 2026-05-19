@@ -376,20 +376,23 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   // Start group DM mutation (creates a chat group)
   const startGroupDMMutation = useMutation({
-    mutationFn: async ({ users, customName }: { users: DMableUser[]; customName: string }) => {
+    mutationFn: async ({ users, customName, category }: { users: DMableUser[]; customName: string; category?: string | null }) => {
       // Use custom name if provided, otherwise auto-name from member first names
       const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
+      const insertPayload: Record<string, unknown> = {
+        name: groupName,
+        created_by: user!.id,
+        allowed_roles: allowedRoles,
+      };
+      if (category && category.trim()) insertPayload.category = category.trim();
+
       const { data: groupData, error: groupError } = await supabase
         .from("chat_groups")
-        .insert({
-          name: groupName,
-          created_by: user!.id,
-          allowed_roles: allowedRoles,
-        })
+        .insert(insertPayload as any)
         .select()
         .single();
       
