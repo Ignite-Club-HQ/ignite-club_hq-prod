@@ -340,10 +340,15 @@ export default function CreateGroupDialog({
 
       const finalTeamId = teamId || selectedTeamId || null;
       const finalMiniLeagueId = miniLeagueId || selectedMiniLeagueId || null;
-      // Club scope only when no team / league chosen
-      const finalClubId = !finalTeamId && !finalMiniLeagueId
+      // Club scope only when no team / league chosen.
+      // If user provided a category, treat the group as club-scoped so it
+      // nests under the right vault folder — fall back to the active club.
+      let finalClubId = !finalTeamId && !finalMiniLeagueId
         ? (clubId || clubInfo?.clubId || null)
         : null;
+      if (!finalClubId && !finalTeamId && !finalMiniLeagueId && category.trim() && clubInfo?.clubId) {
+        finalClubId = clubInfo.clubId;
+      }
 
       if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
         throw new Error("Please pick a club, team, or league");
