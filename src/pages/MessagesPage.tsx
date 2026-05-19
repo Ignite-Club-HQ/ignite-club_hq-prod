@@ -174,12 +174,14 @@ const MessagePreview = ({
     return <span className="text-muted-foreground">No messages yet</span>;
   }
   
+  const systemReminder = isSystemReminderText(text);
+
   return (
-    <span className="line-clamp-2">
+    <span className={`line-clamp-2 ${systemReminder ? 'italic text-muted-foreground/80' : ''}`}>
       {(isImageOnly || hasTextAndImage) && (
         <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
       )}
-      {author && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
+      {author && !systemReminder && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
       {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
     </span>
   );
