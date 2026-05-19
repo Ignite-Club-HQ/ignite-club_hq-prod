@@ -68,6 +68,15 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [groupName, setGroupName] = useState("");
+  const BUILTIN_CATEGORIES = ["Club Management", "Operations", "Volunteers", "Custom Groups"] as const;
+  const CUSTOM_CATS_KEY = "chat.custom_categories";
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_CATS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+    } catch { return []; }
+  });
   const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
@@ -600,19 +609,43 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     className="h-11 rounded-xl"
                     autoFocus={mode === "custom-group"}
                   />
-                  {mode === "custom-group" && (
-                    <Select value={groupCategory} onValueChange={setGroupCategory}>
-                      <SelectTrigger className="h-11 rounded-xl">
-                        <SelectValue placeholder="Choose a section" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100000]">
-                        <SelectItem value="Club Management">Club Management</SelectItem>
-                        <SelectItem value="Operations">Operations</SelectItem>
-                        <SelectItem value="Volunteers">Volunteers</SelectItem>
-                        <SelectItem value="Custom Groups">Custom Groups</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                  {mode === "custom-group" && (() => {
+                    const allCategories = Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories]));
+                    const handleAddCategory = () => {
+                      const input = window.prompt("New category name");
+                      const trimmed = (input || "").trim().slice(0, 40);
+                      if (!trimmed) return;
+                      if (allCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                        setGroupCategory(allCategories.find((c) => c.toLowerCase() === trimmed.toLowerCase())!);
+                        return;
+                      }
+                      const next = [...customCategories, trimmed];
+                      setCustomCategories(next);
+                      try { localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(next)); } catch {}
+                      setGroupCategory(trimmed);
+                    };
+                    return (
+                      <div className="flex gap-2">
+                        <select
+                          value={groupCategory}
+                          onChange={(e) => setGroupCategory(e.target.value)}
+                          className="flex-1 h-11 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {allCategories.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddCategory}
+                          className="h-11 rounded-xl shrink-0"
+                        >
+                          + New
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   {mode !== "custom-group" && (
                     <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
                   )}

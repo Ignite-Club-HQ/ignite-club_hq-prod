@@ -2694,15 +2694,12 @@ export default function MessagesPage() {
               // / "Volunteers" / "Custom Groups"). Otherwise render flat —
               // preserves the WhatsApp-style simple experience for regular
               // parents.
-              const SECTION_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
-              type Section = typeof SECTION_ORDER[number];
-              const classifyGroup = (c: UnifiedConversation): Section => {
+              const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+              const classifyGroup = (c: UnifiedConversation): string => {
                 if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                 // Explicit user-chosen category wins over name heuristics.
                 const explicit = (c.category || '').trim();
-                if (explicit && (SECTION_ORDER as readonly string[]).includes(explicit)) {
-                  return explicit as Section;
-                }
+                if (explicit) return explicit;
                 const name = (c.name || '').toLowerCase();
                 if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Club Management';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
@@ -2714,19 +2711,21 @@ export default function MessagesPage() {
               if (!useSections) {
                 return <>{visibleRecent.map(renderConversationCard)}</>;
               }
-              const buckets: Record<Section, UnifiedConversation[]> = {
-                'Announcements': [], 'Club Management': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
-              };
+              const buckets: Record<string, UnifiedConversation[]> = {};
               visibleRecent.forEach((c) => {
-                if (c.type === 'group' || c.type === 'club' || c.type === 'broadcast') {
-                  buckets[classifyGroup(c)].push(c);
-                } else {
-                  buckets['Custom Groups'].push(c);
-                }
+                const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast')
+                  ? classifyGroup(c)
+                  : 'Custom Groups';
+                (buckets[section] ||= []).push(c);
               });
+              // Built-ins first in fixed order, then any user-added categories alphabetically.
+              const customSections = Object.keys(buckets)
+                .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
+                .sort((a, b) => a.localeCompare(b));
+              const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
               return (
                 <>
-                  {SECTION_ORDER.filter((s) => buckets[s].length > 0).map((section, idx) => (
+                  {orderedSections.map((section, idx) => (
                     <div key={section} className={idx === 0 ? '' : 'pt-3'}>
                       <div className="flex items-center gap-2 pb-1.5">
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
