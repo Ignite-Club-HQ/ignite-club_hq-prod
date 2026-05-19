@@ -250,6 +250,48 @@ export default function CreateGroupDialog({
         teamRows = data || [];
       }
 
+  // Manual-mode candidate pool: all real people in the chosen scope (excluding bots & self handled in UI).
+  const { data: manualCandidates = [] } = useQuery({
+    queryKey: ["create-group-manual-candidates", clubInfo?.clubId, teamId, miniLeagueId, selectedTeamId],
+    queryFn: async () => {
+      const scopeTeamId = teamId || selectedTeamId || null;
+      let userIds: string[] = [];
+      if (scopeTeamId) {
+        const { data } = await supabase.from("user_roles").select("user_id").eq("team_id", scopeTeamId);
+        userIds = [...new Set((data || []).map((r: any) => r.user_id))];
+      } else if (miniLeagueId) {
+        const { data } = await (supabase as any).from("user_roles").select("user_id").eq("mini_league_id", miniLeagueId);
+        userIds = [...new Set((data as any[] || []).map((r: any) => r.user_id))];
+      } else if (clubInfo?.clubId) {
+        const [{ data: clubRows }, { data: teamRows }] = await Promise.all([
+          supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId),
+          supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
+        ]);
+        const tIds = (teamRows || []).map((t: any) => t.id);
+        let viaTeam: any[] = [];
+        if (tIds.length) {
+          const { data } = await supabase.from("user_roles").select("user_id").in("team_id", tIds);
+          viaTeam = data || [];
+        }
+        userIds = [...new Set([...(clubRows || []), ...viaTeam].map((r: any) => r.user_id))];
+      }
+      if (userIds.length === 0) return [];
+      // Exclude club bot
+      let botId: string | null = null;
+      if (clubInfo?.clubId) {
+        const { data: club } = await supabase.from("clubs").select("bot_user_id").eq("id", clubInfo.clubId).maybeSingle();
+        botId = club?.bot_user_id || null;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds.filter((id) => id !== botId));
+      return (profiles || []).sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
+    },
+    enabled: isOpen && membershipMode === "manual" && !!(clubInfo?.clubId || teamId || miniLeagueId || selectedTeamId),
+    staleTime: 60 * 1000,
+  });
+
       const seen = new Map<string, Set<string>>();
       [...(clubRows || []), ...teamRows].forEach((r: any) => {
         if (!seen.has(r.role)) seen.set(r.role, new Set());
