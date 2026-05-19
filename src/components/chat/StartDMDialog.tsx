@@ -68,6 +68,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [groupName, setGroupName] = useState("");
+  const BUILTIN_CATEGORIES = ["Club Management", "Operations", "Volunteers", "Custom Groups"] as const;
+  const CUSTOM_CATS_KEY = "chat.custom_categories";
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_CATS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+    } catch { return []; }
+  });
+  const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
@@ -375,20 +385,23 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   // Start group DM mutation (creates a chat group)
   const startGroupDMMutation = useMutation({
-    mutationFn: async ({ users, customName }: { users: DMableUser[]; customName: string }) => {
+    mutationFn: async ({ users, customName, category }: { users: DMableUser[]; customName: string; category?: string | null }) => {
       // Use custom name if provided, otherwise auto-name from member first names
       const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
+      const insertPayload: Record<string, unknown> = {
+        name: groupName,
+        created_by: user!.id,
+        allowed_roles: allowedRoles,
+      };
+      if (category && category.trim()) insertPayload.category = category.trim();
+
       const { data: groupData, error: groupError } = await supabase
         .from("chat_groups")
-        .insert({
-          name: groupName,
-          created_by: user!.id,
-          allowed_roles: allowedRoles,
-        })
+        .insert(insertPayload as any)
         .select()
         .single();
       
@@ -449,23 +462,23 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   };
 
   const handleStartConversation = () => {
-    if (selectedUsers.length === 0) return;
-
     if (mode === "custom-group") {
       if (!groupName.trim()) {
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: groupCategory });
       return;
     }
+
+    if (selectedUsers.length === 0) return;
 
     if (selectedUsers.length === 1) {
       // Single user - start regular DM
       startDMMutation.mutate(selectedUsers[0].id);
     } else {
       // Multiple users - create group chat
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: null });
     }
   };
 
@@ -587,7 +600,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
               {(mode === "custom-group" || selectedUsers.length > 1) && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Input
                     placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
@@ -596,6 +609,43 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     className="h-11 rounded-xl"
                     autoFocus={mode === "custom-group"}
                   />
+                  {mode === "custom-group" && (() => {
+                    const allCategories = Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories]));
+                    const handleAddCategory = () => {
+                      const input = window.prompt("New category name");
+                      const trimmed = (input || "").trim().slice(0, 40);
+                      if (!trimmed) return;
+                      if (allCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                        setGroupCategory(allCategories.find((c) => c.toLowerCase() === trimmed.toLowerCase())!);
+                        return;
+                      }
+                      const next = [...customCategories, trimmed];
+                      setCustomCategories(next);
+                      try { localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(next)); } catch {}
+                      setGroupCategory(trimmed);
+                    };
+                    return (
+                      <div className="flex gap-2">
+                        <select
+                          value={groupCategory}
+                          onChange={(e) => setGroupCategory(e.target.value)}
+                          className="flex-1 h-11 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {allCategories.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddCategory}
+                          className="h-11 rounded-xl shrink-0"
+                        >
+                          + New
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   {mode !== "custom-group" && (
                     <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
                   )}
@@ -717,7 +767,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         </div>
 
         {/* Footer with action button - matches CreateGroupDialog pattern */}
-        {selectedUsers.length > 0 && (
+        {(selectedUsers.length > 0 || mode === "custom-group") && (
           <ResponsiveDialogFooter className="sticky bottom-0 -mx-1 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] bg-background border-t border-border z-10">
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
               Cancel
@@ -735,7 +785,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 <MessageCircle className="h-4 w-4" />
               )}
               {mode === "custom-group"
-                ? `Create Group (${selectedUsers.length})`
+                ? selectedUsers.length === 0
+                  ? "Create Group (just me)"
+                  : `Create Group (${selectedUsers.length + 1})`
                 : selectedUsers.length === 1
                   ? "Start Chat"
                   : `Create Group (${selectedUsers.length} people)`}

@@ -1,0 +1,1 @@
+UPDATE public.chat_groups SET category = 'Operations' WHERE id = '23dcd350-d564-45d2-a9b6-b5910b1c65b7';

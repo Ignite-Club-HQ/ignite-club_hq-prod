@@ -82,12 +82,25 @@ export async function sendTimerEvent(args: {
 }
 
 export async function readServerTimer(teamId: string | null): Promise<TimerReadResponse> {
+  // Skip if user is not authenticated — avoids 401 blank-screen on /auth and during sign-out.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
+  }
   const qs = teamId ? `?team_id=${encodeURIComponent(teamId)}` : "";
-  const { data, error } = await supabase.functions.invoke(`pitch-timer-read${qs}`, {
-    method: "GET",
-  });
-  if (error) throw error;
-  return data as TimerReadResponse;
+  try {
+    const { data, error } = await supabase.functions.invoke(`pitch-timer-read${qs}`, {
+      method: "GET",
+    });
+    if (error) {
+      // Silently degrade — timer is non-critical and 401s during token refresh
+      // would otherwise blank the screen.
+      return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
+    }
+    return data as TimerReadResponse;
+  } catch {
+    return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
+  }
 }
 
 /**
