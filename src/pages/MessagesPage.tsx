@@ -2557,8 +2557,8 @@ export default function MessagesPage() {
       {(() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
-          if (c.type === 'team') counts.teams++;
-          else if (c.type === 'group' || c.type === 'club' || c.type === 'league') counts.groupish++;
+          if (c.type === 'team' || c.type === 'league') counts.teams++;
+          else if (c.type === 'group' || c.type === 'club') counts.groupish++;
           else if (c.type === 'dm') counts.dms++;
         });
         const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
