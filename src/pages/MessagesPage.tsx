@@ -1992,28 +1992,66 @@ export default function MessagesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Apply type filter chip (teams/groups/dms/club/league/all).
+  // Broadcasts and Ignite Support always remain visible regardless of chip
+  // (they're not real conversation types users think about filtering away).
+  const typeFilteredConversations = useMemo(() => {
+    if (typeFilter === 'all') return unifiedConversations;
+    return unifiedConversations.filter((c) => {
+      if (c.type === 'broadcast' || c.type === 'support') return true;
+      switch (typeFilter) {
+        case 'teams': return c.type === 'team';
+        case 'club': return c.type === 'club';
+        case 'league': return c.type === 'league';
+        case 'groups': return c.type === 'group';
+        case 'dms': return c.type === 'dm';
+        default: return true;
+      }
+    });
+  }, [unifiedConversations, typeFilter]);
+
+  const sortByActivityDesc = (a: UnifiedConversation, b: UnifiedConversation) => {
+    if (!a.lastActivity && !b.lastActivity) return 0;
+    if (!a.lastActivity) return 1;
+    if (!b.lastActivity) return -1;
+    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+  };
+
   // Split into unread and recent
   const unreadItems = useMemo(() => {
-    return unifiedConversations
-      .filter(c => c.unreadCount > 0)
-      .sort((a, b) => {
-        if (!a.lastActivity && !b.lastActivity) return 0;
-        if (!a.lastActivity) return 1;
-        if (!b.lastActivity) return -1;
-        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      });
-  }, [unifiedConversations]);
+    return typeFilteredConversations.filter(c => c.unreadCount > 0).sort(sortByActivityDesc);
+  }, [typeFilteredConversations]);
 
   const recentItems = useMemo(() => {
-    return unifiedConversations
-      .filter(c => c.unreadCount === 0)
-      .sort((a, b) => {
-        if (!a.lastActivity && !b.lastActivity) return 0;
-        if (!a.lastActivity) return 1;
-        if (!b.lastActivity) return -1;
-        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      });
-  }, [unifiedConversations]);
+    return typeFilteredConversations.filter(c => c.unreadCount === 0).sort(sortByActivityDesc);
+  }, [typeFilteredConversations]);
+
+  // Progressive disclosure for operational groups: when a user has many
+  // stale group/league chats, collapse the long tail behind a "Show more
+  // groups" toggle. Only kicks in for power users — regular parents with
+  // only a few groups see no change.
+  const STALE_OPS_DAYS = 30;
+  const STALE_OPS_THRESHOLD = 6;
+  const OPS_VISIBLE_WHEN_COLLAPSED = 2;
+  const { visibleRecent, hiddenOps } = useMemo(() => {
+    const cutoff = Date.now() - STALE_OPS_DAYS * 24 * 60 * 60 * 1000;
+    const isStaleOp = (c: UnifiedConversation) =>
+      (c.type === 'group' || c.type === 'league') &&
+      c.unreadCount === 0 &&
+      !c.draftText &&
+      (!c.lastActivity || new Date(c.lastActivity).getTime() < cutoff);
+
+    const stale = recentItems.filter(isStaleOp);
+    if (stale.length <= STALE_OPS_THRESHOLD || showAllOps || typeFilter !== 'all' || !!query) {
+      return { visibleRecent: recentItems, hiddenOps: [] as UnifiedConversation[] };
+    }
+    const keepStaleIds = new Set(stale.slice(0, OPS_VISIBLE_WHEN_COLLAPSED).map(c => c.key));
+    const hidden = stale.slice(OPS_VISIBLE_WHEN_COLLAPSED);
+    const hiddenIds = new Set(hidden.map(c => c.key));
+    const visible = recentItems.filter(c => !hiddenIds.has(c.key) || keepStaleIds.has(c.key));
+    return { visibleRecent: visible, hiddenOps: hidden };
+  }, [recentItems, showAllOps, typeFilter, query]);
+
 
   const hasNoResults = query && unifiedConversations.length === 0;
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
