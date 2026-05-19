@@ -848,16 +848,11 @@ export default function MessagesPage() {
   const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
-      // Ensure the access token is valid before any reads. After the phone
-      // wakes from lock, the JWT may have expired — issuing reads with a
-      // stale token causes RLS to evaluate auth.uid() as NULL, which silently
-      // returns empty profile rows and ends up rendering "Unknown User".
-      try {
-        await ensureFreshSession();
-      } catch {
-        // If session refresh fails, fall through — the query below will
-        // throw and React Query will keep showing previous data.
-      }
+      // Note: session freshness is handled globally by the auth listener /
+      // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
+      // 1-3s on cold loads and serialized the DM cascade behind it.
+
+
 
       const { data: convos, error } = await supabase
         .from("direct_conversations")
