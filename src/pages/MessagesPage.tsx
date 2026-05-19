@@ -85,6 +85,40 @@ function MessageSkeleton() {
   );
 }
 
+// Per-conversation-type accent colors. Stronger than the previous neutral
+// type chip but intentionally restrained: a thin left-edge stripe + a tinted
+// type pill, no avatar tinting, no card backgrounds.
+const TYPE_ACCENT_HSL: Record<string, string | undefined> = {
+  team: '142 71% 42%',   // green
+  club: '210 85% 52%',   // blue
+  group: '25 92% 52%',   // orange
+  league: '270 60% 55%', // purple
+  dm: undefined,         // neutral
+  broadcast: undefined,
+  support: undefined,
+};
+
+function typeAccentStyle(type: string): React.CSSProperties | undefined {
+  const h = TYPE_ACCENT_HSL[type];
+  if (!h) return undefined;
+  return { borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: `hsl(${h})` };
+}
+
+function typeBadgeStyle(type: string): React.CSSProperties | undefined {
+  const h = TYPE_ACCENT_HSL[type];
+  if (!h) return undefined;
+  return { color: `hsl(${h})`, borderColor: `hsl(${h} / 0.4)`, backgroundColor: `hsl(${h} / 0.08)` };
+}
+
+// Detect automated/system reminder messages so the inbox can de-emphasize
+// them vs real human conversation. Currently keyed off the gallery-prompt
+// token (📸 Reminder: add team photos) — extend here as more system
+// reminder types are added.
+function isSystemReminderText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /\[galleryprompt:[0-9a-f-]{36}\]/i.test(text);
+}
+
 
 // Helper to get first name only from a display name
 const getFirstName = (fullName: string | undefined): string => {
@@ -140,12 +174,14 @@ const MessagePreview = ({
     return <span className="text-muted-foreground">No messages yet</span>;
   }
   
+  const systemReminder = isSystemReminderText(text);
+
   return (
-    <span className="line-clamp-2">
+    <span className={`line-clamp-2 ${systemReminder ? 'italic text-muted-foreground/80' : ''}`}>
       {(isImageOnly || hasTextAndImage) && (
         <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
       )}
-      {author && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
+      {author && !systemReminder && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
       {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
     </span>
   );
@@ -196,6 +232,11 @@ export default function MessagesPage() {
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
+  const [typeFilter, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all") as [
+    'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league',
+    (v: 'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league') => void,
+  ];
+  const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
@@ -1951,28 +1992,66 @@ export default function MessagesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Apply type filter chip (teams/groups/dms/club/league/all).
+  // Broadcasts and Ignite Support always remain visible regardless of chip
+  // (they're not real conversation types users think about filtering away).
+  const typeFilteredConversations = useMemo(() => {
+    if (typeFilter === 'all') return unifiedConversations;
+    return unifiedConversations.filter((c) => {
+      if (c.type === 'broadcast' || c.type === 'support') return true;
+      switch (typeFilter) {
+        case 'teams': return c.type === 'team';
+        case 'club': return c.type === 'club';
+        case 'league': return c.type === 'league';
+        case 'groups': return c.type === 'group';
+        case 'dms': return c.type === 'dm';
+        default: return true;
+      }
+    });
+  }, [unifiedConversations, typeFilter]);
+
+  const sortByActivityDesc = (a: UnifiedConversation, b: UnifiedConversation) => {
+    if (!a.lastActivity && !b.lastActivity) return 0;
+    if (!a.lastActivity) return 1;
+    if (!b.lastActivity) return -1;
+    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+  };
+
   // Split into unread and recent
   const unreadItems = useMemo(() => {
-    return unifiedConversations
-      .filter(c => c.unreadCount > 0)
-      .sort((a, b) => {
-        if (!a.lastActivity && !b.lastActivity) return 0;
-        if (!a.lastActivity) return 1;
-        if (!b.lastActivity) return -1;
-        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      });
-  }, [unifiedConversations]);
+    return typeFilteredConversations.filter(c => c.unreadCount > 0).sort(sortByActivityDesc);
+  }, [typeFilteredConversations]);
 
   const recentItems = useMemo(() => {
-    return unifiedConversations
-      .filter(c => c.unreadCount === 0)
-      .sort((a, b) => {
-        if (!a.lastActivity && !b.lastActivity) return 0;
-        if (!a.lastActivity) return 1;
-        if (!b.lastActivity) return -1;
-        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-      });
-  }, [unifiedConversations]);
+    return typeFilteredConversations.filter(c => c.unreadCount === 0).sort(sortByActivityDesc);
+  }, [typeFilteredConversations]);
+
+  // Progressive disclosure for operational groups: when a user has many
+  // stale group/league chats, collapse the long tail behind a "Show more
+  // groups" toggle. Only kicks in for power users — regular parents with
+  // only a few groups see no change.
+  const STALE_OPS_DAYS = 30;
+  const STALE_OPS_THRESHOLD = 6;
+  const OPS_VISIBLE_WHEN_COLLAPSED = 2;
+  const { visibleRecent, hiddenOps } = useMemo(() => {
+    const cutoff = Date.now() - STALE_OPS_DAYS * 24 * 60 * 60 * 1000;
+    const isStaleOp = (c: UnifiedConversation) =>
+      (c.type === 'group' || c.type === 'league') &&
+      c.unreadCount === 0 &&
+      !c.draftText &&
+      (!c.lastActivity || new Date(c.lastActivity).getTime() < cutoff);
+
+    const stale = recentItems.filter(isStaleOp);
+    if (stale.length <= STALE_OPS_THRESHOLD || showAllOps || typeFilter !== 'all' || !!query) {
+      return { visibleRecent: recentItems, hiddenOps: [] as UnifiedConversation[] };
+    }
+    const keepStaleIds = new Set(stale.slice(0, OPS_VISIBLE_WHEN_COLLAPSED).map(c => c.key));
+    const hidden = stale.slice(OPS_VISIBLE_WHEN_COLLAPSED);
+    const hiddenIds = new Set(hidden.map(c => c.key));
+    const visible = recentItems.filter(c => !hiddenIds.has(c.key) || keepStaleIds.has(c.key));
+    return { visibleRecent: visible, hiddenOps: hidden };
+  }, [recentItems, showAllOps, typeFilter, query]);
+
 
   const hasNoResults = query && unifiedConversations.length === 0;
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
@@ -2063,7 +2142,7 @@ export default function MessagesPage() {
     if (item.type === 'support') {
       return (
         <Link key={item.key} to={item.link}>
-          <Card className="hover:border-primary/50 transition-colors">
+          <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
               <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
               <div className="flex-1 min-w-0">
@@ -2146,7 +2225,7 @@ export default function MessagesPage() {
                       {item.name}
                     </h3>
                     {typeLabel && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                         {typeLabel}
                       </Badge>
                     )}
@@ -2206,6 +2285,7 @@ export default function MessagesPage() {
         <Card
           key={item.key}
           className="hover:border-primary/50 transition-colors cursor-pointer"
+          style={typeAccentStyle(item.type)}
           onClick={() => navigate(item.link)}
           tabIndex={0}
           role="link"
@@ -2220,7 +2300,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                       {typeLabel}
                     </Badge>
                   )}
@@ -2278,7 +2358,7 @@ export default function MessagesPage() {
     // Club/Team card (default)
     return (
       <Link key={item.key} to={item.link}>
-        <Card className="hover:border-primary/50 transition-colors">
+        <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
               <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} className="h-9 w-9" />
@@ -2289,7 +2369,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                       {typeLabel}
                     </Badge>
                   )}
@@ -2469,6 +2549,61 @@ export default function MessagesPage() {
         />
       </div>
 
+      {/* Lightweight type filter chips. Only chips for types the user actually
+          has appear, keeping the inbox uncluttered for simple users. */}
+      {(() => {
+        const counts = {
+          teams: 0, club: 0, league: 0, groups: 0, dms: 0,
+        };
+        unifiedConversations.forEach((c) => {
+          if (c.type === 'team') counts.teams++;
+          else if (c.type === 'club') counts.club++;
+          else if (c.type === 'league') counts.league++;
+          else if (c.type === 'group') counts.groups++;
+          else if (c.type === 'dm') counts.dms++;
+        });
+        const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
+          { id: 'all', label: 'All', visible: true },
+          { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team' },
+          { id: 'club', label: 'Club', visible: counts.club > 0, type: 'club' },
+          { id: 'groups', label: 'Groups', visible: counts.groups > 0, type: 'group' },
+          { id: 'league', label: 'League', visible: counts.league > 0, type: 'league' },
+          { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
+        ];
+        const shown = chips.filter(c => c.visible);
+        // Don't render the chip row if the user only has 1 type (or none) —
+        // keeps the simple-user inbox clean.
+        if (shown.length <= 2) return null;
+        return (
+          <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-2 pb-1">
+              {shown.map((chip) => {
+                const active = typeFilter === chip.id;
+                const accent = chip.type ? TYPE_ACCENT_HSL[chip.type] : undefined;
+                const activeStyle: React.CSSProperties | undefined = active && accent
+                  ? { backgroundColor: `hsl(${accent} / 0.12)`, color: `hsl(${accent})`, borderColor: `hsl(${accent} / 0.4)` }
+                  : undefined;
+                return (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setTypeFilter(chip.id)}
+                    style={activeStyle}
+                    className={`shrink-0 px-3 h-7 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? (accent ? '' : 'bg-foreground text-background border-foreground')
+                        : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Active club filter indicator */}
       {hasLocalFilter && (
         <div className="flex items-center gap-2">
@@ -2552,7 +2687,16 @@ export default function MessagesPage() {
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
             </div>
-            {recentItems.map(renderConversationCard)}
+            {visibleRecent.map(renderConversationCard)}
+            {hiddenOps.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllOps(true)}
+                className="w-full mt-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md border border-dashed border-border hover:border-foreground/40"
+              >
+                Show {hiddenOps.length} more inactive group{hiddenOps.length === 1 ? '' : 's'}
+              </button>
+            )}
           </>
         )}
 
