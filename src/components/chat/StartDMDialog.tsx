@@ -460,7 +460,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: groupCategory });
       return;
     }
 
@@ -469,7 +469,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       startDMMutation.mutate(selectedUsers[0].id);
     } else {
       // Multiple users - create group chat
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: null });
     }
   };
 
