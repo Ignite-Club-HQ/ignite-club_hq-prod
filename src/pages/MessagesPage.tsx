@@ -2684,7 +2684,53 @@ export default function MessagesPage() {
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
             </div>
-            {visibleRecent.map(renderConversationCard)}
+            {(() => {
+              // When the user is in the Groups filter and has enough group-like
+              // chats to benefit from organization, render lightweight inline
+              // section headers ("Announcements" / "Leadership" / "Operations"
+              // / "Volunteers" / "Custom Groups"). Otherwise render flat —
+              // preserves the WhatsApp-style simple experience for regular
+              // parents.
+              const SECTION_ORDER = ['Announcements', 'Leadership', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+              type Section = typeof SECTION_ORDER[number];
+              const classifyGroup = (c: UnifiedConversation): Section => {
+                if (c.type === 'club' || c.type === 'league' || c.type === 'broadcast') return 'Announcements';
+                const name = (c.name || '').toLowerCase();
+                if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Leadership';
+                if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
+                if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
+                return 'Custom Groups';
+              };
+
+              const useSections = typeFilter === 'groups' && visibleRecent.length >= 5;
+              if (!useSections) {
+                return <>{visibleRecent.map(renderConversationCard)}</>;
+              }
+              const buckets: Record<Section, UnifiedConversation[]> = {
+                'Announcements': [], 'Leadership': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
+              };
+              visibleRecent.forEach((c) => {
+                if (c.type === 'group' || c.type === 'club' || c.type === 'league' || c.type === 'broadcast') {
+                  buckets[classifyGroup(c)].push(c);
+                } else {
+                  buckets['Custom Groups'].push(c);
+                }
+              });
+              return (
+                <>
+                  {SECTION_ORDER.filter((s) => buckets[s].length > 0).map((section, idx) => (
+                    <div key={section} className={idx === 0 ? '' : 'pt-3'}>
+                      <div className="flex items-center gap-2 pb-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {section}
+                        </span>
+                      </div>
+                      {buckets[section].map(renderConversationCard)}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
             {hiddenOps.length > 0 && (
               <button
                 type="button"
