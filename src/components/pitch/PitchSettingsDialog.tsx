@@ -512,6 +512,22 @@ export function PitchSettingsDialog({
                     />
                   </div>
                 )}
+
+                {/* Export timer audit log */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={async () => {
+                    const r = await exportTimerAuditLog();
+                    toast({
+                      title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                      description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                    });
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Export Timer Log
+                </button>
               </CollapsibleContent>
             </Collapsible>
           </div>
