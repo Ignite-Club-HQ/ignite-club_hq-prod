@@ -232,10 +232,12 @@ export default function MessagesPage() {
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
-  const [typeFilter, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all") as [
-    'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league',
-    (v: 'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league') => void,
-  ];
+  const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
+  // Normalize legacy persisted values ('club' / 'league' used to be top-level
+  // chips — they now live inside 'groups').
+  const typeFilter = (
+    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
+  ) as 'all' | 'teams' | 'groups' | 'dms';
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
