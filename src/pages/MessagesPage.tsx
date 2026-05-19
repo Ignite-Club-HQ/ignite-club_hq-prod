@@ -20,7 +20,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { ensureFreshSession } from "@/lib/ensureFreshSession";
+
 import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
@@ -401,13 +401,10 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    // Keep latest-message previews fresh: previously staleTime=5m + refetchOnMount=true
-    // meant returning to /messages within 5 min showed cached previews and only the
-    // 30s/120s poll (or realtime) caught up. Treat list as always stale on mount so
-    // re-entering the inbox always pulls the freshest "last message" row.
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    // Warm revisits render instantly from cache; realtime + 30s poll keep
+    // previews fresh. Forcing refetch on every mount/focus caused 10-25s
+    // freezes when returning to /messages because the N+1 cascade refired.
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
@@ -538,9 +535,7 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
@@ -807,9 +802,7 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
@@ -855,16 +848,11 @@ export default function MessagesPage() {
   const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
-      // Ensure the access token is valid before any reads. After the phone
-      // wakes from lock, the JWT may have expired — issuing reads with a
-      // stale token causes RLS to evaluate auth.uid() as NULL, which silently
-      // returns empty profile rows and ends up rendering "Unknown User".
-      try {
-        await ensureFreshSession();
-      } catch {
-        // If session refresh fails, fall through — the query below will
-        // throw and React Query will keep showing previous data.
-      }
+      // Note: session freshness is handled globally by the auth listener /
+      // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
+      // 1-3s on cold loads and serialized the DM cascade behind it.
+
+
 
       const { data: convos, error } = await supabase
         .from("direct_conversations")
@@ -977,10 +965,12 @@ export default function MessagesPage() {
 
       return result;
     },
-    enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    // Fetch DMs in parallel with everything else; Pro gating happens at
+    // render time. Previously this waited on hasAnyProAccess (3 serial
+    // queries) before even starting, adding 2-5s to cold loads. RLS still
+    // enforces who can read each conversation.
+    enabled: !!user && initialized,
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
