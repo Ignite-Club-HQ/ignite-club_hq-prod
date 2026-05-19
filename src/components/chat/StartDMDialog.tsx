@@ -68,6 +68,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [groupName, setGroupName] = useState("");
+  const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
