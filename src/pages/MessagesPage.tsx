@@ -2571,8 +2571,9 @@ export default function MessagesPage() {
           { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
         ];
         const shown = chips.filter(c => c.visible);
-        // Don't render the chip row if the user only has 1 type (or none) —
-        // keeps the simple-user inbox clean.
+        // Only show filter chips for power users with more than 6 threads —
+        // keeps the inbox clean for regular sports parents.
+        if (unifiedConversations.length <= 6) return null;
         if (shown.length <= 2) return null;
         return (
           <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
