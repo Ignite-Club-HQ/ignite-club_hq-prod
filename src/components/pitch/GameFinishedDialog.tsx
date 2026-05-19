@@ -170,40 +170,59 @@ export default function GameFinishedDialog({
     }
 
 
-    // Clear timer state — team-specific key first, then only clear active key if it matches
+    // Preserve the timer state as "finished" with a `gameFinishedAt` stamp
+    // so the home-screen Game Timer Widget keeps showing "Full Time" for the
+    // post-game visibility window (~60 minutes), instead of disappearing the
+    // moment the user dismisses this dialog. The widget self-expires after
+    // the window, and users can still swipe to dismiss it sooner.
+    const stampFinishedTimer = (raw: string | null): string | null => {
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        parsed.isGameFinished = true;
+        parsed.isRunning = false;
+        if (!parsed.gameFinishedAt) parsed.gameFinishedAt = Date.now();
+        parsed.lastUpdateTime = Date.now();
+        return JSON.stringify(parsed);
+      } catch {
+        return null;
+      }
+    };
+
     if (teamId) {
       const teamTimerKey = `pitch-board-timer-state-team-${teamId}`;
-      localStorage.removeItem(teamTimerKey);
-      
-      // Only clear the shared active key if it belongs to THIS team
+      const teamStamped = stampFinishedTimer(localStorage.getItem(teamTimerKey));
+      if (teamStamped) localStorage.setItem(teamTimerKey, teamStamped);
+
       const activeTimerRaw = localStorage.getItem(TIMER_STATE_KEY);
       if (activeTimerRaw) {
         try {
           const activeTimer = JSON.parse(activeTimerRaw);
           if (activeTimer.teamId === teamId) {
-            localStorage.removeItem(TIMER_STATE_KEY);
+            const stamped = stampFinishedTimer(activeTimerRaw);
+            if (stamped) localStorage.setItem(TIMER_STATE_KEY, stamped);
           }
-        } catch { localStorage.removeItem(TIMER_STATE_KEY); }
+        } catch { /* leave as-is */ }
       }
     } else {
-      localStorage.removeItem(TIMER_STATE_KEY);
+      const stamped = stampFinishedTimer(localStorage.getItem(TIMER_STATE_KEY));
+      if (stamped) localStorage.setItem(TIMER_STATE_KEY, stamped);
     }
-    
-    // Clear pitch state but also ensure auto-sub plan is cancelled
+
+    // Clear auto-sub plan + linked event from pitch state, but keep the rest
+    // (players, goals, score) so the post-game widget can still surface the
+    // final state for the visibility window.
     const pitchStateKey = teamId ? getPitchStateKeyForTeam(teamId) : PITCH_STATE_KEY;
     const pitchStateRaw = localStorage.getItem(pitchStateKey) || localStorage.getItem(PITCH_STATE_KEY);
     if (pitchStateRaw) {
       try {
         const pitchState = JSON.parse(pitchStateRaw);
-        // Clear the auto-sub plan
         pitchState.autoSubPlan = [];
         pitchState.autoSubActive = false;
         pitchState.autoSubPaused = false;
-        // Clear linked event
         pitchState.linkedEventId = null;
         const json = JSON.stringify(pitchState);
         if (teamId) localStorage.setItem(getPitchStateKeyForTeam(teamId), json);
-        // Only write to active key if it belongs to this team
         const activeRaw = localStorage.getItem(PITCH_STATE_KEY);
         if (activeRaw) {
           try {
@@ -218,19 +237,6 @@ export default function GameFinishedDialog({
       } catch (e) {
         console.error('Failed to clear auto-sub plan:', e);
       }
-    }
-    if (teamId) localStorage.removeItem(getPitchStateKeyForTeam(teamId));
-    // Only remove active key if it belongs to this team (prevent wiping another team's state)
-    const activeKeyRaw = localStorage.getItem(PITCH_STATE_KEY);
-    if (activeKeyRaw) {
-      try {
-        const activeState = JSON.parse(activeKeyRaw);
-        if (!activeState.teamId || activeState.teamId === teamId) {
-          localStorage.removeItem(PITCH_STATE_KEY);
-        }
-      } catch { localStorage.removeItem(PITCH_STATE_KEY); }
-    } else {
-      localStorage.removeItem(PITCH_STATE_KEY);
     }
     onClose();
   };
