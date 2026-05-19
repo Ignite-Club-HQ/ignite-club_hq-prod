@@ -2002,10 +2002,11 @@ export default function MessagesPage() {
     return unifiedConversations.filter((c) => {
       if (c.type === 'broadcast' || c.type === 'support') return true;
       switch (typeFilter) {
-        case 'teams': return c.type === 'team';
-        // Groups bucket now includes club + league broadcast-style groups
-        // alongside regular chat groups — they're all "group-like" surfaces.
-        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'league';
+        // Mini-leagues (e.g. Maxiroos) live under Teams — users mentally treat
+        // them as another team they belong to.
+        case 'teams': return c.type === 'team' || c.type === 'league';
+        // Groups bucket includes club broadcast-style groups alongside regular chat groups.
+        case 'groups': return c.type === 'group' || c.type === 'club';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
@@ -2556,8 +2557,8 @@ export default function MessagesPage() {
       {(() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
-          if (c.type === 'team') counts.teams++;
-          else if (c.type === 'group' || c.type === 'club' || c.type === 'league') counts.groupish++;
+          if (c.type === 'team' || c.type === 'league') counts.teams++;
+          else if (c.type === 'group' || c.type === 'club') counts.groupish++;
           else if (c.type === 'dm') counts.dms++;
         });
         const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
@@ -2694,7 +2695,7 @@ export default function MessagesPage() {
               const SECTION_ORDER = ['Announcements', 'Leadership', 'Operations', 'Volunteers', 'Custom Groups'] as const;
               type Section = typeof SECTION_ORDER[number];
               const classifyGroup = (c: UnifiedConversation): Section => {
-                if (c.type === 'club' || c.type === 'league' || c.type === 'broadcast') return 'Announcements';
+                if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                 const name = (c.name || '').toLowerCase();
                 if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Leadership';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
@@ -2710,7 +2711,7 @@ export default function MessagesPage() {
                 'Announcements': [], 'Leadership': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
               };
               visibleRecent.forEach((c) => {
-                if (c.type === 'group' || c.type === 'club' || c.type === 'league' || c.type === 'broadcast') {
+                if (c.type === 'group' || c.type === 'club' || c.type === 'broadcast') {
                   buckets[classifyGroup(c)].push(c);
                 } else {
                   buckets['Custom Groups'].push(c);
