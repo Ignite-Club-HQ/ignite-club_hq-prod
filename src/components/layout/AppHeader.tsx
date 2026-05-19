@@ -399,6 +399,22 @@ export function AppHeader() {
     enabled: !!user?.id,
   });
 
+  // Check if user has any vault-eligible club role (club_admin, league_admin, committee_member)
+  const { data: hasVaultRole } = useQuery({
+    queryKey: ["has-vault-role", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .in("role", ["club_admin", "league_admin", "committee_member"])
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Show club logo if theme is active and showLogoInHeader is enabled
   const showClubLogo = activeThemeData?.showLogoInHeader && activeThemeData?.logoUrl;
   
@@ -1049,10 +1065,12 @@ export function AppHeader() {
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/vault"); }} className="py-3 px-3">
-                <Folder className="mr-3 h-5 w-5" />
-                <span className="text-sm">File Vault</span>
-              </DropdownMenuItem>
+              {hasVaultRole && (
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/vault"); }} className="py-3 px-3">
+                  <Folder className="mr-3 h-5 w-5" />
+                  <span className="text-sm">File Vault</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onSelect={(e) => {
                   e.preventDefault();
