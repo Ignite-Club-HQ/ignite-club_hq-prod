@@ -2003,9 +2003,9 @@ export default function MessagesPage() {
       if (c.type === 'broadcast' || c.type === 'support') return true;
       switch (typeFilter) {
         case 'teams': return c.type === 'team';
-        case 'club': return c.type === 'club';
-        case 'league': return c.type === 'league';
-        case 'groups': return c.type === 'group';
+        // Groups bucket now includes club + league broadcast-style groups
+        // alongside regular chat groups — they're all "group-like" surfaces.
+        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'league';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
