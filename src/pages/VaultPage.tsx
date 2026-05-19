@@ -3271,7 +3271,7 @@ export default function VaultPage() {
             <Button variant="ghost" size="icon" className="shrink-0 -ml-2 h-9 w-9" onClick={goBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Breadcrumb className="min-w-0 flex-1 overflow-x-auto scrollbar-none">
+            <Breadcrumb className="min-w-0 flex-1 overflow-x-auto scrollbar-hide">
               <BreadcrumbList className="flex-nowrap whitespace-nowrap [&>li]:shrink-0 [&_a]:truncate [&_span]:truncate [&_a]:max-w-[140px] [&_span]:max-w-[140px] [&_a]:inline-block [&_span[role=link]]:inline-block">
                 {renderBreadcrumbs()}
               </BreadcrumbList>
