@@ -591,7 +591,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
               {(mode === "custom-group" || selectedUsers.length > 1) && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Input
                     placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
                     value={groupName}
@@ -600,6 +600,19 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     className="h-11 rounded-xl"
                     autoFocus={mode === "custom-group"}
                   />
+                  {mode === "custom-group" && (
+                    <Select value={groupCategory} onValueChange={setGroupCategory}>
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder="Choose a section" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000]">
+                        <SelectItem value="Club Management">Club Management</SelectItem>
+                        <SelectItem value="Operations">Operations</SelectItem>
+                        <SelectItem value="Volunteers">Volunteers</SelectItem>
+                        <SelectItem value="Custom Groups">Custom Groups</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                   {mode !== "custom-group" && (
                     <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
                   )}
