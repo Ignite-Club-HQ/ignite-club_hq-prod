@@ -2695,7 +2695,7 @@ export default function MessagesPage() {
               const SECTION_ORDER = ['Announcements', 'Leadership', 'Operations', 'Volunteers', 'Custom Groups'] as const;
               type Section = typeof SECTION_ORDER[number];
               const classifyGroup = (c: UnifiedConversation): Section => {
-                if (c.type === 'club' || c.type === 'league' || c.type === 'broadcast') return 'Announcements';
+                if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                 const name = (c.name || '').toLowerCase();
                 if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Leadership';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
