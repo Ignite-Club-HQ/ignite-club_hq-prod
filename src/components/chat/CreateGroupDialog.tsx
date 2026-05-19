@@ -20,9 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Crown, Check, Users, Shield, Sparkles, ChevronLeft, ChevronRight, Search, ChevronDown, UserPlus, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Plus, Crown, Check, Users, Shield, Sparkles, ChevronLeft, ChevronRight, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
@@ -73,10 +71,6 @@ export default function CreateGroupDialog({
   const [showTeamScope, setShowTeamScope] = useState<boolean>(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [teamSearch, setTeamSearch] = useState("");
-  // Membership mode: 'role' (auto by role, default) or 'manual' (hand-picked people).
-  const [membershipMode, setMembershipMode] = useState<"role" | "manual">("role");
-  const [pickedMembers, setPickedMembers] = useState<{ id: string; display_name: string | null; avatar_url: string | null }[]>([]);
-  const [memberSearch, setMemberSearch] = useState("");
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -101,9 +95,6 @@ export default function CreateGroupDialog({
       setTeamSearch("");
       setShowRoleFilter(false);
       setShowTeamScope(false);
-      setMembershipMode("role");
-      setPickedMembers([]);
-      setMemberSearch("");
     }
   }, [isOpen]);
 
@@ -250,8 +241,6 @@ export default function CreateGroupDialog({
         teamRows = data || [];
       }
 
-
-
       const seen = new Map<string, Set<string>>();
       [...(clubRows || []), ...teamRows].forEach((r: any) => {
         if (!seen.has(r.role)) seen.set(r.role, new Set());
@@ -262,48 +251,6 @@ export default function CreateGroupDialog({
     },
     enabled: isOpen && !!(clubInfo?.clubId || teamId || miniLeagueId),
   });
-
-  // Manual-mode candidate pool: real people in the chosen scope (bot excluded).
-  const { data: manualCandidates = [] } = useQuery({
-    queryKey: ["create-group-manual-candidates", clubInfo?.clubId, teamId, miniLeagueId, selectedTeamId],
-    queryFn: async () => {
-      const scopeTeamId = teamId || selectedTeamId || null;
-      let userIds: string[] = [];
-      if (scopeTeamId) {
-        const { data } = await supabase.from("user_roles").select("user_id").eq("team_id", scopeTeamId);
-        userIds = [...new Set((data || []).map((r: any) => r.user_id))];
-      } else if (miniLeagueId) {
-        const { data } = await (supabase as any).from("user_roles").select("user_id").eq("mini_league_id", miniLeagueId);
-        userIds = [...new Set(((data as any[]) || []).map((r: any) => r.user_id))];
-      } else if (clubInfo?.clubId) {
-        const [{ data: clubRows }, { data: teamRows }] = await Promise.all([
-          supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId),
-          supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
-        ]);
-        const tIds = (teamRows || []).map((t: any) => t.id);
-        let viaTeam: any[] = [];
-        if (tIds.length) {
-          const { data } = await supabase.from("user_roles").select("user_id").in("team_id", tIds);
-          viaTeam = data || [];
-        }
-        userIds = [...new Set([...(clubRows || []), ...viaTeam].map((r: any) => r.user_id))];
-      }
-      if (userIds.length === 0) return [];
-      let botId: string | null = null;
-      if (clubInfo?.clubId) {
-        const { data: club } = await supabase.from("clubs").select("bot_user_id").eq("id", clubInfo.clubId).maybeSingle();
-        botId = (club as any)?.bot_user_id || null;
-      }
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds.filter((id) => id !== botId));
-      return (profiles || []).sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
-    },
-    enabled: isOpen && membershipMode === "manual" && !!(clubInfo?.clubId || teamId || miniLeagueId || selectedTeamId),
-    staleTime: 60 * 1000,
-  });
-
 
   // Fetch admin mini-leagues (Pro Football) for league fallback when no clubId AND no scope
   const { data: adminMiniLeagues = [] } = useQuery({
@@ -388,12 +335,11 @@ export default function CreateGroupDialog({
 
   const createGroupMutation = useMutation({
     mutationFn: async () => {
-      if (!user) return;
-      if (membershipMode === "role" && selectedRoles.length === 0) return;
-      if (membershipMode === "manual" && pickedMembers.length === 0) return;
+      if (!user || selectedRoles.length === 0) return;
 
       const finalTeamId = teamId || selectedTeamId || null;
       const finalMiniLeagueId = miniLeagueId || selectedMiniLeagueId || null;
+      // Club scope only when no team / league chosen
       const finalClubId = !finalTeamId && !finalMiniLeagueId
         ? (clubId || clubInfo?.clubId || null)
         : null;
@@ -401,48 +347,29 @@ export default function CreateGroupDialog({
       if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
         throw new Error("Please pick a club, team, or league");
       }
+
       if (finalClubId && !clubHasPro) {
         throw new Error("Club-wide groups require a Club Pro subscription");
       }
 
-      const { data: created, error } = await supabase
-        .from("chat_groups")
-        .insert({
-          name: name.trim(),
-          club_id: finalClubId,
-          team_id: finalTeamId,
-          mini_league_id: finalMiniLeagueId,
-          // In manual mode roles are ignored — store empty array.
-          allowed_roles: membershipMode === "manual" ? [] : selectedRoles,
-          membership_mode: membershipMode,
-          created_by: user.id,
-        } as any)
-        .select("id")
-        .single();
-      if (error) throw error;
+      const { error } = await supabase.from("chat_groups").insert({
+        name: name.trim(),
+        club_id: finalClubId,
+        team_id: finalTeamId,
+        mini_league_id: finalMiniLeagueId,
+        allowed_roles: selectedRoles,
+        created_by: user.id,
+      });
 
-      if (membershipMode === "manual" && created?.id) {
-        // Always include the creator so they can see/post in their own group.
-        const ids = new Set<string>([user.id, ...pickedMembers.map((p) => p.id)]);
-        const inserts = [...ids].map((uid) => ({
-          group_id: created.id as string,
-          user_id: uid,
-          added_by: user.id,
-        }));
-        const { error: memErr } = await supabase.from("group_members").insert(inserts);
-        if (memErr) throw memErr;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Chat group created");
       setOpen(false);
       setName("");
       setSelectedRoles([]);
-      setPickedMembers([]);
-      setMembershipMode("role");
       setStep(1);
       setTeamSearch("");
-      setMemberSearch("");
       setShowRoleFilter(false);
       setShowTeamScope(false);
       if (!teamId) setSelectedTeamId("");
@@ -463,12 +390,6 @@ export default function CreateGroupDialog({
     );
   };
 
-  const togglePickedMember = (m: { id: string; display_name: string | null; avatar_url: string | null }) => {
-    setPickedMembers((prev) =>
-      prev.some((p) => p.id === m.id) ? prev.filter((p) => p.id !== m.id) : [...prev, m]
-    );
-  };
-
   const handleCreate = () => {
     if (!name.trim()) {
       toast.error("Give your group a name");
@@ -478,12 +399,8 @@ export default function CreateGroupDialog({
       toast.error("Pick a team");
       return;
     }
-    if (membershipMode === "role" && selectedRoles.length === 0) {
+    if (selectedRoles.length === 0) {
       toast.error("Pick at least one role");
-      return;
-    }
-    if (membershipMode === "manual" && pickedMembers.length === 0) {
-      toast.error("Pick at least one person");
       return;
     }
     createGroupMutation.mutate();
@@ -552,191 +469,58 @@ export default function CreateGroupDialog({
 
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 py-3 px-1">
           {step === 1 && !isTeamMode && (
-            <>
-              {/* Membership mode toggle */}
-              <section className="space-y-2">
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Who's in this group?
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <Shield className="h-3 w-3" />
+                  Roles
                 </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMembershipMode("role")}
-                    className={cn(
-                      "rounded-xl border p-3 text-left transition-all active:scale-[0.98] touch-manipulation",
-                      membershipMode === "role"
-                        ? "bg-primary/10 border-primary text-foreground"
-                        : "bg-card border-border hover:border-primary/40"
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      <Shield className="h-3.5 w-3.5" /> By role
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Auto-includes everyone with a role</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMembershipMode("manual")}
-                    className={cn(
-                      "rounded-xl border p-3 text-left transition-all active:scale-[0.98] touch-manipulation",
-                      membershipMode === "manual"
-                        ? "bg-primary/10 border-primary text-foreground"
-                        : "bg-card border-border hover:border-primary/40"
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
-                      <UserPlus className="h-3.5 w-3.5" /> Specific people
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Hand-pick exactly who's in</p>
-                  </button>
-                </div>
-              </section>
-
-              {membershipMode === "role" ? (
-                <section className="space-y-3">
-                  <div className="flex items-baseline justify-between">
-                    <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                      <Shield className="h-3 w-3" />
-                      Roles
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">Multi-select</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {ROLE_OPTIONS.map((role) => {
-                      const isSelected = selectedRoles.includes(role.value);
-                      const count = roleCounts[role.value] ?? 0;
-                      if (count === 0 && !isSelected) return null;
-                      return (
-                        <button
-                          key={role.value}
-                          type="button"
-                          onClick={() => toggleRole(role.value)}
-                          className={cn(
-                            "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
-                            "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
-                              : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
-                          )}
-                        >
-                          {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
-                          <span>{role.label}</span>
-                          <span
-                            className={cn(
-                              "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
-                              isSelected
-                                ? "bg-primary-foreground/20 text-primary-foreground"
-                                : "bg-muted text-muted-foreground"
-                            )}
-                          >
-                            {count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {Object.keys(roleCounts).length === 0 && (
-                      <p className="text-xs text-muted-foreground py-2">
-                        No members found in this scope yet.
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    You can narrow this to a single team in the next step.
+                <span className="text-[10px] text-muted-foreground">Multi-select</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ROLE_OPTIONS.map((role) => {
+                  const isSelected = selectedRoles.includes(role.value);
+                  const count = roleCounts[role.value] ?? 0;
+                  if (count === 0 && !isSelected) return null;
+                  return (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => toggleRole(role.value)}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium",
+                        "border transition-all duration-200 active:scale-[0.97] touch-manipulation",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/20"
+                          : "bg-card text-foreground border-border hover:border-primary/40 hover:bg-accent/40"
+                      )}
+                    >
+                      {isSelected && <Check className="h-3.5 w-3.5 -ml-0.5" />}
+                      <span>{role.label}</span>
+                      <span
+                        className={cn(
+                          "text-[11px] font-semibold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center",
+                          isSelected
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+                {Object.keys(roleCounts).length === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">
+                    No members found in this scope yet.
                   </p>
-                </section>
-              ) : (
-                <section className="space-y-3">
-                  <div className="flex items-baseline justify-between">
-                    <Label className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                      <UserPlus className="h-3 w-3" />
-                      People
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">
-                      {pickedMembers.length} picked
-                    </span>
-                  </div>
-
-                  {pickedMembers.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {pickedMembers.map((p) => (
-                        <Badge key={p.id} variant="secondary" className="gap-1 pr-1">
-                          {p.display_name?.split(" ")[0] || "User"}
-                          <button
-                            type="button"
-                            onClick={() => togglePickedMember(p)}
-                            className="ml-0.5 rounded-full hover:bg-background/50 p-0.5"
-                            aria-label="Remove"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                      value={memberSearch}
-                      onChange={(e) => setMemberSearch(e.target.value)}
-                      placeholder="Search people"
-                      className="h-11 rounded-xl pl-9"
-                    />
-                  </div>
-
-                  <div className="space-y-1 max-h-[40vh] overflow-y-auto -mx-1 px-1">
-                    {manualCandidates.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-2">
-                        No people found in this scope yet.
-                      </p>
-                    ) : (
-                      manualCandidates
-                        .filter((c) =>
-                          memberSearch.trim()
-                            ? (c.display_name || "").toLowerCase().includes(memberSearch.trim().toLowerCase())
-                            : true
-                        )
-                        .map((c) => {
-                          const isSelected = pickedMembers.some((p) => p.id === c.id);
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => togglePickedMember(c)}
-                              className={cn(
-                                "w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors",
-                                isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                              )}
-                            >
-                              <div className="relative">
-                                <Avatar className="h-9 w-9">
-                                  <AvatarImage src={c.avatar_url || undefined} />
-                                  <AvatarFallback>
-                                    {c.display_name?.charAt(0).toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                {isSelected && (
-                                  <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                                    <Check className="h-3 w-3 text-primary-foreground" />
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-sm font-medium truncate">
-                                {c.display_name || "Unknown"}
-                              </span>
-                            </button>
-                          );
-                        })
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    You'll be added automatically. You can add or remove people later from the group's member list.
-                  </p>
-                </section>
-              )}
-            </>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                You can narrow this to a single team in the next step.
+              </p>
+            </section>
           )}
-
 
           {step === 1 && isTeamMode && showTeamPicker && (
             <section className="space-y-3">
