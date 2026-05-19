@@ -68,6 +68,15 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [groupName, setGroupName] = useState("");
+  const BUILTIN_CATEGORIES = ["Club Management", "Operations", "Volunteers", "Custom Groups"] as const;
+  const CUSTOM_CATS_KEY = "chat.custom_categories";
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_CATS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+    } catch { return []; }
+  });
   const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
