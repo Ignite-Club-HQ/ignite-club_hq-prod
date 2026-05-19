@@ -1639,12 +1639,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [elapsedGameTime, setElapsedGameTime] = useState(0);
 
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
+  // Also record the route so we can restore it after a cold app launch
+  // (e.g. iOS killed the app while the phone was locked).
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
+    try {
+      const path = window.location.pathname + window.location.search;
+      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+    } catch {
+      /* ignore */
+    }
     // Clear widget-dismissed flag so widget reappears when pitch board closes
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
+      localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
     };
   }, []);
 
