@@ -401,13 +401,10 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    // Keep latest-message previews fresh: previously staleTime=5m + refetchOnMount=true
-    // meant returning to /messages within 5 min showed cached previews and only the
-    // 30s/120s poll (or realtime) caught up. Treat list as always stale on mount so
-    // re-entering the inbox always pulls the freshest "last message" row.
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    // Warm revisits render instantly from cache; realtime + 30s poll keep
+    // previews fresh. Forcing refetch on every mount/focus caused 10-25s
+    // freezes when returning to /messages because the N+1 cascade refired.
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
