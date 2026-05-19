@@ -2554,22 +2554,16 @@ export default function MessagesPage() {
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. */}
       {(() => {
-        const counts = {
-          teams: 0, club: 0, league: 0, groups: 0, dms: 0,
-        };
+        const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
           if (c.type === 'team') counts.teams++;
-          else if (c.type === 'club') counts.club++;
-          else if (c.type === 'league') counts.league++;
-          else if (c.type === 'group') counts.groups++;
+          else if (c.type === 'group' || c.type === 'club' || c.type === 'league') counts.groupish++;
           else if (c.type === 'dm') counts.dms++;
         });
         const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
           { id: 'all', label: 'All', visible: true },
           { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team' },
-          { id: 'club', label: 'Club', visible: counts.club > 0, type: 'club' },
-          { id: 'groups', label: 'Groups', visible: counts.groups > 0, type: 'group' },
-          { id: 'league', label: 'League', visible: counts.league > 0, type: 'league' },
+          { id: 'groups', label: 'Groups', visible: counts.groupish > 0, type: 'group' },
           { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
         ];
         const shown = chips.filter(c => c.visible);
