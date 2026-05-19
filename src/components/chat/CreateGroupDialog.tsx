@@ -101,6 +101,9 @@ export default function CreateGroupDialog({
       setTeamSearch("");
       setShowRoleFilter(false);
       setShowTeamScope(false);
+      setMembershipMode("role");
+      setPickedMembers([]);
+      setMemberSearch("");
     }
   }, [isOpen]);
 
