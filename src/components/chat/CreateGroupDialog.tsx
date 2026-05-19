@@ -371,6 +371,7 @@ export default function CreateGroupDialog({
       toast.success("Chat group created");
       setOpen(false);
       setName("");
+      setCategory("");
       setSelectedRoles([]);
       setStep(1);
       setTeamSearch("");
