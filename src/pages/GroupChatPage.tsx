@@ -1771,7 +1771,7 @@ export default function GroupChatPage() {
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
-              onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
+              onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
             />
           </>
         }
