@@ -3125,6 +3125,41 @@ export type Database = {
           },
         ]
       }
+      event_auto_push_log: {
+        Row: {
+          cadence: string
+          event_id: string
+          id: string
+          notification_id: string | null
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence: string
+          event_id: string
+          id?: string
+          notification_id?: string | null
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence?: string
+          event_id?: string
+          id?: string
+          notification_id?: string | null
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_auto_push_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_default_confirm_log: {
         Row: {
           child_id: string | null
@@ -7945,6 +7980,9 @@ export type Database = {
           auto_rsvp_dm_cadences: string[]
           auto_rsvp_dm_enabled: boolean
           auto_rsvp_dm_event_types: string[]
+          auto_rsvp_push_cadences: string[]
+          auto_rsvp_push_enabled: boolean
+          auto_rsvp_push_event_types: string[]
           class_capacity: number | null
           class_day: string | null
           class_duration_minutes: number | null
@@ -7983,6 +8021,9 @@ export type Database = {
           auto_rsvp_dm_cadences?: string[]
           auto_rsvp_dm_enabled?: boolean
           auto_rsvp_dm_event_types?: string[]
+          auto_rsvp_push_cadences?: string[]
+          auto_rsvp_push_enabled?: boolean
+          auto_rsvp_push_event_types?: string[]
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -8021,6 +8062,9 @@ export type Database = {
           auto_rsvp_dm_cadences?: string[]
           auto_rsvp_dm_enabled?: boolean
           auto_rsvp_dm_event_types?: string[]
+          auto_rsvp_push_cadences?: string[]
+          auto_rsvp_push_enabled?: boolean
+          auto_rsvp_push_event_types?: string[]
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
