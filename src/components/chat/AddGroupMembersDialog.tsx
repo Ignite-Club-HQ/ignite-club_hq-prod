@@ -259,7 +259,7 @@ export function AddGroupMembersDialog({
           )}
         </div>
 
-        <ResponsiveDialogFooter>
+        <ResponsiveDialogFooter className="sticky bottom-0 left-0 right-0 bg-background border-t pt-3 -mx-1 px-1 pb-[env(safe-area-inset-bottom,0px)] z-10">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
