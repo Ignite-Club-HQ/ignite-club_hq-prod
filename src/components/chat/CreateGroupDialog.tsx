@@ -64,6 +64,7 @@ export default function CreateGroupDialog({
   const queryClient = useQueryClient();
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
@@ -359,6 +360,9 @@ export default function CreateGroupDialog({
         mini_league_id: finalMiniLeagueId,
         allowed_roles: selectedRoles,
         created_by: user.id,
+        // Only meaningful for club-scoped groups — it drives the parent
+        // vault folder name (e.g. "Club Management", "Operations").
+        category: finalClubId && category.trim() ? category.trim() : null,
       });
 
       if (error) throw error;
@@ -367,6 +371,7 @@ export default function CreateGroupDialog({
       toast.success("Chat group created");
       setOpen(false);
       setName("");
+      setCategory("");
       setSelectedRoles([]);
       setStep(1);
       setTeamSearch("");
@@ -587,6 +592,38 @@ export default function CreateGroupDialog({
                   autoFocus
                 />
               </section>
+
+              {/* Category — only meaningful for club-wide groups (no team/league).
+                  Drives the parent folder name in the club File Vault. */}
+              {!isTeamMode && !teamId && !selectedTeamId && !miniLeagueId && !selectedMiniLeagueId && (
+                <section className="space-y-2">
+                  <Label htmlFor="group-category" className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Category
+                  </Label>
+                  <Input
+                    id="group-category"
+                    list="group-category-suggestions"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Club Management, Operations"
+                    className="h-11 rounded-xl"
+                    maxLength={60}
+                  />
+                  <datalist id="group-category-suggestions">
+                    <option value="Club Management" />
+                    <option value="Operations" />
+                    <option value="Coaching" />
+                    <option value="Finance" />
+                    <option value="Uniform" />
+                    <option value="Events" />
+                    <option value="Sponsorship" />
+                    <option value="Volunteers" />
+                  </datalist>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Groups its File Vault folder under this category. Leave blank to use "General".
+                  </p>
+                </section>
+              )}
 
               {/* League fallback (rare) */}
               {showLeaguePicker && (

@@ -183,6 +183,11 @@ export function ChatDetailsSheet({
                     : resolvedClubId
                     ? `/vault?club=${resolvedClubId}`
                     : null;
+                  // For a group, we only show the row if it has a club/team/league
+                  // context (so the auto-created folder or a fallback target exists).
+                  // Personal groups (no club_id) have nothing to open and should
+                  // not show a dead row.
+                  if (isGroup && !fallbackHref) return null;
                   if (!fallbackHref && !isGroup) return null;
                   return (
                     <NavRow
@@ -194,6 +199,7 @@ export function ChatDetailsSheet({
                             .from("vault_folders")
                             .select("id")
                             .eq("chat_group_id", chatId)
+                            .is("deleted_at", null)
                             .limit(1)
                             .maybeSingle();
                           if (folder?.id) {
