@@ -965,10 +965,12 @@ export default function MessagesPage() {
 
       return result;
     },
-    enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    // Fetch DMs in parallel with everything else; Pro gating happens at
+    // render time. Previously this waited on hasAnyProAccess (3 serial
+    // queries) before even starting, adding 2-5s to cold loads. RLS still
+    // enforces who can read each conversation.
+    enabled: !!user && initialized,
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
