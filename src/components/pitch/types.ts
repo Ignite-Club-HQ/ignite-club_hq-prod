@@ -127,6 +127,11 @@ export const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
 export const getPitchStateKey = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 export const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
 export const PITCH_BOARD_OPEN_PATH_KEY = "ignite-pitch-board-open-path";
+// JSON-encoded {teamId, teamName, readOnly} of the most recently opened
+// pitch board. Used to re-open the modal after a WebView cold restart
+// (phone lock/unlock) when the board was opened as an overlay on the
+// home page (no dedicated route to restore).
+export const PITCH_BOARD_LAST_CONTEXT_KEY = "ignite-pitch-board-last-context";
 export const TIMER_STORAGE_KEY = 'pitch-board-timer-state';
 
 // Goal tracking interface
