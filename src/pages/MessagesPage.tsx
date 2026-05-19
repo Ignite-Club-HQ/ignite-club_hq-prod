@@ -232,10 +232,12 @@ export default function MessagesPage() {
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
   const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
-  const [typeFilter, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all") as [
-    'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league',
-    (v: 'all' | 'teams' | 'groups' | 'dms' | 'club' | 'league') => void,
-  ];
+  const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
+  // Normalize legacy persisted values ('club' / 'league' used to be top-level
+  // chips — they now live inside 'groups').
+  const typeFilter = (
+    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
+  ) as 'all' | 'teams' | 'groups' | 'dms';
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
@@ -2001,9 +2003,9 @@ export default function MessagesPage() {
       if (c.type === 'broadcast' || c.type === 'support') return true;
       switch (typeFilter) {
         case 'teams': return c.type === 'team';
-        case 'club': return c.type === 'club';
-        case 'league': return c.type === 'league';
-        case 'groups': return c.type === 'group';
+        // Groups bucket now includes club + league broadcast-style groups
+        // alongside regular chat groups — they're all "group-like" surfaces.
+        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'league';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
@@ -2552,22 +2554,16 @@ export default function MessagesPage() {
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. */}
       {(() => {
-        const counts = {
-          teams: 0, club: 0, league: 0, groups: 0, dms: 0,
-        };
+        const counts = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
           if (c.type === 'team') counts.teams++;
-          else if (c.type === 'club') counts.club++;
-          else if (c.type === 'league') counts.league++;
-          else if (c.type === 'group') counts.groups++;
+          else if (c.type === 'group' || c.type === 'club' || c.type === 'league') counts.groupish++;
           else if (c.type === 'dm') counts.dms++;
         });
         const chips: { id: typeof typeFilter; label: string; visible: boolean; type?: string }[] = [
           { id: 'all', label: 'All', visible: true },
           { id: 'teams', label: 'Teams', visible: counts.teams > 0, type: 'team' },
-          { id: 'club', label: 'Club', visible: counts.club > 0, type: 'club' },
-          { id: 'groups', label: 'Groups', visible: counts.groups > 0, type: 'group' },
-          { id: 'league', label: 'League', visible: counts.league > 0, type: 'league' },
+          { id: 'groups', label: 'Groups', visible: counts.groupish > 0, type: 'group' },
           { id: 'dms', label: 'DMs', visible: counts.dms > 0, type: 'dm' },
         ];
         const shown = chips.filter(c => c.visible);
@@ -2688,7 +2684,53 @@ export default function MessagesPage() {
             <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
               <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
             </div>
-            {visibleRecent.map(renderConversationCard)}
+            {(() => {
+              // When the user is in the Groups filter and has enough group-like
+              // chats to benefit from organization, render lightweight inline
+              // section headers ("Announcements" / "Leadership" / "Operations"
+              // / "Volunteers" / "Custom Groups"). Otherwise render flat —
+              // preserves the WhatsApp-style simple experience for regular
+              // parents.
+              const SECTION_ORDER = ['Announcements', 'Leadership', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+              type Section = typeof SECTION_ORDER[number];
+              const classifyGroup = (c: UnifiedConversation): Section => {
+                if (c.type === 'club' || c.type === 'league' || c.type === 'broadcast') return 'Announcements';
+                const name = (c.name || '').toLowerCase();
+                if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Leadership';
+                if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
+                if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
+                return 'Custom Groups';
+              };
+
+              const useSections = typeFilter === 'groups' && visibleRecent.length >= 5;
+              if (!useSections) {
+                return <>{visibleRecent.map(renderConversationCard)}</>;
+              }
+              const buckets: Record<Section, UnifiedConversation[]> = {
+                'Announcements': [], 'Leadership': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
+              };
+              visibleRecent.forEach((c) => {
+                if (c.type === 'group' || c.type === 'club' || c.type === 'league' || c.type === 'broadcast') {
+                  buckets[classifyGroup(c)].push(c);
+                } else {
+                  buckets['Custom Groups'].push(c);
+                }
+              });
+              return (
+                <>
+                  {SECTION_ORDER.filter((s) => buckets[s].length > 0).map((section, idx) => (
+                    <div key={section} className={idx === 0 ? '' : 'pt-3'}>
+                      <div className="flex items-center gap-2 pb-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {section}
+                        </span>
+                      </div>
+                      {buckets[section].map(renderConversationCard)}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
             {hiddenOps.length > 0 && (
               <button
                 type="button"
