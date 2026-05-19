@@ -3334,6 +3334,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
+    // Guard: if the timer was reconciled on resume/cold-open and we're already
+    // well into the 2nd half, the half-change callback can still fire as part
+    // of the catch-up. In that case the user has already played past halftime
+    // and should not see a stale "Half Time!" dialog they have to dismiss.
+    if (newHalf === 2) {
+      const elapsedInHalf2 = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
+      if (elapsedInHalf2 > 30) {
+        return;
+      }
+    }
+
     // Delegate auto-sub halftime checks to the hook
     if (checkHalftimeSubs(newHalf)) return;
 
