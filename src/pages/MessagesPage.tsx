@@ -85,6 +85,40 @@ function MessageSkeleton() {
   );
 }
 
+// Per-conversation-type accent colors. Stronger than the previous neutral
+// type chip but intentionally restrained: a thin left-edge stripe + a tinted
+// type pill, no avatar tinting, no card backgrounds.
+const TYPE_ACCENT_HSL: Record<string, string | undefined> = {
+  team: '142 71% 42%',   // green
+  club: '210 85% 52%',   // blue
+  group: '25 92% 52%',   // orange
+  league: '270 60% 55%', // purple
+  dm: undefined,         // neutral
+  broadcast: undefined,
+  support: undefined,
+};
+
+function typeAccentStyle(type: string): React.CSSProperties | undefined {
+  const h = TYPE_ACCENT_HSL[type];
+  if (!h) return undefined;
+  return { borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: `hsl(${h})` };
+}
+
+function typeBadgeStyle(type: string): React.CSSProperties | undefined {
+  const h = TYPE_ACCENT_HSL[type];
+  if (!h) return undefined;
+  return { color: `hsl(${h})`, borderColor: `hsl(${h} / 0.4)`, backgroundColor: `hsl(${h} / 0.08)` };
+}
+
+// Detect automated/system reminder messages so the inbox can de-emphasize
+// them vs real human conversation. Currently keyed off the gallery-prompt
+// token (📸 Reminder: add team photos) — extend here as more system
+// reminder types are added.
+function isSystemReminderText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return /\[galleryprompt:[0-9a-f-]{36}\]/i.test(text);
+}
+
 
 // Helper to get first name only from a display name
 const getFirstName = (fullName: string | undefined): string => {
