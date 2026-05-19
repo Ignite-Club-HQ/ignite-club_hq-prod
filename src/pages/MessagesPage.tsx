@@ -2002,10 +2002,11 @@ export default function MessagesPage() {
     return unifiedConversations.filter((c) => {
       if (c.type === 'broadcast' || c.type === 'support') return true;
       switch (typeFilter) {
-        case 'teams': return c.type === 'team';
-        // Groups bucket now includes club + league broadcast-style groups
-        // alongside regular chat groups — they're all "group-like" surfaces.
-        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'league';
+        // Mini-leagues (e.g. Maxiroos) live under Teams — users mentally treat
+        // them as another team they belong to.
+        case 'teams': return c.type === 'team' || c.type === 'league';
+        // Groups bucket includes club broadcast-style groups alongside regular chat groups.
+        case 'groups': return c.type === 'group' || c.type === 'club';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
