@@ -13,6 +13,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
 import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
+import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
