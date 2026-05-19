@@ -2142,7 +2142,7 @@ export default function MessagesPage() {
     if (item.type === 'support') {
       return (
         <Link key={item.key} to={item.link}>
-          <Card className="hover:border-primary/50 transition-colors">
+          <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
               <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
               <div className="flex-1 min-w-0">
@@ -2225,7 +2225,7 @@ export default function MessagesPage() {
                       {item.name}
                     </h3>
                     {typeLabel && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                         {typeLabel}
                       </Badge>
                     )}
@@ -2285,6 +2285,7 @@ export default function MessagesPage() {
         <Card
           key={item.key}
           className="hover:border-primary/50 transition-colors cursor-pointer"
+          style={typeAccentStyle(item.type)}
           onClick={() => navigate(item.link)}
           tabIndex={0}
           role="link"
@@ -2299,7 +2300,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                       {typeLabel}
                     </Badge>
                   )}
@@ -2357,7 +2358,7 @@ export default function MessagesPage() {
     // Club/Team card (default)
     return (
       <Link key={item.key} to={item.link}>
-        <Card className="hover:border-primary/50 transition-colors">
+        <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
               <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} className="h-9 w-9" />
@@ -2368,7 +2369,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
                       {typeLabel}
                     </Badge>
                   )}
