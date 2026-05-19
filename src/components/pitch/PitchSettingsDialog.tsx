@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList, Link2Off } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Scale, Equal, Play, Swords, ClipboardList, Link2Off, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
+import { exportTimerAuditLog } from "@/lib/timerAuditLog";
+import { toast } from "@/hooks/use-toast";
 
 interface Formation {
   name: string;
@@ -510,6 +512,22 @@ export function PitchSettingsDialog({
                     />
                   </div>
                 )}
+
+                {/* Export timer audit log */}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={async () => {
+                    const r = await exportTimerAuditLog();
+                    toast({
+                      title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
+                      description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
+                    });
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Export Timer Log
+                </button>
               </CollapsibleContent>
             </Collapsible>
           </div>

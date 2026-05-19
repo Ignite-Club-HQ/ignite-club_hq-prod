@@ -126,6 +126,7 @@ export const PITCH_STATE_KEY = "ignite-pitch-board-state"; // Base key / active 
 export const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
 export const getPitchStateKey = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 export const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
+export const PITCH_BOARD_OPEN_PATH_KEY = "ignite-pitch-board-open-path";
 export const TIMER_STORAGE_KEY = 'pitch-board-timer-state';
 
 // Goal tracking interface

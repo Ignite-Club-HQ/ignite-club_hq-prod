@@ -45,6 +45,7 @@ import TacticalModeSelector from "./TacticalModeSelector";
 import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
@@ -73,6 +74,7 @@ import {
   getSpecificPositionLabel,
   PITCH_STATE_KEY,
   PITCH_BOARD_OPEN_KEY,
+  PITCH_BOARD_OPEN_PATH_KEY,
   TIMER_STORAGE_KEY,
   PitchBoardState,
   TimerState,
@@ -90,7 +92,7 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
-import { exportTimerAuditLog } from "@/lib/timerAuditLog";
+
 import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
@@ -1638,13 +1640,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [statsOpen, setStatsOpen] = useState(false);
   const [elapsedGameTime, setElapsedGameTime] = useState(0);
 
+  // Keep the screen awake while the pitch board is open so iOS / Android
+  // don't auto-lock mid-game and tear down the WebView (which causes a
+  // 4-5s "Loading your profile..." reload when the user returns).
+  useWakeLock(true);
+
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
+  // Also record the route so we can restore it after a cold app launch
+  // (e.g. iOS killed the app while the phone was locked).
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
+    try {
+      const path = window.location.pathname + window.location.search;
+      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+    } catch {
+      /* ignore */
+    }
     // Clear widget-dismissed flag so widget reappears when pitch board closes
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
+      localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
     };
   }, []);
 
@@ -3324,6 +3340,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
+    // Guard: if the timer was reconciled on resume/cold-open and we're already
+    // well into the 2nd half, the half-change callback can still fire as part
+    // of the catch-up. In that case the user has already played past halftime
+    // and should not see a stale "Half Time!" dialog they have to dismiss.
+    if (newHalf === 2) {
+      const elapsedInHalf2 = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
+      if (elapsedInHalf2 > 30) {
+        return;
+      }
+    }
+
     // Delegate auto-sub halftime checks to the hook
     if (checkHalftimeSubs(newHalf)) return;
 
@@ -5031,20 +5058,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <BarChart3 className="h-4 w-4" />
                         Match Stats
                       </button>
-                      <button
-                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                        onClick={async () => {
-                          setSettingsMenuOpen(false);
-                          const r = await exportTimerAuditLog();
-                          toast({
-                            title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
-                            description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
-                          });
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                        Export Timer Log
-                      </button>
                     </div>
                   </>,
                   document.body
@@ -6577,20 +6590,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {!readOnly && (
                       <>
                         <div className="h-px bg-border mx-2 my-1" />
-                        <button
-                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                          onClick={async () => {
-                            setSettingsMenuOpen(false);
-                            const r = await exportTimerAuditLog();
-                            toast({
-                              title: r.ok ? (r.method === "clipboard" ? "Copied to clipboard" : "Timer log exported") : "Export failed",
-                              description: r.ok && r.method === "download" ? "Saved as a .txt file" : r.ok ? "Paste into a message to share" : "Could not export the log",
-                            });
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                          Export Timer Log
-                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
                           <Settings2 className="h-4 w-4" />
                           All Settings

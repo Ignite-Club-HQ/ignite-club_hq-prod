@@ -442,7 +442,15 @@ async function checkGames(supabase: any): Promise<number> {
     // Cap extrapolation to 30s for BOUNDARY detection (halftime/fulltime) only.
     // Without the cap, a backgrounded app (no syncs for minutes) would cause the
     // server to falsely trigger halftime/fulltime notifications mid-half.
-    const MAX_EXTRAPOLATION_SECS = 30;
+    //
+    // For schema_version 2 (server-anchored) rows, timerState.elapsedSeconds is
+    // already projected from `half_started_at` using the server's wall clock —
+    // it IS the live elapsed. Extrapolating further on top of that double-counts
+    // the time since the last DB update (game.updated_at on v2 is only bumped
+    // by explicit timer events, so it can lag by 30s+), which made half-time
+    // and full-time push notifications fire ~15-30s early. Zero extrapolation
+    // on v2 keeps boundary detection precisely in sync with the client clock.
+    const MAX_EXTRAPOLATION_SECS = isServerAnchored ? 0 : 30;
     const timeSinceDbUpdateCapped = Math.min(timeSinceDbUpdateRaw, MAX_EXTRAPOLATION_SECS);
     const rawElapsedCapped = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdateCapped : 0);
     
@@ -450,7 +458,10 @@ async function checkGames(supabase: any): Promise<number> {
     // When the app is backgrounded, the whole point of server-side checking is to
     // detect subs that the client can't process. Without uncapped extrapolation,
     // subs due >30s after the last sync are invisible to the server.
-    const rawElapsedUncapped = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdateRaw : 0);
+    // On v2, the projected elapsed is already wall-clock accurate, so skip extra extrapolation.
+    const rawElapsedUncapped = isServerAnchored
+      ? timerState.elapsedSeconds
+      : timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdateRaw : 0);
     const currentElapsedForSubs = Math.min(rawElapsedUncapped, halfDurationSecs);
     
     // Capped version for boundary detection
