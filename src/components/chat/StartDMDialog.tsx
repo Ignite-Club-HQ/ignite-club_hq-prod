@@ -462,8 +462,6 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   };
 
   const handleStartConversation = () => {
-    if (selectedUsers.length === 0) return;
-
     if (mode === "custom-group") {
       if (!groupName.trim()) {
         toast.error("Give your group a name");
@@ -472,6 +470,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: groupCategory });
       return;
     }
+
+    if (selectedUsers.length === 0) return;
 
     if (selectedUsers.length === 1) {
       // Single user - start regular DM
@@ -767,7 +767,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         </div>
 
         {/* Footer with action button - matches CreateGroupDialog pattern */}
-        {selectedUsers.length > 0 && (
+        {(selectedUsers.length > 0 || mode === "custom-group") && (
           <ResponsiveDialogFooter className="sticky bottom-0 -mx-1 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] bg-background border-t border-border z-10">
             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
               Cancel
@@ -785,7 +785,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 <MessageCircle className="h-4 w-4" />
               )}
               {mode === "custom-group"
-                ? `Create Group (${selectedUsers.length})`
+                ? selectedUsers.length === 0
+                  ? "Create Group (just me)"
+                  : `Create Group (${selectedUsers.length + 1})`
                 : selectedUsers.length === 1
                   ? "Start Chat"
                   : `Create Group (${selectedUsers.length} people)`}
