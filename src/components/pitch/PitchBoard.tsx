@@ -1640,6 +1640,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [statsOpen, setStatsOpen] = useState(false);
   const [elapsedGameTime, setElapsedGameTime] = useState(0);
 
+  // Keep the screen awake while the pitch board is open so iOS / Android
+  // don't auto-lock mid-game and tear down the WebView (which causes a
+  // 4-5s "Loading your profile..." reload when the user returns).
+  useWakeLock(true);
+
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   // Also record the route so we can restore it after a cold app launch
   // (e.g. iOS killed the app while the phone was locked).
