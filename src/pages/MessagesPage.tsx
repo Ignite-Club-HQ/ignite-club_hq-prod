@@ -217,6 +217,7 @@ interface UnifiedConversation {
   canHide?: boolean;
   dmData?: any;
   draftText?: string;
+  category?: string | null;
 }
 
 export default function MessagesPage() {
