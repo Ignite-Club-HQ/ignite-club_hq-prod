@@ -386,11 +386,12 @@ export default function CreateGroupDialog({
 
   const createGroupMutation = useMutation({
     mutationFn: async () => {
-      if (!user || selectedRoles.length === 0) return;
+      if (!user) return;
+      if (membershipMode === "role" && selectedRoles.length === 0) return;
+      if (membershipMode === "manual" && pickedMembers.length === 0) return;
 
       const finalTeamId = teamId || selectedTeamId || null;
       const finalMiniLeagueId = miniLeagueId || selectedMiniLeagueId || null;
-      // Club scope only when no team / league chosen
       const finalClubId = !finalTeamId && !finalMiniLeagueId
         ? (clubId || clubInfo?.clubId || null)
         : null;
@@ -398,29 +399,48 @@ export default function CreateGroupDialog({
       if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
         throw new Error("Please pick a club, team, or league");
       }
-
       if (finalClubId && !clubHasPro) {
         throw new Error("Club-wide groups require a Club Pro subscription");
       }
 
-      const { error } = await supabase.from("chat_groups").insert({
-        name: name.trim(),
-        club_id: finalClubId,
-        team_id: finalTeamId,
-        mini_league_id: finalMiniLeagueId,
-        allowed_roles: selectedRoles,
-        created_by: user.id,
-      });
-
+      const { data: created, error } = await supabase
+        .from("chat_groups")
+        .insert({
+          name: name.trim(),
+          club_id: finalClubId,
+          team_id: finalTeamId,
+          mini_league_id: finalMiniLeagueId,
+          // In manual mode roles are ignored — store empty array.
+          allowed_roles: membershipMode === "manual" ? [] : selectedRoles,
+          membership_mode: membershipMode,
+          created_by: user.id,
+        } as any)
+        .select("id")
+        .single();
       if (error) throw error;
+
+      if (membershipMode === "manual" && created?.id) {
+        // Always include the creator so they can see/post in their own group.
+        const ids = new Set<string>([user.id, ...pickedMembers.map((p) => p.id)]);
+        const inserts = [...ids].map((uid) => ({
+          group_id: created.id as string,
+          user_id: uid,
+          added_by: user.id,
+        }));
+        const { error: memErr } = await supabase.from("group_members").insert(inserts);
+        if (memErr) throw memErr;
+      }
     },
     onSuccess: () => {
       toast.success("Chat group created");
       setOpen(false);
       setName("");
       setSelectedRoles([]);
+      setPickedMembers([]);
+      setMembershipMode("role");
       setStep(1);
       setTeamSearch("");
+      setMemberSearch("");
       setShowRoleFilter(false);
       setShowTeamScope(false);
       if (!teamId) setSelectedTeamId("");
@@ -441,6 +461,12 @@ export default function CreateGroupDialog({
     );
   };
 
+  const togglePickedMember = (m: { id: string; display_name: string | null; avatar_url: string | null }) => {
+    setPickedMembers((prev) =>
+      prev.some((p) => p.id === m.id) ? prev.filter((p) => p.id !== m.id) : [...prev, m]
+    );
+  };
+
   const handleCreate = () => {
     if (!name.trim()) {
       toast.error("Give your group a name");
@@ -450,8 +476,12 @@ export default function CreateGroupDialog({
       toast.error("Pick a team");
       return;
     }
-    if (selectedRoles.length === 0) {
+    if (membershipMode === "role" && selectedRoles.length === 0) {
       toast.error("Pick at least one role");
+      return;
+    }
+    if (membershipMode === "manual" && pickedMembers.length === 0) {
+      toast.error("Pick at least one person");
       return;
     }
     createGroupMutation.mutate();
