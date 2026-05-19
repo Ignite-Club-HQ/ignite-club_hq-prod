@@ -64,6 +64,7 @@ export default function CreateGroupDialog({
   const queryClient = useQueryClient();
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
