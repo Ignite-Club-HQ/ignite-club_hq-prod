@@ -535,9 +535,7 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
+    staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
