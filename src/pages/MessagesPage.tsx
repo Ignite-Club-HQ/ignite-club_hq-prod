@@ -2688,16 +2688,16 @@ export default function MessagesPage() {
             {(() => {
               // When the user is in the Groups filter and has enough group-like
               // chats to benefit from organization, render lightweight inline
-              // section headers ("Announcements" / "Leadership" / "Operations"
+              // section headers ("Announcements" / "Club Management" / "Operations"
               // / "Volunteers" / "Custom Groups"). Otherwise render flat —
               // preserves the WhatsApp-style simple experience for regular
               // parents.
-              const SECTION_ORDER = ['Announcements', 'Leadership', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+              const SECTION_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
               type Section = typeof SECTION_ORDER[number];
               const classifyGroup = (c: UnifiedConversation): Section => {
                 if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                 const name = (c.name || '').toLowerCase();
-                if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Leadership';
+                if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Club Management';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
                 if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
                 return 'Custom Groups';
@@ -2708,7 +2708,7 @@ export default function MessagesPage() {
                 return <>{visibleRecent.map(renderConversationCard)}</>;
               }
               const buckets: Record<Section, UnifiedConversation[]> = {
-                'Announcements': [], 'Leadership': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
+                'Announcements': [], 'Club Management': [], 'Operations': [], 'Volunteers': [], 'Custom Groups': [],
               };
               visibleRecent.forEach((c) => {
                 if (c.type === 'group' || c.type === 'club' || c.type === 'broadcast') {
