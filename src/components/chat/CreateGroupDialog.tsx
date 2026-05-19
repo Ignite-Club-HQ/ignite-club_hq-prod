@@ -360,6 +360,9 @@ export default function CreateGroupDialog({
         mini_league_id: finalMiniLeagueId,
         allowed_roles: selectedRoles,
         created_by: user.id,
+        // Only meaningful for club-scoped groups — it drives the parent
+        // vault folder name (e.g. "Club Management", "Operations").
+        category: finalClubId && category.trim() ? category.trim() : null,
       });
 
       if (error) throw error;
