@@ -9140,6 +9140,16 @@ export type Database = {
           wau: number
         }[]
       }
+      ensure_chat_group_vault_folder: {
+        Args: {
+          _category: string
+          _club_id: string
+          _created_by: string
+          _group_id: string
+          _group_name: string
+        }
+        Returns: string
+      }
       ensure_club_role_folders: {
         Args: { _club_id: string }
         Returns: undefined
