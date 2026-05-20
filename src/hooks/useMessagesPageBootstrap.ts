@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
  * Rollback: `localStorage.removeItem("msg_bootstrap_v1")` — no redeploy.
  */
 
+export type AdminClubLite = { id: string; name: string; logo_url: string | null; sport: string | null };
+
 export type MessagesBootstrap = {
   is_app_admin: boolean;
   is_committee_member: boolean;
@@ -28,7 +30,10 @@ export type MessagesBootstrap = {
   pro_club_ids: string[];
   pro_team_ids: string[];
   has_any_pro: boolean;
+  admin_clubs: AdminClubLite[];
+  club_pro_status: Record<string, boolean>;
 };
+
 
 const FLAG_KEY = "msg_bootstrap_v1";
 
