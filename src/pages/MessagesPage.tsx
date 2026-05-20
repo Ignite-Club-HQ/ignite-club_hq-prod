@@ -20,6 +20,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { makeMsgPerfTimer } from "@/lib/messagesPerf";
+import { MsgPerfOverlay } from "@/components/MsgPerfOverlay";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
 import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
@@ -2545,6 +2546,8 @@ export default function MessagesPage() {
 
   return (
     <div className="py-6 space-y-6">
+      <MsgPerfOverlay />
+
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
