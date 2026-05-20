@@ -329,7 +329,8 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
-    placeholderData: cachedData?.adminClubs ?? ((prev) => prev),
+    initialData: cachedData?.adminClubs as Club[] | undefined,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch member clubs with their latest messages in a single query
@@ -407,7 +408,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
+    initialData: cachedData?.memberClubs
+      ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract clubs and latest messages from combined query
@@ -538,7 +542,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
+    initialData: cachedData?.teams
+      ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract teams and latest messages from combined query
@@ -805,7 +812,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
+    initialData: cachedData?.chatGroups
+      ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract groups and latest messages from combined query
@@ -1097,6 +1107,14 @@ export default function MessagesPage() {
   // the main thread for seconds after navigating away from a chat.
   useEffect(() => {
     if (!user) return;
+    // Android WebView cold-open audit: the prefetch storm (16+ extra `messages`
+    // SELECTs scheduled ~100ms after first paint) competes with the main-thread
+    // work needed to render the inbox itself, adding ~0.5-1s before the user
+    // can interact. On native we skip it entirely — the per-thread fetch fires
+    // when the user actually opens that chat, which is fast enough. Web keeps
+    // the speculative prefetch since desktop has spare capacity.
+    if (isNativeRuntime()) return;
+
 
     let cancelled = false;
     let idleHandle: number | null = null;
