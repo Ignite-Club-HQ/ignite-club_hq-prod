@@ -3327,17 +3327,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const lastUpdate = lastTimeUpdateRef.current;
     if (lastUpdate) {
       let secondsElapsed = 0;
+      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
       if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
         // Normal tick within the same half
         secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      } else if (lastUpdate.half === 1 && currentHalf === 2 && elapsedSeconds === 0) {
-        // Half transition: account for the final second of half 1
-        // GameTimer jumps from (halfDuration-1) to 0 when switching halves,
-        // so the last second would otherwise be lost
-        const halfDuration = gameTimerRef.current?.getMinutesPerHalf() 
-          ? gameTimerRef.current.getMinutesPerHalf() * 60 
-          : minutesPerHalf * 60;
-        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
+      } else if (lastUpdate.half === 1 && currentHalf === 2) {
+        // Half transition. Two sub-cases collapse into one formula:
+        //   - Normal end-of-H1 tick: elapsedSeconds === 0 → credit
+        //     (halfDuration - lastUpdate.seconds), i.e. the final second(s)
+        //     of H1 that GameTimer wraps when it flips to H2.
+        //   - Resume / drift catch-up that crosses halftime: elapsedSeconds
+        //     can be > 0 in H2 (see GameTimer.tsx ~L656). We must credit the
+        //     remainder of H1 PLUS the elapsed start of H2, otherwise the
+        //     whole halftime-crossing window vanishes from per-player minutes
+        //     and stats under-count by a large margin.
+        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds) + Math.max(0, elapsedSeconds);
       }
       if (secondsElapsed > 0) {
         // Compute the cumulative game clock so we can cap each player's
@@ -3346,9 +3350,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         // half-transition catchup colliding with a normal tick, or stale
         // refs after remount). A player's on-pitch time can never logically
         // exceed total game elapsed.
-        const halfDurationForCap = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
         const totalElapsedNow = currentHalf === 2
-          ? halfDurationForCap + elapsedSeconds
+          ? halfDuration + elapsedSeconds
           : elapsedSeconds;
         setPlayers(prev => prev.map(p => {
           if (p.position !== null) {
