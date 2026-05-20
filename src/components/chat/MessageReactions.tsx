@@ -122,7 +122,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   const handleEmojiClick = (type: string) => {
     onReact(type);
-    onOpenChange(false);
+    // Defer close so the full-screen overlay stays mounted through the
+    // touchend → synthetic-click cycle. If we close synchronously inside
+    // onTouchStart, the portal unmounts before touchend fires and Android
+    // WebView dispatches the click to whatever sits under the finger
+    // (e.g. an Instagram link preview behind the picker).
+    setTimeout(() => onOpenChange(false), 60);
   };
 
   const triggerEmojiSelection = (type: string) => {
