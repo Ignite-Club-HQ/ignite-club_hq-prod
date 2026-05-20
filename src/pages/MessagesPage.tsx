@@ -493,6 +493,8 @@ export default function MessagesPage() {
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
+      const __stop = msgPerf.start("teams.query");
+      try {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("team_id")
