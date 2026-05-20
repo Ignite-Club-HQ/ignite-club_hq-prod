@@ -119,7 +119,7 @@ export default function CourtBoardResumeCard() {
             <span
               className={cn(
                 "h-2 w-2 rounded-full",
-                items: visibleItems.some((i) => i.isRunning && !i.isFinished)
+                visibleItems.some((i) => i.isRunning && !i.isFinished)
                   ? "bg-destructive animate-pulse"
                   : "bg-muted-foreground"
               )}
