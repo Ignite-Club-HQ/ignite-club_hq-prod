@@ -2020,22 +2020,50 @@ export default function GroupChatPage() {
         />
       )}
 
-      {/* Delete Group Confirmation */}
-      <AlertDialog open={showDeleteGroupDialog} onOpenChange={setShowDeleteGroupDialog}>
+      {/* Delete Group Confirmation — requires typing the group name to enable. */}
+      <AlertDialog
+        open={showDeleteGroupDialog}
+        onOpenChange={(open) => {
+          setShowDeleteGroupDialog(open);
+          if (!open) setDeleteConfirmText("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Chat Group</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{group.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{group.name}"? This action cannot be undone and all messages will be lost.
+              This will remove the chat from everyone's inbox. Messages stay archived
+              and an app admin can restore the chat within 30 days. To continue, type
+              the group name below.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <input
+            type="text"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder={group.name}
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteGroupMutation.mutate()}
+              onClick={(e) => {
+                if (deleteConfirmText.trim() !== group.name.trim()) {
+                  e.preventDefault();
+                  toast.error("Group name does not match");
+                  return;
+                }
+                deleteGroupMutation.mutate();
+              }}
+              disabled={
+                deleteConfirmText.trim() !== group.name.trim() ||
+                deleteGroupMutation.isPending
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {deleteGroupMutation.isPending ? "Deleting..." : "Delete chat"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
