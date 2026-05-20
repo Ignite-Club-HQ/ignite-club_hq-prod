@@ -1,14 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, Play, Trophy } from "lucide-react";
+import { ChevronRight, Play, Trophy, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { cn } from "@/lib/utils";
+
+const DISMISS_KEY = "court-board-resume-dismissed";
+
+function loadDismissed(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Surfaces in-progress basketball / netball boards for the current coach so
