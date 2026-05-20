@@ -361,6 +361,26 @@ export default function MessagesPage() {
       // profile query that previously serialized after each last-message fetch.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
 
+      // Fast path: single RPC returning latest message + author display name per club.
+      try {
+        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
+          "get_inbox_latest_club_messages",
+          { _club_ids: clubIds }
+        );
+        if (rpcErr) throw rpcErr;
+        for (const row of (rpcRows ?? []) as any[]) {
+          latestMessages[row.club_id] = {
+            text: row.text,
+            author: row.author_display_name ?? "",
+            created_at: row.created_at,
+            image_url: row.image_url,
+          };
+        }
+        return { clubs, latestMessages };
+      } catch {
+        // Fall through to legacy per-club fetch.
+      }
+
       const msgRows = await Promise.all(
         clubs.map(async (club) => {
           const { data: msgData } = await supabase
