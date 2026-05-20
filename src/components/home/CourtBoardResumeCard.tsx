@@ -35,6 +35,15 @@ function loadDismissed(): Record<string, string> {
 export default function CourtBoardResumeCard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [dismissed, setDismissed] = useState<Record<string, string>>(() => loadDismissed());
+
+  const dismissGame = (gameId: string, updatedAt: string) => {
+    const next = { ...dismissed, [gameId]: updatedAt };
+    setDismissed(next);
+    try {
+      localStorage.setItem(DISMISS_KEY, JSON.stringify(next));
+    } catch {}
+  };
 
   const { data: rows } = useQuery({
     queryKey: ["court-board-resume", user?.id],
