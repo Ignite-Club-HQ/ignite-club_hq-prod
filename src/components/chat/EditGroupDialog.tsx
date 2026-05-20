@@ -123,26 +123,34 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Allowed Roles</Label>
+          {!isManual && (
             <div className="space-y-2">
-              {ROLE_OPTIONS.map((role) => (
-                <div key={role.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`edit-role-${role.value}`}
-                    checked={selectedRoles.includes(role.value)}
-                    onCheckedChange={() => toggleRole(role.value)}
-                  />
-                  <label
-                    htmlFor={`edit-role-${role.value}`}
-                    className="text-sm cursor-pointer"
-                  >
-                    {role.label}
-                  </label>
-                </div>
-              ))}
+              <Label>Allowed Roles</Label>
+              <div className="space-y-2">
+                {ROLE_OPTIONS.map((role) => (
+                  <div key={role.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-role-${role.value}`}
+                      checked={selectedRoles.includes(role.value)}
+                      onCheckedChange={() => toggleRole(role.value)}
+                    />
+                    <label
+                      htmlFor={`edit-role-${role.value}`}
+                      className="text-sm cursor-pointer"
+                    >
+                      {role.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {isManual && (
+            <p className="text-sm text-muted-foreground">
+              This group is managed by invitation. Add or remove members from the group details screen.
+            </p>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
