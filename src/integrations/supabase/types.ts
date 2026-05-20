@@ -9413,6 +9413,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_messages_page_bootstrap: { Args: { _user_id: string }; Returns: Json }
       get_my_pending_eois: {
         Args: never
         Returns: {

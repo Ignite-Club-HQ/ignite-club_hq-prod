@@ -1,91 +1,64 @@
 ## Goal
+Collapse the 7 role/permission queries on `MessagesPage` into a single `get_messages_page_bootstrap` RPC, behind a runtime flag, with zero changes to existing behaviour until the flag is on.
 
-Make the soccer Pitch Board timer impossible to drift, lose seconds, or "revert" on resume by moving the source of truth from `localStorage` (counter + last-update timestamp) to the `active_games` row (event timestamps the server stamps). The client becomes a pure renderer.
+## Phase 1 — Ship (this loop)
 
-Scope: soccer only (`GameTimer.tsx`, `GameTimerWidget.tsx`, `useActiveGameSync.ts`, `useActiveGameSpectator` consumers). Basketball/netball stay as-is for now — same pattern can follow once this is proven.
-
-## New timer contract
-
-Replace `{ elapsedSeconds, lastUpdateTime, isRunning, currentHalf, minutesPerHalf }` with event-based fields on `active_games.timer_state`:
-
-```text
-half_started_at        timestamptz   -- set when Play pressed for current half
-half_paused_at         timestamptz   -- set on Pause, cleared on Resume
-accumulated_pause_ms   integer       -- total paused time WITHIN current half
-current_half           int           -- 1 | 2
-minutes_per_half       int
-is_running             boolean       -- derived but cached for queries
-is_game_finished       boolean
-half_ended_at          timestamptz   -- set at halftime / full time
-server_now             timestamptz   -- echoed back on every read
+### 1. Database (additive only)
+New `SECURITY DEFINER STABLE` function `public.get_messages_page_bootstrap(_user_id uuid)` returning a single JSON row:
 ```
-
-Elapsed is **always derived**, never stored:
-
-```text
-elapsed_ms = (paused ? half_paused_at : now()) 
-             - half_started_at 
-             - accumulated_pause_ms
+{
+  is_app_admin: bool,
+  is_committee_member: bool,
+  admin_club_ids: uuid[],
+  admin_team_ids: uuid[],
+  all_roles: [{ role, club_id, team_id }],
+  member_club_ids: uuid[],
+  member_team_ids: uuid[],
+  pro_club_ids: uuid[],      -- clubs with active Pro
+  pro_team_ids: uuid[],      -- teams with active Pro
+  has_any_pro: bool
+}
 ```
+- Reads only: `user_roles`, `teams`, `club_subscriptions`, `team_subscriptions`.
+- Does **not** touch `children`, `child_guardians`, `child_mini_league_assignments` (userLeagueIds keeps its own path — different RLS surface, defer to Phase 2).
+- `GRANT EXECUTE ... TO authenticated`.
 
-## Phases
+### 2. Frontend
+- New hook `src/hooks/useMessagesPageBootstrap.ts` — one `useQuery` calling the RPC, `staleTime: 5min`.
+- `MessagesPage` reads a runtime flag: `localStorage.getItem("msg_bootstrap_v1") === "1"` (default OFF).
+- When **flag OFF**: zero behaviour change. Existing 7 queries run as today.
+- When **flag ON**: the bootstrap query runs, and on success calls `queryClient.setQueryData(...)` for the 7 keys *before* the existing queries' `queryFn` resolves. Existing useQuery blocks stay in place but become instant cache hits and their `queryFn` is skipped for `staleTime` window.
+- Add a one-line dev console helper: `window.__enableMsgBootstrap = () => localStorage.setItem("msg_bootstrap_v1","1")`.
 
-### Phase 1 — Server primitives (DB + edge function)
+### 3. Verification
+- Flip the flag on your account only, reload `/messages`.
+- Confirm in Network tab: 1 RPC call instead of 6–7 separate `user_roles`/subs queries.
+- Confirm UI renders identically (admin badges, pro gates, group filters).
+- If anything looks off → `localStorage.removeItem("msg_bootstrap_v1")` → instant rollback, no redeploy.
 
-1. Migration: add columns above to `active_games.timer_state` (it's JSONB, no schema change strictly needed; add a CHECK + a generated SQL view `active_games_with_elapsed` that computes `elapsed_seconds` server-side using `now()`).
-2. New edge function `pitch-timer-event` accepting one of: `start_half`, `pause`, `resume`, `end_half`, `start_half_2`, `end_game`, `adjust` (admin-only). Function:
-   - Authenticates caller, checks team admin/subs-manager role.
-   - Reads current row, applies the event using server `now()`, writes back atomically.
-   - Returns the new authoritative row including computed `elapsed_seconds` and `server_now`.
-3. New edge function `pitch-timer-read` (or extend existing spectator read) that returns the row plus server-computed elapsed and `server_now`.
+## Phase 2 — Cutover (next loop, once verified)
+- Remove the flag, replace the 7 `useQuery` blocks with `useMemo`-derived values from the bootstrap.
+- Add `userLeagueIds` to the bootstrap (separate migration since it touches more tables).
+- Drop the unused individual queries.
 
-### Phase 2 — Client refactor
+## Phase 3 — Cleanup (later)
+- Drop the now-unused branches of `hasAnyProAccess` chained queries.
+- Optional: prefetch the bootstrap on app shell mount so `/messages` opens with cache warm.
 
-1. `GameTimer.tsx` / `GameTimerWidget.tsx`:
-   - Remove the `elapsedSeconds + lastUpdateTime` localStorage projection logic, drift reconciliation, `flushOnHide` rewrites — gone.
-   - On Play/Pause/HalfTime/EndGame → call `pitch-timer-event`. Optimistic local update for instant UI, replaced by server response.
-   - Local tick is purely visual: `setInterval(50ms)` recomputes `elapsed = now() - half_started_at - accumulated_pause_ms` from the in-memory row. No persistence.
-   - On mount/visibilitychange/online → call `pitch-timer-read`, snap to server elapsed, compute `clockSkew = server_now - Date.now()` and apply to local ticks so devices with wrong clocks still render correctly.
-2. localStorage keeps only a **cache** of the last server row (for instant first paint offline). Never the source of truth.
-3. `useActiveGameSync.ts`: shrinks dramatically — no more projecting elapsed, no more 10s "tick" writes. Writes happen only on events.
+## Out of scope
+- No RLS changes.
+- No changes to the inbox-message RPCs (`get_inbox_latest_*_messages`).
+- No changes to `chat_groups` SELECT (separate, larger fix).
+- No changes to caching/realtime logic.
 
-### Phase 3 — Offline + resilience
+## Rollback
+| Scenario | Action |
+|---|---|
+| Issue with bootstrap data | `localStorage.removeItem("msg_bootstrap_v1")` — instant |
+| Want to revert all code | Revert this chat message |
+| Want to remove the RPC | One migration: `DROP FUNCTION public.get_messages_page_bootstrap` |
 
-1. If `pitch-timer-event` call fails (offline), queue it in a new `timerEventQueue` (IndexedDB), keep optimistic local state, flush on reconnect in order. Each queued event carries the **client-captured timestamp** so server can replay with the right `now()`.
-2. Server `pitch-timer-event` accepts optional `occurred_at` (clamped to ≤ `now()` and ≥ last event time) so offline-then-flushed events land at the right moment.
-3. Spectator view (`useActiveGameSpectator`) switches to reading computed elapsed + `server_now`; same skew logic, no drift.
-
-### Phase 4 — Cleanup
-
-1. Delete `flushOnHide` drift-projection code added previously.
-2. Remove `MAX_HALFTIME_SYNC_MS` heuristic — server can compute "abandoned" from `half_ended_at` age directly.
-3. Update `TimerAudit` telemetry to log server round-trips and skew instead of local drift math.
-4. Add unit tests for the event reducer (pure function, easy to test) and an e2e for kill-app-during-half-1.
-
-## Why this kills the bug class
-
-- **Lock phone / close app / navigate away:** no client tick needed; on resume we just re-derive from `half_started_at`. Zero seconds lost by definition.
-- **3:31 freeze + revert to 10-min halves:** can't happen — `minutes_per_half` is server-owned, and elapsed is `now() - anchor`, so a stale localStorage write can never roll the clock back.
-- **Two coaches see different times:** both derive from the same row → identical to the millisecond (modulo network).
-- **Clock skew on device:** corrected via `server_now` echo.
-
-## Trade-offs
-
-- Every Play/Pause needs a network round-trip (~100–300ms). Optimistic UI hides it; offline queue handles bad networks.
-- One more edge function to maintain.
-- Slight cost increase: writes on events instead of every 10s — net **fewer** writes for most games.
-
-## Effort
-
-- Phase 1: ~2h (migration + 2 edge functions + tests)
-- Phase 2: ~3h (refactor + delete old drift code)
-- Phase 3: ~2h (offline queue + spectator)
-- Phase 4: ~1h (cleanup + telemetry)
-
-Total ~1 day. Can ship phases 1+2 first as MVP and add offline queue after.
-
-## Open questions
-
-1. Should the existing `GameTimerWidget` on Home read live from the server every 30s, or piggyback on the existing `active_games` realtime channel you already have?
-2. Do you want admin "Adjust clock by N seconds" preserved? (Easy — just an event type.)
-3. Keep basketball/netball on the old model for now, or migrate together?
+## Risk
+- **DB**: zero (additive, read-only, no policy changes).
+- **Frontend (flag off)**: zero (no code path touched).
+- **Frontend (flag on)**: medium → mitigated by per-user opt-in and instant rollback.

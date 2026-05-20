@@ -20,6 +20,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { useMessagesPageBootstrap } from "@/hooks/useMessagesPageBootstrap";
 
 import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
@@ -252,6 +253,13 @@ export default function MessagesPage() {
     if (!user?.id) return null;
     return getCachedMessagesPageData(user.id);
   }, [user?.id]);
+
+  // Phase 1 perf: behind localStorage flag `msg_bootstrap_v1`. When enabled,
+  // one RPC seeds the cache for 5 role/permission queries (is-app-admin,
+  // is-committee-member, admin-team-ids, user-all-roles, has-any-pro-access)
+  // so their existing useQuery blocks become instant cache hits. Rollback:
+  // `localStorage.removeItem("msg_bootstrap_v1")`.
+  useMessagesPageBootstrap(user?.id, initialized);
 
   // Fetch unread message notifications grouped by thread
   const { data: unreadCounts } = useQuery({
