@@ -30,6 +30,8 @@ interface ChatParticipantsListProps {
   clubId?: string;
   miniLeagueId?: string;
   groupAllowedRoles?: string[];
+  groupCreatedBy?: string | null;
+  groupMembershipMode?: string | null;
   enabled?: boolean;
   /** Called when a tap navigates away (so caller can close its sheet) */
   onBeforeNavigate?: () => void;
@@ -65,6 +67,8 @@ export function ChatParticipantsList({
   clubId,
   miniLeagueId,
   groupAllowedRoles,
+  groupCreatedBy,
+  groupMembershipMode,
   enabled = true,
   onBeforeNavigate,
   className,
@@ -101,14 +105,15 @@ export function ChatParticipantsList({
     staleTime: 5 * 60 * 1000,
   });
 
-  const groupCreatorId = groupMeta?.created_by ?? null;
+  const effectiveGroupMembershipMode = groupMembershipMode ?? groupMeta?.membership_mode ?? null;
+  const groupCreatorId = groupCreatedBy ?? groupMeta?.created_by ?? null;
   // "Manual" personal-style membership: either a true personal group (no team/club)
   // or a club-scoped group created with membership_mode === 'manual' (custom category group).
   const isPersonalGroupChat =
     chatType === "group" &&
     !teamId &&
     !miniLeagueId &&
-    (!clubId || groupMeta?.membership_mode === "manual");
+    (!clubId || effectiveGroupMembershipMode === "manual");
 
   const isGroupCreator = !!user && !!groupCreatorId && groupCreatorId === user.id;
 
@@ -208,7 +213,7 @@ export function ChatParticipantsList({
   });
 
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, groupMeta?.membership_mode ?? null],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, effectiveGroupMembershipMode],
     queryFn: async () => {
       // Mini-league chat: union of league admins, per-league grants, and parents of players
       if (chatType === "group" && miniLeagueId) {
@@ -259,7 +264,7 @@ export function ChatParticipantsList({
         });
       }
 
-      if (chatType === "group" && (!teamId && !clubId || groupMeta?.membership_mode === "manual")) {
+      if (chatType === "group" && (!teamId && !clubId || effectiveGroupMembershipMode === "manual")) {
         const { data: groupMembers, error } = await supabase
           .from("group_members")
           .select("user_id")
