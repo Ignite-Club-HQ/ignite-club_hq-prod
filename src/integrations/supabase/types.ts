@@ -9568,6 +9568,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_unread_message_counts: { Args: { _user_id: string }; Returns: Json }
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {
