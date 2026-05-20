@@ -28,6 +28,9 @@ export default function PitchBoardResumeRedirect() {
     let cancelled = false;
 
     const attemptRestore = () => {
+      // If PitchBoard is already mounted in this JS context, nothing to do —
+      // avoid yanking the URL and forcing an unmount/remount loop.
+      if ((window as any).__pitchBoardMounted === true) return;
       try {
         if (localStorage.getItem(PITCH_BOARD_OPEN_KEY) !== "true") return;
         const storedPath = localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY);
