@@ -226,6 +226,9 @@ export default function MessagesPage() {
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const msgPerfRef = useRef<ReturnType<typeof makeMsgPerfTimer> | null>(null);
+  if (!msgPerfRef.current) msgPerfRef.current = makeMsgPerfTimer();
+  const msgPerf = msgPerfRef.current;
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
