@@ -248,6 +248,19 @@ export default function MessagesPage() {
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
+  // Diagnostic: mark when query-gate inputs flip
+  const gateRef = useRef({ user: false, initialized: false });
+  useEffect(() => {
+    if (!!user !== gateRef.current.user) {
+      gateRef.current.user = !!user;
+      msgPerf.mark(`gate:user=${!!user}`);
+    }
+    if (initialized !== gateRef.current.initialized) {
+      gateRef.current.initialized = initialized;
+      msgPerf.mark(`gate:initialized=${initialized}`);
+    }
+  }, [user, initialized, msgPerf]);
+
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
