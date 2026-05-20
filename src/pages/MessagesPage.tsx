@@ -490,6 +490,30 @@ export default function MessagesPage() {
       // M1 perf: batch profile lookups for all team last-message authors.
       const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
 
+      // Fast path: single RPC returning latest message + author display name per team.
+      try {
+        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
+          "get_inbox_latest_team_messages",
+          { _team_ids: teamIds }
+        );
+        if (rpcErr) throw rpcErr;
+        for (const row of (rpcRows ?? []) as any[]) {
+          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+          latestMessages[row.team_id] = {
+            text: row.text,
+            author: isAnnouncement
+              ? row.club_announcement_name
+              : (row.author_display_name ?? ""),
+            created_at: row.created_at,
+            image_url: row.image_url,
+            is_announcement: isAnnouncement,
+          };
+        }
+        return { teams, latestMessages };
+      } catch {
+        // Fall through to legacy per-team fetch path below.
+      }
+
       const msgRows = await Promise.all(
         teams.map(async (team) => {
           const { data: msgData } = await supabase
