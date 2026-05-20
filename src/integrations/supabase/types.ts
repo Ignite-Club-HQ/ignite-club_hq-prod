@@ -650,6 +650,8 @@ export type Database = {
           club_id: string | null
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           membership_mode: string
           mini_league_id: string | null
@@ -663,6 +665,8 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           membership_mode?: string
           mini_league_id?: string | null
@@ -676,6 +680,8 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           membership_mode?: string
           mini_league_id?: string | null
