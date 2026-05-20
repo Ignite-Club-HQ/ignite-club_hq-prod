@@ -3350,9 +3350,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         // half-transition catchup colliding with a normal tick, or stale
         // refs after remount). A player's on-pitch time can never logically
         // exceed total game elapsed.
-        const halfDurationForCap = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
         const totalElapsedNow = currentHalf === 2
-          ? halfDurationForCap + elapsedSeconds
+          ? halfDuration + elapsedSeconds
           : elapsedSeconds;
         setPlayers(prev => prev.map(p => {
           if (p.position !== null) {
