@@ -32,26 +32,47 @@ export type MessagesBootstrap = {
 
 const FLAG_KEY = "msg_bootstrap_v1";
 
+/**
+ * Enabled by default. Kill switches (no DevTools required):
+ *   - Visit `/messages?bootstrap=off` to disable (persists across reloads)
+ *   - Visit `/messages?bootstrap=on`  to re-enable
+ *   - Visit `/messages?bootstrap=reset` to clear the override (default ON)
+ *
+ * localStorage values:
+ *   - missing / "1" / "on"  → enabled (default)
+ *   - "0" / "off"           → disabled
+ */
 export function isMessagesBootstrapEnabled(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(FLAG_KEY) === "1";
+    // Honour URL override first and persist it.
+    const params = new URLSearchParams(window.location.search);
+    const override = params.get("bootstrap");
+    if (override === "off" || override === "0") {
+      window.localStorage.setItem(FLAG_KEY, "off");
+    } else if (override === "on" || override === "1") {
+      window.localStorage.setItem(FLAG_KEY, "on");
+    } else if (override === "reset") {
+      window.localStorage.removeItem(FLAG_KEY);
+    }
+    const v = window.localStorage.getItem(FLAG_KEY);
+    return v !== "off" && v !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
-// Dev helpers — call from browser console.
+// Dev helpers — still available from console if you ever get access.
 if (typeof window !== "undefined") {
   (window as any).__enableMsgBootstrap = () => {
-    window.localStorage.setItem(FLAG_KEY, "1");
+    window.localStorage.setItem(FLAG_KEY, "on");
     // eslint-disable-next-line no-console
-    console.info("[msg-bootstrap] enabled — reload /messages to apply");
+    console.info("[msg-bootstrap] enabled");
   };
   (window as any).__disableMsgBootstrap = () => {
-    window.localStorage.removeItem(FLAG_KEY);
+    window.localStorage.setItem(FLAG_KEY, "off");
     // eslint-disable-next-line no-console
-    console.info("[msg-bootstrap] disabled — reload /messages to apply");
+    console.info("[msg-bootstrap] disabled");
   };
 }
 
