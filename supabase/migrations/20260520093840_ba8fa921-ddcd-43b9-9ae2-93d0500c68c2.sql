@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS on_chat_group_club_attached_make_vault_folder ON public.chat_groups;
+DROP FUNCTION IF EXISTS public.on_chat_group_club_attached_make_vault_folder();
