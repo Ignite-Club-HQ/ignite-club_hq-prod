@@ -19,6 +19,7 @@ import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messages
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
+import { makeMsgPerfTimer } from "@/lib/messagesPerf";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
 import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
