@@ -117,6 +117,26 @@ export default function AdminPage() {
         </Card>
       )}
 
+      {/* Club Admin Tools (hidden when user is also app admin — those tools appear under App Administration) */}
+      {isClubAdmin && !isAppAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Club Tools</CardTitle>
+            <CardDescription>Tools available to club admins</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <AdminMenuItem
+              icon={RotateCcw}
+              label="Deleted Chats"
+              description="Restore chat groups removed from your club"
+              onClick={() => navigate("/admin/deleted-chats")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+
+
       {/* App Admin Tools */}
       {isAppAdmin && (
         <Card>
