@@ -309,10 +309,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    msgPerfMark("auth:effect-mount");
     let mounted = true;
     let profileFetched = false;
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
+      const __hsStop = msgPerfStart(`auth:handleSession(initial=${isInitial},applyTheme=${applyTheme})`);
       if (!mounted || !currentSession?.user) {
         console.log('[Auth] handleSession early exit - mounted:', mounted, 'hasUser:', !!currentSession?.user);
         return;
