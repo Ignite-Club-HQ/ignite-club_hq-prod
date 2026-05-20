@@ -259,7 +259,7 @@ export function ChatParticipantsList({
         });
       }
 
-      if (chatType === "group" && !teamId && !clubId) {
+      if (chatType === "group" && (!teamId && !clubId || groupMeta?.membership_mode === "manual")) {
         const { data: groupMembers, error } = await supabase
           .from("group_members")
           .select("user_id")
