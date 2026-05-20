@@ -542,7 +542,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
+    initialData: cachedData?.teams
+      ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract teams and latest messages from combined query
