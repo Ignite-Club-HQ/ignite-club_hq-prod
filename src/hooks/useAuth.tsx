@@ -315,8 +315,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
       const __hsStop = msgPerfStart(`auth:handleSession(initial=${isInitial},applyTheme=${applyTheme})`);
+      try {
       if (!mounted || !currentSession?.user) {
         console.log('[Auth] handleSession early exit - mounted:', mounted, 'hasUser:', !!currentSession?.user);
+        msgPerfMark("auth:handleSession:earlyExit-noUser");
         return;
       }
       
@@ -343,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const shouldSkip = profileFetched && !isInitial && !isUserSwitch && !applyTheme;
       if (shouldSkip) {
         console.log('[Auth] handleSession skipping - already fetched');
+        msgPerfMark("auth:handleSession:skip-alreadyFetched");
         return;
       }
       profileFetched = true;
@@ -352,6 +355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // CRITICAL: For fresh logins (applyTheme=true), we must NOT skip - we need to apply theme
       if (!isUserSwitch && !applyTheme && initialized && profile?.display_name && cachedUserId === userId) {
         console.log('[Auth] handleSession - using cached profile, background refresh only');
+        msgPerfMark("auth:handleSession:cached-bgRefresh");
         // Already ready from sync hydration - just background refresh
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
@@ -391,6 +395,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileResolved(true); // Cache with display_name is trustworthy
         setProfileLoading(false);
         setLoading(false);
+        msgPerfMark("auth:setInitialized(true)@cached-trusted");
         setInitialized(true);
         
         // Background refresh - update cache silently, no blocking
@@ -403,6 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(cached);
         setProfileLoading(false);
         setLoading(false);
+        msgPerfMark("auth:setInitialized(true)@cached-noDisplayName");
         setInitialized(true);
         
         // Background refresh
@@ -411,11 +417,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No cache, user switch, or fresh login - must fetch profile before proceeding
         console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '', applyTheme ? '(fresh login)' : '');
         setProfileLoading(true);
+        const __fpStop = msgPerfStart("auth:fetchProfile(blocking)");
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true);
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
+            msgPerfMark("auth:setInitialized(true)@fetched");
             setInitialized(true);
             console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
           }
@@ -424,8 +432,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
+            msgPerfMark("auth:setInitialized(true)@fetchError");
             setInitialized(true); // Initialize even on error to prevent hang
           }
+        } finally {
+          __fpStop();
         }
       }
       // Background prefetch - fire and forget
@@ -440,7 +451,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
         }
       }, 100);
+      } finally {
+        __hsStop();
+      }
     };
+    
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
