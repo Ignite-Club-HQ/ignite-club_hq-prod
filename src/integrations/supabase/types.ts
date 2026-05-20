@@ -9355,6 +9355,17 @@ export type Database = {
           text: string
         }[]
       }
+      get_inbox_latest_dm_messages: {
+        Args: { _conversation_ids: string[] }
+        Returns: {
+          author_id: string
+          conversation_id: string
+          created_at: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
       get_inbox_latest_group_messages: {
         Args: { _group_ids: string[] }
         Returns: {
