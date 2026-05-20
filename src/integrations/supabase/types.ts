@@ -9343,6 +9343,30 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_inbox_latest_club_messages: {
+        Args: { _club_ids: string[] }
+        Returns: {
+          author_display_name: string
+          author_id: string
+          club_id: string
+          created_at: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
+      get_inbox_latest_group_messages: {
+        Args: { _group_ids: string[] }
+        Returns: {
+          author_display_name: string
+          author_id: string
+          created_at: string
+          group_id: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
       get_inbox_latest_team_messages: {
         Args: { _team_ids: string[] }
         Returns: {
