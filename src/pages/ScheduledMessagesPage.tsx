@@ -37,6 +37,8 @@ import {
   useCancelScheduledMessage,
 } from "@/hooks/useScheduledMessages";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 interface ThreadInfo {
   label: string;
@@ -231,6 +233,7 @@ function lookupLabel(
 
 export default function ScheduledMessagesPage() {
   const navigate = useNavigate();
+  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
   const { data: pendingRows = [], isLoading: loadingPending } = useAllScheduledMessages([
     "pending",
   ]);
