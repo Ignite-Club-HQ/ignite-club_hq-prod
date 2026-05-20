@@ -13,6 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS } from "@/lib/sportEmojis";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { ensureFreshSession } from "@/lib/ensureFreshSession";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 const PERSONAL_ORGANISER = "__personal__";
@@ -197,11 +200,43 @@ export default function CreateCompetitionPage() {
           <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
         </div>
 
-        <Button type="submit" disabled={saving || !organizerClubId || !name.trim()} className="w-full">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Create competition
-        </Button>
+        <CreateCompetitionSubmitButton
+          organizerClubId={organizerClubId === PERSONAL_ORGANISER ? null : organizerClubId}
+          saving={saving}
+          name={name}
+        />
       </form>
     </div>
+  );
+}
+
+function CreateCompetitionSubmitButton({
+  organizerClubId,
+  saving,
+  name,
+}: {
+  organizerClubId: string | null;
+  saving: boolean;
+  name: string;
+}) {
+  const scoped = useClubProAccess(organizerClubId);
+  const any = useUserHasAnyClubPro();
+  const hasPro = organizerClubId ? scoped.hasPro : any.hasAnyClubPro;
+  const loading = organizerClubId ? scoped.isLoading : any.isLoading;
+
+  if (!loading && !hasPro) {
+    return (
+      <ProFeatureLock
+        title="Competitions is a Pro feature"
+        description="Upgrade the organiser club to Pro to create competitions."
+        clubId={organizerClubId}
+      />
+    );
+  }
+  return (
+    <Button type="submit" disabled={saving || !name.trim()} className="w-full">
+      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+      Create competition
+    </Button>
   );
 }
