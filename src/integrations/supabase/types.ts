@@ -9669,6 +9669,8 @@ export type Database = {
           total: number
         }[]
       }
+      has_active_pro_for_club: { Args: { _club_id: string }; Returns: boolean }
+      has_active_pro_for_team: { Args: { _team_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _club_id?: string
