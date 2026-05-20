@@ -593,7 +593,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 10000); // 10 second timeout for slow connections
 
+    const __initSessionStop = msgPerfStart("auth:initial-getSession");
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      __initSessionStop();
       clearTimeout(sessionTimeout);
       if (!mounted) return;
       
@@ -610,15 +612,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setProfileLoading(false);
           setLoading(false);
+          msgPerfMark("auth:setInitialized(true)@initial-noSession");
           setInitialized(true); // Mark as initialized
         }
       }
     }).catch(err => {
+      __initSessionStop();
       clearTimeout(sessionTimeout);
       console.error('Error getting session:', err);
       if (mounted) {
         setLoading(false);
         setProfileLoading(false);
+        msgPerfMark("auth:setInitialized(true)@initial-error");
         setInitialized(true); // Mark as initialized even on error
       }
     });
