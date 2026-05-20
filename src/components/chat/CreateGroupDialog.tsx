@@ -346,8 +346,18 @@ export default function CreateGroupDialog({
       let finalClubId = !finalTeamId && !finalMiniLeagueId
         ? (clubId || clubInfo?.clubId || null)
         : null;
-      if (!finalClubId && !finalTeamId && !finalMiniLeagueId && category.trim() && clubInfo?.clubId) {
-        finalClubId = clubInfo.clubId;
+      // Detect "category-only" club attachment: the user didn't explicitly
+      // pick a club/team/league, but added a category so we stamp the active
+      // club purely for vault-folder linkage. These groups must NOT auto-expose
+      // to club members via role mode — they stay manual + invite-only.
+      const categoryOnlyClubScope =
+        !finalClubId &&
+        !finalTeamId &&
+        !finalMiniLeagueId &&
+        !!category.trim() &&
+        !!clubInfo?.clubId;
+      if (categoryOnlyClubScope) {
+        finalClubId = clubInfo!.clubId;
       }
 
       if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
@@ -358,19 +368,37 @@ export default function CreateGroupDialog({
         throw new Error("Club-wide groups require a Club Pro subscription");
       }
 
-      const { error } = await supabase.from("chat_groups").insert({
-        name: name.trim(),
-        club_id: finalClubId,
-        team_id: finalTeamId,
-        mini_league_id: finalMiniLeagueId,
-        allowed_roles: selectedRoles,
-        created_by: user.id,
-        // Only meaningful for club-scoped groups — it drives the parent
-        // vault folder name (e.g. "Club Management", "Operations").
-        category: finalClubId && category.trim() ? category.trim() : null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("chat_groups")
+        .insert({
+          name: name.trim(),
+          club_id: finalClubId,
+          team_id: finalTeamId,
+          mini_league_id: finalMiniLeagueId,
+          // Category-only groups: no role-based fanout, no allowed_roles.
+          allowed_roles: categoryOnlyClubScope ? [] : selectedRoles,
+          membership_mode: categoryOnlyClubScope ? "manual" : undefined,
+          created_by: user.id,
+          // Only meaningful for club-scoped groups — it drives the parent
+          // vault folder name (e.g. "Club Management", "Operations").
+          category: finalClubId && category.trim() ? category.trim() : null,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      // The DB trigger only auto-adds the creator when club/team/league are all
+      // NULL. Category-only groups have club_id set for vault scoping, so the
+      // creator must be added explicitly — otherwise the creator can't even
+      // see their own group.
+      if (categoryOnlyClubScope && inserted?.id) {
+        await supabase.from("group_members").insert({
+          group_id: inserted.id,
+          user_id: user.id,
+          added_by: user.id,
+        });
+      }
     },
     onSuccess: () => {
       toast.success("Chat group created");
