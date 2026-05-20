@@ -1097,6 +1097,14 @@ export default function MessagesPage() {
   // the main thread for seconds after navigating away from a chat.
   useEffect(() => {
     if (!user) return;
+    // Android WebView cold-open audit: the prefetch storm (16+ extra `messages`
+    // SELECTs scheduled ~100ms after first paint) competes with the main-thread
+    // work needed to render the inbox itself, adding ~0.5-1s before the user
+    // can interact. On native we skip it entirely — the per-thread fetch fires
+    // when the user actually opens that chat, which is fast enough. Web keeps
+    // the speculative prefetch since desktop has spare capacity.
+    if (isNativeRuntime()) return;
+
 
     let cancelled = false;
     let idleHandle: number | null = null;
