@@ -944,28 +944,50 @@ export default function MessagesPage() {
         c.participant_1 === user!.id ? c.participant_2 : c.participant_1
       );
 
-      const [profilesMap, messagesResult] = await Promise.all([
+      // Fast path: single RPC for latest message across all conversations.
+      // Falls back to legacy per-conversation queries on error.
+      const conversationIds = convos.map((c) => c.id);
+      const fetchLatestMessages = async (): Promise<Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>> => {
+        try {
+          const { data, error } = await supabase.rpc("get_inbox_latest_dm_messages", { _conversation_ids: conversationIds });
+          if (error) throw error;
+          const map = new Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>();
+          (data || []).forEach((row: any) => {
+            map.set(row.conversation_id, {
+              text: row.text,
+              image_url: row.image_url,
+              created_at: row.created_at,
+              author_id: row.author_id,
+            });
+          });
+          return map;
+        } catch {
+          // Legacy fallback
+          const messagesResult = await Promise.all(
+            convos.map(async (conv) => {
+              const { data } = await supabase
+                .from("direct_messages")
+                .select("text, image_url, created_at, author_id")
+                .eq("conversation_id", conv.id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              return { conversationId: conv.id, message: data };
+            })
+          );
+          return new Map(messagesResult.map((m) => [m.conversationId, m.message as any]));
+        }
+      };
+
+      const [profilesMap, messageMap] = await Promise.all([
         // Use the global profile cache layer — returns cached/stale entries
         // immediately and falls back to whatever is cached if the network
         // fetch fails. This prevents the inbox from rendering "Unknown User"
         // when the profiles SELECT is throttled, blocked by a transient RLS
         // hiccup, or returns an empty row.
         fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 }),
-        Promise.all(
-          convos.map(async (conv) => {
-            const { data } = await supabase
-              .from("direct_messages")
-              .select("text, image_url, created_at, author_id")
-              .eq("conversation_id", conv.id)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            return { conversationId: conv.id, message: data };
-          })
-        ),
+        fetchLatestMessages(),
       ]);
-
-      const messageMap = new Map(messagesResult.map(m => [m.conversationId, m.message]));
 
       // Build a fallback map of previously-known other_user data so that a
       // transient empty profile fetch (RLS / network blip after lock screen)
