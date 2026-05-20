@@ -329,7 +329,8 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
-    placeholderData: cachedData?.adminClubs ?? ((prev) => prev),
+    initialData: cachedData?.adminClubs as Club[] | undefined,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch member clubs with their latest messages in a single query
