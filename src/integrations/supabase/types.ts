@@ -650,6 +650,8 @@ export type Database = {
           club_id: string | null
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           membership_mode: string
           mini_league_id: string | null
@@ -663,6 +665,8 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           membership_mode?: string
           mini_league_id?: string | null
@@ -676,6 +680,8 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           membership_mode?: string
           mini_league_id?: string | null
@@ -9663,6 +9669,8 @@ export type Database = {
           total: number
         }[]
       }
+      has_active_pro_for_club: { Args: { _club_id: string }; Returns: boolean }
+      has_active_pro_for_team: { Args: { _team_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _club_id?: string
@@ -10091,6 +10099,7 @@ export type Database = {
         Args: { _invited_email: string; _user_id: string }
         Returns: boolean
       }
+      user_has_any_club_pro: { Args: { _user_id: string }; Returns: boolean }
       user_has_any_club_role: {
         Args: {
           _club_id: string

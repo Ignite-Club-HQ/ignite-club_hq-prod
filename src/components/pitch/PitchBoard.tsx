@@ -1649,29 +1649,54 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   // Also record the route so we can restore it after a cold app launch
   // (e.g. iOS killed the app while the phone was locked).
+  //
+  // IMPORTANT: We DO NOT include teamId/teamName/readOnly in the dep array.
+  // Re-running this effect on every prop change would briefly remove the
+  // open-flag during the cleanup→setup window. If iOS happens to suspend
+  // the WebView in that window, the cold-restart restore logic sees no
+  // flag and the user lands on home instead of resuming the board.
+  // Instead, we keep the context fresh via a separate effect below that
+  // only re-writes the LAST_CONTEXT_KEY without ever clearing the flag.
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
     try {
       const path = window.location.pathname + window.location.search;
       localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
-      // Persist the active board context so HomePage can re-open the
-      // overlay after a WebView cold restart (phone lock/unlock) when the
-      // board was opened as a modal on "/" rather than via /events/:id.
-      localStorage.setItem(
-        PITCH_BOARD_LAST_CONTEXT_KEY,
-        JSON.stringify({ teamId, teamName, readOnly })
-      );
     } catch {
       /* ignore */
     }
+    // Runtime sentinel so PitchBoardResumeRedirect knows the board is already
+    // mounted in THIS JS context and skips re-navigating on warm resume.
+    // Lives on `window`, so a cold WebView restart resets it (undefined) and
+    // cold-start restore still runs.
+    (window as any).__pitchBoardMounted = true;
     // Clear widget-dismissed flag so widget reappears when pitch board closes
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
       localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
       localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
+      (window as any).__pitchBoardMounted = false;
     };
+  }, []);
+
+  // Keep the restore context up to date as props change WITHOUT clearing
+  // the open-flag (see note above).
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PITCH_BOARD_LAST_CONTEXT_KEY,
+        JSON.stringify({ teamId, teamName, readOnly })
+      );
+      // Also refresh the stored path in case the user navigated within
+      // the board (e.g. opened from /events/:id then drilled into a sub-route).
+      const path = window.location.pathname + window.location.search;
+      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+    } catch {
+      /* ignore */
+    }
   }, [teamId, teamName, readOnly]);
+
 
   // Handle expired sub notification taps — if opened from a pending_sub notification
   // but no sub dialog appears, show a toast and let the user see the pitch board.
@@ -3302,17 +3327,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const lastUpdate = lastTimeUpdateRef.current;
     if (lastUpdate) {
       let secondsElapsed = 0;
+      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
       if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
         // Normal tick within the same half
         secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      } else if (lastUpdate.half === 1 && currentHalf === 2 && elapsedSeconds === 0) {
-        // Half transition: account for the final second of half 1
-        // GameTimer jumps from (halfDuration-1) to 0 when switching halves,
-        // so the last second would otherwise be lost
-        const halfDuration = gameTimerRef.current?.getMinutesPerHalf() 
-          ? gameTimerRef.current.getMinutesPerHalf() * 60 
-          : minutesPerHalf * 60;
-        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
+      } else if (lastUpdate.half === 1 && currentHalf === 2) {
+        // Half transition. Two sub-cases collapse into one formula:
+        //   - Normal end-of-H1 tick: elapsedSeconds === 0 → credit
+        //     (halfDuration - lastUpdate.seconds), i.e. the final second(s)
+        //     of H1 that GameTimer wraps when it flips to H2.
+        //   - Resume / drift catch-up that crosses halftime: elapsedSeconds
+        //     can be > 0 in H2 (see GameTimer.tsx ~L656). We must credit the
+        //     remainder of H1 PLUS the elapsed start of H2, otherwise the
+        //     whole halftime-crossing window vanishes from per-player minutes
+        //     and stats under-count by a large margin.
+        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds) + Math.max(0, elapsedSeconds);
       }
       if (secondsElapsed > 0) {
         // Compute the cumulative game clock so we can cap each player's
@@ -3321,9 +3350,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         // half-transition catchup colliding with a normal tick, or stale
         // refs after remount). A player's on-pitch time can never logically
         // exceed total game elapsed.
-        const halfDurationForCap = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
         const totalElapsedNow = currentHalf === 2
-          ? halfDurationForCap + elapsedSeconds
+          ? halfDuration + elapsedSeconds
           : elapsedSeconds;
         setPlayers(prev => prev.map(p => {
           if (p.position !== null) {

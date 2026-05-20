@@ -50,11 +50,18 @@ export default function ChatGroupsList({ clubId, teamId, canManage = false }: Ch
 
   const deleteGroupMutation = useMutation({
     mutationFn: async (groupId: string) => {
-      const { error } = await supabase.from("chat_groups").delete().eq("id", groupId);
+      // Soft-delete so app admins can restore if the removal was a mistake.
+      const { error } = await supabase
+        .from("chat_groups")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id ?? null,
+        } as any)
+        .eq("id", groupId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Chat group deleted");
+      toast.success("Chat removed. An app admin can restore it if needed.");
       queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
     },
     onError: () => {

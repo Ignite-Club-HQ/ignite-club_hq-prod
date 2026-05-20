@@ -1409,24 +1409,67 @@ export default function HomePage() {
     return () => window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
   }, []);
 
-  // Cold-start restore: if the pitch board was open as a modal on home
-  // when the WebView was torn down (phone lock/unlock kills iOS WebView),
-  // re-open it now using the persisted context.
+  // Cold-start / warm-resume restore: if the pitch board was open as a
+  // modal on home when the WebView was torn down (phone lock/unlock kills
+  // iOS WebView; Android may kill the process under memory pressure),
+  // re-open it now using the persisted context. We listen for both mount
+  // and `appStateChange isActive=true` so a warm resume that lost in-memory
+  // React state (but kept localStorage) is also recovered.
   useEffect(() => {
-    if (pitchBoardTeam) return; // already open
-    try {
-      const flag = localStorage.getItem('ignite-pitch-board-open');
-      if (flag !== 'true') return;
-      const ctxRaw = localStorage.getItem('ignite-pitch-board-last-context');
-      if (!ctxRaw) return;
-      const ctx = JSON.parse(ctxRaw);
-      if (ctx?.teamId && ctx?.teamName) {
-        openPitchBoard(ctx.teamId, ctx.teamName, !!ctx.readOnly);
-      }
-    } catch { /* ignore */ }
-    // Only run on first mount; subsequent opens are user-driven.
+    let cancelled = false;
+
+    const tryRestore = () => {
+      if (cancelled) return;
+      if (pitchBoardTeam) return; // already open
+      try {
+        const flag = localStorage.getItem('ignite-pitch-board-open');
+        if (flag !== 'true') return;
+        const storedPath = localStorage.getItem('ignite-pitch-board-open-path');
+        // Only auto-open the modal when the persisted path is home — if it's
+        // an event route, PitchBoardResumeRedirect will navigate there instead.
+        if (storedPath && storedPath !== '/' && storedPath !== '/home' && !storedPath.startsWith('/?') && !storedPath.startsWith('/home?')) return;
+        const ctxRaw = localStorage.getItem('ignite-pitch-board-last-context');
+        if (!ctxRaw) return;
+        const ctx = JSON.parse(ctxRaw);
+        if (ctx?.teamId && ctx?.teamName) {
+          openPitchBoard(ctx.teamId, ctx.teamName, !!ctx.readOnly);
+        }
+      } catch { /* ignore */ }
+    };
+
+    tryRestore();
+
+    let removeListener: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+        const { App } = await import('@capacitor/app');
+        const handle = await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) tryRestore();
+        });
+        if (cancelled) {
+          void handle.remove();
+        } else {
+          removeListener = () => { void handle.remove(); };
+        }
+      } catch { /* native unavailable */ }
+    })();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') tryRestore();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      removeListener?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+
 
 
   const clubRequestMutation = useMutation({

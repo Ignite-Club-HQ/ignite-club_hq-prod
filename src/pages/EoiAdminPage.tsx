@@ -46,10 +46,13 @@ import { useResendEoiInvite, useBulkResendEoiInvites } from "@/hooks/useEoiPolis
 import { EOI_STATUS_LABELS, calculateAgeGroup, buildPublicEoiUrl } from "@/lib/eoiUtils";
 import { EoiTeamSuggestions } from "@/components/eoi/EoiTeamSuggestions";
 import { exportEoisCSV } from "@/lib/exportEois";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 export default function EoiAdminPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const navigate = useNavigate();
+  const { hasPro, isLoading: proLoading } = useClubProAccess(clubId);
   const [seasonId, setSeasonId] = useState<string | "all">("all");
   const [statusFilter, setStatusFilter] = useState<EoiStatus | "all">("all");
   const [returningFilter, setReturningFilter] = useState<"all" | "new" | "returning">("all");
@@ -175,6 +178,14 @@ export default function EoiAdminPage() {
           <p className="text-sm text-muted-foreground truncate">{club?.name}</p>
         </div>
       </div>
+
+      {!proLoading && !hasPro ? (
+        <ProFeatureLock
+          title="EOIs is a Pro feature"
+          description="Collect expressions of interest from new and returning players. Upgrade your club to Pro to unlock."
+          clubId={clubId ?? null}
+        />
+      ) : (<>
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -440,6 +451,7 @@ export default function EoiAdminPage() {
           );
         })}
       </div>
+      </>)}
     </div>
   );
 }

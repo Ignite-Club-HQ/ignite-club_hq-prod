@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles, Paperclip, TrendingUp, Image as ImageIcon, Bug } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound, Sparkles, Paperclip, TrendingUp, Image as ImageIcon, Bug, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -50,11 +50,28 @@ export default function AdminPage() {
     enabled: !!user,
   });
 
+  // Check if user is club admin (for club-scoped tools like restoring deleted chats)
+  const { data: isClubAdmin } = useQuery({
+    queryKey: ["is-club-admin-any", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "club_admin")
+        .not("club_id", "is", null)
+        .limit(1);
+      return !!(data && data.length > 0);
+    },
+    enabled: !!user,
+  });
+
+
   if (isLoading) {
     return <PageLoading />;
   }
 
-  if (!isAppAdmin && !isTeamAdminOrCoach) {
+  if (!isAppAdmin && !isTeamAdminOrCoach && !isClubAdmin) {
     return (
       <div className="py-6 space-y-6">
         <div className="flex items-center gap-3">
@@ -99,6 +116,26 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Club Admin Tools (hidden when user is also app admin — those tools appear under App Administration) */}
+      {isClubAdmin && !isAppAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Club Tools</CardTitle>
+            <CardDescription>Tools available to club admins</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <AdminMenuItem
+              icon={RotateCcw}
+              label="Deleted Chats"
+              description="Restore chat groups removed from your club"
+              onClick={() => navigate("/admin/deleted-chats")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+
 
       {/* App Admin Tools */}
       {isAppAdmin && (
@@ -203,6 +240,12 @@ export default function AdminPage() {
               label="Chat Virt Debug"
               description="Capture row-height drift and scroll jolts in any chat thread"
               onClick={() => navigate("/admin/chat-virt-debug")}
+            />
+            <AdminMenuItem
+              icon={RotateCcw}
+              label="Deleted Chats"
+              description="Restore chat groups removed by members"
+              onClick={() => navigate("/admin/deleted-chats")}
             />
           </CardContent>
         </Card>

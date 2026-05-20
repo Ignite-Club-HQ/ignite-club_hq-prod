@@ -12,6 +12,8 @@ import { useClubSeasons, type Season, type SeasonStatus } from "@/hooks/useClubS
 import { StartNewSeasonWizard } from "@/components/seasons/StartNewSeasonWizard";
 import { SeasonTemplateDialog } from "@/components/seasons/SeasonTemplateDialog";
 import { OrphanEventsCard } from "@/components/seasons/OrphanEventsCard";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { format } from "date-fns";
 
 const STATUS_META: Record<SeasonStatus, { label: string; icon: typeof Clock; variant: "default" | "secondary" | "outline" }> = {
@@ -56,6 +58,8 @@ export default function SeasonsPage() {
     enabled: !!user?.id && !!clubId,
   });
 
+  const { hasPro, isLoading: proLoading } = useClubProAccess(clubId);
+
   const { data: seasons = [], isLoading: seasonsLoading, refetch } = useClubSeasons(clubId);
 
   const seasonIds = useMemo(() => seasons.map((s) => s.id), [seasons]);
@@ -90,7 +94,7 @@ export default function SeasonsPage() {
     return { active, draft, past };
   }, [seasons]);
 
-  if (clubLoading || adminLoading || seasonsLoading) return <PageLoading />;
+  if (clubLoading || adminLoading || seasonsLoading || proLoading) return <PageLoading />;
 
   if (!isClubAdmin) {
     return (
@@ -105,6 +109,25 @@ export default function SeasonsPage() {
       </div>
     );
   }
+
+  if (!hasPro) {
+    return (
+      <div className="py-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Seasons</h1>
+        </div>
+        <ProFeatureLock
+          title="Seasons is a Pro feature"
+          description="Run multi-year programmes, archive past squads, and roll teams over each year. Upgrade your club to Pro to unlock."
+          clubId={clubId ?? null}
+        />
+      </div>
+    );
+  }
+
 
   return (
     <div className="py-6 space-y-6">

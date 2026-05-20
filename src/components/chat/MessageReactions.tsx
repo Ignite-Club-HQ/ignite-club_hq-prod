@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
@@ -121,8 +122,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
+    armReactionInteractionGuard();
     onReact(type);
-    onOpenChange(false);
+    // Defer close so the full-screen overlay stays mounted through the
+    // touchend → synthetic-click cycle. If we close synchronously inside
+    // onTouchStart, the portal unmounts before touchend fires and Android
+    // WebView dispatches the click to whatever sits under the finger
+    // (e.g. an Instagram link preview behind the picker).
+    setTimeout(() => onOpenChange(false), 250);
   };
 
   const triggerEmojiSelection = (type: string) => {
@@ -220,6 +227,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     if (Date.now() - mountedAtRef.current < 500) return;
                   }}
                   onPointerDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                  onPointerUp={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
                   }}
@@ -468,6 +479,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
                   onClick={(e) => {
                     if (!isMe) return;
                     e.stopPropagation();
+                    armReactionInteractionGuard();
                     onReactionClick(r.reaction_type, r.id);
                     onClose();
                   }}

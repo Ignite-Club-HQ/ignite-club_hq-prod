@@ -271,18 +271,22 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
-  // Delete group mutation
+  // Delete group mutation (soft-delete so an app admin can restore later)
   const deleteGroupMutation = useMutation({
     mutationFn: async (groupId: string) => {
       const { error } = await supabase
         .from("chat_groups")
-        .delete()
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id ?? null,
+        } as any)
         .eq("id", groupId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Group deleted successfully" });
+      toast({ title: "Chat removed. An app admin can restore it if needed." });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
     },
     onError: (error) => {
       toast({
@@ -814,6 +818,7 @@ export default function MessagesPage() {
       const { data, error } = await supabase
         .from("chat_groups")
         .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       
