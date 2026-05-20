@@ -28,26 +28,34 @@ export default function PitchBoardResumeRedirect() {
     let cancelled = false;
 
     const attemptRestore = () => {
+      // If PitchBoard is already mounted in this JS context, nothing to do —
+      // avoid yanking the URL and forcing an unmount/remount loop.
+      if ((window as any).__pitchBoardMounted === true) return;
       try {
         if (localStorage.getItem(PITCH_BOARD_OPEN_KEY) !== "true") return;
         const storedPath = localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY);
         if (!storedPath) return;
 
         const loc = locationRef.current;
-        const currentPath = loc.pathname + loc.search;
-        if (currentPath === storedPath) return;
+        const [path, query = ""] = storedPath.split("?");
 
         // Modal-on-home case: storedPath === "/"; nothing for us to do —
         // HomePage runs its own cold-start restore that re-opens the modal.
-        const [path] = storedPath.split("?");
         if (path === "/" || path === "/home") return;
 
-        // Only redirect from neutral landing routes to avoid yanking the
-        // user out of an intentional navigation.
-        const neutral = loc.pathname === "/" || loc.pathname === "/home";
-        if (!neutral) return;
+        // Allow restore from BOTH neutral landing routes (cold start back at
+        // "/") AND from the stored path itself when React state was wiped but
+        // the URL was preserved (warm WebView reload on iOS lock/unlock). We
+        // only bail when we're on an unrelated route the user navigated to
+        // intentionally — never yank them out of that.
+        const onNeutral = loc.pathname === "/" || loc.pathname === "/home";
+        const onStored = loc.pathname === path;
+        if (!onNeutral && !onStored) return;
 
-        const [, query = ""] = storedPath.split("?");
+        // Already mid-restore (param present and on the right path) → nothing to do.
+        const currentParams = new URLSearchParams(loc.search);
+        if (onStored && currentParams.get("openPitchBoard") === "1") return;
+
         const params = new URLSearchParams(query);
         params.set("openPitchBoard", "1");
         navigate(`${path}?${params.toString()}`, { replace: true });
