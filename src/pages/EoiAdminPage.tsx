@@ -179,6 +179,14 @@ export default function EoiAdminPage() {
         </div>
       </div>
 
+      {!proLoading && !hasPro ? (
+        <ProFeatureLock
+          title="EOIs is a Pro feature"
+          description="Collect expressions of interest from new and returning players. Upgrade your club to Pro to unlock."
+          clubId={clubId ?? null}
+        />
+      ) : (<>
+
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Select value={seasonId} onValueChange={(v) => setSeasonId(v as any)}>
