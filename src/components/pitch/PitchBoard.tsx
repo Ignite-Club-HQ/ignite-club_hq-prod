@@ -1665,12 +1665,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch {
       /* ignore */
     }
+    // Runtime sentinel so PitchBoardResumeRedirect knows the board is already
+    // mounted in THIS JS context and skips re-navigating on warm resume.
+    // Lives on `window`, so a cold WebView restart resets it (undefined) and
+    // cold-start restore still runs.
+    (window as any).__pitchBoardMounted = true;
     // Clear widget-dismissed flag so widget reappears when pitch board closes
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
       localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
       localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
+      (window as any).__pitchBoardMounted = false;
     };
   }, []);
 
