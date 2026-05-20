@@ -408,7 +408,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
+    initialData: cachedData?.memberClubs
+      ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract clubs and latest messages from combined query
