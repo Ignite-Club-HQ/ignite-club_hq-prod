@@ -13,7 +13,6 @@ import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
-import { msgPerfMark, msgPerfStart } from "@/lib/messagesPerf";
 
 interface Profile {
   id: string;
@@ -151,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const waitForSessionUser = useCallback(async (expectedUserId: string, maxAttempts = 8): Promise<Session | null> => {
-    const stop = msgPerfStart(`auth:waitForSessionUser(max=${maxAttempts})`);
+    const stop = () => {};
     try {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -159,7 +158,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const session = data.session;
 
           if (!error && session?.user?.id === expectedUserId && session.access_token) {
-            msgPerfMark(`auth:waitForSessionUser:resolved@attempt${attempt}`);
             return session;
           }
         } catch {
@@ -170,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await new Promise(resolve => setTimeout(resolve, 120 * attempt));
         }
       }
-      msgPerfMark(`auth:waitForSessionUser:exhausted`);
       return null;
     } finally {
       stop();
@@ -309,17 +306,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    msgPerfMark("auth:effect-mount");
-    console.warn("[Auth] AuthProvider MOUNTED", new Error("AuthProvider mount stack").stack);
     let mounted = true;
     let profileFetched = false;
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
-      const __hsStop = msgPerfStart(`auth:handleSession(initial=${isInitial},applyTheme=${applyTheme})`);
+      const __hsStop = () => {};
       try {
       if (!mounted || !currentSession?.user) {
         console.log('[Auth] handleSession early exit - mounted:', mounted, 'hasUser:', !!currentSession?.user);
-        msgPerfMark("auth:handleSession:earlyExit-noUser");
         return;
       }
       
@@ -346,7 +340,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const shouldSkip = profileFetched && !isInitial && !isUserSwitch && !applyTheme;
       if (shouldSkip) {
         console.log('[Auth] handleSession skipping - already fetched');
-        msgPerfMark("auth:handleSession:skip-alreadyFetched");
         return;
       }
       profileFetched = true;
@@ -356,7 +349,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // CRITICAL: For fresh logins (applyTheme=true), we must NOT skip - we need to apply theme
       if (!isUserSwitch && !applyTheme && initialized && profile?.display_name && cachedUserId === userId) {
         console.log('[Auth] handleSession - using cached profile, background refresh only');
-        msgPerfMark("auth:handleSession:cached-bgRefresh");
         // Already ready from sync hydration - just background refresh
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
@@ -396,7 +388,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileResolved(true); // Cache with display_name is trustworthy
         setProfileLoading(false);
         setLoading(false);
-        msgPerfMark("auth:setInitialized(true)@cached-trusted");
         setInitialized(true);
         
         // Background refresh - update cache silently, no blocking
@@ -409,7 +400,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(cached);
         setProfileLoading(false);
         setLoading(false);
-        msgPerfMark("auth:setInitialized(true)@cached-noDisplayName");
         setInitialized(true);
         
         // Background refresh
@@ -418,13 +408,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No cache, user switch, or fresh login - must fetch profile before proceeding
         console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '', applyTheme ? '(fresh login)' : '');
         setProfileLoading(true);
-        const __fpStop = msgPerfStart("auth:fetchProfile(blocking)");
+        const __fpStop = () => {};
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true);
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
-            msgPerfMark("auth:setInitialized(true)@fetched");
             setInitialized(true);
             console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
           }
@@ -433,7 +422,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
-            msgPerfMark("auth:setInitialized(true)@fetchError");
             setInitialized(true); // Initialize even on error to prevent hang
           }
         } finally {
@@ -460,7 +448,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        msgPerfMark(`auth:onAuthStateChange(${event},hasUser=${!!currentSession?.user})`);
         if (!mounted) return;
         
         // Check if we're in a native app context
@@ -561,7 +548,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Increased timeout for slower networks (e.g., mobile on 3G)
     const sessionTimeout = setTimeout(() => {
       if (mounted && loading) {
-        msgPerfMark("auth:initial-getSession:TIMEOUT(10s)");
         // Check if we have a cached profile to fall back on
         const cachedFallback = getCachedProfileWithUser();
         if (cachedFallback && cachedFallback.profile.display_name) {
@@ -569,7 +555,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(cachedFallback.profile);
           setLoading(false);
           setProfileLoading(false);
-          msgPerfMark("auth:setInitialized(true)@timeout-cached");
           setInitialized(true);
           
           // Background retry: silently re-check session after timeout
@@ -589,13 +574,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[Auth] Session check timed out, no cache available');
           setLoading(false);
           setProfileLoading(false);
-          msgPerfMark("auth:setInitialized(true)@timeout-noCache");
           setInitialized(true);
         }
       }
     }, 10000); // 10 second timeout for slow connections
 
-    const __initSessionStop = msgPerfStart("auth:initial-getSession");
+    const __initSessionStop = () => {};
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       __initSessionStop();
       clearTimeout(sessionTimeout);
@@ -614,7 +598,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setProfileLoading(false);
           setLoading(false);
-          msgPerfMark("auth:setInitialized(true)@initial-noSession");
           setInitialized(true); // Mark as initialized
         }
       }
@@ -625,7 +608,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) {
         setLoading(false);
         setProfileLoading(false);
-        msgPerfMark("auth:setInitialized(true)@initial-error");
         setInitialized(true); // Mark as initialized even on error
       }
     });
