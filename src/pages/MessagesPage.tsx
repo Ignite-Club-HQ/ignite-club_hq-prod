@@ -2147,6 +2147,15 @@ export default function MessagesPage() {
     return typeFilteredConversations.filter(c => c.unreadCount === 0).sort(sortByActivityDesc);
   }, [typeFilteredConversations]);
 
+  // Mark first non-empty render for perf diagnostics (one-shot).
+  const firstRenderMarkedRef = useRef(false);
+  useEffect(() => {
+    if (firstRenderMarkedRef.current) return;
+    if (typeFilteredConversations.length === 0) return;
+    firstRenderMarkedRef.current = true;
+    msgPerf.mark("firstRender");
+  }, [typeFilteredConversations, msgPerf]);
+
   // Progressive disclosure for operational groups: when a user has many
   // stale group/league chats, collapse the long tail behind a "Show more
   // groups" toggle. Only kicks in for power users — regular parents with
