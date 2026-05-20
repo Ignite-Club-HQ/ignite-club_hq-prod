@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
  * Rollback: `localStorage.removeItem("msg_bootstrap_v1")` — no redeploy.
  */
 
+export type AdminClubLite = { id: string; name: string; logo_url: string | null; sport: string | null };
+
 export type MessagesBootstrap = {
   is_app_admin: boolean;
   is_committee_member: boolean;
@@ -28,7 +30,10 @@ export type MessagesBootstrap = {
   pro_club_ids: string[];
   pro_team_ids: string[];
   has_any_pro: boolean;
+  admin_clubs: AdminClubLite[];
+  club_pro_status: Record<string, boolean>;
 };
+
 
 const FLAG_KEY = "msg_bootstrap_v1";
 
@@ -104,6 +109,8 @@ export function useMessagesPageBootstrap(userId: string | undefined, initialized
         pro_club_ids: d.pro_club_ids ?? [],
         pro_team_ids: d.pro_team_ids ?? [],
         has_any_pro: !!d.has_any_pro,
+        admin_clubs: d.admin_clubs ?? [],
+        club_pro_status: d.club_pro_status ?? {},
       };
     },
   });
@@ -125,10 +132,14 @@ export function useMessagesPageBootstrap(userId: string | undefined, initialized
     );
     queryClient.setQueryData(["has-any-pro-access", userId], b.has_any_pro);
 
-    // adminClubs key returns Club[] (id,name,logo_url,sport) — we only have
-    // ids here, so do NOT seed it. The existing query will run on its own.
-    // Same for club-pro-status (keyed by memberClubIds and shaped per-club).
+    // Phase 2: seed admin-clubs (full Club[]) and club-pro-status (keyed by
+    // memberClubIds). The latter is keyed by the array of member club ids;
+    // setting it under the matching key makes MessagesPage's useQuery an
+    // instant cache hit on cold load.
+    queryClient.setQueryData(["admin-clubs", userId], b.admin_clubs);
+    queryClient.setQueryData(["club-pro-status", b.member_club_ids], b.club_pro_status);
   }, [enabled, userId, query.data, queryClient]);
 
   return query;
 }
+
