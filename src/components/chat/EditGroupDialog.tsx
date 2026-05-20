@@ -87,7 +87,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
       toast({ title: "Please enter a group name", variant: "destructive" });
       return;
     }
-    if (selectedRoles.length === 0) {
+    if (!isManual && selectedRoles.length === 0) {
       toast({ title: "Please select at least one role", variant: "destructive" });
       return;
     }
