@@ -53,12 +53,11 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
 
   const updateGroupMutation = useMutation({
     mutationFn: async () => {
+      const updates: { name: string; allowed_roles?: AppRole[] } = { name };
+      if (!isManual) updates.allowed_roles = selectedRoles;
       const { error } = await supabase
         .from("chat_groups")
-        .update({
-          name,
-          allowed_roles: selectedRoles,
-        })
+        .update(updates)
         .eq("id", group.id);
 
       if (error) throw error;
