@@ -104,7 +104,12 @@ export default function CourtBoardResumeCard() {
     }>;
   }, [rows]);
 
-  if (items.length === 0) return null;
+  const visibleItems = useMemo(
+    () => items.filter((i) => dismissed[i.gameId] !== i.updatedAt),
+    [items, dismissed]
+  );
+
+  if (visibleItems.length === 0) return null;
 
   return (
     <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
