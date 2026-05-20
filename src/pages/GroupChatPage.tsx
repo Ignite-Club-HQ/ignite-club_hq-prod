@@ -219,6 +219,7 @@ export default function GroupChatPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -1696,11 +1697,18 @@ export default function GroupChatPage() {
   // Delete group mutation
   const deleteGroupMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("chat_groups").delete().eq("id", groupId!);
+      // Soft-delete: keep the row so app admins can restore within the retention window.
+      const { error } = await supabase
+        .from("chat_groups")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id ?? null,
+        } as any)
+        .eq("id", groupId!);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Group deleted");
+      toast.success("Chat removed. An app admin can restore it if needed.");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
       navigate("/messages");
@@ -2012,22 +2020,50 @@ export default function GroupChatPage() {
         />
       )}
 
-      {/* Delete Group Confirmation */}
-      <AlertDialog open={showDeleteGroupDialog} onOpenChange={setShowDeleteGroupDialog}>
+      {/* Delete Group Confirmation — requires typing the group name to enable. */}
+      <AlertDialog
+        open={showDeleteGroupDialog}
+        onOpenChange={(open) => {
+          setShowDeleteGroupDialog(open);
+          if (!open) setDeleteConfirmText("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Chat Group</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{group.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{group.name}"? This action cannot be undone and all messages will be lost.
+              This will remove the chat from everyone's inbox. Messages stay archived
+              and an app admin can restore the chat within 30 days. To continue, type
+              the group name below.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <input
+            type="text"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder={group.name}
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteGroupMutation.mutate()}
+              onClick={(e) => {
+                if (deleteConfirmText.trim() !== group.name.trim()) {
+                  e.preventDefault();
+                  toast.error("Group name does not match");
+                  return;
+                }
+                deleteGroupMutation.mutate();
+              }}
+              disabled={
+                deleteConfirmText.trim() !== group.name.trim() ||
+                deleteGroupMutation.isPending
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {deleteGroupMutation.isPending ? "Deleting..." : "Delete chat"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
