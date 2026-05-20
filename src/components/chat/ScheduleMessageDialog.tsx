@@ -26,6 +26,8 @@ import {
 } from "@/hooks/useScheduledMessages";
 import { ScheduleImageField } from "./ScheduleImageField";
 import { ScheduleRecurrenceField } from "./ScheduleRecurrenceField";
+import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 interface ScheduleMessageDialogProps {
   open: boolean;
@@ -194,6 +196,8 @@ export function ScheduleMessageDialog({
     teamId: target.team_id ?? undefined,
   };
 
+  const { hasAccess: hasProAccess, isLoading: proLoading } = useScheduleProAccess(target);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
@@ -208,6 +212,13 @@ export function ScheduleMessageDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {!proLoading && !hasProAccess ? (
+          <ProFeatureLock
+            title="Scheduling is a Pro feature"
+            description="Schedule messages to send later. Upgrade your club to Pro to unlock."
+            showUpgradeButton={false}
+          />
+        ) : (
         <div className="space-y-3 sm:space-y-4">
           {isEditing ? (
             <>
@@ -343,6 +354,7 @@ export function ScheduleMessageDialog({
             </p>
           )}
         </div>
+        )}
 
         <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
           <Button
@@ -351,12 +363,14 @@ export function ScheduleMessageDialog({
             disabled={isSaving}
             className="w-full sm:w-auto"
           >
-            Cancel
+            {!proLoading && !hasProAccess ? "Close" : "Cancel"}
           </Button>
-          <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? "Save changes" : "Schedule"}
-          </Button>
+          {(proLoading || hasProAccess) && (
+            <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? "Save changes" : "Schedule"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

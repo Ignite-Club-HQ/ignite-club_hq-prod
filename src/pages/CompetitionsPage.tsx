@@ -8,12 +8,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { useMemo } from "react";
 
 export default function CompetitionsPage() {
   usePageTitle("Competitions");
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
+  const scopedClub = useClubProAccess(activeClubFilter);
+  const anyClub = useUserHasAnyClubPro();
+  const hasPro = activeClubFilter ? scopedClub.hasPro : anyClub.hasAnyClubPro;
+  const proLoading = activeClubFilter ? scopedClub.isLoading : anyClub.isLoading;
 
   // Clubs I admin (eligible to organise competitions)
   const { data: adminClubs = [] } = useQuery({
@@ -89,7 +96,7 @@ export default function CompetitionsPage() {
             Leagues and tournaments your teams are part of.
           </p>
         </div>
-        {adminClubs.length > 0 && (
+        {adminClubs.length > 0 && hasPro && (
           <Button asChild size="sm">
             <Link to="/competitions/new">
               <Plus className="h-4 w-4 mr-1" /> New
@@ -97,6 +104,17 @@ export default function CompetitionsPage() {
           </Button>
         )}
       </header>
+
+      {!proLoading && !hasPro && (
+        <ProFeatureLock
+          title="Competitions is a Pro feature"
+          description="Run leagues and tournaments with divisions, fixtures and ladders. Upgrade your club to Pro to unlock."
+          clubId={activeClubFilter}
+        />
+      )}
+
+      {hasPro && (<>
+
 
       {pendingInvites.length > 0 && (
         <section>
@@ -167,6 +185,7 @@ export default function CompetitionsPage() {
           </div>
         )}
       </section>
+      </>)}
     </div>
   );
 }
