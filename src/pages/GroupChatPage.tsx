@@ -1697,11 +1697,18 @@ export default function GroupChatPage() {
   // Delete group mutation
   const deleteGroupMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("chat_groups").delete().eq("id", groupId!);
+      // Soft-delete: keep the row so app admins can restore within the retention window.
+      const { error } = await supabase
+        .from("chat_groups")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id ?? null,
+        } as any)
+        .eq("id", groupId!);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Group deleted");
+      toast.success("Chat removed. An app admin can restore it if needed.");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
       navigate("/messages");
