@@ -151,24 +151,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const waitForSessionUser = useCallback(async (expectedUserId: string, maxAttempts = 8): Promise<Session | null> => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        const session = data.session;
+    const stop = msgPerfStart(`auth:waitForSessionUser(max=${maxAttempts})`);
+    try {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          const session = data.session;
 
-        if (!error && session?.user?.id === expectedUserId && session.access_token) {
-          return session;
+          if (!error && session?.user?.id === expectedUserId && session.access_token) {
+            msgPerfMark(`auth:waitForSessionUser:resolved@attempt${attempt}`);
+            return session;
+          }
+        } catch {
+          // Ignore transient session restore errors while polling
         }
-      } catch {
-        // Ignore transient session restore errors while polling
-      }
 
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 120 * attempt));
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 120 * attempt));
+        }
       }
+      msgPerfMark(`auth:waitForSessionUser:exhausted`);
+      return null;
+    } finally {
+      stop();
     }
-
-    return null;
   }, []);
   
   // SYNCHRONOUS HYDRATION: Use pre-computed initial state from cache
