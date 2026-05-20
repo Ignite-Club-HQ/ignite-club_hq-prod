@@ -1081,6 +1081,7 @@ export default function MessagesPage() {
       cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
 
       return result;
+      } finally { __stop(); }
     },
     // Fetch DMs in parallel with everything else; Pro gating happens at
     // render time. Previously this waited on hasAnyProAccess (3 serial
