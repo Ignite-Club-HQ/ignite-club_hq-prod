@@ -34,6 +34,7 @@ interface DeletedGroup {
   membership_mode: string;
   deleter_name?: string | null;
   creator_name?: string | null;
+  club_name?: string | null;
 }
 
 const RETENTION_DAYS = 30;
@@ -45,24 +46,34 @@ export default function AdminDeletedChatsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [purgeTarget, setPurgeTarget] = useState<DeletedGroup | null>(null);
 
-  const { data: isAppAdmin, isLoading: checkingAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
+  const { data: access, isLoading: checkingAccess } = useQuery({
+    queryKey: ["deleted-chats-access", user?.id],
     queryFn: async () => {
-      if (!user?.id) return false;
+      if (!user?.id) return { isAppAdmin: false, clubAdminClubs: [] as string[] };
       const { data } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, club_id")
         .eq("user_id", user.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
+        .in("role", ["app_admin", "club_admin"]);
+      const rows = data ?? [];
+      return {
+        isAppAdmin: rows.some((r) => r.role === "app_admin"),
+        clubAdminClubs: rows
+          .filter((r) => r.role === "club_admin" && r.club_id)
+          .map((r) => r.club_id as string),
+      };
     },
     enabled: !!user?.id,
   });
 
+  const isAppAdmin = !!access?.isAppAdmin;
+  const isClubAdmin = (access?.clubAdminClubs.length ?? 0) > 0;
+  const hasAccess = isAppAdmin || isClubAdmin;
+
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["admin-deleted-chats"],
     queryFn: async (): Promise<DeletedGroup[]> => {
+      // RLS scopes results: app admins see all, club admins see only their clubs
       const { data, error } = await supabase
         .from("chat_groups")
         .select(
@@ -76,20 +87,26 @@ export default function AdminDeletedChatsPage() {
       const userIds = Array.from(
         new Set(rows.flatMap((r) => [r.deleted_by, r.created_by]).filter(Boolean))
       ) as string[];
+      const clubIds = Array.from(new Set(rows.map((r) => r.club_id).filter(Boolean))) as string[];
 
-      if (userIds.length === 0) return rows;
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", userIds);
-      const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name]));
+      const [profilesRes, clubsRes] = await Promise.all([
+        userIds.length
+          ? supabase.from("profiles").select("id, display_name").in("id", userIds)
+          : Promise.resolve({ data: [] as any[] }),
+        clubIds.length
+          ? supabase.from("clubs").select("id, name").in("id", clubIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const nameMap = new Map((profilesRes.data ?? []).map((p: any) => [p.id, p.display_name]));
+      const clubMap = new Map((clubsRes.data ?? []).map((c: any) => [c.id, c.name]));
       return rows.map((r) => ({
         ...r,
         deleter_name: r.deleted_by ? nameMap.get(r.deleted_by) ?? null : null,
         creator_name: nameMap.get(r.created_by) ?? null,
+        club_name: r.club_id ? clubMap.get(r.club_id) ?? null : null,
       }));
     },
-    enabled: !!isAppAdmin,
+    enabled: hasAccess,
   });
 
   const restoreMutation = useMutation({
@@ -129,13 +146,14 @@ export default function AdminDeletedChatsPage() {
       (g) =>
         g.name.toLowerCase().includes(q) ||
         g.deleter_name?.toLowerCase().includes(q) ||
-        g.creator_name?.toLowerCase().includes(q)
+        g.creator_name?.toLowerCase().includes(q) ||
+        g.club_name?.toLowerCase().includes(q)
     );
   }, [groups, searchQuery]);
 
-  if (checkingAdmin) return <PageLoading />;
+  if (checkingAccess) return <PageLoading />;
 
-  if (!isAppAdmin) {
+  if (!hasAccess) {
     return (
       <div className="py-6 space-y-4">
         <div className="flex items-center gap-3">
@@ -144,7 +162,7 @@ export default function AdminDeletedChatsPage() {
           </Button>
           <h1 className="text-2xl font-bold">Deleted chats</h1>
         </div>
-        <p className="text-muted-foreground">Access denied. App admin role required.</p>
+        <p className="text-muted-foreground">Access denied. App admin or club admin role required.</p>
       </div>
     );
   }
@@ -167,8 +185,9 @@ export default function AdminDeletedChatsPage() {
         <div>
           <h1 className="text-2xl font-bold">Deleted chats</h1>
           <p className="text-sm text-muted-foreground">
-            Restore chats removed by mistake. Items older than {RETENTION_DAYS} days
-            are eligible for permanent deletion.
+            {isAppAdmin
+              ? `Restore chats removed by mistake. Items older than ${RETENTION_DAYS} days are eligible for permanent deletion.`
+              : "Restore chats from your club that were removed by mistake."}
           </p>
         </div>
       </div>
@@ -212,6 +231,11 @@ export default function AdminDeletedChatsPage() {
                         <Badge variant="outline" className="text-xs">
                           {g.membership_mode}
                         </Badge>
+                        {g.club_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {g.club_name}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         Deleted {formatDistanceToNow(deletedDate, { addSuffix: true })}
@@ -237,15 +261,17 @@ export default function AdminDeletedChatsPage() {
                       <RotateCcw className="h-4 w-4" />
                       Restore
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-2"
-                      onClick={() => setPurgeTarget(g)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete permanently
-                    </Button>
+                    {isAppAdmin && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="gap-2"
+                        onClick={() => setPurgeTarget(g)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete permanently
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
