@@ -71,7 +71,7 @@ export default function AdminPage() {
     return <PageLoading />;
   }
 
-  if (!isAppAdmin && !isTeamAdminOrCoach) {
+  if (!isAppAdmin && !isTeamAdminOrCoach && !isClubAdmin) {
     return (
       <div className="py-6 space-y-6">
         <div className="flex items-center gap-3">
