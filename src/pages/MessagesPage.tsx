@@ -345,6 +345,8 @@ export default function MessagesPage() {
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
+      const __stop = msgPerf.start("clubs.query");
+      try {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
