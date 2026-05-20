@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 export default function AssociationsPage() {
   const { user } = useAuth();
   usePageTitle("Associations");
+  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
 
   const { data: associations = [], isLoading } = useQuery({
     queryKey: ["my-associations", user?.id],
@@ -40,10 +43,18 @@ export default function AssociationsPage() {
             <p className="text-xs text-muted-foreground">Federations and umbrella bodies you manage</p>
           </div>
         </div>
-        <Button asChild size="sm" className="shrink-0"><Link to="/associations/new"><Plus className="h-4 w-4 mr-1" /> New</Link></Button>
+        <Button asChild size="sm" className="shrink-0" disabled={!hasAnyClubPro}>
+          <Link to={hasAnyClubPro ? "/associations/new" : "#"}><Plus className="h-4 w-4 mr-1" /> New</Link>
+        </Button>
       </header>
 
-      {isLoading ? (
+      {!proLoading && !hasAnyClubPro ? (
+        <ProFeatureLock
+          title="Associations is a Pro feature"
+          description="Manage federations and umbrella bodies. Upgrade your club to Pro to unlock."
+          showUpgradeButton={false}
+        />
+      ) : isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : associations.length === 0 ? (
         <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
