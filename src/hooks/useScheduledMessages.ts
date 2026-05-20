@@ -143,6 +143,31 @@ export function useAllScheduledMessages(statuses: ScheduledMessageStatus[] = ["p
   });
 }
 
+async function invokeWrite(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke("scheduled-messages-write", {
+    body,
+  });
+  if (error) {
+    // Surface server-provided error payload when possible.
+    const ctx: any = (error as any).context;
+    let serverMsg: string | undefined;
+    try {
+      const parsed = ctx && typeof ctx.json === "function" ? await ctx.json() : undefined;
+      if (parsed?.error === "pro_required") {
+        const e = new Error("Pro required");
+        (e as any).code = "pro_required";
+        (e as any).payload = parsed;
+        throw e;
+      }
+      serverMsg = typeof parsed?.error === "string" ? parsed.error : undefined;
+    } catch (inner) {
+      if ((inner as any)?.code === "pro_required") throw inner;
+    }
+    throw new Error(serverMsg || error.message || "Request failed");
+  }
+  return data;
+}
+
 export function useCreateScheduledMessage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -150,8 +175,8 @@ export function useCreateScheduledMessage() {
   return useMutation({
     mutationFn: async (input: CreateScheduledMessageInput) => {
       if (!user?.id) throw new Error("Not authenticated");
-      const payload: any = {
-        author_id: user.id,
+      const data = await invokeWrite({
+        action: "create",
         chat_type: input.chat_type,
         team_id: input.team_id ?? null,
         club_id: input.club_id ?? null,
@@ -165,14 +190,8 @@ export function useCreateScheduledMessage() {
         recurrence_until: input.recurrence_until
           ? input.recurrence_until.toISOString()
           : null,
-      };
-      const { data, error } = await supabase
-        .from("scheduled_messages" as any)
-        .insert(payload)
-        .select("*")
-        .single();
-      if (error) throw error;
-      return data as unknown as ScheduledMessageRow;
+      });
+      return (data as any)?.row as ScheduledMessageRow;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["scheduled-messages-thread"] });
@@ -192,24 +211,18 @@ export function useUpdateScheduledMessage() {
       recurrence?: ScheduledMessageRecurrence;
       recurrence_until?: Date | null;
     }) => {
-      const patch: any = {};
-      if (input.text !== undefined) patch.text = input.text;
-      if (input.image_url !== undefined) patch.image_url = input.image_url;
-      if (input.scheduled_for) patch.scheduled_for = input.scheduled_for.toISOString();
-      if (input.recurrence !== undefined) patch.recurrence = input.recurrence;
+      const body: Record<string, unknown> = { action: "update", id: input.id };
+      if (input.text !== undefined) body.text = input.text;
+      if (input.image_url !== undefined) body.image_url = input.image_url;
+      if (input.scheduled_for) body.scheduled_for = input.scheduled_for.toISOString();
+      if (input.recurrence !== undefined) body.recurrence = input.recurrence;
       if (input.recurrence_until !== undefined) {
-        patch.recurrence_until = input.recurrence_until
+        body.recurrence_until = input.recurrence_until
           ? input.recurrence_until.toISOString()
           : null;
       }
-      const { data, error } = await supabase
-        .from("scheduled_messages" as any)
-        .update(patch)
-        .eq("id", input.id)
-        .select("*")
-        .single();
-      if (error) throw error;
-      return data as unknown as ScheduledMessageRow;
+      const data = await invokeWrite(body);
+      return (data as any)?.row as ScheduledMessageRow;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["scheduled-messages-thread"] });
@@ -222,12 +235,7 @@ export function useCancelScheduledMessage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Hard delete — simpler than tracking a 'cancelled' status the user has to ignore.
-      const { error } = await supabase
-        .from("scheduled_messages" as any)
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await invokeWrite({ action: "cancel", id });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["scheduled-messages-thread"] });
