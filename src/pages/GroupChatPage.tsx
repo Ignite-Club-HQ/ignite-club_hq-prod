@@ -219,6 +219,7 @@ export default function GroupChatPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
