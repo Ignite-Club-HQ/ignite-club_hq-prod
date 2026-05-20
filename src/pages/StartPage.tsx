@@ -53,6 +53,13 @@ const options: Option[] = [
 
 export default function StartPage() {
   usePageTitle("Get started");
+  const { activeClubFilter } = useClubTheme();
+
+  // When filtered to a single club (club theme mode), hide "Start a Club" to
+  // avoid encouraging duplicates while operating inside an existing club.
+  const visibleOptions = activeClubFilter
+    ? options.filter((o) => o.to !== "/clubs/new")
+    : options;
 
   return (
     <div className="container max-w-2xl mx-auto px-4 py-6">
@@ -65,7 +72,8 @@ export default function StartPage() {
       </header>
 
       <div className="space-y-3">
-        {options.map(({ to, icon: Icon, title, subtitle, description, comingSoon }) => {
+        {visibleOptions.map(({ to, icon: Icon, title, subtitle, description, comingSoon }) => {
+
           const content = (
             <Card
               className={
