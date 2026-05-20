@@ -310,6 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     msgPerfMark("auth:effect-mount");
+    console.warn("[Auth] AuthProvider MOUNTED", new Error("AuthProvider mount stack").stack);
     let mounted = true;
     let profileFetched = false;
     
