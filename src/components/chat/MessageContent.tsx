@@ -12,6 +12,7 @@ import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
 import { isVideoUrl } from "@/lib/videoUtils";
 
 interface MessageContentProps {
@@ -478,7 +479,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                       WebkitTouchCallout: 'none',
                       WebkitTapHighlightColor: 'transparent',
                     }}
-                    onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(part.content); }}
+                    onClick={(e) => { e.preventDefault(); if (preventIfReactionInteractionGuarded(e)) return; handleLinkClick(e); safeOpenUrl(part.content); }}
                   >
                     {part.linkText}
                   </a>
@@ -518,7 +519,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                       WebkitTouchCallout: 'none',
                       WebkitTapHighlightColor: 'transparent',
                     }}
-                    onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
+                    onClick={(e) => { e.preventDefault(); if (preventIfReactionInteractionGuarded(e)) return; handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
                     {truncateUrl(part.content)}
                   </a>

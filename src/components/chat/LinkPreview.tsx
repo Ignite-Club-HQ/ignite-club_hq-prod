@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
+import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
 
 interface LinkPreviewData {
   url: string;
@@ -148,6 +149,7 @@ export function LinkPreview({ url, onRemove, compact = false, reserveSpace = fal
   })();
 
   const handleCardClick = (e: React.MouseEvent) => {
+    if (preventIfReactionInteractionGuarded(e)) return;
     e.stopPropagation();
     safeOpenUrl(fullUrl);
   };
