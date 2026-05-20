@@ -1649,18 +1649,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   // Also record the route so we can restore it after a cold app launch
   // (e.g. iOS killed the app while the phone was locked).
+  //
+  // IMPORTANT: We DO NOT include teamId/teamName/readOnly in the dep array.
+  // Re-running this effect on every prop change would briefly remove the
+  // open-flag during the cleanup→setup window. If iOS happens to suspend
+  // the WebView in that window, the cold-restart restore logic sees no
+  // flag and the user lands on home instead of resuming the board.
+  // Instead, we keep the context fresh via a separate effect below that
+  // only re-writes the LAST_CONTEXT_KEY without ever clearing the flag.
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
     try {
       const path = window.location.pathname + window.location.search;
       localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
-      // Persist the active board context so HomePage can re-open the
-      // overlay after a WebView cold restart (phone lock/unlock) when the
-      // board was opened as a modal on "/" rather than via /events/:id.
-      localStorage.setItem(
-        PITCH_BOARD_LAST_CONTEXT_KEY,
-        JSON.stringify({ teamId, teamName, readOnly })
-      );
     } catch {
       /* ignore */
     }
@@ -1671,7 +1672,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
       localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
     };
+  }, []);
+
+  // Keep the restore context up to date as props change WITHOUT clearing
+  // the open-flag (see note above).
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PITCH_BOARD_LAST_CONTEXT_KEY,
+        JSON.stringify({ teamId, teamName, readOnly })
+      );
+      // Also refresh the stored path in case the user navigated within
+      // the board (e.g. opened from /events/:id then drilled into a sub-route).
+      const path = window.location.pathname + window.location.search;
+      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+    } catch {
+      /* ignore */
+    }
   }, [teamId, teamName, readOnly]);
+
 
   // Handle expired sub notification taps — if opened from a pending_sub notification
   // but no sub dialog appears, show a toast and let the user see the pitch board.
