@@ -50,6 +50,23 @@ export default function AdminPage() {
     enabled: !!user,
   });
 
+  // Check if user is club admin (for club-scoped tools like restoring deleted chats)
+  const { data: isClubAdmin } = useQuery({
+    queryKey: ["is-club-admin-any", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "club_admin")
+        .not("club_id", "is", null)
+        .limit(1);
+      return !!(data && data.length > 0);
+    },
+    enabled: !!user,
+  });
+
+
   if (isLoading) {
     return <PageLoading />;
   }
