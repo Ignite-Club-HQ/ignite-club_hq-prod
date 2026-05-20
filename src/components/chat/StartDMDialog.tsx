@@ -421,12 +421,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       
       if (groupError) throw groupError;
       
-      // Add all selected users to group_members. The creator is auto-added by
-      // a DB trigger (add_creator_to_personal_group), so we only add the others
-      // here. If this fails, roll back the group so the user doesn't end up
-      // stranded in an empty group where their own messages would silently
-      // fail RLS ("messages vanish" bug).
-      const memberInserts = users.map(u => ({
+      // Add explicit members. Category-scoped club groups are manual + invite-only,
+      // and because they have club_id set the personal-group DB trigger does not
+      // auto-add the creator. Include the creator so the group starts with exactly
+      // one member unless others were selected.
+      const memberInserts = [
+        ...(categoryOnlyClubScope ? [{ id: user!.id }] : []),
+        ...users,
+      ].map(u => ({
         group_id: groupData.id,
         user_id: u.id,
         added_by: user!.id,
