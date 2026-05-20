@@ -13,6 +13,7 @@ import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
+import { msgPerfMark, msgPerfStart } from "@/lib/messagesPerf";
 
 interface Profile {
   id: string;
