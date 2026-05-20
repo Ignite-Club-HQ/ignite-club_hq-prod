@@ -459,6 +459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        msgPerfMark(`auth:onAuthStateChange(${event},hasUser=${!!currentSession?.user})`);
         if (!mounted) return;
         
         // Check if we're in a native app context
