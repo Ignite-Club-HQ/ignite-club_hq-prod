@@ -2457,111 +2457,68 @@ export default function VaultPage() {
     }
   };
 
-  const renderBreadcrumbs = () => {
-    const items: React.ReactNode[] = [];
-    
-    // Vault root
-    items.push(
-      <BreadcrumbItem key="vault">
-        {currentView.type === "root" ? (
-          <BreadcrumbPage className="flex items-center gap-1" aria-label="Vault">
-            <Home className="h-4 w-4" />
-          </BreadcrumbPage>
-        ) : (
-          <BreadcrumbLink
-            className="flex items-center gap-1 cursor-pointer hover:text-foreground"
-            onClick={navigateToRoot}
-            aria-label="Vault"
-          >
-            <Home className="h-4 w-4" />
-          </BreadcrumbLink>
-        )}
-      </BreadcrumbItem>
-    );
-    
-    if (currentView.type === "club" || currentView.type === "team") {
-      items.push(<BreadcrumbSeparator key="sep-club" />);
-      
-      const isClubCurrent = currentView.type === "club" && !currentView.folderId;
-      items.push(
-        <BreadcrumbItem key="club">
-          {isClubCurrent ? (
-            <BreadcrumbPage>{currentView.clubName}</BreadcrumbPage>
-          ) : (
-            <BreadcrumbLink 
-              className="cursor-pointer hover:text-foreground"
-              onClick={navigateToClub}
-            >
-              {currentView.clubName}
-            </BreadcrumbLink>
-          )}
-        </BreadcrumbItem>
-      );
-    }
-    
-    if (currentView.type === "team") {
-      items.push(<BreadcrumbSeparator key="sep-team" />);
-      
-      const isTeamCurrent = !currentView.folderId;
-      items.push(
-        <BreadcrumbItem key="team">
-          {isTeamCurrent ? (
-            <BreadcrumbPage>{currentView.teamName}</BreadcrumbPage>
-          ) : (
-            <BreadcrumbLink 
-              className="cursor-pointer hover:text-foreground"
-              onClick={navigateToTeam}
-            >
-              {currentView.teamName}
-            </BreadcrumbLink>
-          )}
-        </BreadcrumbItem>
-      );
-    }
-    
-    if (currentView.type === "mini-league") {
-      items.push(<BreadcrumbSeparator key="sep-mini-league" />);
-      
-      const isMiniLeagueCurrent = !currentView.folderId;
-      items.push(
-        <BreadcrumbItem key="mini-league">
-          {isMiniLeagueCurrent ? (
-            <BreadcrumbPage>{currentView.miniLeagueName}</BreadcrumbPage>
-          ) : (
-            <BreadcrumbLink 
-              className="cursor-pointer hover:text-foreground"
-              onClick={navigateToMiniLeague}
-            >
-              {currentView.miniLeagueName}
-            </BreadcrumbLink>
-          )}
-        </BreadcrumbItem>
-      );
-    }
-    
-    // Folder path
-    folderPath.forEach((folder, index) => {
-      items.push(<BreadcrumbSeparator key={`sep-folder-${index}`} />);
-      
-      const isLast = index === folderPath.length - 1;
-      items.push(
-        <BreadcrumbItem key={`folder-${folder.id}`}>
-          {isLast ? (
-            <BreadcrumbPage>{folder.name}</BreadcrumbPage>
-          ) : (
-            <BreadcrumbLink 
-              className="cursor-pointer hover:text-foreground"
-              onClick={() => navigateToFolderAtIndex(index)}
-            >
-              {folder.name}
-            </BreadcrumbLink>
-          )}
-        </BreadcrumbItem>
-      );
-    });
-    
-    return items;
+  // Mobile-first hierarchy: returns an ordered list of nodes that represent
+  // the current vault location. The last node is the "current" page (rendered
+  // as a large title); the rest become clickable chips in the secondary path.
+  type CrumbNode = { key: string; label: string; onClick?: () => void };
+
+  const abbreviateOrgName = (name: string): string => {
+    if (!name) return name;
+    return name
+      .replace(/\bSoccer Club\b/gi, "SC")
+      .replace(/\bFootball Club\b/gi, "FC")
+      .replace(/\bBasketball Club\b/gi, "BC")
+      .replace(/\bNetball Club\b/gi, "NC")
+      .replace(/\bRugby Club\b/gi, "RC")
+      .replace(/\bCricket Club\b/gi, "CC")
+      .replace(/\bTennis Club\b/gi, "TC")
+      .replace(/\bHockey Club\b/gi, "HC")
+      .replace(/\bAthletic Club\b/gi, "AC")
+      .replace(/\bSports Club\b/gi, "SC")
+      .trim();
   };
+
+  const getHierarchyNodes = (): CrumbNode[] => {
+    const nodes: CrumbNode[] = [];
+
+    // Vault root chip — only shown when we're past it.
+    nodes.push({ key: "vault", label: "Vault", onClick: navigateToRoot });
+
+    if (currentView.type === "club" || currentView.type === "team") {
+      nodes.push({
+        key: "club",
+        label: abbreviateOrgName(currentView.clubName || "Club"),
+        onClick: navigateToClub,
+      });
+    }
+
+    if (currentView.type === "team") {
+      nodes.push({
+        key: "team",
+        label: currentView.teamName || "Team",
+        onClick: navigateToTeam,
+      });
+    }
+
+    if (currentView.type === "mini-league") {
+      nodes.push({
+        key: "mini-league",
+        label: currentView.miniLeagueName || "League",
+        onClick: navigateToMiniLeague,
+      });
+    }
+
+    folderPath.forEach((folder, index) => {
+      nodes.push({
+        key: `folder-${folder.id}`,
+        label: folder.name,
+        onClick: () => navigateToFolderAtIndex(index),
+      });
+    });
+
+    return nodes;
+  };
+
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -3267,16 +3224,49 @@ export default function VaultPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-1 min-w-0">
-            <Button variant="ghost" size="icon" className="shrink-0 -ml-2 h-9 w-9" onClick={goBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Breadcrumb className="min-w-0 flex-1 overflow-x-auto scrollbar-hide">
-              <BreadcrumbList className="flex-nowrap whitespace-nowrap [&>li]:shrink-0 [&_a]:truncate [&_span]:truncate [&_a]:max-w-[140px] [&_span]:max-w-[140px] [&_a]:inline-block [&_span[role=link]]:inline-block">
-                {renderBreadcrumbs()}
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
+          {(() => {
+            const nodes = getHierarchyNodes();
+            const current = nodes[nodes.length - 1];
+            const parents = nodes.slice(0, -1);
+            return (
+              <div className="flex items-start gap-2 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 -ml-2 h-11 w-11 mt-0.5"
+                  onClick={goBack}
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl font-bold leading-tight break-words">
+                    {current?.label ?? "Vault"}
+                  </h1>
+                  {parents.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-muted-foreground">
+                      {parents.map((node, i) => (
+                        <span key={node.key} className="flex items-center gap-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={node.onClick}
+                            className="min-h-[32px] px-2 py-1 -mx-1 rounded-md hover:bg-muted active:bg-muted/70 transition-colors max-w-[160px] truncate text-foreground/70 hover:text-foreground touch-manipulation"
+                          >
+                            {node.label}
+                          </button>
+                          {i < parents.length - 1 && (
+                            <ChevronRight className="h-3 w-3 shrink-0 opacity-60" />
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+
         
           {/* Compact Storage Bar - always visible */}
           {currentClub && (
