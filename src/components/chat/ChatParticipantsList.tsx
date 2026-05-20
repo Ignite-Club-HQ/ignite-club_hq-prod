@@ -208,7 +208,7 @@ export function ChatParticipantsList({
   });
 
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, groupMeta?.membership_mode ?? null],
     queryFn: async () => {
       // Mini-league chat: union of league admins, per-league grants, and parents of players
       if (chatType === "group" && miniLeagueId) {
