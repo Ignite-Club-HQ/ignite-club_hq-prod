@@ -2005,6 +2005,7 @@ export default function GroupChatPage() {
             id: group.id,
             name: group.name,
             allowed_roles: group.allowed_roles as any,
+            membership_mode: group.membership_mode,
           }}
           open={showEditGroupDialog}
           onOpenChange={setShowEditGroupDialog}
