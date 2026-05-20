@@ -266,7 +266,7 @@ export function AddGroupMembersDialog({
         </div>
 
         {/* Sticky, elevated footer — anchored to the sheet, not floating */}
-        <div className="shrink-0 border-t border-border bg-card/95 backdrop-blur-sm px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]">
+        <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
