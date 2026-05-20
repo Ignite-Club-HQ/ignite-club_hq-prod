@@ -117,6 +117,7 @@ const AdminDrillsPage = lazy(() => import("./pages/AdminDrillsPage"));
 const AdminDmAttachmentsPage = lazy(() => import("./pages/AdminDmAttachmentsPage"));
 const AdminChatPhotoRemindersPage = lazy(() => import("./pages/AdminChatPhotoRemindersPage"));
 const AdminChatVirtDebugPage = lazy(() => import("./pages/AdminChatVirtDebugPage"));
+const AdminDeletedChatsPage = lazy(() => import("./pages/AdminDeletedChatsPage"));
 const PublishChatPhotosPage = lazy(() => import("./pages/PublishChatPhotosPage"));
 const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
