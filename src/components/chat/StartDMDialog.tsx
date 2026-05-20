@@ -392,12 +392,26 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
+      // Category-only club scope: when a category is chosen and a real club is
+      // selected (not "all"), stamp the group with club_id so the vault folder
+      // trigger fires (Club Vault → {Category} → {Group}). Use manual membership
+      // mode + empty allowed_roles so `can_access_chat_group` does NOT expose
+      // the group to every member of the club — only explicit invitees + the
+      // creator (added by DB trigger) can see it.
+      const hasCategory = !!(category && category.trim());
+      const scopedClubId = selectedClubId && selectedClubId !== "all" ? selectedClubId : null;
+      const categoryOnlyClubScope = hasCategory && !!scopedClubId;
+
       const insertPayload: Record<string, unknown> = {
         name: groupName,
         created_by: user!.id,
-        allowed_roles: allowedRoles,
+        allowed_roles: categoryOnlyClubScope ? [] : allowedRoles,
       };
-      if (category && category.trim()) insertPayload.category = category.trim();
+      if (hasCategory) insertPayload.category = category!.trim();
+      if (categoryOnlyClubScope) {
+        insertPayload.club_id = scopedClubId;
+        insertPayload.membership_mode = "manual";
+      }
 
       const { data: groupData, error: groupError } = await supabase
         .from("chat_groups")
@@ -407,12 +421,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       
       if (groupError) throw groupError;
       
-      // Add all selected users to group_members. The creator is auto-added by
-      // a DB trigger (add_creator_to_personal_group), so we only add the others
-      // here. If this fails, roll back the group so the user doesn't end up
-      // stranded in an empty group where their own messages would silently
-      // fail RLS ("messages vanish" bug).
-      const memberInserts = users.map(u => ({
+      // Add explicit members. Category-scoped club groups are manual + invite-only,
+      // and because they have club_id set the personal-group DB trigger does not
+      // auto-add the creator. Include the creator so the group starts with exactly
+      // one member unless others were selected.
+      const memberInserts = [
+        ...(categoryOnlyClubScope ? [{ id: user!.id }] : []),
+        ...users,
+      ].map(u => ({
         group_id: groupData.id,
         user_id: u.id,
         added_by: user!.id,
