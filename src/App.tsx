@@ -254,6 +254,8 @@ const App = () => {
             <PWAPendingInviteHandler />
             <GlobalSubMonitorGate />
             <PitchBoardResumeRedirect />
+            <MessagesBootstrapPrefetcher />
+
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Public routes */}
