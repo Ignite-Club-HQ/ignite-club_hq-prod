@@ -172,23 +172,26 @@ export function AddGroupMembersDialog({
         }
       }}
     >
-      <ResponsiveDialogContent className="sm:max-w-md">
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Add people</ResponsiveDialogTitle>
-          <ResponsiveDialogDescription>
+      <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
+        <ResponsiveDialogHeader className="px-4 pt-2 pb-3 border-b border-border/60">
+          <ResponsiveDialogTitle className="text-base font-semibold text-center sm:text-left">
+            Add people
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="text-xs text-muted-foreground text-center sm:text-left">
             Choose members from your club to add to this group chat
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-3 px-1">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-3 space-y-3">
           {selected.length > 0 && (
-            <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-lg">
+            <div className="flex flex-wrap gap-1.5 p-2 bg-muted/40 rounded-xl border border-border/50">
               {selected.map(s => (
-                <Badge key={s.id} variant="secondary" className="gap-1 pr-1">
+                <Badge key={s.id} variant="secondary" className="gap-1 pr-1 rounded-full">
                   {s.display_name?.split(" ")[0] || "User"}
                   <button
                     onClick={() => toggle(s)}
-                    className="ml-1 rounded-full hover:bg-background/50 p-0.5"
+                    className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
+                    aria-label="Remove"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -203,7 +206,7 @@ export function AddGroupMembersDialog({
               placeholder="Search members..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 h-10 rounded-xl"
             />
           </div>
 
@@ -223,27 +226,20 @@ export function AddGroupMembersDialog({
                   <button
                     key={c.id}
                     onClick={() => toggle(c)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors text-left touch-manipulation active:scale-[0.99] ${
                       isSelected
                         ? "bg-primary/10 border border-primary/30"
-                        : "hover:bg-muted"
+                        : "border border-transparent hover:bg-muted/60"
                     }`}
                   >
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={c.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {c.display_name?.charAt(0).toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        </span>
-                      )}
-                    </div>
+                    <Avatar className={`h-10 w-10 ring-2 transition-all ${isSelected ? "ring-primary" : "ring-transparent"}`}>
+                      <AvatarImage src={c.avatar_url || undefined} />
+                      <AvatarFallback>
+                        {c.display_name?.charAt(0).toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
+                      <p className="font-medium truncate text-sm">
                         {c.display_name || "Unknown User"}
                       </p>
                       {c.shared_clubs.length > 0 && (
@@ -252,6 +248,16 @@ export function AddGroupMembersDialog({
                         </p>
                       )}
                     </div>
+                    <div
+                      aria-hidden
+                      className={`h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? "bg-primary border-primary"
+                          : "border-muted-foreground/40"
+                      }`}
+                    >
+                      {isSelected && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                    </div>
                   </button>
                 );
               })}
@@ -259,29 +265,32 @@ export function AddGroupMembersDialog({
           )}
         </div>
 
-        <ResponsiveDialogFooter className="sticky bottom-0 left-0 right-0 bg-background border-t pt-3 -mx-1 px-1 pb-[env(safe-area-inset-bottom,0px)] z-10">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1 sm:flex-none"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={() => addMutation.mutate()}
-            disabled={selected.length === 0 || addMutation.isPending}
-            className="flex-1 sm:flex-none gap-2"
-          >
-            {addMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="h-4 w-4" />
-            )}
-            {selected.length === 0
-              ? "Add"
-              : `Add ${selected.length} ${selected.length === 1 ? "person" : "people"}`}
-          </Button>
-        </ResponsiveDialogFooter>
+        {/* Sticky, elevated footer — anchored to the sheet, not floating */}
+        <div className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="text-muted-foreground hover:text-foreground px-4"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => addMutation.mutate()}
+              disabled={selected.length === 0 || addMutation.isPending}
+              className="flex-1 gap-2 h-11 rounded-xl font-semibold transition-all"
+            >
+              {addMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+              {selected.length === 0
+                ? "Add members"
+                : `Add ${selected.length} ${selected.length === 1 ? "member" : "members"}`}
+            </Button>
+          </div>
+        </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
