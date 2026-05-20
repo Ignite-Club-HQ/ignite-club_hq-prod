@@ -33,6 +33,9 @@ export function ChatSendButton({
 }: ChatSendButtonProps) {
   const timerRef = useRef<number | null>(null);
   const longPressedRef = useRef(false);
+  // Tracks whether the current gesture has already fired onSend, so the
+  // follow-up synthetic click (after pointerup) doesn't double-send.
+  const firedThisGestureRef = useRef(false);
   const [pressing, setPressing] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
@@ -69,21 +72,33 @@ export function ChatSendButton({
     }
   };
 
-  const handleTap = () => {
+  const fireSend = () => {
+    if (firedThisGestureRef.current) return;
+    if (disabled || loading) return;
+    firedThisGestureRef.current = true;
+    onSend();
+    if (canSend) maybeShowHint();
+    // Reset shortly after so subsequent gestures can fire.
+    window.setTimeout(() => {
+      firedThisGestureRef.current = false;
+    }, 300);
+  };
+
+  const handleClick = () => {
+    // Fallback for mouse/keyboard — pointerup path already fired on touch.
     if (longPressedRef.current) {
       longPressedRef.current = false;
       return;
     }
-    if (disabled || loading) return;
-    onSend();
-    if (canSend) maybeShowHint();
+    fireSend();
   };
 
   const startLongPress = () => {
-    if (!onSchedule || disabled || loading) return;
     longPressedRef.current = false;
+    firedThisGestureRef.current = false;
     setPressing(true);
     cancelTimer();
+    if (!onSchedule || disabled || loading) return;
     timerRef.current = window.setTimeout(() => {
       longPressedRef.current = true;
       setPressing(false);
@@ -92,9 +107,16 @@ export function ChatSendButton({
     }, LONG_PRESS_MS);
   };
 
-  const endLongPress = () => {
+  const endLongPress = (e?: React.PointerEvent) => {
     cancelTimer();
     setPressing(false);
+    // On pointerup (not cancel/leave), if the long-press hasn't triggered,
+    // fire send immediately. This avoids relying on the synthetic `click`
+    // event, which is suppressed if the finger drifts a few pixels between
+    // pointerdown and pointerup.
+    if (e && e.type === "pointerup" && !longPressedRef.current) {
+      fireSend();
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -120,27 +142,35 @@ export function ChatSendButton({
       )}
       <button
         type="button"
-        onClick={handleTap}
+        onClick={handleClick}
         onPointerDown={startLongPress}
         onPointerUp={endLongPress}
-        onPointerLeave={endLongPress}
-        onPointerCancel={endLongPress}
+        onPointerLeave={() => endLongPress()}
+        onPointerCancel={() => endLongPress()}
         onContextMenu={handleContextMenu}
         disabled={disabled || loading}
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
-          "flex items-center justify-center h-9 w-9 shrink-0 rounded-full bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12),0_2px_6px_-2px_hsl(var(--primary)/0.45)] hover:bg-primary/95 active:bg-primary/90 disabled:bg-muted/70 disabled:text-muted-foreground/50 disabled:shadow-none transition-all duration-150 ease-out select-none touch-none",
-          pressing && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
+          // 44x44 hit target via padding; inner visual stays 36px. Negative
+          // margin prevents the expanded target from shifting layout.
+          "group relative flex items-center justify-center shrink-0 p-1 -m-1 rounded-full bg-transparent select-none touch-none",
           className,
         )}
       >
-        {loading ? (
-          <Loader2 className="h-[17px] w-[17px] animate-spin" />
-        ) : (
-          // Optical nudge: Send icon's visual mass sits right-of-center, so shift left ~1px
-          <Send className="h-[17px] w-[17px] -ml-px" />
-        )}
+        <span
+          className={cn(
+            "flex items-center justify-center h-9 w-9 rounded-full bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12),0_2px_6px_-2px_hsl(var(--primary)/0.45)] group-hover:bg-primary/95 group-active:bg-primary/90 group-disabled:bg-muted/70 group-disabled:text-muted-foreground/50 group-disabled:shadow-none transition-all duration-150 ease-out",
+            pressing && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
+          )}
+        >
+          {loading ? (
+            <Loader2 className="h-[17px] w-[17px] animate-spin" />
+          ) : (
+            // Optical nudge: Send icon's visual mass sits right-of-center, so shift left ~1px
+            <Send className="h-[17px] w-[17px] -ml-px" />
+          )}
+        </span>
       </button>
     </div>
   );
