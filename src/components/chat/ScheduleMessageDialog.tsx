@@ -26,6 +26,8 @@ import {
 } from "@/hooks/useScheduledMessages";
 import { ScheduleImageField } from "./ScheduleImageField";
 import { ScheduleRecurrenceField } from "./ScheduleRecurrenceField";
+import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
+import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 
 interface ScheduleMessageDialogProps {
   open: boolean;
