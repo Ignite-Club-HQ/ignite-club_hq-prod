@@ -429,6 +429,7 @@ export default function MessagesPage() {
       }
       
       return { clubs, latestMessages };
+      } finally { __stop(); }
     },
     enabled: !!user && initialized,
     // Warm revisits render instantly from cache; realtime + 30s poll keep
