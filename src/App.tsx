@@ -14,6 +14,8 @@ import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
 import GlobalSubMonitorGate from "@/components/pitch/GlobalSubMonitorGate";
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
+import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
+
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
@@ -254,6 +256,8 @@ const App = () => {
             <PWAPendingInviteHandler />
             <GlobalSubMonitorGate />
             <PitchBoardResumeRedirect />
+            <MessagesBootstrapPrefetcher />
+
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Public routes */}

@@ -31,6 +31,29 @@ export const getTotalUnreadMessageCount = (counts: UnreadMessageCounts): number 
 };
 
 export async function fetchUnreadMessageCounts(userId: string): Promise<UnreadMessageCounts> {
+  // Fast path: single RPC round-trip. Falls back to the legacy multi-query
+  // path on any error so a regression cannot break the inbox.
+  try {
+    const { data, error } = await supabase.rpc("get_unread_message_counts", {
+      _user_id: userId,
+    });
+    if (!error && data && typeof data === "object") {
+      const d = data as any;
+      return {
+        broadcast: Number(d.broadcast) || 0,
+        teams: (d.teams as Record<string, number>) || {},
+        clubs: (d.clubs as Record<string, number>) || {},
+        groups: (d.groups as Record<string, number>) || {},
+        dms: (d.dms as Record<string, number>) || {},
+      };
+    }
+  } catch {
+    // fall through to legacy path
+  }
+  return fetchUnreadMessageCountsLegacy(userId);
+}
+
+async function fetchUnreadMessageCountsLegacy(userId: string): Promise<UnreadMessageCounts> {
   const { data: notifications, error } = await supabase
     .from("notifications")
     .select("id, type, related_id")

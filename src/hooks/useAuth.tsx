@@ -150,24 +150,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const waitForSessionUser = useCallback(async (expectedUserId: string, maxAttempts = 8): Promise<Session | null> => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        const session = data.session;
+    const stop = () => {};
+    try {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          const session = data.session;
 
-        if (!error && session?.user?.id === expectedUserId && session.access_token) {
-          return session;
+          if (!error && session?.user?.id === expectedUserId && session.access_token) {
+            return session;
+          }
+        } catch {
+          // Ignore transient session restore errors while polling
         }
-      } catch {
-        // Ignore transient session restore errors while polling
-      }
 
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 120 * attempt));
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 120 * attempt));
+        }
       }
+      return null;
+    } finally {
+      stop();
     }
-
-    return null;
   }, []);
   
   // SYNCHRONOUS HYDRATION: Use pre-computed initial state from cache
@@ -306,6 +310,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let profileFetched = false;
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
+      const __hsStop = () => {};
+      try {
       if (!mounted || !currentSession?.user) {
         console.log('[Auth] handleSession early exit - mounted:', mounted, 'hasUser:', !!currentSession?.user);
         return;
@@ -402,6 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No cache, user switch, or fresh login - must fetch profile before proceeding
         console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '', applyTheme ? '(fresh login)' : '');
         setProfileLoading(true);
+        const __fpStop = () => {};
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true);
           if (mounted) {
@@ -417,6 +424,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             setInitialized(true); // Initialize even on error to prevent hang
           }
+        } finally {
+          __fpStop();
         }
       }
       // Background prefetch - fire and forget
@@ -431,7 +440,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
         }
       }, 100);
+      } finally {
+        __hsStop();
+      }
     };
+    
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
@@ -566,7 +579,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 10000); // 10 second timeout for slow connections
 
+    const __initSessionStop = () => {};
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      __initSessionStop();
       clearTimeout(sessionTimeout);
       if (!mounted) return;
       
@@ -587,6 +602,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }).catch(err => {
+      __initSessionStop();
       clearTimeout(sessionTimeout);
       console.error('Error getting session:', err);
       if (mounted) {

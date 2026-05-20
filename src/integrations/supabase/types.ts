@@ -9343,6 +9343,55 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_inbox_latest_club_messages: {
+        Args: { _club_ids: string[] }
+        Returns: {
+          author_display_name: string
+          author_id: string
+          club_id: string
+          created_at: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
+      get_inbox_latest_dm_messages: {
+        Args: { _conversation_ids: string[] }
+        Returns: {
+          author_id: string
+          conversation_id: string
+          created_at: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
+      get_inbox_latest_group_messages: {
+        Args: { _group_ids: string[] }
+        Returns: {
+          author_display_name: string
+          author_id: string
+          created_at: string
+          group_id: string
+          image_url: string
+          message_id: string
+          text: string
+        }[]
+      }
+      get_inbox_latest_team_messages: {
+        Args: { _team_ids: string[] }
+        Returns: {
+          author_display_name: string
+          author_id: string
+          club_announcement_name: string
+          created_at: string
+          image_url: string
+          is_club_announcement: boolean
+          message_id: string
+          team_id: string
+          text: string
+        }[]
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
@@ -9364,6 +9413,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_messages_page_bootstrap: { Args: { _user_id: string }; Returns: Json }
       get_my_pending_eois: {
         Args: never
         Returns: {
@@ -9568,6 +9618,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_unread_message_counts: { Args: { _user_id: string }; Returns: Json }
       get_user_by_email_for_passkey: {
         Args: { lookup_email: string }
         Returns: {
