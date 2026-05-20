@@ -204,6 +204,12 @@ export default function AdminPage() {
               description="Capture row-height drift and scroll jolts in any chat thread"
               onClick={() => navigate("/admin/chat-virt-debug")}
             />
+            <AdminMenuItem
+              icon={RotateCcw}
+              label="Deleted Chats"
+              description="Restore chat groups removed by members"
+              onClick={() => navigate("/admin/deleted-chats")}
+            />
           </CardContent>
         </Card>
       )}
