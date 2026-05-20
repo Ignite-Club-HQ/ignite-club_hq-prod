@@ -33,12 +33,14 @@ interface EditGroupDialogProps {
     id: string;
     name: string;
     allowed_roles: AppRole[];
+    membership_mode?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
 export default function EditGroupDialog({ group, open: controlledOpen, onOpenChange }: EditGroupDialogProps) {
+  const isManual = group.membership_mode === "manual";
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
@@ -51,12 +53,11 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
 
   const updateGroupMutation = useMutation({
     mutationFn: async () => {
+      const updates: { name: string; allowed_roles?: AppRole[] } = { name };
+      if (!isManual) updates.allowed_roles = selectedRoles;
       const { error } = await supabase
         .from("chat_groups")
-        .update({
-          name,
-          allowed_roles: selectedRoles,
-        })
+        .update(updates)
         .eq("id", group.id);
 
       if (error) throw error;
@@ -86,7 +87,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
       toast({ title: "Please enter a group name", variant: "destructive" });
       return;
     }
-    if (selectedRoles.length === 0) {
+    if (!isManual && selectedRoles.length === 0) {
       toast({ title: "Please select at least one role", variant: "destructive" });
       return;
     }
@@ -122,26 +123,34 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Allowed Roles</Label>
+          {!isManual && (
             <div className="space-y-2">
-              {ROLE_OPTIONS.map((role) => (
-                <div key={role.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`edit-role-${role.value}`}
-                    checked={selectedRoles.includes(role.value)}
-                    onCheckedChange={() => toggleRole(role.value)}
-                  />
-                  <label
-                    htmlFor={`edit-role-${role.value}`}
-                    className="text-sm cursor-pointer"
-                  >
-                    {role.label}
-                  </label>
-                </div>
-              ))}
+              <Label>Allowed Roles</Label>
+              <div className="space-y-2">
+                {ROLE_OPTIONS.map((role) => (
+                  <div key={role.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-role-${role.value}`}
+                      checked={selectedRoles.includes(role.value)}
+                      onCheckedChange={() => toggleRole(role.value)}
+                    />
+                    <label
+                      htmlFor={`edit-role-${role.value}`}
+                      className="text-sm cursor-pointer"
+                    >
+                      {role.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {isManual && (
+            <p className="text-sm text-muted-foreground">
+              This group is managed by invitation. Add or remove members from the group details screen.
+            </p>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
