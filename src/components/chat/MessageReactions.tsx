@@ -479,6 +479,7 @@ const AllReactionsContent = memo(function AllReactionsContent({
                   onClick={(e) => {
                     if (!isMe) return;
                     e.stopPropagation();
+                    armReactionInteractionGuard();
                     onReactionClick(r.reaction_type, r.id);
                     onClose();
                   }}
