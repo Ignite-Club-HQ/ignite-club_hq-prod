@@ -260,7 +260,10 @@ export default function MessagesPage() {
   // Fetch unread message notifications grouped by thread
   const { data: unreadCounts } = useQuery({
     queryKey: ["unread-message-counts", user?.id],
-    queryFn: () => fetchUnreadMessageCounts(user!.id),
+    queryFn: async () => {
+      const stop = msgPerf.start("unreadCounts");
+      try { return await fetchUnreadMessageCounts(user!.id); } finally { stop(); }
+    },
     enabled: !!user && initialized,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     staleTime: 5 * 60 * 1000,
