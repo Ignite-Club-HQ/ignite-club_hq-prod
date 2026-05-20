@@ -79,3 +79,32 @@ export async function requireTeamPro(
     { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 }
+
+export async function requireAnyClubPro(
+  supabase: SupabaseLike,
+  userId: string,
+  corsHeaders: Record<string, string> = {},
+): Promise<Response | null> {
+  if (!userId) {
+    return new Response(
+      JSON.stringify({ error: "missing_user_id" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const { data, error } = await supabase.rpc("user_has_any_club_pro", { _user_id: userId });
+  if (error) {
+    console.error("[proGuard] user_has_any_club_pro error:", error);
+    return new Response(
+      JSON.stringify({ error: "pro_check_failed" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  if (data === true) return null;
+
+  return new Response(
+    JSON.stringify({ error: "pro_required" }),
+    { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}

@@ -10099,6 +10099,7 @@ export type Database = {
         Args: { _invited_email: string; _user_id: string }
         Returns: boolean
       }
+      user_has_any_club_pro: { Args: { _user_id: string }; Returns: boolean }
       user_has_any_club_role: {
         Args: {
           _club_id: string
