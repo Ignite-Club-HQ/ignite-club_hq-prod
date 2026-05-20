@@ -814,6 +814,8 @@ export default function MessagesPage() {
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     queryFn: async () => {
+      const __stop = msgPerf.start("groups.query");
+      try {
       const { data, error } = await supabase
         .from("chat_groups")
         .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
