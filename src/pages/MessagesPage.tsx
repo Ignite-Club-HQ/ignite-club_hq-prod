@@ -593,6 +593,7 @@ export default function MessagesPage() {
       }
 
       return { teams, latestMessages };
+      } finally { __stop(); }
     },
     enabled: !!user && initialized,
     staleTime: 30_000,
