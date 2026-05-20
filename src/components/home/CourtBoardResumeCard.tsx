@@ -119,80 +119,88 @@ export default function CourtBoardResumeCard() {
             <span
               className={cn(
                 "h-2 w-2 rounded-full",
-                items.some((i) => i.isRunning && !i.isFinished)
+                items: visibleItems.some((i) => i.isRunning && !i.isFinished)
                   ? "bg-destructive animate-pulse"
                   : "bg-muted-foreground"
               )}
               aria-hidden
             />
             <h3 className="text-sm font-semibold">
-              {items.length === 1 ? "Resume game" : "Resume games"}
+              {visibleItems.length === 1 ? "Resume game" : "Resume games"}
             </h3>
           </div>
           <Badge variant="outline" className="text-[10px]">
-            {items.length}
+            {visibleItems.length}
           </Badge>
         </div>
 
         <ul className="space-y-1.5">
-          {items.map((g) => (
+          {visibleItems.map((g) => (
             <li key={g.gameId}>
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(`/teams/${g.teamId}?openBoard=1`, {
-                    state: { openBoard: true },
-                  })
-                }
-                className="w-full flex items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-left hover:bg-accent transition-colors"
-                aria-label={`Resume ${g.sport} game for ${g.teamName}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-xs font-medium truncate">{g.teamName}</span>
-                    <Badge
-                      variant="secondary"
-                      className="text-[9px] px-1 py-0 h-4 capitalize shrink-0"
-                    >
-                      {g.sport}
-                    </Badge>
-                    {g.isFinished && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] px-1 py-0 h-4 shrink-0 gap-0.5"
-                      >
-                        <Trophy className="h-2.5 w-2.5" />
-                        FT
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                    <span className="font-bold text-foreground">
-                      {g.home}–{g.away}
-                    </span>
-                    <span className="truncate">vs {g.opponent}</span>
-                    <span aria-hidden>·</span>
-                    <span>Q{g.quarter}</span>
-                    {g.isRunning && !g.isFinished && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <span className="text-destructive font-semibold">LIVE</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2 shrink-0 gap-1"
-                  asChild
+              <div className="w-full flex items-center gap-1 rounded-md border bg-background px-2.5 py-2 hover:bg-accent transition-colors">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(`/teams/${g.teamId}?openBoard=1`, {
+                      state: { openBoard: true },
+                    })
+                  }
+                  className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                  aria-label={`Resume ${g.sport} game for ${g.teamName}`}
                 >
-                  <span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-medium truncate">{g.teamName}</span>
+                      <Badge
+                        variant="secondary"
+                        className="text-[9px] px-1 py-0 h-4 capitalize shrink-0"
+                      >
+                        {g.sport}
+                      </Badge>
+                      {g.isFinished && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] px-1 py-0 h-4 shrink-0 gap-0.5"
+                        >
+                          <Trophy className="h-2.5 w-2.5" />
+                          FT
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+                      <span className="font-bold text-foreground">
+                        {g.home}–{g.away}
+                      </span>
+                      <span className="truncate">vs {g.opponent}</span>
+                      <span aria-hidden>·</span>
+                      <span>Q{g.quarter}</span>
+                      {g.isRunning && !g.isFinished && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span className="text-destructive font-semibold">LIVE</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 h-8 px-2 shrink-0 text-muted-foreground">
                     <Play className="h-3.5 w-3.5" />
                     <ChevronRight className="h-3.5 w-3.5" />
                   </span>
+                </button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0 text-muted-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissGame(g.gameId, g.updatedAt);
+                  }}
+                  aria-label={`Dismiss ${g.teamName} resume card`}
+                >
+                  <X className="h-4 w-4" />
                 </Button>
-              </button>
+              </div>
             </li>
           ))}
         </ul>
