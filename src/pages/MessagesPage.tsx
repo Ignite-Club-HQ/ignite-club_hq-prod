@@ -19,8 +19,6 @@ import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messages
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
-import { makeMsgPerfTimer } from "@/lib/messagesPerf";
-import { MsgPerfOverlay } from "@/components/MsgPerfOverlay";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
 import { getProfileFromCache, cacheProfiles, fetchProfilesWithCache } from "@/lib/profileCache";
@@ -227,9 +225,6 @@ export default function MessagesPage() {
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const msgPerfRef = useRef<ReturnType<typeof makeMsgPerfTimer> | null>(null);
-  if (!msgPerfRef.current) msgPerfRef.current = makeMsgPerfTimer();
-  const msgPerf = msgPerfRef.current;
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
@@ -248,19 +243,6 @@ export default function MessagesPage() {
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
-  // Diagnostic: mark when query-gate inputs flip
-  const gateRef = useRef({ user: false, initialized: false });
-  useEffect(() => {
-    if (!!user !== gateRef.current.user) {
-      gateRef.current.user = !!user;
-      msgPerf.mark(`gate:user=${!!user}`);
-    }
-    if (initialized !== gateRef.current.initialized) {
-      gateRef.current.initialized = initialized;
-      msgPerf.mark(`gate:initialized=${initialized}`);
-    }
-  }, [user, initialized, msgPerf]);
-
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
@@ -274,10 +256,7 @@ export default function MessagesPage() {
   // Fetch unread message notifications grouped by thread
   const { data: unreadCounts } = useQuery({
     queryKey: ["unread-message-counts", user?.id],
-    queryFn: async () => {
-      const stop = msgPerf.start("unreadCounts");
-      try { return await fetchUnreadMessageCounts(user!.id); } finally { stop(); }
-    },
+    queryFn: async () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     staleTime: 5 * 60 * 1000,
@@ -359,8 +338,6 @@ export default function MessagesPage() {
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
-      const __stop = msgPerf.start("clubs.query");
-      try {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
@@ -443,13 +420,13 @@ export default function MessagesPage() {
       }
       
       return { clubs, latestMessages };
-      } finally { __stop(); }
     },
     enabled: !!user && initialized,
     // Warm revisits render instantly from cache; realtime + 30s poll keep
     // previews fresh. Forcing refetch on every mount/focus caused 10-25s
     // freezes when returning to /messages because the N+1 cascade refired.
     staleTime: 30_000,
+    initialDataUpdatedAt: 0,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.memberClubs
@@ -507,8 +484,6 @@ export default function MessagesPage() {
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
-      const __stop = msgPerf.start("teams.query");
-      try {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("team_id")
@@ -607,10 +582,10 @@ export default function MessagesPage() {
       }
 
       return { teams, latestMessages };
-      } finally { __stop(); }
     },
     enabled: !!user && initialized,
     staleTime: 30_000,
+    initialDataUpdatedAt: 0,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.teams
@@ -828,8 +803,6 @@ export default function MessagesPage() {
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     queryFn: async () => {
-      const __stop = msgPerf.start("groups.query");
-      try {
       const { data, error } = await supabase
         .from("chat_groups")
         .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
@@ -903,10 +876,10 @@ export default function MessagesPage() {
       }
 
       return { groups, latestMessages };
-      } finally { __stop(); }
     },
     enabled: !!user && initialized,
     staleTime: 30_000,
+    initialDataUpdatedAt: 0,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.chatGroups
@@ -955,8 +928,6 @@ export default function MessagesPage() {
   const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
-      const __stop = msgPerf.start("dms.query");
-      try {
       // Note: session freshness is handled globally by the auth listener /
       // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
       // 1-3s on cold loads and serialized the DM cascade behind it.
@@ -1095,7 +1066,6 @@ export default function MessagesPage() {
       cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
 
       return result;
-      } finally { __stop(); }
     },
     // Fetch DMs in parallel with everything else; Pro gating happens at
     // render time. Previously this waited on hasAnyProAccess (3 serial
@@ -1103,6 +1073,7 @@ export default function MessagesPage() {
     // enforces who can read each conversation.
     enabled: !!user && initialized,
     staleTime: 30_000,
+    initialDataUpdatedAt: 0,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
@@ -2162,14 +2133,6 @@ export default function MessagesPage() {
   }, [typeFilteredConversations]);
 
   // Mark first non-empty render for perf diagnostics (one-shot).
-  const firstRenderMarkedRef = useRef(false);
-  useEffect(() => {
-    if (firstRenderMarkedRef.current) return;
-    if (typeFilteredConversations.length === 0) return;
-    firstRenderMarkedRef.current = true;
-    msgPerf.mark("firstRender");
-  }, [typeFilteredConversations, msgPerf]);
-
   // Progressive disclosure for operational groups: when a user has many
   // stale group/league chats, collapse the long tail behind a "Show more
   // groups" toggle. Only kicks in for power users — regular parents with
@@ -2559,8 +2522,6 @@ export default function MessagesPage() {
 
   return (
     <div className="py-6 space-y-6">
-      <MsgPerfOverlay />
-
       {/* Pro upgrade banner for non-Pro admin users */}
       {hasAdminRoleButNoPro && (
         <Card className="border-primary/20 bg-primary/5">
