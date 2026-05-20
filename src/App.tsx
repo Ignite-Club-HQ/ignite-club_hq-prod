@@ -355,6 +355,7 @@ const App = () => {
                 <Route path="/admin/dm-attachments" element={<AdminDmAttachmentsPage />} />
                 <Route path="/admin/chat-photo-reminders" element={<AdminChatPhotoRemindersPage />} />
                 <Route path="/admin/chat-virt-debug" element={<AdminChatVirtDebugPage />} />
+                <Route path="/admin/deleted-chats" element={<AdminDeletedChatsPage />} />
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />
