@@ -559,6 +559,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Increased timeout for slower networks (e.g., mobile on 3G)
     const sessionTimeout = setTimeout(() => {
       if (mounted && loading) {
+        msgPerfMark("auth:initial-getSession:TIMEOUT(10s)");
         // Check if we have a cached profile to fall back on
         const cachedFallback = getCachedProfileWithUser();
         if (cachedFallback && cachedFallback.profile.display_name) {
@@ -566,6 +567,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(cachedFallback.profile);
           setLoading(false);
           setProfileLoading(false);
+          msgPerfMark("auth:setInitialized(true)@timeout-cached");
           setInitialized(true);
           
           // Background retry: silently re-check session after timeout
@@ -585,6 +587,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[Auth] Session check timed out, no cache available');
           setLoading(false);
           setProfileLoading(false);
+          msgPerfMark("auth:setInitialized(true)@timeout-noCache");
           setInitialized(true);
         }
       }
