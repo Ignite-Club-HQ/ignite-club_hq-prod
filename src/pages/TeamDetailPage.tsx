@@ -182,10 +182,14 @@ export default function TeamDetailPage() {
   useEffect(() => {
     if (!team) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("openBoard") === "1") {
+    // Accept both `openBoard=1` (CourtBoardResumeCard / GameTimerWidget) and
+    // `openPitchBoard=1` (PitchBoardResumeRedirect cold-start recovery) so a
+    // restored team-scoped pitch board reopens regardless of entry point.
+    if (params.get("openBoard") === "1" || params.get("openPitchBoard") === "1") {
       setShowPitchBoard(true);
       // Strip the param so a refresh doesn't re-open after the coach closed it.
       params.delete("openBoard");
+      params.delete("openPitchBoard");
       const next = params.toString();
       window.history.replaceState(
         {},
