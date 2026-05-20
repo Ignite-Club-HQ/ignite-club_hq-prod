@@ -56,32 +56,55 @@ export interface MsgPerfTimer {
   enabled: boolean;
 }
 
+// Shared time origin across all timers + global marks so events from
+// MessagesPage and useAuth plot on the same axis in the overlay.
+// performance.now() is navigation-relative; this captures the moment
+// the module first loaded (very early in app boot).
+const SHARED_T0 = (typeof performance !== "undefined") ? performance.now() : 0;
+
+function logShared(label: string, kind: MsgPerfEvent["kind"], phaseMs?: number) {
+  const sinceMountMs = performance.now() - SHARED_T0;
+  if (phaseMs !== undefined) {
+    // eslint-disable-next-line no-console
+    console.info(`[MsgPerf] ${label} +${sinceMountMs.toFixed(0)}ms (${phaseMs.toFixed(0)}ms)`);
+  } else {
+    // eslint-disable-next-line no-console
+    console.info(`[MsgPerf] ${label} +${sinceMountMs.toFixed(0)}ms`);
+  }
+  emit({ label, kind, sinceMountMs, phaseMs });
+}
+
+/**
+ * Global mark/start usable outside of MessagesPage (e.g. useAuth).
+ * Shares the same time origin as makeMsgPerfTimer so events line up
+ * on a single timeline in MsgPerfOverlay.
+ */
+export function msgPerfMark(label: string): void {
+  if (!isMsgPerfEnabled()) return;
+  logShared(label, "mark");
+}
+
+export function msgPerfStart(label: string): () => void {
+  if (!isMsgPerfEnabled()) return () => {};
+  const s = performance.now();
+  logShared(`${label}:start`, "start");
+  return () => logShared(`${label}:end`, "end", performance.now() - s);
+}
+
 export function makeMsgPerfTimer(): MsgPerfTimer {
   const enabled = isMsgPerfEnabled();
-  const t0 = performance.now();
-  const log = (label: string, kind: MsgPerfEvent["kind"], phaseMs?: number) => {
-    const sinceMountMs = performance.now() - t0;
-    if (phaseMs !== undefined) {
-      // eslint-disable-next-line no-console
-      console.info(`[MsgPerf] ${label} +${sinceMountMs.toFixed(0)}ms (${phaseMs.toFixed(0)}ms)`);
-    } else {
-      // eslint-disable-next-line no-console
-      console.info(`[MsgPerf] ${label} +${sinceMountMs.toFixed(0)}ms`);
-    }
-    emit({ label, kind, sinceMountMs, phaseMs });
-  };
-  if (enabled) log("mount-init", "mark");
+  if (enabled) logShared("mount-init", "mark");
   return {
     enabled,
     mark: (label: string) => {
       if (!enabled) return;
-      log(label, "mark");
+      logShared(label, "mark");
     },
     start: (label: string) => {
       if (!enabled) return () => {};
       const s = performance.now();
-      log(`${label}:start`, "start");
-      return () => log(`${label}:end`, "end", performance.now() - s);
+      logShared(`${label}:start`, "start");
+      return () => logShared(`${label}:end`, "end", performance.now() - s);
     },
   };
 }
