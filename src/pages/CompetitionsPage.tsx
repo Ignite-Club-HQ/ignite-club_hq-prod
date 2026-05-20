@@ -96,7 +96,7 @@ export default function CompetitionsPage() {
             Leagues and tournaments your teams are part of.
           </p>
         </div>
-        {adminClubs.length > 0 && (
+        {adminClubs.length > 0 && hasPro && (
           <Button asChild size="sm">
             <Link to="/competitions/new">
               <Plus className="h-4 w-4 mr-1" /> New
@@ -104,6 +104,17 @@ export default function CompetitionsPage() {
           </Button>
         )}
       </header>
+
+      {!proLoading && !hasPro && (
+        <ProFeatureLock
+          title="Competitions is a Pro feature"
+          description="Run leagues and tournaments with divisions, fixtures and ladders. Upgrade your club to Pro to unlock."
+          clubId={activeClubFilter}
+        />
+      )}
+
+      {hasPro && (<>
+
 
       {pendingInvites.length > 0 && (
         <section>
@@ -174,6 +185,7 @@ export default function CompetitionsPage() {
           </div>
         )}
       </section>
+      </>)}
     </div>
   );
 }
