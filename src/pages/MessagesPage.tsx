@@ -812,7 +812,10 @@ export default function MessagesPage() {
     staleTime: 30_000,
     refetchInterval: INBOX_REFETCH_INTERVAL_MS,
     gcTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
+    initialData: cachedData?.chatGroups
+      ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} }
+      : undefined,
+    placeholderData: (prev) => prev,
   });
   
   // Extract groups and latest messages from combined query
