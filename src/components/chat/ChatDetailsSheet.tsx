@@ -43,6 +43,8 @@ interface ChatDetailsSheetProps {
   otherUserId?: string;
   /** For group chats — controls participant filtering */
   groupAllowedRoles?: string[];
+  groupCreatedBy?: string | null;
+  groupMembershipMode?: string | null;
   /** For mini-league chats — enables league-scoped participant query */
   miniLeagueId?: string;
 }
@@ -59,6 +61,8 @@ export function ChatDetailsSheet({
   clubId,
   otherUserId,
   groupAllowedRoles,
+  groupCreatedBy,
+  groupMembershipMode,
   miniLeagueId,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
@@ -283,6 +287,8 @@ export function ChatDetailsSheet({
                   clubId={clubId}
                   miniLeagueId={miniLeagueId}
                   groupAllowedRoles={groupAllowedRoles}
+                  groupCreatedBy={groupCreatedBy}
+                  groupMembershipMode={groupMembershipMode}
                   enabled={open}
                   onBeforeNavigate={close}
                   inline

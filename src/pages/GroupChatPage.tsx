@@ -136,6 +136,7 @@ interface ChatGroup {
   mini_league_id: string | null;
   allowed_roles: string[];
   created_by: string;
+  membership_mode: string | null;
 }
 
 interface MessageReaction {
@@ -1787,6 +1788,8 @@ export default function GroupChatPage() {
         clubId={group.club_id || undefined}
         miniLeagueId={group.mini_league_id || undefined}
         groupAllowedRoles={group.allowed_roles}
+        groupCreatedBy={group.created_by}
+        groupMembershipMode={group.membership_mode}
       />
 
 
