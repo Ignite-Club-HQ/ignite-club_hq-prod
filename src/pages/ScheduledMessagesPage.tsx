@@ -516,8 +516,7 @@ export default function ScheduledMessagesPage() {
                           {row.text || (row.image_url ? "(Image only)" : "")}
                         </p>
                       </div>
-      </div>
-      )}
+                    </div>
                   </li>
                 );
               })}
@@ -525,6 +524,8 @@ export default function ScheduledMessagesPage() {
           </section>
         )}
       </div>
+      )}
+
 
       <ScheduleMessageDialog
         open={!!editingRow}
