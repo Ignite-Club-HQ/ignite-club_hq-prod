@@ -941,6 +941,8 @@ export default function MessagesPage() {
   const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching, isFetched: dmFetched } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
+      const __stop = msgPerf.start("dms.query");
+      try {
       // Note: session freshness is handled globally by the auth listener /
       // supabaseAuthRetry layer. Awaiting ensureFreshSession() here added
       // 1-3s on cold loads and serialized the DM cascade behind it.
