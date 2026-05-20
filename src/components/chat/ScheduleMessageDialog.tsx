@@ -354,6 +354,7 @@ export function ScheduleMessageDialog({
             </p>
           )}
         </div>
+        )}
 
         <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
           <Button
@@ -362,12 +363,14 @@ export function ScheduleMessageDialog({
             disabled={isSaving}
             className="w-full sm:w-auto"
           >
-            Cancel
+            {!proLoading && !hasProAccess ? "Close" : "Cancel"}
           </Button>
-          <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? "Save changes" : "Schedule"}
-          </Button>
+          {(proLoading || hasProAccess) && (
+            <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? "Save changes" : "Schedule"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
