@@ -254,6 +254,13 @@ export default function MessagesPage() {
     return getCachedMessagesPageData(user.id);
   }, [user?.id]);
 
+  // Phase 1 perf: behind localStorage flag `msg_bootstrap_v1`. When enabled,
+  // one RPC seeds the cache for 5 role/permission queries (is-app-admin,
+  // is-committee-member, admin-team-ids, user-all-roles, has-any-pro-access)
+  // so their existing useQuery blocks become instant cache hits. Rollback:
+  // `localStorage.removeItem("msg_bootstrap_v1")`.
+  useMessagesPageBootstrap(user?.id, initialized);
+
   // Fetch unread message notifications grouped by thread
   const { data: unreadCounts } = useQuery({
     queryKey: ["unread-message-counts", user?.id],
