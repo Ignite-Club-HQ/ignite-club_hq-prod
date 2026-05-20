@@ -33,12 +33,14 @@ interface EditGroupDialogProps {
     id: string;
     name: string;
     allowed_roles: AppRole[];
+    membership_mode?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
 export default function EditGroupDialog({ group, open: controlledOpen, onOpenChange }: EditGroupDialogProps) {
+  const isManual = group.membership_mode === "manual";
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
