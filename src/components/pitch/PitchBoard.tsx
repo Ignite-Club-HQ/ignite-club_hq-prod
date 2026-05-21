@@ -4366,15 +4366,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const remaining = autoSubPlan.filter(s => !s.executed);
       if (remaining.length === 0) return;
 
-      // 1) If the manual change happens to match the next due sub
+      // 1) If the manual change happens to match a future planned sub
       //    (playerOut now on bench, playerIn now on pitch), mark it executed
       //    so it doesn't fire again — but leave subsequent subs alone.
+      //
+      //    Audit fix #5: only mark the CHRONOLOGICALLY-NEXT matching sub.
+      //    Previously every future sub with the same playerOut→playerIn pair
+      //    was mass-marked, silently consuming planned later rotations.
       const benchIds = new Set(currentPlayers.filter(p => p.position === null).map(p => p.id));
       const pitchIds = new Set(currentPlayers.filter(p => p.position !== null).map(p => p.id));
       const matchedKeys = new Set<string>();
-      remaining.forEach(s => {
+      const claimedPairs = new Set<string>();
+      const remainingSorted = [...remaining].sort((a, b) => {
+        const at = a.half === 1 ? a.time : 100000 + a.time;
+        const bt = b.half === 1 ? b.time : 100000 + b.time;
+        return at - bt;
+      });
+      remainingSorted.forEach(s => {
+        const pairKey = `${s.playerOut.id}->${s.playerIn.id}`;
+        if (claimedPairs.has(pairKey)) return; // already matched an earlier window
         if (benchIds.has(s.playerOut.id) && pitchIds.has(s.playerIn.id)) {
           matchedKeys.add(`${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`);
+          claimedPairs.add(pairKey);
         }
       });
 
