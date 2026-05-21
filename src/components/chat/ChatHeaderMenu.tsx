@@ -103,9 +103,34 @@ export function ChatHeaderMenu({
           </>
         )}
 
+        {onManagePinnedVault && (
+          <>
+            {(onSearch || onEditGroup || onDeleteGroup) && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onManagePinnedVault}>
+              <Pin className="h-4 w-4 mr-2" />
+              Pinned vault…
+            </DropdownMenuItem>
+            {typeof pinnedVaultEnabled === "boolean" && onTogglePinnedVault && (
+              <DropdownMenuItem onClick={() => onTogglePinnedVault(!pinnedVaultEnabled)}>
+                {pinnedVaultEnabled ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Hide pinned vault
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Show pinned vault
+                  </>
+                )}
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
+
         {onRefresh && (
           <>
-            {(onEditGroup || onDeleteGroup || onSearch) && <DropdownMenuSeparator />}
+            {(onEditGroup || onDeleteGroup || onSearch || onManagePinnedVault) && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onClick={() => void onRefresh()}
               disabled={isRefreshing}
