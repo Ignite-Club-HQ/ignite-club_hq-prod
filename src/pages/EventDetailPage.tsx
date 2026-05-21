@@ -2925,6 +2925,9 @@ export default function EventDetailPage() {
           </div>
         )}
       </section>
+        );
+      })()}
+
 
       {/* Guest Management Section - only for social events with guests enabled */}
       {event.type === "social" && event.allow_guests && myRsvp?.status === "going" && (
