@@ -354,7 +354,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           let finished = false;
           if (half === 1 && elapsed >= halfDuration) {
             half = 2; elapsed = elapsed - halfDuration; running = false;
-            onHalfChangeRef.current?.(2);
+            onHalfChangeRef.current?.(2, 'reconcile');
           }
           if (half === 2 && elapsed >= halfDuration) {
             elapsed = halfDuration; running = false; finished = true;
