@@ -538,6 +538,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   // Check if club filter is locked (in club mode)
   const isClubFilterLocked = !!activeClubFilter;
+  const keyboardHeight = useNativeKeyboardHeight();
+  const isKeyboardOpen = useKeyboardOpen();
+  const isCustomGroup = mode === "custom-group";
+  const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
+  const CREATE_CATEGORY_VALUE = "__create_new__";
 
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
