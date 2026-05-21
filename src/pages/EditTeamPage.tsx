@@ -523,6 +523,19 @@ export default function EditTeamPage() {
             )}
           </div>
 
+          {/* Default RSVP audience */}
+          <div className="pt-4 border-t space-y-1">
+            <RsvpAudienceSelect
+              value={defaultRsvpAudience}
+              onChange={(v) => setDefaultRsvpAudience(v ?? DEFAULT_TEAM_RSVP_AUDIENCE)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Default audience prompted to RSVP for this team's events. Individual events can override this.
+            </p>
+          </div>
+
+
+
 
           {(team?.clubs as any)?.class_mode_enabled && (
             <ClassFieldsSection
