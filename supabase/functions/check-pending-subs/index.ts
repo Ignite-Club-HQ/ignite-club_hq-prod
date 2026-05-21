@@ -69,14 +69,13 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
     console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} duty assignee(s) found`);
   } else {
     if (teamId) {
-      // Only team admins receive pitch-board pushes (pending sub, half time,
-      // full time). Coaches can watch live without being pinged. The Subs
-      // Manager duty assignee is appended below.
+      // Team admins AND coaches receive pitch-board pushes (pending sub,
+      // half time, full time). The Subs Manager duty assignee is appended below.
       const { data, error } = await supabase
         .from('user_roles')
         .select('user_id')
         .eq('team_id', teamId)
-        .eq('role', 'team_admin');
+        .in('role', ['team_admin', 'coach']);
 
       if (error) {
         console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);

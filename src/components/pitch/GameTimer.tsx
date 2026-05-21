@@ -76,7 +76,7 @@ interface GameTimerProps {
   teamId?: string;
   teamName?: string;
   onTimeUpdate?: (elapsedSeconds: number, currentHalf: 1 | 2) => void;
-  onHalfChange?: (newHalf: 1 | 2) => void;
+  onHalfChange?: (newHalf: 1 | 2, source?: 'live' | 'reconcile') => void;
   readOnly?: boolean;
   hideExtras?: boolean;
   hidePlayPause?: boolean;
@@ -354,7 +354,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           let finished = false;
           if (half === 1 && elapsed >= halfDuration) {
             half = 2; elapsed = elapsed - halfDuration; running = false;
-            onHalfChangeRef.current?.(2);
+            onHalfChangeRef.current?.(2, 'reconcile');
           }
           if (half === 2 && elapsed >= halfDuration) {
             elapsed = halfDuration; running = false; finished = true;
@@ -540,7 +540,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               // End of first half - pause and switch to second half
               setIsRunning(false);
               setCurrentHalf(2);
-              onHalfChangeRef.current?.(2);
+              onHalfChangeRef.current?.(2, 'live');
               playTimerBeep("Half Time! First half complete.");
               sendTimerEvent({ teamId: teamId ?? null, event: 'end_half', minutesPerHalf })
                 .catch((e) => console.warn('[TimerAudit] end_half send failed', e));
@@ -630,7 +630,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           if (!prevFinished && res.timer_state.is_game_finished) {
             playTimerBeep("Full Time! Match complete.");
           } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
-            onHalfChangeRef.current?.(2);
+            onHalfChangeRef.current?.(2, 'reconcile');
             playTimerBeep("Half Time! First half complete.");
           }
           return;
@@ -668,7 +668,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setIsGameFinished(true);
         playTimerBeep("Full Time! Match complete.");
       } else if (crossedHalf) {
-        onHalfChangeRef.current?.(2);
+        onHalfChangeRef.current?.(2, 'reconcile');
         playTimerBeep("Half Time! First half complete.");
       }
     };

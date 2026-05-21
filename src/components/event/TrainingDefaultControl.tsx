@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Check, Repeat2, X } from "lucide-react";
+import { Check, Repeat2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTrainingDefault } from "@/hooks/useTrainingDefault";
 import { toast } from "@/hooks/use-toast";
@@ -17,32 +16,8 @@ interface Props {
   isTraining: boolean;
 }
 
-const DISMISS_KEY = "training-default-prompt-dismissed:v1";
 
-function isDismissed(key: string): boolean {
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    if (!raw) return false;
-    const map = JSON.parse(raw) as Record<string, number>;
-    const ts = map[key];
-    if (!ts) return false;
-    // Dismissal lasts 30 days, then reappears
-    return Date.now() - ts < 30 * 24 * 60 * 60 * 1000;
-  } catch {
-    return false;
-  }
-}
 
-function dismiss(key: string) {
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    const map = raw ? JSON.parse(raw) : {};
-    map[key] = Date.now();
-    localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
-  } catch {
-    /* quota — ignore */
-  }
-}
 
 /**
  * Inline default-RSVP control shown under the RSVP buttons on training events.
@@ -65,8 +40,8 @@ export function TrainingDefaultControl({
     childId,
     userId,
   });
-  const dismissKey = `${teamId}:${childId ?? userId ?? "self"}`;
-  const [locallyDismissed, setLocallyDismissed] = useState(() => isDismissed(dismissKey));
+
+
 
   if (!isTraining || !teamId) return null;
 
@@ -134,7 +109,6 @@ export function TrainingDefaultControl({
   // No default set yet — always show a permanent opt-in prompt so it's
   // discoverable without having to first RSVP. Defaults to "Going" (most
   // common for trainings); parent can also pick "Not going".
-  if (locallyDismissed) return null;
 
   // If the user just RSVP'd, pre-select that as the suggested default; else "going".
   const suggested: "going" | "not_going" =
@@ -163,17 +137,6 @@ export function TrainingDefaultControl({
         >
           <Check className="h-3 w-3" /> Turn on
         </Button>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          className="p-1 text-muted-foreground hover:text-foreground touch-manipulation"
-          onClick={() => {
-            dismiss(dismissKey);
-            setLocallyDismissed(true);
-          }}
-        >
-          <X className="h-3 w-3" />
-        </button>
       </div>
     </div>
   );

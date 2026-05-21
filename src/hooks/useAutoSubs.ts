@@ -27,6 +27,7 @@ import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
+import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
@@ -441,11 +442,30 @@ export function useAutoSubs({
       const earlyBySeconds = pendingAutoSub.half === (half as 1 | 2)
         ? Math.max(0, scheduledTime - currentElapsed)
         : 0;
-      const isSignificantlyEarly = earlyBySeconds > 15;
-      const isSignificantlyLate = delaySeconds > 30;
+      // Late recalc rule: only recalc if the NEXT scheduled sub's time has
+      // already passed. Tapping a sub a bit late within its own window
+      // shouldn't redistribute anything — we only redistribute when the delay
+      // genuinely eats into the next sub's slot.
+      const nextScheduled = remainingSubs
+        .slice()
+        .sort((a, b) => {
+          if (a.half !== b.half) return a.half - b.half;
+          return a.time - b.time;
+        })[0];
+      const currentTotalSeconds = (half as 1 | 2) === 1
+        ? currentElapsed
+        : halfDurationSeconds + currentElapsed;
+      const nextTotalSeconds = nextScheduled
+        ? (nextScheduled.half === 1 ? nextScheduled.time : halfDurationSeconds + nextScheduled.time)
+        : null;
+      const isSignificantlyEarly = earlyBySeconds > 30;
+      const isSignificantlyLate =
+        delaySeconds > 0 && nextTotalSeconds !== null && currentTotalSeconds >= nextTotalSeconds;
+
       // Always recalculate after halftime subs — player positions change at the break
       // and the remaining plan references pre-halftime positions, causing cascade skips.
       const isHalftimeSub = pendingAutoSub.half === 2 && pendingAutoSub.time === 0;
+
 
       if (isSignificantlyLate || isSignificantlyEarly || isHalftimeSub) {
         const executedPlan = finalPlan.filter(sub => sub.executed);
@@ -719,6 +739,12 @@ export function useAutoSubs({
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
+
+      // Poke the server so push fan-out to other staff (assistant coaches,
+      // subs manager) happens immediately, before the open pitch board has
+      // a chance to mark the sub executed and hide it from the cron.
+      const dedupeKey = `${primarySub.half}-${primarySub.time}-${primarySub.playerOut.id}`;
+      void triggerPitchCheck("pitch-board-pending-sub", dedupeKey);
       return true;
     },
     [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, safeRecalculate]

@@ -179,6 +179,9 @@ export default function TeamDetailPage() {
 
   // Auto-open the game board when arriving from a "Resume game" tap
   // (CourtBoardResumeCard / GameTimerWidget on the home screen).
+  // Depend on location.search so a warm-resume restore from
+  // PitchBoardResumeRedirect (which appends ?openPitchBoard=1 via replace
+  // navigation while this page is already mounted) re-triggers the effect.
   useEffect(() => {
     if (!team) return;
     const params = new URLSearchParams(window.location.search);
@@ -197,7 +200,8 @@ export default function TeamDetailPage() {
         `${window.location.pathname}${next ? `?${next}` : ""}`
       );
     }
-  }, [team]);
+  }, [team, location.search]);
+
 
   // Check if user (or their children) is already enrolled in this class
   const { data: isEnrolledInClass } = useQuery({
