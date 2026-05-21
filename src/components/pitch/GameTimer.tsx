@@ -76,7 +76,7 @@ interface GameTimerProps {
   teamId?: string;
   teamName?: string;
   onTimeUpdate?: (elapsedSeconds: number, currentHalf: 1 | 2) => void;
-  onHalfChange?: (newHalf: 1 | 2) => void;
+  onHalfChange?: (newHalf: 1 | 2, source?: 'live' | 'reconcile') => void;
   readOnly?: boolean;
   hideExtras?: boolean;
   hidePlayPause?: boolean;
