@@ -224,7 +224,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
   // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
   const { data: householdChildren, isLoading: childRsvpsLoading } = useQuery({
-    queryKey: ["card-child-rsvps", event.id, user?.id],
+    queryKey: ["card-child-rsvps", event.id, user?.id, event.team_id, event.mini_league_id],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
         supabase.from("children").select("id, name").eq("parent_id", user!.id),
@@ -241,11 +241,36 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           .map((c: any) => ({ id: c.id, name: c.name })),
       ];
       const seen = new Set<string>();
-      const children = merged.filter((c) => {
+      let children = merged.filter((c) => {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
         return true;
       });
+      if (children.length === 0) return [];
+
+      // CRITICAL: only show children actually rostered to this event's team/league.
+      const childIds = children.map((c) => c.id);
+      if (event.team_id) {
+        const { data: assigns } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .eq("team_id", event.team_id)
+          .in("child_id", childIds);
+        const allowed = new Set((assigns || []).map((a: any) => a.child_id));
+        children = children.filter((c) => allowed.has(c.id));
+      } else if (event.mini_league_id) {
+        const { data: players } = await supabase
+          .from("mini_league_players")
+          .select("child_id")
+          .eq("mini_league_id", event.mini_league_id)
+          .in("child_id", childIds);
+        const allowed = new Set((players || []).map((p: any) => p.child_id).filter(Boolean));
+        children = children.filter((c) => allowed.has(c.id));
+      } else {
+        // Club-wide event with no team scope — don't show child rows (can't verify roster).
+        children = [];
+      }
+
       if (children.length === 0) return [];
 
       const { data: rsvpRows } = await supabase
@@ -268,6 +293,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     },
     enabled: !!user && !event.is_cancelled,
   });
+
 
 
 
