@@ -16,32 +16,8 @@ interface Props {
   isTraining: boolean;
 }
 
-const DISMISS_KEY = "training-default-prompt-dismissed:v1";
 
-function isDismissed(key: string): boolean {
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    if (!raw) return false;
-    const map = JSON.parse(raw) as Record<string, number>;
-    const ts = map[key];
-    if (!ts) return false;
-    // Dismissal lasts 30 days, then reappears
-    return Date.now() - ts < 30 * 24 * 60 * 60 * 1000;
-  } catch {
-    return false;
-  }
-}
 
-function dismiss(key: string) {
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    const map = raw ? JSON.parse(raw) : {};
-    map[key] = Date.now();
-    localStorage.setItem(DISMISS_KEY, JSON.stringify(map));
-  } catch {
-    /* quota — ignore */
-  }
-}
 
 /**
  * Inline default-RSVP control shown under the RSVP buttons on training events.
