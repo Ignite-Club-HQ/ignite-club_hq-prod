@@ -117,9 +117,10 @@ Deno.serve(async (req) => {
       const { data: events, error: eventsError } = await admin
         .from("events")
         .select(`
-          id, title, event_date, start_time, type, team_id, club_id,
-          teams!inner (name, auto_rsvp_push_enabled, auto_rsvp_push_cadences, auto_rsvp_push_event_types)
+          id, title, event_date, start_time, type, team_id, club_id, rsvp_audience,
+          teams!inner (name, auto_rsvp_push_enabled, auto_rsvp_push_cadences, auto_rsvp_push_event_types, default_rsvp_audience)
         `)
+
         .gte("event_date", lo)
         .lte("event_date", hi)
         .eq("is_cancelled", false)
