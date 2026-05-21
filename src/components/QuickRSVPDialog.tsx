@@ -71,6 +71,28 @@ export function QuickRSVPDialog({
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
 
+  // Resolve effective RSVP audience (event override → team default → players_only)
+  const { data: audienceInfo } = useQuery({
+    queryKey: ["quick-rsvp-audience", eventId, teamId],
+    queryFn: async () => {
+      const [{ data: ev }, teamRes] = await Promise.all([
+        supabase.from("events").select("rsvp_audience").eq("id", eventId).maybeSingle(),
+        teamId
+          ? supabase.from("teams").select("default_rsvp_audience").eq("id", teamId).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ]);
+      return {
+        eventAudience: (ev as any)?.rsvp_audience ?? null,
+        teamDefault: (teamRes as any)?.data?.default_rsvp_audience ?? null,
+      };
+    },
+    enabled: open,
+  });
+  const audience = resolveRsvpAudience(audienceInfo?.eventAudience, audienceInfo?.teamDefault);
+  const promptParent = shouldPromptParent(audience);
+  const promptPlayer = shouldPromptPlayer(audience);
+
+
   // Fetch children assigned to this team (including guardian-linked)
   const { data: childrenOnTeam, isLoading: loadingChildren } = useQuery({
     queryKey: ["quick-rsvp-children", teamId, user?.id],
