@@ -662,6 +662,24 @@ export default function EventsPage() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
 
+  // Watchdog: if stuck on the initial spinner for >8s (likely a dropped
+  // resume event after Android WebView background freeze leaving react-query
+  // with a cancelled in-flight fetch), force a refetch of the gating queries.
+  useEffect(() => {
+    if (!isStuckOnSpinner) return;
+    const timer = setTimeout(() => {
+      console.warn("[ScheduleDiag] watchdog-refetch", {
+        t: new Date().toISOString(),
+        membershipsLoading,
+        eventsLoading: isLoading,
+        hasMemberships: !!userMemberships,
+      });
+      queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] });
+      queryClient.refetchQueries({ queryKey: ["events"] });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [isStuckOnSpinner, queryClient, user?.id, membershipsLoading, isLoading, userMemberships]);
+
   if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;
   }
