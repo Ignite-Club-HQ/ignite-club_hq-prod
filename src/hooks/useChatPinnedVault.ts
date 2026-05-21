@@ -83,7 +83,7 @@ export function useChatPinnedVault(
         vault_folder_id: input.vault_folder_id ?? null,
         root_scope: input.root_scope ?? null,
         root_id: input.root_id ?? null,
-        enabled: input.enabled ?? true,
+        enabled: input.enabled ?? false,
         set_by: user.id,
       };
 
