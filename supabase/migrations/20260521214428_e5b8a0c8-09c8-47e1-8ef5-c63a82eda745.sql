@@ -1,0 +1,1 @@
+ALTER TABLE public.chat_pinned_vault ALTER COLUMN enabled SET DEFAULT false;
