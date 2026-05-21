@@ -2762,8 +2762,10 @@ export default function EventDetailPage() {
             </CardContent>
           </Card>
         )}
+        </>)}
         {/* Child RSVP - inline below parent RSVP */}
-        {childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+        {promptPlayer && childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+
           const unrespondedChildren = childrenOnTeam.filter(
             (c: any) => !childRsvps.find((r) => r.child_id === c.id),
           );
