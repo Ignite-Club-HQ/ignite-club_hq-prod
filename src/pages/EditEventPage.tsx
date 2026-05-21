@@ -919,6 +919,14 @@ export default function EditEventPage() {
                   </p>
                 </div>
               )}
+
+              {(type === "game" || type === "training" || type === "social") && (
+                <RsvpAudienceSelect
+                  value={rsvpAudience}
+                  onChange={setRsvpAudience}
+                  teamDefault={teamDefaultRsvpAudience}
+                />
+              )}
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
