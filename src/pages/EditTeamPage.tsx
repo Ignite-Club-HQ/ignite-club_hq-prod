@@ -101,6 +101,10 @@ export default function EditTeamPage() {
       if (Array.isArray(cad) && cad.length) setAutoRsvpCadences(cad);
       const types = (team as any).auto_rsvp_dm_event_types;
       if (Array.isArray(types) && types.length) setAutoRsvpEventTypes(types);
+      const aud = (team as any).default_rsvp_audience;
+      if (aud === "players_only" || aud === "players_and_parents" || aud === "parents_only") {
+        setDefaultRsvpAudience(aud);
+      }
     }
   }, [team]);
 
@@ -199,6 +203,7 @@ export default function EditTeamPage() {
               ? [...autoRsvpEventTypes, "game"]
               : autoRsvpEventTypes)
           : ["match", "training", "game"],
+        default_rsvp_audience: defaultRsvpAudience,
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
@@ -442,6 +447,20 @@ export default function EditTeamPage() {
                 </p>
               </div>
               <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
+            </div>
+          </div>
+
+          {/* Default RSVP audience */}
+          <div className="pt-2 border-t">
+            <RsvpAudienceSelect
+              value={defaultRsvpAudience}
+              onChange={(v) => setDefaultRsvpAudience(v ?? DEFAULT_TEAM_RSVP_AUDIENCE)}
+            />
+          </div>
+
+          {/* Auto RSVP DM details (kept inside its own block) */}
+          <div className="pt-2 space-y-3">
+            <div className="hidden">{/* anchor to keep diff small */}</div>
             </div>
 
             {autoRsvpDm && (
