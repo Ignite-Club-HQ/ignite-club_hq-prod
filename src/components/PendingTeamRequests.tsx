@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import type { Database } from "@/integrations/supabase/types";
+import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
