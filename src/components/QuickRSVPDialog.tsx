@@ -400,10 +400,11 @@ export function QuickRSVPDialog({
               )}
 
 
-              {/* Children RSVP */}
-              {childrenOnTeam && childrenOnTeam.length > 0 && (
+              {/* Children RSVP — hidden when audience is parents_only */}
+              {promptPlayer && childrenOnTeam && childrenOnTeam.length > 0 && (
                 <>
                   <Separator />
+
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium flex items-center gap-2">
                       <Baby className="h-4 w-4" />
