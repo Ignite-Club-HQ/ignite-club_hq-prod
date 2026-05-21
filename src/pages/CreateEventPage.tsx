@@ -38,6 +38,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
@@ -133,6 +135,7 @@ export default function CreateEventPage() {
   const [opponent, setOpponent] = useState("");
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
   const [isBye, setIsBye] = useState(false);
+  const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -713,6 +716,7 @@ export default function CreateEventPage() {
       amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" && !isBye ? opponent.trim() || null : null,
       arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+      rsvp_audience: rsvpAudience,
       is_bye: type === "game" ? isBye : false,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
@@ -1163,6 +1167,16 @@ export default function CreateEventPage() {
                   <p className="text-xs text-muted-foreground">Leave blank to hide arrival time on this match.</p>
                 </div>
               )}
+
+              {(type === "game" || type === "training" || type === "social") && (
+                <RsvpAudienceSelect
+                  value={rsvpAudience}
+                  onChange={setRsvpAudience}
+                  teamDefault={null}
+                />
+              )}
+
+
 
               {/* Price - only for social events */}
               {type === "social" && (

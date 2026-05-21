@@ -3632,6 +3632,7 @@ export type Database = {
           reminder_hours_before: number | null
           reminder_sent: boolean | null
           requires_payment: boolean | null
+          rsvp_audience: string | null
           start_time: string | null
           state: string | null
           suburb: string | null
@@ -3680,6 +3681,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
@@ -3728,6 +3730,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
@@ -8011,6 +8014,7 @@ export type Database = {
           default_pitch_format: string | null
           default_pitch_orientation: string | null
           default_pitch_view: string | null
+          default_rsvp_audience: string
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
@@ -8052,6 +8056,7 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          default_rsvp_audience?: string
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
@@ -8093,6 +8098,7 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          default_rsvp_audience?: string
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
