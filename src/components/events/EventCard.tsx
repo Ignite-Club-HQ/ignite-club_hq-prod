@@ -724,34 +724,137 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           })()}
         </div>
 
-        {/* RSVP summary only — Schedule = browse, no action buttons */}
+        {/* RSVP block — child-anchored when responses are still needed; falls back to summary line once everyone responded. */}
         {!event.is_cancelled && (() => {
           const rsvpDataPending = myRsvpLoading || childRsvpsLoading;
           if (rsvpDataPending) {
-            // Reserve the row so the badge/summary doesn't pop in late.
             return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
-          const goingChildNames = (childRsvps || [])
-            .filter((r) => r.status === "going")
-            .map((r) => r.children?.name?.split(" ")[0] || "Child");
+          // Build the household rows we want a status for.
+          type Row =
+            | { kind: "child"; child_id: string; label: string; status: RsvpStatus | null }
+            | { kind: "self"; label: string; status: RsvpStatus | null };
 
-          // Mirrors NextUpCarousel: badge whenever neither the parent nor ANY
-          // of their children on this event have an RSVP recorded yet
-          // (regardless of how many other people are going).
-          const householdHasAnyRsvp =
-            currentRsvpStatus !== null || (childRsvps?.length ?? 0) > 0;
+          const rows: Row[] = [];
+          if (promptPlayer) {
+            (householdChildren || []).forEach((c) => {
+              rows.push({
+                kind: "child",
+                child_id: c.child_id,
+                label: c.name?.split(" ")[0] || "Child",
+                status: (c.rsvp?.status as RsvpStatus) ?? null,
+              });
+            });
+          }
+          if (promptParent) {
+            rows.push({ kind: "self", label: "You", status: currentRsvpStatus });
+          }
 
-          if (!householdHasAnyRsvp && isEventMember) {
+          const outstanding = rows.filter((r) => r.status === null);
+          const needsRsvp = outstanding.length > 0;
+
+          // Outstanding rows → inline buttons per row (child-anchored).
+          if (needsRsvp && isEventMember) {
+            const handleSet = (row: Row, status: RsvpStatus) => {
+              if (row.kind === "child") {
+                childRsvpMutation.mutate({ childId: row.child_id, status });
+              } else {
+                selfRsvpMutation.mutate(status);
+              }
+            };
+            const isPending = (row: Row) =>
+              row.kind === "child"
+                ? childRsvpMutation.isPending &&
+                  (childRsvpMutation.variables as any)?.childId === row.child_id
+                : selfRsvpMutation.isPending;
+
             return (
-              <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
-                  <AlertCircle className="h-3 w-3" />
-                  RSVP Required
-                </span>
+              <div
+                className="pt-2 mt-1 border-t border-border/40 space-y-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {rows.map((row) => {
+                  if (row.status !== null) {
+                    // Already responded — show compact status line.
+                    const tone =
+                      row.status === "going"
+                        ? "text-success"
+                        : row.status === "maybe"
+                        ? "text-warning"
+                        : "text-muted-foreground";
+                    const Icon =
+                      row.status === "going" ? CheckCircle2 : row.status === "maybe" ? HelpCircle : X;
+                    return (
+                      <div
+                        key={row.kind === "child" ? `c-${row.child_id}` : "self"}
+                        className="flex items-center gap-1.5 text-[12px] min-w-0"
+                      >
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${tone}`} />
+                        <span className="font-medium text-foreground truncate">{row.label}</span>
+                        <span className={`${tone} truncate`}>
+                          ·{" "}
+                          {row.status === "going"
+                            ? "Going"
+                            : row.status === "maybe"
+                            ? "Maybe"
+                            : "Not going"}
+                        </span>
+                      </div>
+                    );
+                  }
+                  const pending = isPending(row);
+                  return (
+                    <div
+                      key={row.kind === "child" ? `c-${row.child_id}` : "self"}
+                      className="flex items-center gap-2 min-w-0"
+                    >
+                      <span className="inline-flex items-center gap-1 text-[12px] min-w-0 flex-1 truncate">
+                        <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                        <span className="font-semibold text-foreground truncate">{row.label}</span>
+                        <span className="text-muted-foreground">needs RSVP</span>
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "going")}
+                          className="h-7 px-2 text-[11px] font-semibold border-success/40 text-success hover:bg-success/10"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Going
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "maybe")}
+                          className="h-7 px-2 text-[11px] font-semibold border-warning/40 text-warning hover:bg-warning/10"
+                        >
+                          Maybe
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "not_going")}
+                          className="h-7 px-2 text-[11px] font-semibold border-border text-muted-foreground hover:bg-muted"
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           }
+
+          // Everyone responded — fall back to the personal-first summary line.
+          const goingChildNames = (householdChildren || [])
+            .filter((c) => c.rsvp?.status === "going")
+            .map((c) => c.name?.split(" ")[0] || "Child");
 
           const summary = buildPersonalRsvpLine({
             parentStatus: currentRsvpStatus,
@@ -760,8 +863,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           });
 
           if (!summary) {
-            // Household responded (e.g. "not going" / "maybe") but nobody is
-            // going — keep the row reserved so layout stays stable.
             return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
@@ -780,6 +881,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             </div>
           );
         })()}
+
       </CardContent>
 
       {/* Admin three-dots revealed by long-press */}
