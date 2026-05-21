@@ -35,13 +35,20 @@ interface EventRow {
   type: string;
   team_id: string;
   club_id: string | null;
+  rsvp_audience: string | null;
   teams: {
     name: string;
     auto_rsvp_push_enabled: boolean | null;
     auto_rsvp_push_cadences: string[] | null;
     auto_rsvp_push_event_types: string[] | null;
+    default_rsvp_audience: string | null;
   } | null;
 }
+
+function resolveAudience(eventAudience: string | null, teamDefault: string | null): string {
+  return (eventAudience || teamDefault || "players_and_parents").toLowerCase();
+}
+
 
 function copyForCadence(cadence: Cadence, title: string, when: string): { title: string; body: string } {
   switch (cadence) {
