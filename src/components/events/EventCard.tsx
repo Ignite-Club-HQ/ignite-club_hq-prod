@@ -39,6 +39,13 @@ import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from 
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
+import {
+  resolveRsvpAudience,
+  shouldPromptParent,
+  shouldPromptPlayer,
+  type RsvpAudience,
+} from "@/lib/rsvpAudience";
+import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -60,9 +67,15 @@ export interface EventCardEvent {
   parent_event_id: string | null;
   opponent: string | null;
   arrival_minutes_before?: number | null;
-  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
+  rsvp_audience?: string | null;
+  teams: {
+    name: string;
+    default_match_arrival_minutes?: number | null;
+    default_rsvp_audience?: string | null;
+  } | null;
   clubs: { name: string; sport: string | null };
 }
+
 
 interface EventCardProps {
   event: EventCardEvent;
