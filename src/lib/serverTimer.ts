@@ -68,6 +68,15 @@ export async function sendTimerEvent(args: {
   event: TimerEvent;
   minutesPerHalf?: number;
   payload?: Record<string, unknown>;
+  /**
+   * Optional pitch_state patch persisted server-side alongside the timer
+   * event. Use to keep `autoSubPlan` / `players` fresh for the pending-sub
+   * cron even when the board hasn't been linked to an event (so
+   * `GlobalSubMonitor`'s own DB sync is skipped).
+   */
+  autoSubPlan?: unknown[];
+  autoSubActive?: boolean;
+  players?: unknown[];
 }): Promise<TimerEventResponse> {
   const { data, error } = await supabase.functions.invoke("pitch-timer-event", {
     body: {
@@ -75,6 +84,9 @@ export async function sendTimerEvent(args: {
       event: args.event,
       minutes_per_half: args.minutesPerHalf,
       payload: args.payload ?? {},
+      ...(args.autoSubPlan !== undefined ? { auto_sub_plan: args.autoSubPlan } : {}),
+      ...(args.autoSubActive !== undefined ? { auto_sub_active: args.autoSubActive } : {}),
+      ...(args.players !== undefined ? { players: args.players } : {}),
     },
   });
   if (error) throw error;
