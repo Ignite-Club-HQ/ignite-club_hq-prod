@@ -214,30 +214,71 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     enabled: !!user && !event.is_cancelled,
   });
 
-  // Fetch child RSVPs
-  const { data: childRsvps, isLoading: childRsvpsLoading } = useQuery({
+  // Resolve effective RSVP audience (event override → team default → players_only)
+  const audience: RsvpAudience = resolveRsvpAudience(
+    event.rsvp_audience,
+    event.teams?.default_rsvp_audience,
+  );
+  const promptParent = shouldPromptParent(audience);
+  const promptPlayer = shouldPromptPlayer(audience);
+
+  // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
+  const { data: householdChildren, isLoading: childRsvpsLoading } = useQuery({
     queryKey: ["card-child-rsvps", event.id, user?.id],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
-        supabase.from("children").select("id").eq("parent_id", user!.id),
-        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+        supabase.from("children").select("id, name").eq("parent_id", user!.id),
+        supabase
+          .from("child_guardians")
+          .select("child_id, children:child_id(id, name)")
+          .eq("guardian_id", user!.id),
       ]);
-      const childIds = [
-        ...(ownChildren.data || []).map(c => c.id),
-        ...(guardianLinks.data || []).map(g => g.child_id),
+      const merged: Array<{ id: string; name: string }> = [
+        ...((ownChildren.data || []) as any[]).map((c) => ({ id: c.id, name: c.name })),
+        ...((guardianLinks.data || []) as any[])
+          .map((g) => g.children)
+          .filter(Boolean)
+          .map((c: any) => ({ id: c.id, name: c.name })),
       ];
-      if (childIds.length === 0) return [];
-      const uniqueChildIds = [...new Set(childIds)];
-      const { data, error } = await supabase
+      const seen = new Set<string>();
+      const children = merged.filter((c) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+      if (children.length === 0) return [];
+
+      const { data: rsvpRows } = await supabase
         .from("rsvps")
-        .select("id, status, child_id, children:child_id(name)")
+        .select("id, status, child_id")
         .eq("event_id", event.id)
-        .in("child_id", uniqueChildIds);
-      if (error) throw error;
-      return (data || []) as Array<{ id: string; status: string; child_id: string; children: { name: string } | null }>;
+        .in(
+          "child_id",
+          children.map((c) => c.id),
+        );
+      const byChild = new Map<string, { id: string; status: string }>();
+      (rsvpRows || []).forEach((r: any) => {
+        if (r.child_id) byChild.set(r.child_id, { id: r.id, status: r.status });
+      });
+      return children.map((c) => ({
+        child_id: c.id,
+        name: c.name,
+        rsvp: byChild.get(c.id) || null,
+      }));
     },
     enabled: !!user && !event.is_cancelled,
   });
+
+  // Back-compat: legacy shape used by summary line below
+  const childRsvps = (householdChildren || [])
+    .filter((c) => c.rsvp)
+    .map((c) => ({
+      id: c.rsvp!.id,
+      status: c.rsvp!.status,
+      child_id: c.child_id,
+      children: { name: c.name },
+    }));
+
 
   // Fetch total event attendance counts
   // Social events: count everyone (parents + children)
