@@ -23,6 +23,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
+import { isParentFirstEvent } from "@/lib/rsvpAudience";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
