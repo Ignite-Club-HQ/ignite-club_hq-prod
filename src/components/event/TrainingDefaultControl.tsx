@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Check, Repeat2, X } from "lucide-react";
+import { Check, Repeat2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTrainingDefault } from "@/hooks/useTrainingDefault";
 import { toast } from "@/hooks/use-toast";
