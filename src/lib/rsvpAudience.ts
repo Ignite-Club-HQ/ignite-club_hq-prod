@@ -57,3 +57,16 @@ export function shouldPromptPlayer(a: RsvpAudience): boolean {
 export function shouldPromptParent(a: RsvpAudience): boolean {
   return a === "parents_only" || a === "players_and_parents";
 }
+
+/**
+ * Club-wide social events (no team_id, type === "social") are parent-first:
+ * the logged-in adult is the primary RSVP, and any household children are
+ * shown as a secondary RSVP block.
+ */
+export function isParentFirstEvent(event: {
+  team_id?: string | null;
+  type?: string | null;
+} | null | undefined): boolean {
+  if (!event) return false;
+  return !event.team_id && event.type === "social";
+}
