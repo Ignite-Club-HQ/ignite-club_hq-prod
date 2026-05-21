@@ -109,7 +109,6 @@ export function TrainingDefaultControl({
   // No default set yet — always show a permanent opt-in prompt so it's
   // discoverable without having to first RSVP. Defaults to "Going" (most
   // common for trainings); parent can also pick "Not going".
-  if (locallyDismissed) return null;
 
   // If the user just RSVP'd, pre-select that as the suggested default; else "going".
   const suggested: "going" | "not_going" =
@@ -138,17 +137,6 @@ export function TrainingDefaultControl({
         >
           <Check className="h-3 w-3" /> Turn on
         </Button>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          className="p-1 text-muted-foreground hover:text-foreground touch-manipulation"
-          onClick={() => {
-            dismiss(dismissKey);
-            setLocallyDismissed(true);
-          }}
-        >
-          <X className="h-3 w-3" />
-        </button>
       </div>
     </div>
   );
