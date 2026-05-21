@@ -220,20 +220,28 @@ export const recalculateRemainingPlan = (
   
   const getPlayer = (id: string) => outfieldPlayers.find(p => p.id === id);
   
-  const minSubInterval = 120;
-  
-  // Scale subs at once based on bench size for better throughput
+  // Minimum spacing between sub windows. Match the original planner (45s) so
+  // recalculating mid-game doesn't collapse a multi-rotation plan into a few
+  // sparse windows. Players who go off in one window are eligible to come back
+  // in later windows — the 30s fairness threshold below naturally stops
+  // creating subs once minutes are equalised.
+  const minSubInterval = 45;
+
+  // Batch size per window — larger benches → more subs per window
   const subsAtOnce = Math.min(outfieldOnBench.length >= 4 ? 3 : 2, outfieldOnBench.length);
-  
-  const subsNeeded = Math.min(
+
+  // Aim for enough windows to rotate every outfield player through the bench
+  // multiple times across the remaining time, capped by what fits in the
+  // remaining clock. Mirrors the "Equal Time" behaviour of the initial planner.
+  const maxWindowsByTime = Math.max(1, Math.floor(totalRemainingSeconds / minSubInterval));
+  const rosterRotationTarget = Math.max(
     outfieldOnBench.length,
-    Math.floor(totalRemainingSeconds / minSubInterval)
+    Math.ceil(outfieldPlayers.length / Math.max(1, subsAtOnce)) * 2
   );
-  
-  if (subsNeeded <= 0) return [];
-  
-  // Calculate number of sub windows - fewer windows = fewer interruptions
-  const numWindows = Math.max(1, Math.ceil(subsNeeded / subsAtOnce));
+  const numWindows = Math.min(maxWindowsByTime, Math.max(1, rosterRotationTarget));
+
+  if (numWindows <= 0) return [];
+
   
   // Threshold: subs within this many seconds of half-end get snapped
   const END_OF_HALF_SNAP_THRESHOLD = 60;
