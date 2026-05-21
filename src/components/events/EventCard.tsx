@@ -773,8 +773,11 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           const outstanding = rows.filter((r) => r.status === null);
           const needsRsvp = outstanding.length > 0;
 
+          // Past events: never show RSVP buttons (cannot RSVP after the fact).
+          const isPastEvent = new Date(event.event_date).getTime() < Date.now();
+
           // Outstanding rows → inline buttons per row (child-anchored).
-          if (needsRsvp && isEventMember) {
+          if (needsRsvp && isEventMember && !isPastEvent) {
             const handleSet = (row: Row, status: RsvpStatus) => {
               if (row.kind === "child") {
                 childRsvpMutation.mutate({ childId: row.child_id, status });
