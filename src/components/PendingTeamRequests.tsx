@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import type { Database } from "@/integrations/supabase/types";
+import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -68,6 +69,7 @@ export function PendingTeamRequests({ clubId }: PendingTeamRequestsProps) {
           team_type: request.team_type || "mixed",
           folder_id: request.folder_id,
           created_by: request.requested_by,
+          default_rsvp_audience: defaultRsvpAudienceForTeam(request.name, request.level_age),
           ...(request.class_day ? {
             class_day: request.class_day,
             class_time: request.class_time,
