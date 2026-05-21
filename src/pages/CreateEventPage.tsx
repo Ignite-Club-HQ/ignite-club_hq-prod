@@ -1168,6 +1168,16 @@ export default function CreateEventPage() {
                 </div>
               )}
 
+              {(type === "game" || type === "training" || type === "social") && (
+                <RsvpAudienceSelect
+                  value={rsvpAudience}
+                  onChange={setRsvpAudience}
+                  teamDefault={null}
+                />
+              )}
+
+
+
               {/* Price - only for social events */}
               {type === "social" && (
                 <div className="space-y-2">
