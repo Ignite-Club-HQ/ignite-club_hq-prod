@@ -221,6 +221,8 @@ export default function GroupChatPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
+  const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
+  const pinnedVault = useChatPinnedVault("group", groupId);
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
