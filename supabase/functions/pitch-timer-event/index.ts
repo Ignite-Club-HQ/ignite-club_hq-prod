@@ -174,9 +174,17 @@ Deno.serve(async (req) => {
     // (`check-pending-subs`) and spectators always see an up-to-date plan
     // even if the local `GlobalSubMonitor` write loop hasn't fired yet
     // (e.g. unlinked board, or admin closed the app right after planning).
-    const incomingAutoSubPlan = Array.isArray(body.auto_sub_plan) ? body.auto_sub_plan : null;
+    // Audit fix #10: cap incoming arrays so a malformed client can't bloat
+    // the active_games row (which the cron re-reads every minute).
+    const MAX_PLAYERS = 30;
+    const MAX_PLAN = 200;
+    const incomingAutoSubPlan = Array.isArray(body.auto_sub_plan)
+      ? body.auto_sub_plan.slice(0, MAX_PLAN)
+      : null;
     const incomingAutoSubActive = typeof body.auto_sub_active === "boolean" ? body.auto_sub_active : null;
-    const incomingPlayers = Array.isArray(body.players) ? body.players : null;
+    const incomingPlayers = Array.isArray(body.players)
+      ? body.players.slice(0, MAX_PLAYERS)
+      : null;
 
     if (!event) {
       return new Response(JSON.stringify({ error: "missing event" }), {
