@@ -441,16 +441,13 @@ export function useAutoSubs({
       const earlyBySeconds = pendingAutoSub.half === (half as 1 | 2)
         ? Math.max(0, scheduledTime - currentElapsed)
         : 0;
-      // Use generous thresholds so a coach tapping "execute now" a minute or
-      // two off the scheduled time doesn't wipe their carefully planned
-      // remaining subs. `recalculateRemainingPlan` produces a much sparser
-      // plan than the dialog's original generator (it caps at 3 subs per
-      // window across only a handful of windows), so triggering it on tiny
-      // drifts like 30–60s collapses a 20+ sub plan down to 1–3 subs.
-      // Only recalc when the timing has truly diverged (>4 minutes).
-      const DRIFT_RECALC_THRESHOLD_SECONDS = 240;
-      const isSignificantlyEarly = earlyBySeconds > DRIFT_RECALC_THRESHOLD_SECONDS;
-      const isSignificantlyLate = delaySeconds > DRIFT_RECALC_THRESHOLD_SECONDS;
+      // Recalculate when execution drifts meaningfully from the scheduled time.
+      // `recalculateRemainingPlan` now mirrors the initial planner's window
+      // strategy, so a late/early execution will redistribute the remaining
+      // rotation across the remaining clock instead of collapsing to a few subs.
+      const isSignificantlyEarly = earlyBySeconds > 30;
+      const isSignificantlyLate = delaySeconds > 60;
+
       // Always recalculate after halftime subs — player positions change at the break
       // and the remaining plan references pre-halftime positions, causing cascade skips.
       const isHalftimeSub = pendingAutoSub.half === 2 && pendingAutoSub.time === 0;
