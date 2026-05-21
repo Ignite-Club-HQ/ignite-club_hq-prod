@@ -1827,12 +1827,30 @@ export default function GroupChatPage() {
         </div>
       )}
 
+      {/* Pinned vault banner */}
+      <PinnedVaultBanner
+        record={pinnedVault.record}
+        isAdmin={!!(isAdmin || group.created_by === user?.id)}
+      />
+
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
         pins={pinnedMessages}
         onJumpToMessage={handleJumpToMessage}
         onUnpin={unpinMessage}
       />
+
+      {groupId && (
+        <PinVaultSheet
+          open={pinVaultSheetOpen}
+          onOpenChange={setPinVaultSheetOpen}
+          chatType="group"
+          chatId={groupId}
+          clubId={group.club_id ?? null}
+          teamId={group.team_id ?? null}
+        />
+      )}
+
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
