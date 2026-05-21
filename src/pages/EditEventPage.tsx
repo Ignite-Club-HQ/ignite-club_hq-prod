@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
@@ -116,6 +118,8 @@ export default function EditEventPage() {
   // Arrival time before kickoff (matches only). Empty = use team default.
   const [arrivalMinutesBefore, setArrivalMinutesBefore] = useState<string>("");
   const [teamDefaultArrival, setTeamDefaultArrival] = useState<number | null>(null);
+  const [rsvpAudience, setRsvpAudience] = useState<RsvpAudience | null>(null);
+  const [teamDefaultRsvpAudience, setTeamDefaultRsvpAudience] = useState<RsvpAudience | null>(null);
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -414,6 +418,18 @@ export default function EditEventPage() {
       setIsBye((event as any).is_bye === true);
       setArrivalMinutesBefore((event as any).arrival_minutes_before != null ? String((event as any).arrival_minutes_before) : "");
       setTeamDefaultArrival((event as any).teams?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
+      const evAud = (event as any).rsvp_audience;
+      setRsvpAudience(
+        evAud === "players_only" || evAud === "players_and_parents" || evAud === "parents_only"
+          ? evAud
+          : null,
+      );
+      const teamAud = (event as any).teams?.default_rsvp_audience;
+      setTeamDefaultRsvpAudience(
+        teamAud === "players_only" || teamAud === "players_and_parents" || teamAud === "parents_only"
+          ? teamAud
+          : "players_only",
+      );
       setAllowGuests(event.allow_guests === true);
       setMaxGuestsPerMember(event.max_guests_per_member || 2);
       
@@ -513,6 +529,7 @@ export default function EditEventPage() {
         team_id: selectedTeamId || null,
         opponent: type === "game" && !isBye ? opponent.trim() || null : null,
         arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
+        rsvp_audience: rsvpAudience,
         is_bye: type === "game" ? isBye : false,
         allow_guests: type === "social" && allowGuests ? true : null,
         max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
