@@ -569,16 +569,29 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   const isMatchDay = !!(event as any).mini_league_id;
 
-  // "Needs RSVP" — neither the parent nor any of their children on this event
-  // have responded yet. Drives a subtle tint + pill so un-actioned cards stand
-  // out without competing with cancelled / today states.
+  // Guardian context: parent has one or more children rostered on this event's team.
+  const hasGuardianChildren = !!(heroDataReady && childrenOnEvent && childrenOnEvent.length > 0);
+  const guardianUnrespondedChildren = hasGuardianChildren
+    ? childrenOnEvent!.filter((c) => !childRsvps?.find((r) => r.child_id === c.id))
+    : [];
+  const guardianUnrespondedCount = guardianUnrespondedChildren.length;
+
+  // "Needs RSVP" — in guardian mode this means any child still needs a response;
+  // otherwise it falls back to the parent's own un-actioned state.
   const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
   const needsRsvp =
     heroDataReady &&
     !event.is_cancelled &&
     isEventMember &&
-    currentStatus === null &&
-    (childRsvps?.length ?? 0) === 0;
+    (hasGuardianChildren
+      ? guardianUnrespondedCount > 0
+      : currentStatus === null && (childRsvps?.length ?? 0) === 0);
+
+  const needsRsvpPillLabel = hasGuardianChildren
+    ? (guardianUnrespondedCount === 1
+        ? `${(guardianUnrespondedChildren[0].name.split(" ")[0] || guardianUnrespondedChildren[0].name)} needs RSVP`
+        : `${guardianUnrespondedCount} players need RSVP`)
+    : "RSVP Required";
 
   return (
     <Card
