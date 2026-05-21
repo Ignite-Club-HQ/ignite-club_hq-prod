@@ -2760,11 +2760,12 @@ export default function EventDetailPage() {
           );
         })() : null;
 
+        const parentFirstHeading = isParentFirstEvent(event as any);
         const parentBlock = promptParent ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <h2 className={isMiniLeagueEvent ? "text-lg font-semibold" : (childrenBlock ? "text-sm font-semibold text-muted-foreground uppercase tracking-wide" : "text-lg font-semibold")}>
-                {isMiniLeagueEvent ? "Attendance" : (childrenBlock ? "Your RSVP" : "Your RSVP")}
+              <h2 className={isMiniLeagueEvent ? "text-lg font-semibold" : ((childrenBlock && !parentFirstHeading) ? "text-sm font-semibold text-muted-foreground uppercase tracking-wide" : "text-lg font-semibold")}>
+                {isMiniLeagueEvent ? "Attendance" : "Your RSVP"}
               </h2>
               {(myRsvp as any)?.source === "default" && (
                 <span
