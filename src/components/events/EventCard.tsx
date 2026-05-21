@@ -39,6 +39,13 @@ import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from 
 
 import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
+import {
+  resolveRsvpAudience,
+  shouldPromptParent,
+  shouldPromptPlayer,
+  type RsvpAudience,
+} from "@/lib/rsvpAudience";
+import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -60,9 +67,15 @@ export interface EventCardEvent {
   parent_event_id: string | null;
   opponent: string | null;
   arrival_minutes_before?: number | null;
-  teams: { name: string; default_match_arrival_minutes?: number | null } | null;
+  rsvp_audience?: string | null;
+  teams: {
+    name: string;
+    default_match_arrival_minutes?: number | null;
+    default_rsvp_audience?: string | null;
+  } | null;
   clubs: { name: string; sport: string | null };
 }
+
 
 interface EventCardProps {
   event: EventCardEvent;
@@ -201,30 +214,64 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     enabled: !!user && !event.is_cancelled,
   });
 
-  // Fetch child RSVPs
-  const { data: childRsvps, isLoading: childRsvpsLoading } = useQuery({
+  // Resolve effective RSVP audience (event override → team default → players_only)
+  const audience: RsvpAudience = resolveRsvpAudience(
+    event.rsvp_audience,
+    event.teams?.default_rsvp_audience,
+  );
+  const promptParent = shouldPromptParent(audience);
+  const promptPlayer = shouldPromptPlayer(audience);
+
+  // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
+  const { data: householdChildren, isLoading: childRsvpsLoading } = useQuery({
     queryKey: ["card-child-rsvps", event.id, user?.id],
     queryFn: async () => {
       const [ownChildren, guardianLinks] = await Promise.all([
-        supabase.from("children").select("id").eq("parent_id", user!.id),
-        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+        supabase.from("children").select("id, name").eq("parent_id", user!.id),
+        supabase
+          .from("child_guardians")
+          .select("child_id, children:child_id(id, name)")
+          .eq("guardian_id", user!.id),
       ]);
-      const childIds = [
-        ...(ownChildren.data || []).map(c => c.id),
-        ...(guardianLinks.data || []).map(g => g.child_id),
+      const merged: Array<{ id: string; name: string }> = [
+        ...((ownChildren.data || []) as any[]).map((c) => ({ id: c.id, name: c.name })),
+        ...((guardianLinks.data || []) as any[])
+          .map((g) => g.children)
+          .filter(Boolean)
+          .map((c: any) => ({ id: c.id, name: c.name })),
       ];
-      if (childIds.length === 0) return [];
-      const uniqueChildIds = [...new Set(childIds)];
-      const { data, error } = await supabase
+      const seen = new Set<string>();
+      const children = merged.filter((c) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+      if (children.length === 0) return [];
+
+      const { data: rsvpRows } = await supabase
         .from("rsvps")
-        .select("id, status, child_id, children:child_id(name)")
+        .select("id, status, child_id")
         .eq("event_id", event.id)
-        .in("child_id", uniqueChildIds);
-      if (error) throw error;
-      return (data || []) as Array<{ id: string; status: string; child_id: string; children: { name: string } | null }>;
+        .in(
+          "child_id",
+          children.map((c) => c.id),
+        );
+      const byChild = new Map<string, { id: string; status: string }>();
+      (rsvpRows || []).forEach((r: any) => {
+        if (r.child_id) byChild.set(r.child_id, { id: r.id, status: r.status });
+      });
+      return children.map((c) => ({
+        child_id: c.id,
+        name: c.name,
+        rsvp: byChild.get(c.id) || null,
+      }));
     },
     enabled: !!user && !event.is_cancelled,
   });
+
+
+
+
 
   // Fetch total event attendance counts
   // Social events: count everyone (parents + children)
@@ -259,6 +306,86 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
   const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
+
+  // Invalidate every cache key the household RSVP touches.
+  const invalidateRsvpQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["card-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["card-child-rsvps", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["card-attendance-counts", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-rsvps", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+    queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+    queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["quick-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+  }, [queryClient, event.id]);
+
+  // Self RSVP (parent attending too)
+  const selfRsvpMutation = useMutation({
+    mutationFn: async (status: RsvpStatus) => {
+      let rsvpId: string | null = null;
+      if (myRsvp) {
+        const { error } = await supabase.from("rsvps").update({ status }).eq("id", myRsvp.id);
+        if (error) throw error;
+        rsvpId = myRsvp.id;
+      } else {
+        const { data, error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: event.id, user_id: user!.id, status })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rsvpId = data?.id || null;
+      }
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name,
+        }).catch(console.error);
+      }
+    },
+    onSuccess: invalidateRsvpQueries,
+    onError: (e: Error) => toast({ title: "Failed to RSVP", description: e.message, variant: "destructive" }),
+  });
+
+  // Per-child RSVP
+  const childRsvpMutation = useMutation({
+    mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
+      const existing = (householdChildren || []).find((c) => c.child_id === childId)?.rsvp;
+      let rsvpId: string | null = null;
+      if (existing) {
+        const { error } = await supabase.from("rsvps").update({ status }).eq("id", existing.id);
+        if (error) throw error;
+        rsvpId = existing.id;
+      } else {
+        const { data, error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: event.id, user_id: user!.id, child_id: childId, status })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rsvpId = data?.id || null;
+      }
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          childId,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name,
+        }).catch(console.error);
+      }
+    },
+    onSuccess: invalidateRsvpQueries,
+    onError: (e: Error) => toast({ title: "Failed to RSVP", description: e.message, variant: "destructive" }),
+  });
+
+
 
   const deleteEventMutation = useMutation({
     mutationFn: async (deleteType: "single" | "series") => {
@@ -590,34 +717,137 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           })()}
         </div>
 
-        {/* RSVP summary only — Schedule = browse, no action buttons */}
+        {/* RSVP block — child-anchored when responses are still needed; falls back to summary line once everyone responded. */}
         {!event.is_cancelled && (() => {
           const rsvpDataPending = myRsvpLoading || childRsvpsLoading;
           if (rsvpDataPending) {
-            // Reserve the row so the badge/summary doesn't pop in late.
             return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
-          const goingChildNames = (childRsvps || [])
-            .filter((r) => r.status === "going")
-            .map((r) => r.children?.name?.split(" ")[0] || "Child");
+          // Build the household rows we want a status for.
+          type Row =
+            | { kind: "child"; child_id: string; label: string; status: RsvpStatus | null }
+            | { kind: "self"; label: string; status: RsvpStatus | null };
 
-          // Mirrors NextUpCarousel: badge whenever neither the parent nor ANY
-          // of their children on this event have an RSVP recorded yet
-          // (regardless of how many other people are going).
-          const householdHasAnyRsvp =
-            currentRsvpStatus !== null || (childRsvps?.length ?? 0) > 0;
+          const rows: Row[] = [];
+          if (promptPlayer) {
+            (householdChildren || []).forEach((c) => {
+              rows.push({
+                kind: "child",
+                child_id: c.child_id,
+                label: c.name?.split(" ")[0] || "Child",
+                status: (c.rsvp?.status as RsvpStatus) ?? null,
+              });
+            });
+          }
+          if (promptParent) {
+            rows.push({ kind: "self", label: "You", status: currentRsvpStatus });
+          }
 
-          if (!householdHasAnyRsvp && isEventMember) {
+          const outstanding = rows.filter((r) => r.status === null);
+          const needsRsvp = outstanding.length > 0;
+
+          // Outstanding rows → inline buttons per row (child-anchored).
+          if (needsRsvp && isEventMember) {
+            const handleSet = (row: Row, status: RsvpStatus) => {
+              if (row.kind === "child") {
+                childRsvpMutation.mutate({ childId: row.child_id, status });
+              } else {
+                selfRsvpMutation.mutate(status);
+              }
+            };
+            const isPending = (row: Row) =>
+              row.kind === "child"
+                ? childRsvpMutation.isPending &&
+                  (childRsvpMutation.variables as any)?.childId === row.child_id
+                : selfRsvpMutation.isPending;
+
             return (
-              <div className="flex items-center pt-2 mt-1 border-t border-border/40 min-w-0">
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-white px-2 py-0.5 text-[11px] font-semibold shadow-sm shadow-amber-500/30 animate-fade-in">
-                  <AlertCircle className="h-3 w-3" />
-                  RSVP Required
-                </span>
+              <div
+                className="pt-2 mt-1 border-t border-border/40 space-y-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {rows.map((row) => {
+                  if (row.status !== null) {
+                    // Already responded — show compact status line.
+                    const tone =
+                      row.status === "going"
+                        ? "text-success"
+                        : row.status === "maybe"
+                        ? "text-warning"
+                        : "text-muted-foreground";
+                    const Icon =
+                      row.status === "going" ? CheckCircle2 : row.status === "maybe" ? HelpCircle : X;
+                    return (
+                      <div
+                        key={row.kind === "child" ? `c-${row.child_id}` : "self"}
+                        className="flex items-center gap-1.5 text-[12px] min-w-0"
+                      >
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${tone}`} />
+                        <span className="font-medium text-foreground truncate">{row.label}</span>
+                        <span className={`${tone} truncate`}>
+                          ·{" "}
+                          {row.status === "going"
+                            ? "Going"
+                            : row.status === "maybe"
+                            ? "Maybe"
+                            : "Not going"}
+                        </span>
+                      </div>
+                    );
+                  }
+                  const pending = isPending(row);
+                  return (
+                    <div
+                      key={row.kind === "child" ? `c-${row.child_id}` : "self"}
+                      className="flex items-center gap-2 min-w-0"
+                    >
+                      <span className="inline-flex items-center gap-1 text-[12px] min-w-0 flex-1 truncate">
+                        <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                        <span className="font-semibold text-foreground truncate">{row.label}</span>
+                        <span className="text-muted-foreground">needs RSVP</span>
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "going")}
+                          className="h-7 px-2 text-[11px] font-semibold border-success/40 text-success hover:bg-success/10"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Going
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "maybe")}
+                          className="h-7 px-2 text-[11px] font-semibold border-warning/40 text-warning hover:bg-warning/10"
+                        >
+                          Maybe
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => handleSet(row, "not_going")}
+                          className="h-7 px-2 text-[11px] font-semibold border-border text-muted-foreground hover:bg-muted"
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           }
+
+          // Everyone responded — fall back to the personal-first summary line.
+          const goingChildNames = (householdChildren || [])
+            .filter((c) => c.rsvp?.status === "going")
+            .map((c) => c.name?.split(" ")[0] || "Child");
 
           const summary = buildPersonalRsvpLine({
             parentStatus: currentRsvpStatus,
@@ -626,8 +856,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
           });
 
           if (!summary) {
-            // Household responded (e.g. "not going" / "maybe") but nobody is
-            // going — keep the row reserved so layout stays stable.
             return <div className="pt-2 mt-1 border-t border-border/40 h-[26px]" aria-hidden="true" />;
           }
 
@@ -646,6 +874,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             </div>
           );
         })()}
+
       </CardContent>
 
       {/* Admin three-dots revealed by long-press */}
