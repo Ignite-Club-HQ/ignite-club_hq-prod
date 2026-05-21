@@ -540,7 +540,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               // End of first half - pause and switch to second half
               setIsRunning(false);
               setCurrentHalf(2);
-              onHalfChangeRef.current?.(2);
+              onHalfChangeRef.current?.(2, 'live');
               playTimerBeep("Half Time! First half complete.");
               sendTimerEvent({ teamId: teamId ?? null, event: 'end_half', minutesPerHalf })
                 .catch((e) => console.warn('[TimerAudit] end_half send failed', e));
