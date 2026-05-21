@@ -289,7 +289,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select(`*, teams (name, default_match_arrival_minutes), clubs (name, is_pro, sport)`)
+        .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs (name, is_pro, sport)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
