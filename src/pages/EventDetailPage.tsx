@@ -2670,7 +2670,9 @@ export default function EventDetailPage() {
             </span>
           )}
         </div>
+        {promptParent && (<>
         <div className="grid grid-cols-3 gap-2">
+
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
               key={value}
