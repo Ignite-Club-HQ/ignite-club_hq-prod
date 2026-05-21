@@ -40,8 +40,8 @@ export function TrainingDefaultControl({
     childId,
     userId,
   });
-  const dismissKey = `${teamId}:${childId ?? userId ?? "self"}`;
-  const [locallyDismissed, setLocallyDismissed] = useState(() => isDismissed(dismissKey));
+
+
 
   if (!isTraining || !teamId) return null;
 
