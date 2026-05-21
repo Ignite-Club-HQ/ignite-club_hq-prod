@@ -269,6 +269,7 @@ export default function CreateTeamPage() {
         folder_id: folderId || null,
         team_type: teamType,
         created_by: user!.id,
+        default_rsvp_audience: defaultRsvpAudienceForTeam(name, levelAge),
         ...(club?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
