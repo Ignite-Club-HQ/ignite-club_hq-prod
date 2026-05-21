@@ -648,6 +648,7 @@ export type Database = {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category: string | null
           club_id: string | null
+          competition_id: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -663,6 +664,7 @@ export type Database = {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -678,6 +680,7 @@ export type Database = {
           allowed_roles?: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -702,6 +705,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_groups_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -9203,6 +9213,10 @@ export type Database = {
       ensure_club_role_folders: {
         Args: { _club_id: string }
         Returns: undefined
+      }
+      ensure_competition_coord_chat: {
+        Args: { _competition_id: string }
+        Returns: string
       }
       ensure_team_role_folders: {
         Args: { _team_id: string }
