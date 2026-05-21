@@ -373,29 +373,32 @@ export function QuickRSVPDialog({
             </div>
           ) : (
             <>
-              {/* Self RSVP */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Your Response</h4>
-                <div className="flex gap-2">
-                  {rsvpOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={myRsvp?.status === option.value ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
-                      disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
-                    >
-                      {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      ) : (
-                        <span className="mr-1">{option.icon}</span>
-                      )}
-                      {option.label}
-                    </Button>
-                  ))}
+              {/* Self RSVP — hidden when audience is players_only */}
+              {promptParent && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Your Response</h4>
+                  <div className="flex gap-2">
+                    {rsvpOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={myRsvp?.status === option.value ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
+                        disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
+                      >
+                        {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <span className="mr-1">{option.icon}</span>
+                        )}
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
 
               {/* Children RSVP */}
               {childrenOnTeam && childrenOnTeam.length > 0 && (
