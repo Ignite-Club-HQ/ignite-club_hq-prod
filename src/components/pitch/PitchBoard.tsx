@@ -1885,7 +1885,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             autoSubPlan,
             players,
             linkedEventId,
-          } as unknown as Record<string, unknown>,
+          } as any,
           updated_at: new Date().toISOString(),
         })
         .eq("team_id", teamId)
