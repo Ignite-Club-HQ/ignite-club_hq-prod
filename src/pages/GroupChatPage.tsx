@@ -1786,6 +1786,15 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
+              onManagePinnedVault={
+                (isAdmin || group.created_by === user?.id) ? () => setPinVaultSheetOpen(true) : undefined
+              }
+              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
+              onTogglePinnedVault={
+                pinnedVault.record && (isAdmin || group.created_by === user?.id)
+                  ? (v) => pinnedVault.toggleEnabled(v)
+                  : undefined
+              }
             />
           </>
         }
