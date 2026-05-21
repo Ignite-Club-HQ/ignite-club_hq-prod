@@ -45,36 +45,47 @@ interface PhotoLightboxProps {
 
 function LightboxImage({
   src,
+  poster,
   alt,
   scale,
   translateX,
   translateY,
 }: {
   src: string;
+  poster?: string | null;
   alt: string;
   scale: number;
   translateX: number;
   translateY: number;
 }) {
+  // Decide video-vs-image from the raw src so we can mount the right element
+  // immediately. Waiting for the signed URL before deciding caused a brief
+  // image-placeholder flash on videos (spinner → broken <img> → <video>).
+  const showAsVideo = isVideoUrl(src);
   const { signedUrl, isLoading } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
-  const showAsVideo = isVideoUrl(effectiveSrc);
+
+  if (showAsVideo) {
+    // Render the <video> shell straight away on the black backdrop; only set
+    // the src once the signed URL resolves. This keeps the screen black
+    // (matching the lightbox bg) instead of flashing an image placeholder.
+    return (
+      <video
+        key={effectiveSrc}
+        src={isLoading ? undefined : effectiveSrc}
+        poster={poster || undefined}
+        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain bg-black"
+        controls
+        autoPlay
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
 
   if (isLoading) {
     return (
       <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-    );
-  }
-
-  if (showAsVideo) {
-    return (
-      <video
-        src={effectiveSrc}
-        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain"
-        controls
-        autoPlay
-        playsInline
-      />
     );
   }
 
