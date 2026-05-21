@@ -9369,6 +9369,12 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_event_non_responders_audience: {
+        Args: { _audience: string; _event_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
       get_inbox_latest_club_messages: {
         Args: { _club_ids: string[] }
         Returns: {

@@ -33,14 +33,21 @@ interface EventRow {
   type: string;
   team_id: string;
   club_id: string | null;
+  rsvp_audience: string | null;
   teams: {
     name: string;
     auto_rsvp_dm_enabled: boolean | null;
     auto_rsvp_dm_cadences: string[] | null;
     auto_rsvp_dm_event_types: string[] | null;
+    default_rsvp_audience: string | null;
   } | null;
   clubs: { name: string; logo_url: string | null; bot_user_id: string | null } | null;
 }
+
+function resolveAudience(eventAudience: string | null, teamDefault: string | null): string {
+  return (eventAudience || teamDefault || "players_and_parents").toLowerCase();
+}
+
 
 function copyForCadence(cadence: Cadence, title: string, eventId: string, when: string): string {
   // Append [rsvp:<eventId>] token — the chat client renders inline
@@ -181,10 +188,11 @@ Deno.serve(async (req) => {
       const { data: events, error: eventsError } = await admin
         .from("events")
         .select(`
-          id, title, event_date, start_time, type, team_id, club_id,
-          teams!inner (name, auto_rsvp_dm_enabled, auto_rsvp_dm_cadences, auto_rsvp_dm_event_types),
+          id, title, event_date, start_time, type, team_id, club_id, rsvp_audience,
+          teams!inner (name, auto_rsvp_dm_enabled, auto_rsvp_dm_cadences, auto_rsvp_dm_event_types, default_rsvp_audience),
           clubs (name, logo_url, bot_user_id)
         `)
+
         .gte("event_date", lo)
         .lte("event_date", hi)
         .not("team_id", "is", null)
@@ -239,9 +247,12 @@ Deno.serve(async (req) => {
         if (!isPro) continue;
 
         // Compute non-responders via SQL helper.
-        const { data: nonResp, error: nonRespError } = await admin.rpc("get_event_non_responders", {
+        const audience = resolveAudience(event.rsvp_audience, event.teams?.default_rsvp_audience ?? null);
+        const { data: nonResp, error: nonRespError } = await admin.rpc("get_event_non_responders_audience", {
           _event_id: event.id,
+          _audience: audience,
         });
+
         if (nonRespError) {
           console.error("get_event_non_responders failed", event.id, nonRespError);
           continue;
