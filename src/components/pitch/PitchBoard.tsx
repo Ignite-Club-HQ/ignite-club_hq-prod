@@ -3376,7 +3376,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [updateNextSubInfo, checkForDueSubs, gameInProgress]);
 
   // Half change callback - check for halftime subs (including batch)
-  const handleHalfChange = useCallback((newHalf: 1 | 2) => {
+  const handleHalfChange = useCallback((newHalf: 1 | 2, source: 'live' | 'reconcile' = 'live') => {
     // Guard: if the timer was reconciled on resume/cold-open and we're already
     // well into the 2nd half, the half-change callback can still fire as part
     // of the catch-up. In that case the user has already played past halftime
@@ -3416,8 +3416,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
     }
 
-    // Case 3: No subs and no GK swap — still show halftime notification
-    if (newHalf === 2) {
+    // Case 3: No subs and no GK swap — only show the informational halftime
+    // dialog on a LIVE boundary crossing. On reconcile (cold-open / resume),
+    // the user has typically already seen the push and there is nothing
+    // actionable to confirm, so skip the empty prompt.
+    if (newHalf === 2 && source === 'live') {
       setTimeout(() => {
         playSubAlertBeep("Half Time!");
         setPendingAutoSub(null);
