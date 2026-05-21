@@ -27,6 +27,7 @@ import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
+import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
@@ -738,6 +739,12 @@ export function useAutoSubs({
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
+
+      // Poke the server so push fan-out to other staff (assistant coaches,
+      // subs manager) happens immediately, before the open pitch board has
+      // a chance to mark the sub executed and hide it from the cron.
+      const dedupeKey = `${primarySub.half}-${primarySub.time}-${primarySub.playerOut.id}`;
+      void triggerPitchCheck("pitch-board-pending-sub", dedupeKey);
       return true;
     },
     [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, safeRecalculate]
