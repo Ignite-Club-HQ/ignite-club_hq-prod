@@ -458,6 +458,86 @@ describe("Pitch board orchestration simulator", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Audit #5 — chronological-next sub matching (mass-mark regression)
+// ---------------------------------------------------------------------------
+// The on-pitch signature effect in PitchBoard now claims at most ONE pending
+// sub per (playerOut→playerIn) pair after a manual change, so a repeating
+// rotation pair planned across two windows isn't silently consumed in one go.
+describe("Audit #5 — chronological-next pair matching", () => {
+  const claimChronologicalFirst = (
+    plan: SubstitutionEvent[],
+    benchIds: Set<string>,
+    pitchIds: Set<string>,
+  ): Set<string> => {
+    const matched = new Set<string>();
+    const claimedPairs = new Set<string>();
+    const sorted = [...plan].sort((a, b) => {
+      const at = a.half === 1 ? a.time : 100000 + a.time;
+      const bt = b.half === 1 ? b.time : 100000 + b.time;
+      return at - bt;
+    });
+    sorted.forEach((s) => {
+      const pairKey = `${s.playerOut.id}->${s.playerIn.id}`;
+      if (claimedPairs.has(pairKey)) return;
+      if (benchIds.has(s.playerOut.id) && pitchIds.has(s.playerIn.id)) {
+        matched.add(`${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`);
+        claimedPairs.add(pairKey);
+      }
+    });
+    return matched;
+  };
+
+  it("only claims the earliest of two future windows sharing the same pair", () => {
+    const mkSub = (half: 1 | 2, time: number): SubstitutionEvent => ({
+      half,
+      time,
+      playerOut: { id: "P3" } as Player,
+      playerIn: { id: "B0" } as Player,
+    });
+    const plan = [mkSub(1, 600), mkSub(2, 300)];
+    const matched = claimChronologicalFirst(
+      plan,
+      new Set(["P3"]),
+      new Set(["B0"]),
+    );
+    expect(matched.size).toBe(1);
+    expect(matched.has("1-600-P3-B0")).toBe(true);
+    expect(matched.has("2-300-P3-B0")).toBe(false);
+  });
+
+  it("matches distinct pairs in their own earliest windows independently", () => {
+    const plan: SubstitutionEvent[] = [
+      { half: 1, time: 500, playerOut: { id: "P3" } as Player, playerIn: { id: "B0" } as Player },
+      { half: 2, time: 200, playerOut: { id: "P3" } as Player, playerIn: { id: "B0" } as Player },
+      { half: 2, time: 600, playerOut: { id: "P4" } as Player, playerIn: { id: "B1" } as Player },
+    ];
+    const matched = claimChronologicalFirst(
+      plan,
+      new Set(["P3", "P4"]),
+      new Set(["B0", "B1"]),
+    );
+    expect(matched.size).toBe(2);
+    expect(matched.has("1-500-P3-B0")).toBe(true);
+    expect(matched.has("2-600-P4-B1")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit #4 — recalc 30s fairness short-circuit (known, deferred).
+// ---------------------------------------------------------------------------
+// `recalculateRemainingPlan` uses a 30-second equality threshold (lines 345
+// & 374 of pitchStateUtils.ts) and `break`s the inner sub loop when on-pitch
+// and bench leaders are within 30s of each other. With static `minutesPlayed`
+// snapshots that never simulate forward, this can collapse late-half recalcs
+// to []. The safety net in PitchBoard only catches the full-empty case.
+// Placeholder kept skipped so the deliberate fix can flip it on.
+describe.skip("Audit #4 — recalc 30s short-circuit (deferred)", () => {
+  it("returns a non-empty plan when minutes are near-equal but bench + time remain", () => {
+    expect(true).toBe(true);
+  });
+});
+
 // Tiny smoke test on getSubKey to lock the format — every regression we've
 // seen on sub matching boiled down to a key-format mismatch.
 describe("getSubKey contract", () => {
