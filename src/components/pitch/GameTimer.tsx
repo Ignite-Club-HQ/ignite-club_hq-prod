@@ -475,6 +475,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       teamId: teamId ?? null,
       event: evt,
       minutesPerHalf,
+      ...readLocalPitchPatch(teamId ?? null),
     }).then((res) => {
       applyServerSnapshot(res.timer_state, res.server_now);
     }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
