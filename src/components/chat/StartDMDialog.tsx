@@ -817,33 +817,74 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           )}
         </div>
 
-        {/* Footer with action button - matches CreateGroupDialog pattern */}
-        {(selectedUsers.length > 0 || mode === "custom-group") && (
-          <ResponsiveDialogFooter className="sticky bottom-0 -mx-1 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] bg-background border-t border-border z-10">
-            <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleStartConversation}
-              disabled={isPending || (mode === "custom-group" && !groupName.trim())}
-              className="flex-1 sm:flex-none gap-2"
-            >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : mode === "custom-group" || selectedUsers.length > 1 ? (
-                <Users className="h-4 w-4" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
-              {mode === "custom-group"
-                ? selectedUsers.length === 0
-                  ? "Create Group (just me)"
-                  : `Create Group (${selectedUsers.length + 1})`
-                : selectedUsers.length === 1
-                  ? "Start Chat"
-                  : `Create Group (${selectedUsers.length} people)`}
-            </Button>
-          </ResponsiveDialogFooter>
+        {/* Anchored footer — sits above the keyboard via dynamic inset, never floats over the list */}
+        {(selectedUsers.length > 0 || isCustomGroup) && (
+          <div
+            className="shrink-0 border-t border-border bg-card px-4 pt-3 shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]"
+            style={{
+              paddingBottom: isKeyboardOpen
+                ? `${keyboardHeight + 12}px`
+                : `calc(env(safe-area-inset-bottom, 0px) + 0.75rem)`,
+            }}
+          >
+            {isCustomGroup ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setOpen(false)}
+                    className="text-muted-foreground hover:text-foreground px-4"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleStartConversation}
+                    disabled={isPending || !groupName.trim() || selectedUsers.length === 0}
+                    className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Users className="h-4 w-4" />
+                    )}
+                    Create Group
+                    {selectedUsers.length > 0 && ` (${selectedUsers.length + 1})`}
+                  </Button>
+                </div>
+                {selectedUsers.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Select at least one member to create the group
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setOpen(false)}
+                  className="text-muted-foreground hover:text-foreground px-4"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleStartConversation}
+                  disabled={isPending}
+                  className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : selectedUsers.length > 1 ? (
+                    <Users className="h-4 w-4" />
+                  ) : (
+                    <MessageCircle className="h-4 w-4" />
+                  )}
+                  {selectedUsers.length === 1
+                    ? "Start Chat"
+                    : `Create Group (${selectedUsers.length} people)`}
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
