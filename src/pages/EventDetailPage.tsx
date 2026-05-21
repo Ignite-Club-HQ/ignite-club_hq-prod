@@ -2865,11 +2865,12 @@ export default function EventDetailPage() {
           </div>
         ) : null;
 
+        const parentFirst = isParentFirstEvent(event as any);
         return (
       <section className="space-y-4">
-        {childrenBlock}
+        {parentFirst ? parentBlock : childrenBlock}
         {childrenBlock && parentBlock && <Separator />}
-        {parentBlock}
+        {parentFirst ? childrenBlock : parentBlock}
 
         {/* Mini-league: parent's per-player RSVP */}
         {isMiniLeagueEvent && myMiniLeaguePlayers && myMiniLeaguePlayers.length > 0 && (
