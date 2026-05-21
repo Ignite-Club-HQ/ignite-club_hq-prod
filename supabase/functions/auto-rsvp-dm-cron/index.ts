@@ -247,9 +247,12 @@ Deno.serve(async (req) => {
         if (!isPro) continue;
 
         // Compute non-responders via SQL helper.
-        const { data: nonResp, error: nonRespError } = await admin.rpc("get_event_non_responders", {
+        const audience = resolveAudience(event.rsvp_audience, event.teams?.default_rsvp_audience ?? null);
+        const { data: nonResp, error: nonRespError } = await admin.rpc("get_event_non_responders_audience", {
           _event_id: event.id,
+          _audience: audience,
         });
+
         if (nonRespError) {
           console.error("get_event_non_responders failed", event.id, nonRespError);
           continue;
