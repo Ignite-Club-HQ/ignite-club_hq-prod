@@ -1606,12 +1606,26 @@ export default function TeamChatPage() {
         </div>
       )}
 
+      {/* Pinned vault banner */}
+      <PinnedVaultBanner record={pinnedVault.record} isAdmin={!!isAdmin} />
+
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
         pins={pinnedMessages}
         onJumpToMessage={handleJumpToMessage}
         onUnpin={unpinMessage}
       />
+
+      {teamId && (
+        <PinVaultSheet
+          open={pinVaultSheetOpen}
+          onOpenChange={setPinVaultSheetOpen}
+          chatType="team"
+          chatId={teamId}
+          clubId={team.club_id ?? null}
+          teamId={teamId}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
