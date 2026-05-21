@@ -27,6 +27,7 @@ import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
+import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
