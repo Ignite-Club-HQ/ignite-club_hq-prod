@@ -174,9 +174,17 @@ Deno.serve(async (req) => {
     // (`check-pending-subs`) and spectators always see an up-to-date plan
     // even if the local `GlobalSubMonitor` write loop hasn't fired yet
     // (e.g. unlinked board, or admin closed the app right after planning).
-    const incomingAutoSubPlan = Array.isArray(body.auto_sub_plan) ? body.auto_sub_plan : null;
+    // Audit fix #10: cap incoming arrays so a malformed client can't bloat
+    // the active_games row (which the cron re-reads every minute).
+    const MAX_PLAYERS = 30;
+    const MAX_PLAN = 200;
+    const incomingAutoSubPlan = Array.isArray(body.auto_sub_plan)
+      ? body.auto_sub_plan.slice(0, MAX_PLAN)
+      : null;
     const incomingAutoSubActive = typeof body.auto_sub_active === "boolean" ? body.auto_sub_active : null;
-    const incomingPlayers = Array.isArray(body.players) ? body.players : null;
+    const incomingPlayers = Array.isArray(body.players)
+      ? body.players.slice(0, MAX_PLAYERS)
+      : null;
 
     if (!event) {
       return new Response(JSON.stringify({ error: "missing event" }), {
@@ -218,7 +226,19 @@ Deno.serve(async (req) => {
     // leftover value from a previous game / half would suppress the very
     // first pending-sub notification of the new half (see check-pending-subs
     // `absoluteSubTime > last_sub_check_time` filter).
-    const isFreshStart = event === "start_half" || event === "start_half_2" || event === "reset";
+    //
+    // Audit fix #7 + #8: `adjust` (admin rewinds the clock) and `set_minutes`
+    // (changes half length, which redefines the absolute-seconds axis the
+    // counter is stored in) must ALSO reset the gate — otherwise either
+    // (a) subs that were formerly past `last_sub_check_time` will never
+    // re-fire after the rewind, or (b) the counter now points at a wrong
+    // game-time after minutes-per-half changes.
+    const isFreshStart =
+      event === "start_half" ||
+      event === "start_half_2" ||
+      event === "reset" ||
+      event === "adjust" ||
+      event === "set_minutes";
 
     let rowId = existing?.id;
     if (!rowId) {
