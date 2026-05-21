@@ -269,15 +269,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     enabled: !!user && !event.is_cancelled,
   });
 
-  // Back-compat: legacy shape used by summary line below
-  const childRsvps = (householdChildren || [])
-    .filter((c) => c.rsvp)
-    .map((c) => ({
-      id: c.rsvp!.id,
-      status: c.rsvp!.status,
-      child_id: c.child_id,
-      children: { name: c.name },
-    }));
+
+
 
 
   // Fetch total event attendance counts
