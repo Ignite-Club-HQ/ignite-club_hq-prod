@@ -409,14 +409,21 @@ export function PhotoLightbox({
             </Button>
           )}
 
-          {/* Image with signed URL */}
+          {/* Image with signed URL — pass image_url as poster so videos
+              don't briefly flash a placeholder before the first frame paints. */}
           <LightboxImage
             src={photoSrc}
+            poster={
+              isVideoUrl(photoSrc) && currentPhoto.image_url && !isVideoUrl(currentPhoto.image_url)
+                ? currentPhoto.image_url
+                : undefined
+            }
             alt={currentPhoto.title || "Photo"}
             scale={scale}
             translateX={translateX}
             translateY={translateY}
           />
+
 
           {/* Counter with dark background */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm px-3 py-1 bg-black/50 rounded-full">
