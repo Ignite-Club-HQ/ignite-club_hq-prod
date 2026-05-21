@@ -52,6 +52,9 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
+import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
+import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -218,6 +221,8 @@ export default function GroupChatPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
+  const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
+  const pinnedVault = useChatPinnedVault("group", groupId);
   const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -1781,6 +1786,15 @@ export default function GroupChatPage() {
               isRefreshing={isAnyRefreshing}
               onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
+              onManagePinnedVault={
+                (isAdmin || group.created_by === user?.id) ? () => setPinVaultSheetOpen(true) : undefined
+              }
+              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
+              onTogglePinnedVault={
+                pinnedVault.record && (isAdmin || group.created_by === user?.id)
+                  ? (v) => pinnedVault.toggleEnabled(v)
+                  : undefined
+              }
             />
           </>
         }
@@ -1813,12 +1827,30 @@ export default function GroupChatPage() {
         </div>
       )}
 
+      {/* Pinned vault banner */}
+      <PinnedVaultBanner
+        record={pinnedVault.record}
+        isAdmin={!!(isAdmin || group.created_by === user?.id)}
+      />
+
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
         pins={pinnedMessages}
         onJumpToMessage={handleJumpToMessage}
         onUnpin={unpinMessage}
       />
+
+      {groupId && (
+        <PinVaultSheet
+          open={pinVaultSheetOpen}
+          onOpenChange={setPinVaultSheetOpen}
+          chatType="group"
+          chatId={groupId}
+          clubId={group.club_id ?? null}
+          teamId={group.team_id ?? null}
+        />
+      )}
+
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">

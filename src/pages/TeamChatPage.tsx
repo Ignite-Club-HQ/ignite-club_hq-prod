@@ -38,6 +38,9 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
+import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
+import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -369,6 +372,9 @@ export default function TeamChatPage() {
     enabled: !!teamId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
+  const pinnedVault = useChatPinnedVault("team", teamId);
 
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
     if (!teamId || !isAdmin || memberUserId === user?.id) return;
@@ -1547,7 +1553,15 @@ export default function TeamChatPage() {
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
               <Search className="h-4 w-4" />
             </Button>
-            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isAnyRefreshing}
+              onManagePinnedVault={isAdmin ? () => setPinVaultSheetOpen(true) : undefined}
+              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
+              onTogglePinnedVault={
+                pinnedVault.record && isAdmin ? (v) => pinnedVault.toggleEnabled(v) : undefined
+              }
+            />
           </>
         }
       />
@@ -1592,12 +1606,26 @@ export default function TeamChatPage() {
         </div>
       )}
 
+      {/* Pinned vault banner */}
+      <PinnedVaultBanner record={pinnedVault.record} isAdmin={!!isAdmin} />
+
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
         pins={pinnedMessages}
         onJumpToMessage={handleJumpToMessage}
         onUnpin={unpinMessage}
       />
+
+      {teamId && (
+        <PinVaultSheet
+          open={pinVaultSheetOpen}
+          onOpenChange={setPinVaultSheetOpen}
+          chatType="team"
+          chatId={teamId}
+          clubId={team.club_id ?? null}
+          teamId={teamId}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
