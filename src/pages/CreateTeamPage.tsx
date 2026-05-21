@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/AssignTeamAdminSection";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
+import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 // TeamAdminInviteDialog now shown on TeamDetailPage via navigation state
 import type { Database } from "@/integrations/supabase/types";
 
@@ -269,6 +270,7 @@ export default function CreateTeamPage() {
         folder_id: folderId || null,
         team_type: teamType,
         created_by: user!.id,
+        default_rsvp_audience: defaultRsvpAudienceForTeam(name, levelAge),
         ...(club?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,

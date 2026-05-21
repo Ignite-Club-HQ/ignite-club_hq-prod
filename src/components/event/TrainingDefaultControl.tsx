@@ -116,17 +116,21 @@ export function TrainingDefaultControl({
     );
   }
 
-  // Only suggest a default after an explicit going / not_going RSVP
-  if (currentRsvpStatus !== "going" && currentRsvpStatus !== "not_going") return null;
+  // No default set yet — always show a permanent opt-in prompt so it's
+  // discoverable without having to first RSVP. Defaults to "Going" (most
+  // common for trainings); parent can also pick "Not going".
   if (locallyDismissed) return null;
 
-  const verb = currentRsvpStatus === "going" ? "Going" : "Not going";
+  // If the user just RSVP'd, pre-select that as the suggested default; else "going".
+  const suggested: "going" | "not_going" =
+    currentRsvpStatus === "not_going" ? "not_going" : "going";
+  const verb = suggested === "going" ? "Going" : "Not going";
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs">
       <Repeat2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      <span className="text-foreground/90">
-        {subjectName} usually <span className="font-medium">{verb.toLowerCase()}</span> to trainings?
+      <span className="text-foreground/90 min-w-0">
+        Auto-RSVP {subjectName} as <span className="font-medium">{verb}</span> to all trainings?
       </span>
       <div className="ml-auto flex items-center gap-1">
         <Button
@@ -135,14 +139,14 @@ export function TrainingDefaultControl({
           disabled={isSaving}
           className="h-7 px-2 text-xs gap-1"
           onClick={() => {
-            setDefault(currentRsvpStatus);
+            setDefault(suggested);
             toast({
-              title: `Default set to ${verb}`,
-              description: "We'll auto-RSVP for new trainings. Change any one before kickoff.",
+              title: `Auto-RSVP on for ${subjectName}`,
+              description: "We'll RSVP for every new training. Change any one before kickoff.",
             });
           }}
         >
-          <Check className="h-3 w-3" /> Set as default
+          <Check className="h-3 w-3" /> Turn on
         </Button>
         <button
           type="button"
