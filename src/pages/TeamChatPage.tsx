@@ -373,6 +373,9 @@ export default function TeamChatPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
+  const pinnedVault = useChatPinnedVault("team", teamId);
+
   const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
     if (!teamId || !isAdmin || memberUserId === user?.id) return;
 
