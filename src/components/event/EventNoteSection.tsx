@@ -105,7 +105,7 @@ export function EventNoteSection({
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4 text-primary" />
-            {hasNote ? "Edit event note" : "Post event note"}
+            {hasNote ? "Edit event note (visible to everyone)" : "Post event note (visible to everyone)"}
           </div>
           <Textarea
             value={draft}
@@ -168,7 +168,7 @@ export function EventNoteSection({
         onClick={() => setEditing(true)}
       >
         <StickyNote className="h-4 w-4 mr-2" />
-        Add an event note for attendees
+        Add an event note (visible to everyone)
       </Button>
     );
   }
@@ -179,7 +179,7 @@ export function EventNoteSection({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <StickyNote className="h-4 w-4" />
-            Event note
+            Event note (visible to everyone)
           </div>
           {canEdit && (
             <Button
