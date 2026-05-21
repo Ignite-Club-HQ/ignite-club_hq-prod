@@ -627,7 +627,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-wide bg-amber-500 text-white shadow-sm shadow-amber-500/30 animate-fade-in"
               >
                 <AlertCircle className="h-3 w-3" aria-hidden="true" strokeWidth={2.5} />
-                RSVP Required
+                {needsRsvpPillLabel}
               </span>
             )}
             {event.is_bye && !event.is_cancelled && (
