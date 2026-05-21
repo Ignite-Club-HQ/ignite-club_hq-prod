@@ -314,6 +314,86 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
   const canSendReminders = hasPro === true;
   const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
 
+  // Invalidate every cache key the household RSVP touches.
+  const invalidateRsvpQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["card-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["card-child-rsvps", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["card-attendance-counts", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-rsvps", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+    queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+    queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["quick-rsvp", event.id] });
+    queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+  }, [queryClient, event.id]);
+
+  // Self RSVP (parent attending too)
+  const selfRsvpMutation = useMutation({
+    mutationFn: async (status: RsvpStatus) => {
+      let rsvpId: string | null = null;
+      if (myRsvp) {
+        const { error } = await supabase.from("rsvps").update({ status }).eq("id", myRsvp.id);
+        if (error) throw error;
+        rsvpId = myRsvp.id;
+      } else {
+        const { data, error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: event.id, user_id: user!.id, status })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rsvpId = data?.id || null;
+      }
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name,
+        }).catch(console.error);
+      }
+    },
+    onSuccess: invalidateRsvpQueries,
+    onError: (e: Error) => toast({ title: "Failed to RSVP", description: e.message, variant: "destructive" }),
+  });
+
+  // Per-child RSVP
+  const childRsvpMutation = useMutation({
+    mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
+      const existing = (householdChildren || []).find((c) => c.child_id === childId)?.rsvp;
+      let rsvpId: string | null = null;
+      if (existing) {
+        const { error } = await supabase.from("rsvps").update({ status }).eq("id", existing.id);
+        if (error) throw error;
+        rsvpId = existing.id;
+      } else {
+        const { data, error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: event.id, user_id: user!.id, child_id: childId, status })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rsvpId = data?.id || null;
+      }
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          childId,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name,
+        }).catch(console.error);
+      }
+    },
+    onSuccess: invalidateRsvpQueries,
+    onError: (e: Error) => toast({ title: "Failed to RSVP", description: e.message, variant: "destructive" }),
+  });
+
+
+
   const deleteEventMutation = useMutation({
     mutationFn: async (deleteType: "single" | "series") => {
       if (deleteType === "series" && event.parent_event_id) {
