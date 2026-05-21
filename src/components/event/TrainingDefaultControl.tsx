@@ -93,25 +93,40 @@ export function TrainingDefaultControl({
         </div>
       );
     }
-    const label =
-      defaultRow.default_status === "going"
-        ? `Auto-RSVP'ing ${subjectName} as Going to trainings`
-        : `Auto-RSVP'ing ${subjectName} as Not going to trainings`;
+    const isGoing = defaultRow.default_status === "going";
+    const label = isGoing
+      ? `Auto-RSVP'ing ${subjectName} as Going to trainings`
+      : `Auto-RSVP'ing ${subjectName} as Not going to trainings`;
+    const otherStatus: "going" | "not_going" = isGoing ? "not_going" : "going";
+    const otherLabel = isGoing ? "Switch to Not going" : "Switch to Going";
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
         <Repeat2 className="h-3.5 w-3.5 text-primary shrink-0" />
         <span className="text-foreground/90">{label}</span>
-        <button
-          type="button"
-          disabled={isSaving}
-          onClick={() => {
-            clearDefault();
-            toast({ title: "We'll ask you each time from now on." });
-          }}
-          className="ml-auto text-muted-foreground underline-offset-2 hover:underline touch-manipulation disabled:opacity-50"
-        >
-          Stop
-        </button>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => {
+              setDefault(otherStatus);
+              toast({ title: isGoing ? "Default switched to Not going." : "Default switched to Going." });
+            }}
+            className="text-primary underline-offset-2 hover:underline touch-manipulation disabled:opacity-50"
+          >
+            {otherLabel}
+          </button>
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => {
+              clearDefault();
+              toast({ title: "We'll ask you each time from now on." });
+            }}
+            className="text-muted-foreground underline-offset-2 hover:underline touch-manipulation disabled:opacity-50"
+          >
+            Stop
+          </button>
+        </div>
       </div>
     );
   }

@@ -675,7 +675,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                         <SelectTrigger className="h-11 rounded-xl">
                           <SelectValue placeholder="Category" />
                         </SelectTrigger>
-                        <SelectContent className="z-[100000]">
+                        <SelectContent className="z-[100020]">
                           {allCategories.map((c) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
@@ -700,7 +700,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                       <SelectTrigger className="flex-1 h-11 rounded-xl">
                         <SelectValue placeholder="All Clubs" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]">
+                      <SelectContent className="z-[100020]">
                         <SelectItem value="all">All Clubs</SelectItem>
                         {availableClubs.map(club => (
                           <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
@@ -713,7 +713,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                       <SelectTrigger className="flex-1 h-11 rounded-xl">
                         <SelectValue placeholder="All Teams" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]">
+                      <SelectContent className="z-[100020]">
                         <SelectItem value="all">All Teams</SelectItem>
                         {filteredTeams.map(team => (
                           <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
@@ -839,7 +839,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                   </Button>
                   <Button
                     onClick={handleStartConversation}
-                    disabled={isPending || !groupName.trim() || selectedUsers.length === 0}
+                    disabled={isPending || !groupName.trim()}
                     className="flex-1 h-11 rounded-xl font-semibold gap-2"
                   >
                     {isPending ? (
@@ -848,12 +848,12 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                       <Users className="h-4 w-4" />
                     )}
                     Create Group
-                    {selectedUsers.length > 0 && ` (${selectedUsers.length + 1})`}
+                    {` (${selectedUsers.length + 1})`}
                   </Button>
                 </div>
                 {selectedUsers.length === 0 && (
                   <p className="text-[11px] text-muted-foreground text-center">
-                    Select at least one member to create the group
+                    You can create a group with just yourself and add members later
                   </p>
                 )}
               </div>
