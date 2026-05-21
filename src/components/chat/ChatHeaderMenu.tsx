@@ -1,4 +1,4 @@
-import { MoreVertical, RefreshCw, Pencil, Trash2, Search } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search, Pin, EyeOff, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,11 @@ interface ChatHeaderMenuProps {
   onEditGroup?: () => void;
   onDeleteGroup?: () => void;
   onSearch?: () => void;
+  /** Open the pinned-vault management sheet (admins only). */
+  onManagePinnedVault?: () => void;
+  /** When a pinned vault row exists, show a quick toggle to show/hide it for everyone. */
+  pinnedVaultEnabled?: boolean | null;
+  onTogglePinnedVault?: (enabled: boolean) => void;
 }
 
 export function ChatHeaderMenu({
@@ -23,12 +28,25 @@ export function ChatHeaderMenu({
   onEditGroup,
   onDeleteGroup,
   onSearch,
+  onManagePinnedVault,
+  pinnedVaultEnabled,
+  onTogglePinnedVault,
 }: ChatHeaderMenuProps) {
-  const hasAnyAction = !!onRefresh || !!onEditGroup || !!onDeleteGroup || !!onSearch;
+  const hasAnyAction =
+    !!onRefresh
+    || !!onEditGroup
+    || !!onDeleteGroup
+    || !!onSearch
+    || !!onManagePinnedVault;
   if (!hasAnyAction) return null;
 
   // If refresh is the only action, render it as a direct button instead of a dropdown.
-  const isRefreshOnly = !!onRefresh && !onEditGroup && !onDeleteGroup && !onSearch;
+  const isRefreshOnly =
+    !!onRefresh
+    && !onEditGroup
+    && !onDeleteGroup
+    && !onSearch
+    && !onManagePinnedVault;
   if (isRefreshOnly) {
     return (
       <Button
