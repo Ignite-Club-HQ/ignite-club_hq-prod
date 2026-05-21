@@ -33,14 +33,21 @@ interface EventRow {
   type: string;
   team_id: string;
   club_id: string | null;
+  rsvp_audience: string | null;
   teams: {
     name: string;
     auto_rsvp_dm_enabled: boolean | null;
     auto_rsvp_dm_cadences: string[] | null;
     auto_rsvp_dm_event_types: string[] | null;
+    default_rsvp_audience: string | null;
   } | null;
   clubs: { name: string; logo_url: string | null; bot_user_id: string | null } | null;
 }
+
+function resolveAudience(eventAudience: string | null, teamDefault: string | null): string {
+  return (eventAudience || teamDefault || "players_and_parents").toLowerCase();
+}
+
 
 function copyForCadence(cadence: Cadence, title: string, eventId: string, when: string): string {
   // Append [rsvp:<eventId>] token — the chat client renders inline
