@@ -448,20 +448,7 @@ export default function EditTeamPage() {
               </div>
               <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
             </div>
-          </div>
 
-          {/* Default RSVP audience */}
-          <div className="pt-2 border-t">
-            <RsvpAudienceSelect
-              value={defaultRsvpAudience}
-              onChange={(v) => setDefaultRsvpAudience(v ?? DEFAULT_TEAM_RSVP_AUDIENCE)}
-            />
-          </div>
-
-          {/* Auto RSVP DM details (kept inside its own block) */}
-          <div className="pt-2 space-y-3">
-            <div className="hidden">{/* anchor to keep diff small */}</div>
-            </div>
 
             {autoRsvpDm && (
               <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-3">
