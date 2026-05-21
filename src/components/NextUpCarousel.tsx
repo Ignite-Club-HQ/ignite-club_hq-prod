@@ -1045,6 +1045,57 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     </div>
                   );
                 })()}
+
+                {/* Secondary children RSVP — club-wide social events with household kids */}
+                {isParentFirstEvent(event) && hasGuardianChildren && (
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setParentRsvpOpen((v) => !v)}
+                      aria-expanded={parentRsvpOpen}
+                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
+                    >
+                      <Baby className="h-3 w-3" />
+                      <span>RSVP your {childrenOnEvent!.length === 1 ? "child" : "children"} too?</span>
+                      <ChevronDown className={`h-3 w-3 transition-transform ${parentRsvpOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {parentRsvpOpen && (
+                      <div className="space-y-2 pt-2">
+                        {childrenOnEvent!.map((child) => {
+                          const childRsvp = childRsvps?.find((r) => r.child_id === child.id);
+                          const first = child.name.split(" ")[0] || child.name;
+                          return (
+                            <div key={child.id} className="space-y-1">
+                              <div className="text-[11px] font-medium text-foreground/85">{first}</div>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
+                                  const isActive = childRsvp?.status === status;
+                                  return (
+                                    <Button
+                                      key={`${child.id}-${status}`}
+                                      variant="outline"
+                                      size="sm"
+                                      aria-pressed={isActive}
+                                      aria-label={`${child.name} RSVP ${label}`}
+                                      className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
+                                        isActive ? activeClass : inactiveHint
+                                      }`}
+                                      disabled={childRsvpMutation.isPending || isActive}
+                                      onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
+                                    >
+                                      {isActive ? <Check className="h-3 w-3" /> : icon}
+                                      <span className="truncate">{label}</span>
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
