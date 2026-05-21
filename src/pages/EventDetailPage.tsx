@@ -2804,7 +2804,7 @@ export default function EventDetailPage() {
                 <div className="space-y-2">
                   <Label htmlFor="rsvpNotes" className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
-                    Notes / Comments
+                    Note to organiser (with your RSVP)
                   </Label>
                   <Textarea
                     id="rsvpNotes"
