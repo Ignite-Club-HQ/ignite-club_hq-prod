@@ -75,6 +75,8 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { RsvpAuditLogSection } from "@/components/event/RsvpAuditLogSection";
 import { AttendanceRow } from "@/components/event/AttendanceRow";
@@ -287,7 +289,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select(`*, teams (name, default_match_arrival_minutes), clubs (name, is_pro, sport)`)
+        .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs (name, is_pro, sport)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -2647,222 +2649,227 @@ export default function EventDetailPage() {
       )}
 
       {/* RSVP Section */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
-          {(myRsvp as any)?.source === "default" && (
-            <span
-              title="Auto-applied from your training default. Tap a button to confirm."
-              className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
-            >
-              Auto
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {rsvpOptions.map(({ value, label, icon }) => (
-            <Button
-              key={value}
-              variant={myRsvp?.status === value ? "default" : "outline"}
-              className="flex flex-col h-auto py-3"
-              onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
-              disabled={rsvpMutation.isPending || myRsvp?.status === value}
-            >
-              <span className="text-lg">{icon}</span>
-              <span className="text-xs mt-1">{label}</span>
-            </Button>
-          ))}
-        </div>
-
-        {/* Training default RSVP for the parent themselves */}
-        <TrainingDefaultControl
-          teamId={event?.team_id ?? null}
-          userId={user?.id ?? null}
-          subjectName="You"
-          currentRsvpStatus={(myRsvp?.status as any) ?? null}
-          isTraining={event?.type === "training"}
-        />
-        
-        {/* Rich RSVP Options */}
-        <Card className="border-dashed">
-          <CardContent className="p-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="rsvpNotes" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Notes / Comments
-              </Label>
-              <Textarea
-                id="rsvpNotes"
-                placeholder="Any notes for the organizer (e.g., arriving late, bringing equipment)..."
-                value={rsvpNotes}
-                onChange={(e) => setRsvpNotes(e.target.value)}
-                rows={2}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Section for Social Events */}
-        {showPaymentStatus && myRsvp?.status === "going" && (
-          <Card className={userHasPaid ? "border-green-500/30 bg-green-500/5" : "border-warning/30 bg-warning/5"}>
-            <CardContent className="p-4">
-              {userHasPaid ? (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-green-500/20">
-                    <Check className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-green-600">Payment Complete</p>
-                    <p className="text-sm text-muted-foreground">You've paid ${Number(eventPrice).toFixed(2)} for this event</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-warning/20">
-                      <DollarSign className="h-5 w-5 text-warning" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Payment Required</p>
-                      <p className="text-sm text-muted-foreground">${Number(eventPrice).toFixed(2)} per person</p>
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handlePayNow}
-                    disabled={isProcessingPayment}
-                    className="shrink-0"
-                  >
-                    {isProcessingPayment ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <DollarSign className="h-4 w-4 mr-2" />
-                        Pay Now
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        {/* Child RSVP - inline below parent RSVP */}
-        {childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+      {(() => {
+        const audience = resolveRsvpAudience(
+          (event as any)?.rsvp_audience,
+          (event as any)?.teams?.default_rsvp_audience,
+        );
+        const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
+        const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
+        const childrenBlock = (!isMiniLeagueEvent && promptPlayer && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
           const unrespondedChildren = childrenOnTeam.filter(
             (c: any) => !childRsvps.find((r) => r.child_id === c.id),
           );
           const unrespondedCount = unrespondedChildren.length;
+          const goingCount = childRsvps.filter(r => r.status === "going").length;
+          const maybeCount = childRsvps.filter(r => r.status === "maybe").length;
           return (
-          <div className="pt-2">
-            <Separator />
-            {/* Summary accountability chip */}
-            {unrespondedCount > 0 && (
-              <div
-                role="status"
-                className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm"
-              >
-                <span
-                  aria-hidden
-                  className="relative inline-flex h-2 w-2 shrink-0"
-                >
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
-                </span>
-                <span className="text-foreground">
-                  {unrespondedCount === 1
-                    ? unrespondedChildren[0].name + " hasn't been RSVP'd yet"
-                    : `${unrespondedCount} of your ${unrespondedCount === childrenOnTeam.length ? "kids" : "children"} haven't been RSVP'd`}
-                </span>
-              </div>
-            )}
-            <details open className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
-              <summary className="flex items-center gap-2 cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden">
+            <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-muted/30">
                 <Baby className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">Children's RSVP</h3>
-                {childRsvps.length > 0 && (
-                  <span className="text-xs text-muted-foreground ml-auto mr-1">
-                    {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
-                    {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
-                  </span>
-                )}
-                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
-              </summary>
-              <div className="space-y-3 px-3 pb-3">
-              {childrenOnTeam.map((child: any) => {
-              const childRsvp = childRsvps.find((r) => r.child_id === child.id);
-              const isUnresponded = !childRsvp;
-              return (
-                <div key={child.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                          {child.name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium">{child.name}</span>
-                      {isUnresponded && (
-                        <span
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive"
-                          aria-label="Awaiting your response"
-                        >
-                          <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-70" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
-                          </span>
-                          Awaiting response
-                        </span>
-                      )}
-                    </div>
-                    {childRsvp && (
-                      <div className="flex items-center gap-1.5">
-                        {(childRsvp as any).source === "default" && (
-                          <span
-                            title="Auto-applied from training default. Tap a button to confirm."
-                            className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
-                          >
-                            Auto
-                          </span>
+                <h2 className="text-base font-semibold">Children's RSVP</h2>
+                <div className="ml-auto flex items-center gap-2 text-xs">
+                  {unrespondedCount > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 font-medium text-destructive">
+                      <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-70" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
+                      </span>
+                      {unrespondedCount === 1 && childrenOnTeam.length === 1
+                        ? `${unrespondedChildren[0].name} awaiting`
+                        : `${unrespondedCount} awaiting`}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {goingCount > 0 && `${goingCount} going`}
+                      {maybeCount > 0 && `${goingCount > 0 ? " · " : ""}${maybeCount} maybe`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-3 p-3">
+                {childrenOnTeam.map((child: any) => {
+                  const childRsvp = childRsvps.find((r) => r.child_id === child.id);
+                  const isUnresponded = !childRsvp;
+                  return (
+                    <div key={child.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-7 w-7">
+                            <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                              {child.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{child.name}</span>
+                          {isUnresponded && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive"
+                              aria-label="Awaiting your response"
+                            >
+                              <span className="relative inline-flex h-1.5 w-1.5" aria-hidden>
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-70" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
+                              </span>
+                              Awaiting response
+                            </span>
+                          )}
+                        </div>
+                        {childRsvp && (
+                          <div className="flex items-center gap-1.5">
+                            {(childRsvp as any).source === "default" && (
+                              <span
+                                title="Auto-applied from training default. Tap a button to confirm."
+                                className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+                              >
+                                Auto
+                              </span>
+                            )}
+                            <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                              {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                            </Badge>
+                          </div>
                         )}
-                        <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
-                          {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
-                        </Badge>
                       </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {rsvpOptions.map(({ value, label, icon }) => (
-                      <Button
-                        key={value}
-                        variant={childRsvp?.status === value ? "default" : "outline"}
-                        size="sm"
-                        className="flex flex-col h-auto py-2"
-                        onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
-                        disabled={childRsvpMutation.isPending}
-                      >
-                        <span>{icon}</span>
-                        <span className="text-xs">{label}</span>
-                       </Button>
-                    ))}
-                  </div>
-                  <TrainingDefaultControl
-                    teamId={event?.team_id ?? null}
-                    childId={child.id}
-                    subjectName={child.name}
-                    currentRsvpStatus={(childRsvp?.status as any) ?? null}
-                    isTraining={event?.type === "training"}
+                      <div className="grid grid-cols-3 gap-2">
+                        {rsvpOptions.map(({ value, label, icon }) => (
+                          <Button
+                            key={value}
+                            variant={childRsvp?.status === value ? "default" : "outline"}
+                            size="sm"
+                            className="flex flex-col h-auto py-2"
+                            onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
+                            disabled={childRsvpMutation.isPending}
+                          >
+                            <span>{icon}</span>
+                            <span className="text-xs">{label}</span>
+                          </Button>
+                        ))}
+                      </div>
+                      <TrainingDefaultControl
+                        teamId={event?.team_id ?? null}
+                        childId={child.id}
+                        subjectName={child.name}
+                        currentRsvpStatus={(childRsvp?.status as any) ?? null}
+                        isTraining={event?.type === "training"}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })() : null;
+
+        const parentBlock = promptParent ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h2 className={isMiniLeagueEvent ? "text-lg font-semibold" : (childrenBlock ? "text-sm font-semibold text-muted-foreground uppercase tracking-wide" : "text-lg font-semibold")}>
+                {isMiniLeagueEvent ? "Attendance" : (childrenBlock ? "Your RSVP" : "Your RSVP")}
+              </h2>
+              {(myRsvp as any)?.source === "default" && (
+                <span
+                  title="Auto-applied from your training default. Tap a button to confirm."
+                  className="rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5"
+                >
+                  Auto
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {rsvpOptions.map(({ value, label, icon }) => (
+                <Button
+                  key={value}
+                  variant={myRsvp?.status === value ? "default" : "outline"}
+                  className="flex flex-col h-auto py-3"
+                  onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
+                  disabled={rsvpMutation.isPending || myRsvp?.status === value}
+                >
+                  <span className="text-lg">{icon}</span>
+                  <span className="text-xs mt-1">{label}</span>
+                </Button>
+              ))}
+            </div>
+
+            <TrainingDefaultControl
+              teamId={event?.team_id ?? null}
+              userId={user?.id ?? null}
+              subjectName="You"
+              currentRsvpStatus={(myRsvp?.status as any) ?? null}
+              isTraining={event?.type === "training"}
+            />
+
+            <Card className="border-dashed">
+              <CardContent className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rsvpNotes" className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Notes / Comments
+                  </Label>
+                  <Textarea
+                    id="rsvpNotes"
+                    placeholder="Any notes for the organizer (e.g., arriving late, bringing equipment)..."
+                    value={rsvpNotes}
+                    onChange={(e) => setRsvpNotes(e.target.value)}
+                    rows={2}
                   />
                 </div>
-              );
-            })}
-              </div>
-            </details>
+              </CardContent>
+            </Card>
+
+            {showPaymentStatus && myRsvp?.status === "going" && (
+              <Card className={userHasPaid ? "border-green-500/30 bg-green-500/5" : "border-warning/30 bg-warning/5"}>
+                <CardContent className="p-4">
+                  {userHasPaid ? (
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-green-500/20">
+                        <Check className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-green-600">Payment Complete</p>
+                        <p className="text-sm text-muted-foreground">You've paid ${Number(eventPrice).toFixed(2)} for this event</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-full bg-warning/20">
+                          <DollarSign className="h-5 w-5 text-warning" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Payment Required</p>
+                          <p className="text-sm text-muted-foreground">${Number(eventPrice).toFixed(2)} per person</p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handlePayNow}
+                        disabled={isProcessingPayment}
+                        className="shrink-0"
+                      >
+                        {isProcessingPayment ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <DollarSign className="h-4 w-4 mr-2" />
+                            Pay Now
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
-          );
-        })()}
+        ) : null;
+
+        return (
+      <section className="space-y-4">
+        {childrenBlock}
+        {childrenBlock && parentBlock && <Separator />}
+        {parentBlock}
 
         {/* Mini-league: parent's per-player RSVP */}
         {isMiniLeagueEvent && myMiniLeaguePlayers && myMiniLeaguePlayers.length > 0 && (
@@ -2914,6 +2921,9 @@ export default function EventDetailPage() {
           </div>
         )}
       </section>
+        );
+      })()}
+
 
       {/* Guest Management Section - only for social events with guests enabled */}
       {event.type === "social" && event.allow_guests && myRsvp?.status === "going" && (

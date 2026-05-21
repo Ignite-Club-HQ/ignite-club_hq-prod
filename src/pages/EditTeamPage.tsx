@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { DEFAULT_TEAM_RSVP_AUDIENCE, type RsvpAudience } from "@/lib/rsvpAudience";
 import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
 import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { mimeToExtension } from "@/lib/binaryUtils";
@@ -50,6 +52,7 @@ export default function EditTeamPage() {
   const [autoRsvpDm, setAutoRsvpDm] = useState(false);
   const [autoRsvpCadences, setAutoRsvpCadences] = useState<string[]>(["t72", "t24", "t3"]);
   const [autoRsvpEventTypes, setAutoRsvpEventTypes] = useState<string[]>(["match", "training", "game"]);
+  const [defaultRsvpAudience, setDefaultRsvpAudience] = useState<RsvpAudience>(DEFAULT_TEAM_RSVP_AUDIENCE);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
@@ -98,6 +101,10 @@ export default function EditTeamPage() {
       if (Array.isArray(cad) && cad.length) setAutoRsvpCadences(cad);
       const types = (team as any).auto_rsvp_dm_event_types;
       if (Array.isArray(types) && types.length) setAutoRsvpEventTypes(types);
+      const aud = (team as any).default_rsvp_audience;
+      if (aud === "players_only" || aud === "players_and_parents" || aud === "parents_only") {
+        setDefaultRsvpAudience(aud);
+      }
     }
   }, [team]);
 
@@ -196,6 +203,7 @@ export default function EditTeamPage() {
               ? [...autoRsvpEventTypes, "game"]
               : autoRsvpEventTypes)
           : ["match", "training", "game"],
+        default_rsvp_audience: defaultRsvpAudience,
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
@@ -441,6 +449,7 @@ export default function EditTeamPage() {
               <Switch checked={autoRsvpDm} onCheckedChange={setAutoRsvpDm} />
             </div>
 
+
             {autoRsvpDm && (
               <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-3">
                 <div className="space-y-2">
@@ -513,6 +522,19 @@ export default function EditTeamPage() {
               </div>
             )}
           </div>
+
+          {/* Default RSVP audience */}
+          <div className="pt-4 border-t space-y-1">
+            <RsvpAudienceSelect
+              value={defaultRsvpAudience}
+              onChange={(v) => setDefaultRsvpAudience(v ?? DEFAULT_TEAM_RSVP_AUDIENCE)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Default audience prompted to RSVP for this team's events. Individual events can override this.
+            </p>
+          </div>
+
+
 
 
           {(team?.clubs as any)?.class_mode_enabled && (

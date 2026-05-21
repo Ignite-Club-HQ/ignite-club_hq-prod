@@ -448,9 +448,11 @@ export default function EventsPage() {
           parent_event_id,
           opponent,
           arrival_minutes_before,
+          rsvp_audience,
           updated_at,
-          teams (name, default_match_arrival_minutes),
+          teams (name, default_match_arrival_minutes, default_rsvp_audience),
           clubs (name, sport)
+
         `)
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
         .lte("event_date", upperBound.toISOString().split('T')[0])
@@ -661,6 +663,24 @@ export default function EventsPage() {
   const broadcastTargetTeamId = teamFilter && !teamFilter.startsWith("ml:") ? teamFilter : null;
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
+
+  // Watchdog: if stuck on the initial spinner for >8s (likely a dropped
+  // resume event after Android WebView background freeze leaving react-query
+  // with a cancelled in-flight fetch), force a refetch of the gating queries.
+  useEffect(() => {
+    if (!isStuckOnSpinner) return;
+    const timer = setTimeout(() => {
+      console.warn("[ScheduleDiag] watchdog-refetch", {
+        t: new Date().toISOString(),
+        membershipsLoading,
+        eventsLoading: isLoading,
+        hasMemberships: !!userMemberships,
+      });
+      queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] });
+      queryClient.refetchQueries({ queryKey: ["events"] });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [isStuckOnSpinner, queryClient, user?.id, membershipsLoading, isLoading, userMemberships]);
 
   if (isStuckOnSpinner) {
     return <PageLoading message="Loading events..." />;

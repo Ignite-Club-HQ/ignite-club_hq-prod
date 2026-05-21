@@ -648,6 +648,7 @@ export type Database = {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category: string | null
           club_id: string | null
+          competition_id: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -663,6 +664,7 @@ export type Database = {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -678,6 +680,7 @@ export type Database = {
           allowed_roles?: Database["public"]["Enums"]["app_role"][]
           category?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -702,6 +705,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_groups_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -3622,6 +3632,7 @@ export type Database = {
           reminder_hours_before: number | null
           reminder_sent: boolean | null
           requires_payment: boolean | null
+          rsvp_audience: string | null
           start_time: string | null
           state: string | null
           suburb: string | null
@@ -3670,6 +3681,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
@@ -3718,6 +3730,7 @@ export type Database = {
           reminder_hours_before?: number | null
           reminder_sent?: boolean | null
           requires_payment?: boolean | null
+          rsvp_audience?: string | null
           start_time?: string | null
           state?: string | null
           suburb?: string | null
@@ -8001,6 +8014,7 @@ export type Database = {
           default_pitch_format: string | null
           default_pitch_orientation: string | null
           default_pitch_view: string | null
+          default_rsvp_audience: string
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
@@ -8042,6 +8056,7 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          default_rsvp_audience?: string
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
@@ -8083,6 +8098,7 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          default_rsvp_audience?: string
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
@@ -9204,6 +9220,10 @@ export type Database = {
         Args: { _club_id: string }
         Returns: undefined
       }
+      ensure_competition_coord_chat: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
       ensure_team_role_folders: {
         Args: { _team_id: string }
         Returns: undefined
@@ -9345,6 +9365,12 @@ export type Database = {
       }
       get_event_non_responders: {
         Args: { _event_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
+      get_event_non_responders_audience: {
+        Args: { _audience: string; _event_id: string }
         Returns: {
           user_id: string
         }[]

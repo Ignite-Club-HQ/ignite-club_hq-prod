@@ -26,6 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 interface DMableUser {
   id: string;
@@ -536,6 +538,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
 
   // Check if club filter is locked (in club mode)
   const isClubFilterLocked = !!activeClubFilter;
+  const keyboardHeight = useNativeKeyboardHeight();
+  const isKeyboardOpen = useKeyboardOpen();
+  const isCustomGroup = mode === "custom-group";
+  const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
+  const CREATE_CATEGORY_VALUE = "__create_new__";
 
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
@@ -566,7 +573,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4 px-1">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4">
           {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -597,15 +604,34 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
             </div>
           ) : (
             <>
-              {/* Selected users chips */}
+              {/* Selected count + chips header */}
+              {isCustomGroup && (
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {selectedUsers.length === 0
+                      ? "0 members selected"
+                      : `${selectedUsers.length} ${selectedUsers.length === 1 ? "member" : "members"} selected`}
+                  </p>
+                  {selectedUsers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUsers([])}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
               {selectedUsers.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-lg">
+                <div className="flex flex-wrap gap-1.5 p-2 bg-muted/40 rounded-xl border border-border/50">
                   {selectedUsers.map(u => (
-                    <Badge key={u.id} variant="secondary" className="gap-1 pr-1">
+                    <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
                       {u.display_name?.split(" ")[0] || "User"}
                       <button
                         onClick={() => removeSelectedUser(u.id)}
-                        className="ml-1 rounded-full hover:bg-background/50 p-0.5"
+                        className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
+                        aria-label="Remove"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -615,85 +641,94 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               )}
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
-              {(mode === "custom-group" || selectedUsers.length > 1) && (
+              {(isCustomGroup || selectedUsers.length > 1) && (
                 <div className="space-y-2">
                   <Input
-                    placeholder={mode === "custom-group" ? "Group name" : "Group name (optional)"}
+                    placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     maxLength={60}
                     className="h-11 rounded-xl"
-                    autoFocus={mode === "custom-group"}
                   />
-                  {mode === "custom-group" && (() => {
+                  {isCustomGroup && (() => {
                     const allCategories = Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories]));
-                    const handleAddCategory = () => {
-                      const input = window.prompt("New category name");
-                      const trimmed = (input || "").trim().slice(0, 40);
-                      if (!trimmed) return;
-                      if (allCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
-                        setGroupCategory(allCategories.find((c) => c.toLowerCase() === trimmed.toLowerCase())!);
+                    const handleCategoryChange = (value: string) => {
+                      if (value === CREATE_CATEGORY_VALUE) {
+                        const input = window.prompt("New category name");
+                        const trimmed = (input || "").trim().slice(0, 40);
+                        if (!trimmed) return;
+                        const existing = allCategories.find((c) => c.toLowerCase() === trimmed.toLowerCase());
+                        if (existing) {
+                          setGroupCategory(existing);
+                          return;
+                        }
+                        const next = [...customCategories, trimmed];
+                        setCustomCategories(next);
+                        try { localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(next)); } catch {}
+                        setGroupCategory(trimmed);
                         return;
                       }
-                      const next = [...customCategories, trimmed];
-                      setCustomCategories(next);
-                      try { localStorage.setItem(CUSTOM_CATS_KEY, JSON.stringify(next)); } catch {}
-                      setGroupCategory(trimmed);
+                      setGroupCategory(value);
                     };
                     return (
-                      <div className="flex gap-2">
-                        <select
-                          value={groupCategory}
-                          onChange={(e) => setGroupCategory(e.target.value)}
-                          className="flex-1 h-11 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
+                      <Select value={groupCategory} onValueChange={handleCategoryChange}>
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[100000]">
                           {allCategories.map((c) => (
-                            <option key={c} value={c}>{c}</option>
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
-                        </select>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleAddCategory}
-                          className="h-11 rounded-xl shrink-0"
-                        >
-                          + New
-                        </Button>
-                      </div>
+                          <SelectItem value={CREATE_CATEGORY_VALUE} className="text-primary">
+                            + Create new category…
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     );
                   })()}
-                  {mode !== "custom-group" && (
+                  {!isCustomGroup && (
                     <p className="text-xs text-muted-foreground">Leave blank to use member names</p>
                   )}
                 </div>
               )}
 
-              {/* Filters */}
-              <div className="flex gap-2">
-                <Select value={selectedClubId} onValueChange={handleClubChange} disabled={isClubFilterLocked}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="All Clubs" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100000]">
-                    {!isClubFilterLocked && <SelectItem value="all">All Clubs</SelectItem>}
-                    {availableClubs.map(club => (
-                      <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="All Teams" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100000]">
-                    <SelectItem value="all">All Teams</SelectItem>
-                    {filteredTeams.map(team => (
-                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Filters — only show club picker when there's a real choice */}
+              {(showClubFilter || filteredTeams.length > 0) && (
+                <div className="flex gap-2">
+                  {showClubFilter && (
+                    <Select value={selectedClubId} onValueChange={handleClubChange}>
+                      <SelectTrigger className="flex-1 h-11 rounded-xl">
+                        <SelectValue placeholder="All Clubs" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000]">
+                        <SelectItem value="all">All Clubs</SelectItem>
+                        {availableClubs.map(club => (
+                          <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {filteredTeams.length > 0 && (
+                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                      <SelectTrigger className="flex-1 h-11 rounded-xl">
+                        <SelectValue placeholder="All Teams" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000]">
+                        <SelectItem value="all">All Teams</SelectItem>
+                        {filteredTeams.map(team => (
+                          <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+              {isClubFilterLocked && availableClubs.length === 1 && (
+                <p className="text-[11px] text-muted-foreground -mt-1 px-0.5">
+                  Showing members of {availableClubs[0].name}
+                </p>
+              )}
+
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -782,33 +817,74 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           )}
         </div>
 
-        {/* Footer with action button - matches CreateGroupDialog pattern */}
-        {(selectedUsers.length > 0 || mode === "custom-group") && (
-          <ResponsiveDialogFooter className="sticky bottom-0 -mx-1 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] bg-background border-t border-border z-10">
-            <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleStartConversation}
-              disabled={isPending || (mode === "custom-group" && !groupName.trim())}
-              className="flex-1 sm:flex-none gap-2"
-            >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : mode === "custom-group" || selectedUsers.length > 1 ? (
-                <Users className="h-4 w-4" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
-              {mode === "custom-group"
-                ? selectedUsers.length === 0
-                  ? "Create Group (just me)"
-                  : `Create Group (${selectedUsers.length + 1})`
-                : selectedUsers.length === 1
-                  ? "Start Chat"
-                  : `Create Group (${selectedUsers.length} people)`}
-            </Button>
-          </ResponsiveDialogFooter>
+        {/* Anchored footer — sits above the keyboard via dynamic inset, never floats over the list */}
+        {(selectedUsers.length > 0 || isCustomGroup) && (
+          <div
+            className="shrink-0 border-t border-border bg-card px-4 pt-3 shadow-[0_-4px_12px_-8px_hsl(var(--foreground)/0.2)]"
+            style={{
+              paddingBottom: isKeyboardOpen
+                ? `${keyboardHeight + 12}px`
+                : `calc(env(safe-area-inset-bottom, 0px) + 0.75rem)`,
+            }}
+          >
+            {isCustomGroup ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setOpen(false)}
+                    className="text-muted-foreground hover:text-foreground px-4"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleStartConversation}
+                    disabled={isPending || !groupName.trim() || selectedUsers.length === 0}
+                    className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Users className="h-4 w-4" />
+                    )}
+                    Create Group
+                    {selectedUsers.length > 0 && ` (${selectedUsers.length + 1})`}
+                  </Button>
+                </div>
+                {selectedUsers.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Select at least one member to create the group
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setOpen(false)}
+                  className="text-muted-foreground hover:text-foreground px-4"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleStartConversation}
+                  disabled={isPending}
+                  className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : selectedUsers.length > 1 ? (
+                    <Users className="h-4 w-4" />
+                  ) : (
+                    <MessageCircle className="h-4 w-4" />
+                  )}
+                  {selectedUsers.length === 1
+                    ? "Start Chat"
+                    : `Create Group (${selectedUsers.length} people)`}
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>

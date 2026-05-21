@@ -2816,7 +2816,7 @@ export default function MessagesPage() {
                 const explicit = (c.category || '').trim();
                 if (explicit) return explicit;
                 const name = (c.name || '').toLowerCase();
-                if (/committee|admin|coach|leadership|staff|board|manager/.test(name)) return 'Club Management';
+                if (/committee|admin|coach|leadership|staff|board|manager|coordinator/.test(name)) return 'Club Management';
                 if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
                 if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
                 return 'Custom Groups';

@@ -17,6 +17,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -68,6 +70,28 @@ export function QuickRSVPDialog({
   const queryClient = useQueryClient();
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
+
+  // Resolve effective RSVP audience (event override → team default → players_only)
+  const { data: audienceInfo } = useQuery({
+    queryKey: ["quick-rsvp-audience", eventId, teamId],
+    queryFn: async () => {
+      const [{ data: ev }, teamRes] = await Promise.all([
+        supabase.from("events").select("rsvp_audience").eq("id", eventId).maybeSingle(),
+        teamId
+          ? supabase.from("teams").select("default_rsvp_audience").eq("id", teamId).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ]);
+      return {
+        eventAudience: (ev as any)?.rsvp_audience ?? null,
+        teamDefault: (teamRes as any)?.data?.default_rsvp_audience ?? null,
+      };
+    },
+    enabled: open,
+  });
+  const audience = resolveRsvpAudience(audienceInfo?.eventAudience, audienceInfo?.teamDefault);
+  const promptParent = shouldPromptParent(audience);
+  const promptPlayer = shouldPromptPlayer(audience);
+
 
   // Fetch children assigned to this team (including guardian-linked)
   const { data: childrenOnTeam, isLoading: loadingChildren } = useQuery({
@@ -349,34 +373,38 @@ export function QuickRSVPDialog({
             </div>
           ) : (
             <>
-              {/* Self RSVP */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Your Response</h4>
-                <div className="flex gap-2">
-                  {rsvpOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={myRsvp?.status === option.value ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
-                      disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
-                    >
-                      {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      ) : (
-                        <span className="mr-1">{option.icon}</span>
-                      )}
-                      {option.label}
-                    </Button>
-                  ))}
+              {/* Self RSVP — hidden when audience is players_only */}
+              {promptParent && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Your Response</h4>
+                  <div className="flex gap-2">
+                    {rsvpOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={myRsvp?.status === option.value ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
+                        disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
+                      >
+                        {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <span className="mr-1">{option.icon}</span>
+                        )}
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Children RSVP */}
-              {childrenOnTeam && childrenOnTeam.length > 0 && (
+
+              {/* Children RSVP — hidden when audience is parents_only */}
+              {promptPlayer && childrenOnTeam && childrenOnTeam.length > 0 && (
                 <>
                   <Separator />
+
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium flex items-center gap-2">
                       <Baby className="h-4 w-4" />

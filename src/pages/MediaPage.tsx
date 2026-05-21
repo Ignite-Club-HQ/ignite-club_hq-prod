@@ -1257,7 +1257,7 @@ export default function MediaPage() {
             variant={hasActiveFilters ? "secondary" : "ghost"}
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className="h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative text-muted-foreground hover:text-foreground"
+            className={`h-10 w-10 sm:h-9 sm:w-auto sm:px-3 relative ${hasActiveFilters ? "text-secondary-foreground hover:text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             aria-label="Filter"
           >
             <Filter className="h-5 w-5 sm:h-4 sm:w-4" />
