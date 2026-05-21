@@ -75,7 +75,7 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
 
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { RsvpAuditLogSection } from "@/components/event/RsvpAuditLogSection";
@@ -2760,11 +2760,12 @@ export default function EventDetailPage() {
           );
         })() : null;
 
+        const parentFirstHeading = isParentFirstEvent(event as any);
         const parentBlock = promptParent ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <h2 className={isMiniLeagueEvent ? "text-lg font-semibold" : (childrenBlock ? "text-sm font-semibold text-muted-foreground uppercase tracking-wide" : "text-lg font-semibold")}>
-                {isMiniLeagueEvent ? "Attendance" : (childrenBlock ? "Your RSVP" : "Your RSVP")}
+              <h2 className={isMiniLeagueEvent ? "text-lg font-semibold" : ((childrenBlock && !parentFirstHeading) ? "text-sm font-semibold text-muted-foreground uppercase tracking-wide" : "text-lg font-semibold")}>
+                {isMiniLeagueEvent ? "Attendance" : "Your RSVP"}
               </h2>
               {(myRsvp as any)?.source === "default" && (
                 <span
@@ -2865,11 +2866,12 @@ export default function EventDetailPage() {
           </div>
         ) : null;
 
+        const parentFirst = isParentFirstEvent(event as any);
         return (
       <section className="space-y-4">
-        {childrenBlock}
+        {parentFirst ? parentBlock : childrenBlock}
         {childrenBlock && parentBlock && <Separator />}
-        {parentBlock}
+        {parentFirst ? childrenBlock : parentBlock}
 
         {/* Mini-league: parent's per-player RSVP */}
         {isMiniLeagueEvent && myMiniLeaguePlayers && myMiniLeaguePlayers.length > 0 && (
