@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { DEFAULT_TEAM_RSVP_AUDIENCE, type RsvpAudience } from "@/lib/rsvpAudience";
 import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
 import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { mimeToExtension } from "@/lib/binaryUtils";
