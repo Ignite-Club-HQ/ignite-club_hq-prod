@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 export type TrainingDefaultStatus = "going" | "not_going";
 
@@ -73,9 +74,11 @@ export function useTrainingDefault({ teamId, childId, userId }: Args) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey });
-      // Triggers may have inserted RSVPs forward — refresh anything event-related
       qc.invalidateQueries({ queryKey: ["event-rsvps"] });
       qc.invalidateQueries({ queryKey: ["event-rsvps-going"] });
+    },
+    onError: (e: any) => {
+      toast({ title: "Couldn't save auto-RSVP", description: e?.message ?? String(e), variant: "destructive" });
     },
   });
 
