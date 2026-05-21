@@ -2649,9 +2649,18 @@ export default function EventDetailPage() {
       )}
 
       {/* RSVP Section */}
+      {(() => {
+        const audience = resolveRsvpAudience(
+          (event as any)?.rsvp_audience,
+          (event as any)?.teams?.default_rsvp_audience,
+        );
+        const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
+        const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
+        return (
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+
           {(myRsvp as any)?.source === "default" && (
             <span
               title="Auto-applied from your training default. Tap a button to confirm."
