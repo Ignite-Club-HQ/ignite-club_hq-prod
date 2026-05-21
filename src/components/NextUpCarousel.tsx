@@ -753,7 +753,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         <WatchLiveCta event={event} />
         {!event.is_cancelled && !event.is_bye && (
           <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            {hasGuardianChildren ? (() => {
+            {(hasGuardianChildren && !isParentFirstEvent(event)) ? (() => {
               const teammatesGoing = rsvpSummary?.totalCount || 0;
               const isSingleChild = childrenOnEvent!.length === 1;
               const soleChild = isSingleChild ? childrenOnEvent![0] : null;
