@@ -436,7 +436,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
-  const [childrenRsvpOpen, setChildrenRsvpOpen] = useState(false);
+  const [parentRsvpOpen, setParentRsvpOpen] = useState(false);
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
   const { data: rsvpSummary } = useRsvpSummary(event.id, event.type);
