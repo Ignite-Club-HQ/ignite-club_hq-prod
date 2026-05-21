@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/AssignTeamAdminSection";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
+import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
 // TeamAdminInviteDialog now shown on TeamDetailPage via navigation state
 import type { Database } from "@/integrations/supabase/types";
 
