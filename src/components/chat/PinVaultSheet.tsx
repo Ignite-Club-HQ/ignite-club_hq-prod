@@ -145,7 +145,6 @@ export function PinVaultSheet({
       <SheetContent
         side="bottom"
         className="px-0 pb-0 rounded-t-2xl max-h-[85vh] flex flex-col bg-background"
-        style={{ zIndex: 100001 }}
       >
         <SheetHeader className="px-6 pb-3 border-b text-left">
           <SheetTitle className="flex items-center gap-2">
