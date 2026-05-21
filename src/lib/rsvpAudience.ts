@@ -30,7 +30,7 @@ export const RSVP_AUDIENCE_OPTIONS: Array<{
   },
 ];
 
-export const DEFAULT_TEAM_RSVP_AUDIENCE: RsvpAudience = "players_only";
+export const DEFAULT_TEAM_RSVP_AUDIENCE: RsvpAudience = "players_and_parents";
 
 /**
  * Resolves the effective RSVP audience for an event, falling back through
