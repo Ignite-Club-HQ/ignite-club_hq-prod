@@ -630,7 +630,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           if (!prevFinished && res.timer_state.is_game_finished) {
             playTimerBeep("Full Time! Match complete.");
           } else if (prevHalf === 1 && res.timer_state.current_half === 2) {
-            onHalfChangeRef.current?.(2);
+            onHalfChangeRef.current?.(2, 'reconcile');
             playTimerBeep("Half Time! First half complete.");
           }
           return;
