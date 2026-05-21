@@ -50,6 +50,7 @@ export default function EditTeamPage() {
   const [autoRsvpDm, setAutoRsvpDm] = useState(false);
   const [autoRsvpCadences, setAutoRsvpCadences] = useState<string[]>(["t72", "t24", "t3"]);
   const [autoRsvpEventTypes, setAutoRsvpEventTypes] = useState<string[]>(["match", "training", "game"]);
+  const [defaultRsvpAudience, setDefaultRsvpAudience] = useState<RsvpAudience>(DEFAULT_TEAM_RSVP_AUDIENCE);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
