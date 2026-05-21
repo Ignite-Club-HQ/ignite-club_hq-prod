@@ -675,7 +675,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                         <SelectTrigger className="h-11 rounded-xl">
                           <SelectValue placeholder="Category" />
                         </SelectTrigger>
-                        <SelectContent className="z-[100000]">
+                        <SelectContent className="z-[100020]">
                           {allCategories.map((c) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
@@ -700,7 +700,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                       <SelectTrigger className="flex-1 h-11 rounded-xl">
                         <SelectValue placeholder="All Clubs" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]">
+                      <SelectContent className="z-[100020]">
                         <SelectItem value="all">All Clubs</SelectItem>
                         {availableClubs.map(club => (
                           <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
@@ -713,7 +713,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                       <SelectTrigger className="flex-1 h-11 rounded-xl">
                         <SelectValue placeholder="All Teams" />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]">
+                      <SelectContent className="z-[100020]">
                         <SelectItem value="all">All Teams</SelectItem>
                         {filteredTeams.map(team => (
                           <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
