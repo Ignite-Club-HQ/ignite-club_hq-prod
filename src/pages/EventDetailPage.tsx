@@ -75,6 +75,8 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { RsvpAuditLogSection } from "@/components/event/RsvpAuditLogSection";
 import { AttendanceRow } from "@/components/event/AttendanceRow";
@@ -287,7 +289,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select(`*, teams (name, default_match_arrival_minutes), clubs (name, is_pro, sport)`)
+        .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs (name, is_pro, sport)`)
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -2647,9 +2649,18 @@ export default function EventDetailPage() {
       )}
 
       {/* RSVP Section */}
+      {(() => {
+        const audience = resolveRsvpAudience(
+          (event as any)?.rsvp_audience,
+          (event as any)?.teams?.default_rsvp_audience,
+        );
+        const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
+        const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
+        return (
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
+
           {(myRsvp as any)?.source === "default" && (
             <span
               title="Auto-applied from your training default. Tap a button to confirm."
@@ -2659,7 +2670,9 @@ export default function EventDetailPage() {
             </span>
           )}
         </div>
+        {promptParent && (<>
         <div className="grid grid-cols-3 gap-2">
+
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
               key={value}
@@ -2749,8 +2762,10 @@ export default function EventDetailPage() {
             </CardContent>
           </Card>
         )}
+        </>)}
         {/* Child RSVP - inline below parent RSVP */}
-        {childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+        {promptPlayer && childrenOnTeam && childrenOnTeam.length > 0 && (() => {
+
           const unrespondedChildren = childrenOnTeam.filter(
             (c: any) => !childRsvps.find((r) => r.child_id === c.id),
           );
@@ -2914,6 +2929,9 @@ export default function EventDetailPage() {
           </div>
         )}
       </section>
+        );
+      })()}
+
 
       {/* Guest Management Section - only for social events with guests enabled */}
       {event.type === "social" && event.allow_guests && myRsvp?.status === "going" && (
