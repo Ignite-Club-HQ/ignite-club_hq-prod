@@ -852,6 +852,63 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_pinned_vault: {
+        Row: {
+          chat_id: string
+          chat_type: string
+          created_at: string
+          enabled: boolean
+          id: string
+          root_id: string | null
+          root_scope: string | null
+          set_by: string
+          updated_at: string
+          vault_file_id: string | null
+          vault_folder_id: string | null
+        }
+        Insert: {
+          chat_id: string
+          chat_type: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          root_id?: string | null
+          root_scope?: string | null
+          set_by: string
+          updated_at?: string
+          vault_file_id?: string | null
+          vault_folder_id?: string | null
+        }
+        Update: {
+          chat_id?: string
+          chat_type?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          root_id?: string | null
+          root_scope?: string | null
+          set_by?: string
+          updated_at?: string
+          vault_file_id?: string | null
+          vault_folder_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_pinned_vault_vault_file_id_fkey"
+            columns: ["vault_file_id"]
+            isOneToOne: false
+            referencedRelation: "vault_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_pinned_vault_vault_folder_id_fkey"
+            columns: ["vault_folder_id"]
+            isOneToOne: false
+            referencedRelation: "vault_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_club_points: {
         Row: {
           child_id: string

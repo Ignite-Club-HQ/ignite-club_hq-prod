@@ -43,6 +43,9 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
+import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
+import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -157,6 +160,8 @@ export default function ClubChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [pinVaultSheetOpen, setPinVaultSheetOpen] = useState(false);
+  const pinnedVault = useChatPinnedVault("club", clubId ?? undefined);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
   const useVirtualizedChat = true;
@@ -1356,7 +1361,19 @@ export default function ClubChatPage() {
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
               <Search className="h-4 w-4" />
             </Button>
-            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isAnyRefreshing}
+              onManagePinnedVault={
+                (isClubAdmin || isAppAdmin) ? () => setPinVaultSheetOpen(true) : undefined
+              }
+              pinnedVaultEnabled={pinnedVault.record ? pinnedVault.record.enabled : null}
+              onTogglePinnedVault={
+                pinnedVault.record && (isClubAdmin || isAppAdmin)
+                  ? (v) => pinnedVault.toggleEnabled(v)
+                  : undefined
+              }
+            />
           </>
         }
       />
@@ -1382,12 +1399,25 @@ export default function ClubChatPage() {
         </div>
       )}
 
+      {/* Pinned vault banner */}
+      <PinnedVaultBanner record={pinnedVault.record} isAdmin={!!(isClubAdmin || isAppAdmin)} />
+
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
         pins={pinnedMessages}
         onJumpToMessage={handleJumpToMessage}
         onUnpin={unpinMessage}
       />
+
+      {clubId && (
+        <PinVaultSheet
+          open={pinVaultSheetOpen}
+          onOpenChange={setPinVaultSheetOpen}
+          chatType="club"
+          chatId={clubId}
+          clubId={clubId}
+        />
+      )}
 
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
