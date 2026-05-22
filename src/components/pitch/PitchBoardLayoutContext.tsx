@@ -132,8 +132,9 @@ export interface PitchBoardLayoutContextValue {
   handleTimerDragStart: any;
   handleTimerTouchStart: any;
   handleTimerUpdate: any;
-  handleToggleLockPlayer: any;
-  handleTogglePauseAutoSub: any;
+  handleToggleLockPlayer: (playerId: string) => void;
+  handleTogglePauseAutoSub: () => void;
+
   handleTouchStart: any;
   handleUndo: (...args: any[]) => any;
   handleUnlinkEvent: (...args: any[]) => any;
