@@ -3916,48 +3916,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [subMode, selectedOnPitch, playersOnBench.length, players]);
 
-  // Calculate which pitch players can move to accommodate the selected bench player
-  const movablePitchPlayerIds = useMemo(() => {
-    if (!subMode || !selectedOnBench || !selectedOnPitch) return new Set<string>();
-    
-    const benchPlayer = players.find(p => p.id === selectedOnBench);
-    const pitchPlayer = players.find(p => p.id === selectedOnPitch);
-    
-    if (!benchPlayer || !pitchPlayer?.currentPitchPosition) return new Set<string>();
-    
-    const requiredPos = pitchPlayer.currentPitchPosition;
-    
-    // If bench player can directly fill the position, no one needs to move
-    const canPlayDirectly = !benchPlayer.assignedPositions?.length || 
-      benchPlayer.assignedPositions.includes(requiredPos);
-    
-    if (canPlayDirectly) return new Set<string>();
-    
-    // Find players who can swap to the required position
-    const movableIds = new Set<string>();
-    
-    playersOnPitch.filter(p => p.id !== selectedOnPitch).forEach(otherPitchPlayer => {
-      // Other player can cover required position if they have no assigned positions (can play anywhere)
-      // OR their assigned positions include the required position
-      const canCoverRequired = !otherPitchPlayer.assignedPositions?.length || 
-        otherPitchPlayer.assignedPositions.includes(requiredPos);
-      
-      // Bench player can play in other player's position if they have no assigned positions (can play anywhere)
-      // OR their assigned positions include the other player's current position
-      const benchCanPlayOther = !benchPlayer.assignedPositions?.length || 
-        benchPlayer.assignedPositions.includes(otherPitchPlayer.currentPitchPosition!);
-      
-      if (
-        otherPitchPlayer.currentPitchPosition !== requiredPos &&
-        canCoverRequired &&
-        benchCanPlayOther
-      ) {
-        movableIds.add(otherPitchPlayer.id);
-      }
-    });
-    
-    return movableIds;
-  }, [subMode, selectedOnBench, selectedOnPitch, players, playersOnPitch]);
+  // movablePitchPlayerIds now lives in usePitchBoardSubSelection.
 
   // Note: ManualSubConfirmDialog is now triggered by the substitution dialog trigger effect above (in the subMode section)
 
