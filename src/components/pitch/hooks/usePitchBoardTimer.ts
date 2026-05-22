@@ -31,15 +31,17 @@ interface UsePitchBoardTimerOptions {
   savedState: PitchBoardState | null;
   minutesPerHalf: number;
   gameTimerRef: RefObject<GameTimerRef | null>;
-  setPlayers: Dispatch<SetStateAction<Player[]>>;
-  setElapsedGameTime: Dispatch<SetStateAction<number>>;
   /**
-   * Refs to the auto-sub callbacks. Passed as refs (not values) so this
-   * hook can be called at the top of the component, before `useAutoSubs`
-   * has run. The component is responsible for assigning `.current` after
-   * the auto-sub hook returns — see the existing pattern with
-   * `pushToUndoHistoryRef_autoSubs` / `runSubAnimationRef_autoSubs`.
+   * Refs to setters / callbacks that are created later in the component
+   * body (after `useState<Player[]>`, `useAutoSubs`, etc.). Passing them
+   * as refs lets this hook run at the top of the component, before those
+   * declarations exist. The component is responsible for assigning
+   * `.current` once the underlying value is available — mirrors the
+   * existing pattern with `pushToUndoHistoryRef_autoSubs` /
+   * `runSubAnimationRef_autoSubs`.
    */
+  setPlayersRef: RefObject<Dispatch<SetStateAction<Player[]>> | null>;
+  setElapsedGameTimeRef: RefObject<Dispatch<SetStateAction<number>> | null>;
   updateNextSubInfoRef: RefObject<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>;
   checkForDueSubsRef: RefObject<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>;
 }
