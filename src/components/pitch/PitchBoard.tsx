@@ -3719,96 +3719,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // tacticalOffsets + ballOffset now live in usePitchBoardTactical (declared above).
 
+  // getValidBenchPlayerIds + getValidSwapPlayerIds now live in usePitchBoardSubSelection.
 
-  // Calculate which bench players can come on for the selected pitch player
-  const getValidBenchPlayerIds = useMemo(() => {
-    if (!subMode || !selectedOnPitch) return new Set<string>();
-    
-    const pitchPlayer = players.find(p => p.id === selectedOnPitch);
-    if (!pitchPlayer?.currentPitchPosition) return new Set<string>();
-    
-    const requiredPos = pitchPlayer.currentPitchPosition;
-    const validIds = new Set<string>();
-    
-    playersOnBench.forEach(benchPlayer => {
-      // Skip injured players - they cannot be subbed on
-      if (benchPlayer.isInjured) return;
-      
-      // Can directly play in the required position (or has no positions assigned = can play anywhere)
-      const canPlayDirectly = !benchPlayer.assignedPositions?.length || 
-        benchPlayer.assignedPositions.includes(requiredPos);
-      
-      if (canPlayDirectly) {
-        validIds.add(benchPlayer.id);
-        return;
-      }
-      
-      // Check if any other pitch player can swap to the required position
-      // allowing this bench player to come on elsewhere
-      const otherPitchPlayers = playersOnPitch.filter(p => p.id !== selectedOnPitch);
-      
-      // Find players who can swap to the required position
-      for (const otherPitchPlayer of otherPitchPlayers) {
-        // Player can cover position if they have no assigned positions (can play anywhere)
-        // OR if their assigned positions include the required position
-        const canCoverRequiredPos = !otherPitchPlayer.assignedPositions?.length || 
-          otherPitchPlayer.assignedPositions.includes(requiredPos);
-        
-        // Bench player can play in the other player's position if they have no assigned positions
-        // (can play anywhere) OR their assigned positions include the other player's current position
-        const benchCanPlayOtherPos = !benchPlayer.assignedPositions?.length || 
-          benchPlayer.assignedPositions.includes(otherPitchPlayer.currentPitchPosition!);
-        
-        if (
-          otherPitchPlayer.currentPitchPosition !== requiredPos &&
-          canCoverRequiredPos &&
-          benchCanPlayOtherPos
-        ) {
-          validIds.add(benchPlayer.id);
-          break;
-        }
-      }
-    });
-    
-    return validIds;
-  }, [subMode, selectedOnPitch, players, playersOnBench, playersOnPitch]);
 
-  // Calculate which pitch players can swap with the selected pitch player based on position preferences
-  const getValidSwapPlayerIds = useMemo(() => {
-    if (!swapMode || !swapPlayer1) return new Set<string>();
-    
-    const selectedPlayer = players.find(p => p.id === swapPlayer1);
-    if (!selectedPlayer?.currentPitchPosition) return new Set<string>();
-    
-    const selectedPos = selectedPlayer.currentPitchPosition;
-    const validIds = new Set<string>();
-    
-    playersOnPitch.forEach(pitchPlayer => {
-      // Skip the selected player itself
-      if (pitchPlayer.id === swapPlayer1) return;
-      
-      // In mini-league mode, only allow swaps within the same team
-      if (miniLeagueTeams && selectedPlayer.teamSide && pitchPlayer.teamSide && selectedPlayer.teamSide !== pitchPlayer.teamSide) return;
-      
-      const targetPos = pitchPlayer.currentPitchPosition;
-      if (!targetPos) return;
-      
-      // Check if selected player can play in target's position
-      const selectedCanPlayTarget = !selectedPlayer.assignedPositions?.length || 
-        selectedPlayer.assignedPositions.includes(targetPos);
-      
-      // Check if target player can play in selected player's position
-      const targetCanPlaySelected = !pitchPlayer.assignedPositions?.length || 
-        pitchPlayer.assignedPositions.includes(selectedPos);
-      
-      // Both players must be able to play in each other's positions
-      if (selectedCanPlayTarget && targetCanPlaySelected) {
-        validIds.add(pitchPlayer.id);
-      }
-    });
-    
-    return validIds;
-  }, [swapMode, swapPlayer1, players, playersOnPitch]);
 
   // Toggle player injury status
   const togglePlayerInjury = useCallback((playerId: string) => {
