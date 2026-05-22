@@ -249,7 +249,7 @@ export interface PitchBoardLayoutContextValue {
   setShowLineupPicker: React.Dispatch<React.SetStateAction<any>>;
   setShowMatchHeader: React.Dispatch<React.SetStateAction<any>>;
   setStatsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSubConfirmDialogOpen: any;
+  setSubConfirmDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSubPreviewOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setTeamSize: React.Dispatch<React.SetStateAction<TeamSize>>;
   setTimerFormationDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
