@@ -110,8 +110,8 @@ import { type PitchBoardMode } from "./ModeSwitch";
 import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
-const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
-const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
+
+
 
 interface PitchBoardProps {
   teamId: string;
