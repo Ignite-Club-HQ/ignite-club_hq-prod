@@ -489,6 +489,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     () => getHalftimePromptAckKey(loadTimerStateForMinutes(teamId), savedState),
     [teamId, savedState]
   );
+  const handleAcknowledgeHalftimePrompt = useCallback(() => {
+    acknowledgeHalftimePrompt(getHalftimePromptAckKey(loadTimerStateForMinutes(teamId), savedState) ?? halftimePromptAckKey);
+  }, [teamId, savedState, halftimePromptAckKey]);
   // Settings ref for usePitchSettings (avoids stale closures)
   const pitchSettingsRef = useRef({
     rotationSpeed,
@@ -2544,7 +2547,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setPendingAutoSub(null);
         setPendingBatchSubs([]);
         setSubConfirmDialogOpen(true);
-        acknowledgeHalftimePrompt(halftimePromptAckKey);
       }, 500);
     }
   }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
