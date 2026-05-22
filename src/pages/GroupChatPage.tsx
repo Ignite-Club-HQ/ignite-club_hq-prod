@@ -1831,6 +1831,12 @@ export default function GroupChatPage() {
       <PinnedVaultBanner
         record={pinnedVault.record}
         isAdmin={!!(isAdmin || group.created_by === user?.id)}
+        onUnpin={
+          pinnedVault.record &&
+          (isAdmin || group.created_by === user?.id || pinnedVault.record.set_by === user?.id)
+            ? () => pinnedVault.remove()
+            : undefined
+        }
       />
 
       {/* Pinned messages banner */}
