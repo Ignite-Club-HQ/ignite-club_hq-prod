@@ -46,32 +46,48 @@ export function PinnedMessagesBanner({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={handleBannerClick}
-        className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left"
-        aria-label={hasMore ? `View ${pins.length} pinned messages` : "Jump to pinned message"}
-      >
-        <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center">
-          <Pin className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
-              Pinned{hasMore ? ` · ${pins.length}` : ""}
-            </span>
-            <span className="text-[11px] text-muted-foreground truncate">
-              {latest.author_name ?? "Member"}
-            </span>
+      <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20">
+        <button
+          type="button"
+          onClick={handleBannerClick}
+          className="flex-1 min-w-0 flex items-center gap-3 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left -mx-2 px-2 py-1 rounded"
+          aria-label={hasMore ? `View ${pins.length} pinned messages` : "Jump to pinned message"}
+        >
+          <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center">
+            <Pin className="h-3.5 w-3.5 text-primary" />
           </div>
-          <p className="text-sm text-foreground truncate leading-tight mt-0.5">
-            {previewText(latest)}
-          </p>
-        </div>
-        {hasMore && (
-          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
+                Pinned{hasMore ? ` · ${pins.length}` : ""}
+              </span>
+              <span className="text-[11px] text-muted-foreground truncate">
+                {latest.author_name ?? "Member"}
+              </span>
+            </div>
+            <p className="text-sm text-foreground truncate leading-tight mt-0.5">
+              {previewText(latest)}
+            </p>
+          </div>
+          {hasMore && (
+            <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          )}
+        </button>
+        {onUnpin && !hasMore && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              hapticSelectionTick();
+              onUnpin(latest.message_id);
+            }}
+            className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Unpin message"
+          >
+            <X className="h-4 w-4" />
+          </button>
         )}
-      </button>
+      </div>
 
       <Sheet open={listOpen} onOpenChange={setListOpen}>
         <SheetContent
