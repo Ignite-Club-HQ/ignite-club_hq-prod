@@ -102,6 +102,7 @@ import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardD
 import { usePitchBoardTactical } from "./hooks/usePitchBoardTactical";
 import { usePitchBoardSubSelection } from "./hooks/usePitchBoardSubSelection";
 import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
+import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -1480,9 +1481,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } | null>(null);
   const [swapBeforeSubDialogOpen, setSwapBeforeSubDialogOpen] = useState(false);
 
-  // Bench-to-pitch drag substitution state
-  const [benchToSubOpen, setBenchToSubOpen] = useState(false);
-  const [benchToSubPlayer, setBenchToSubPlayer] = useState<string | null>(null);
+  // Step 8c — Bench-to-pitch quick substitution sheet state
+  const {
+    benchToSubOpen,
+    setBenchToSubOpen,
+    benchToSubPlayer,
+    setBenchToSubPlayer,
+  } = usePitchBoardBenchToSub();
 
   // Step 8b — manual-sub confirm dialog flow (state + handlers + trigger effect)
   const {
