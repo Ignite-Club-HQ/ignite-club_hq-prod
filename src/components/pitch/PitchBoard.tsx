@@ -91,6 +91,7 @@ import {
   validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
+import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -222,24 +223,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }
   const savedState = savedStateRef.current;
   
-  // Pre-initialize time-tracking refs based on saved timer state.
-  // This prevents handleTimerUpdate from re-adding time that was already
-  // captured in savedState.players[].minutesPlayed (+ catchup).
-  // Without this, GameTimer initializes with elapsedSeconds=0, fires
-  // handleTimerUpdate(0), then restores to the full elapsed time, causing
-  // handleTimerUpdate to add a delta equal to the entire game duration — doubling minutes.
-  const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
-  const hasInitializedTimeRef = useRef(false);
-  if (savedState && !hasInitializedTimeRef.current) {
-    const timerNow = loadTimerStateForMinutes(teamId);
-    if (timerNow) {
-      const halfElapsed = getCurrentGameSeconds(timerNow);
-      const currentHalf = (timerNow.currentHalf || 1) as 1 | 2;
-      lastTimeUpdateRef.current = { seconds: halfElapsed, half: currentHalf };
-      hasInitializedTimeRef.current = true;
-      console.log("[PitchState] Pre-initialized time ref:", { halfElapsed, currentHalf });
-    }
-  }
+  // Timer state + per-tick minute math live in usePitchBoardTimer (audit #9
+  // step 1 of the PitchBoard split). Setters/callbacks that are created
+  // later in the component body are wired in via refs — see assignments
+  // after `useState<Player[]>`, after `useAutoSubs`, and after the
+  // `elapsedGameTime` state declaration further down.
+  const setPlayersRef = useRef<React.Dispatch<React.SetStateAction<Player[]>> | null>(null);
+  const setElapsedGameTimeRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
+  const updateNextSubInfoRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
+  const checkForDueSubsRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
+  const minutesPerHalfRef = useRef<number>(initialMinutesPerHalf);
+  const gameTimerRef = useRef<GameTimerRef>(null);
+  const {
+    gameInProgress,
+    setGameInProgress,
+    timerResetKey,
+    setTimerResetKey,
+    lastTimeUpdateRef,
+    hasInitializedTimeRef,
+    handleTimerUpdate,
+  } = usePitchBoardTimer({
+    teamId,
+    savedState,
+    minutesPerHalfRef,
+    gameTimerRef,
+    setPlayersRef,
+    setElapsedGameTimeRef,
+    updateNextSubInfoRef: updateNextSubInfoRef_timer,
+    checkForDueSubsRef: checkForDueSubsRef_timer,
+  });
   
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {
@@ -319,7 +331,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } | null>(null);
 
   // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
-  const gameTimerRef = useRef<GameTimerRef>(null);
+  // gameTimerRef is declared above as part of usePitchBoardTimer wiring.
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
@@ -412,16 +424,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // a page reload mid-match (or a parent re-render before the first timer
   // tick) cannot let the prop-sync effect below clobber the live
   // minutesPerHalf with a transient `|| 10` fallback from the parent.
-  const [gameInProgress, setGameInProgress] = useState(() => {
-    try {
-      const t = loadTimerStateForMinutes(teamId);
-      if (!t) return false;
-      return !!(t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished);
-    } catch {
-      return false;
-    }
-  });
-  const [timerResetKey, setTimerResetKey] = useState(0); // Key to force remount GameTimer instances on reset
+  // gameInProgress + timerResetKey are owned by usePitchBoardTimer above.
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
   const [landscapeEventSelectorOpen, setLandscapeEventSelectorOpen] = useState(false); // Event selector for landscape toolbar
@@ -3347,75 +3350,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   pushToUndoHistoryRef_autoSubs.current = pushToUndoHistory;
   runSubAnimationRef_autoSubs.current = runSubAnimation;
 
-  // lastTimeUpdateRef and hasInitializedTimeRef are declared near the top of the component
-  // (after savedState loading) to allow pre-initialization from saved timer state.
-
-  // Timer update callback - check for pending subs and track minutes played
-  const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
-    // Mark game as in progress once timer starts
-    if (elapsedSeconds > 0 && !gameInProgress) {
-      setGameInProgress(true);
-    }
-    
-    // On first call, initialize the ref so the next tick computes a correct delta.
-    // We do NOT return early — we still want sub checks below to run.
-    if (!hasInitializedTimeRef.current) {
-      hasInitializedTimeRef.current = true;
-      lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
-      // Fall through — no time is added because delta will be 0 on this call
-    }
-    
-    // Track minutes played for players on pitch
-    const lastUpdate = lastTimeUpdateRef.current;
-    if (lastUpdate) {
-      let secondsElapsed = 0;
-      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
-      if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
-        // Normal tick within the same half
-        secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      } else if (lastUpdate.half === 1 && currentHalf === 2) {
-        // Half transition. Two sub-cases collapse into one formula:
-        //   - Normal end-of-H1 tick: elapsedSeconds === 0 → credit
-        //     (halfDuration - lastUpdate.seconds), i.e. the final second(s)
-        //     of H1 that GameTimer wraps when it flips to H2.
-        //   - Resume / drift catch-up that crosses halftime: elapsedSeconds
-        //     can be > 0 in H2 (see GameTimer.tsx ~L656). We must credit the
-        //     remainder of H1 PLUS the elapsed start of H2, otherwise the
-        //     whole halftime-crossing window vanishes from per-player minutes
-        //     and stats under-count by a large margin.
-        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds) + Math.max(0, elapsedSeconds);
-      }
-      if (secondsElapsed > 0) {
-        // Compute the cumulative game clock so we can cap each player's
-        // minutesPlayed at the total elapsed game time. This is a defensive
-        // guard against any double-accumulation (e.g. duplicated tick events,
-        // half-transition catchup colliding with a normal tick, or stale
-        // refs after remount). A player's on-pitch time can never logically
-        // exceed total game elapsed.
-        const totalElapsedNow = currentHalf === 2
-          ? halfDuration + elapsedSeconds
-          : elapsedSeconds;
-        setPlayers(prev => prev.map(p => {
-          if (p.position !== null) {
-            const next = (p.minutesPlayed || 0) + secondsElapsed;
-            return { ...p, minutesPlayed: Math.min(next, totalElapsedNow) };
-          }
-          return p;
-        }));
-      }
-    }
-    lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
-
-    // Update reactive elapsed game time for MatchStatsPanel
-    const totalElapsed = currentHalf === 2 
-      ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds 
-      : elapsedSeconds;
-    setElapsedGameTime(totalElapsed);
-
-    // Delegate next-sub countdown and due-sub detection to the hook
-    updateNextSubInfo(elapsedSeconds, currentHalf);
-    checkForDueSubs(elapsedSeconds, currentHalf);
-  }, [updateNextSubInfo, checkForDueSubs, gameInProgress]);
+  // Forward setters/callbacks into the timer hook (declared at the top of
+  // the component, before these values exist).
+  setPlayersRef.current = setPlayers;
+  minutesPerHalfRef.current = minutesPerHalf;
+  setElapsedGameTimeRef.current = setElapsedGameTime;
+  updateNextSubInfoRef_timer.current = updateNextSubInfo;
+  checkForDueSubsRef_timer.current = checkForDueSubs;
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2, source: 'live' | 'reconcile' = 'live') => {
