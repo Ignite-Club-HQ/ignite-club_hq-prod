@@ -37,6 +37,24 @@ export default function CourtBoardResumeCard() {
   const { user } = useAuth();
   const [dismissed, setDismissed] = useState<Record<string, string>>(() => loadDismissed());
 
+  // Netball / basketball boards are in beta and gated to app admins only.
+  // Hide the resume card entirely for everyone else.
+  const { data: isAppAdmin } = useQuery({
+    queryKey: ["court-board-resume-app-admin", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const dismissGame = (gameId: string, updatedAt: string) => {
     const next = { ...dismissed, [gameId]: updatedAt };
     setDismissed(next);
@@ -61,7 +79,7 @@ export default function CourtBoardResumeCard() {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!isAppAdmin,
     // Refresh every 30s so a freshly started/ended game appears/disappears.
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
