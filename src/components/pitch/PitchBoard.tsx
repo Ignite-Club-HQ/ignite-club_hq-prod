@@ -223,17 +223,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // State initialization flag
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Load saved state once for initialization
-  // Use a sentinel to distinguish "not yet loaded" from "loaded but no state found"
-  const savedStateLoadedRef = useRef(false);
-  const savedStateRef = useRef<PitchBoardState | null>(null);
-  if (!savedStateLoadedRef.current) {
-    savedStateLoadedRef.current = true;
-    const loaded = loadPitchState(teamId);
-    savedStateRef.current = loaded;
-    console.log("[PitchState] Initial load result:", loaded ? "found" : "not found", "teamId:", teamId);
-  }
-  const savedState = savedStateRef.current;
+  // Step 9b: one-shot saved-state load + initial team-size/formation getters.
+  const { savedState, getInitialTeamSize, getInitialFormationIndex } =
+    usePitchBoardInitialState({ teamId, initialTeamSize, initialFormation });
   
   // Timer state + per-tick minute math live in usePitchBoardTimer (audit #9
   // step 1 of the PitchBoard split). Setters/callbacks that are created
