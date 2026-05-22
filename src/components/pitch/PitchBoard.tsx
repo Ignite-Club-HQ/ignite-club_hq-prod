@@ -823,52 +823,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     gcTime: 10 * 60 * 1000,
   });
 
-  // Fetch linked event details (for opponent name)
-  const { data: linkedEventDetails } = useQuery({
-    queryKey: ["pitch-linked-event", linkedEventId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("events")
-        .select("id, opponent, title, start_time")
-        .eq("id", linkedEventId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!linkedEventId,
-    // Always refetch when the board mounts/regains focus so edits made on
-    // the event page (e.g. kickoff time changes) flow through immediately.
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-  });
+  // linkedEventDetails, opponentName, and the 24h auto-unlink effect now live
+  // in usePitchBoardEventLink (top of component).
 
-  // Auto-unlink the game 24h after kickoff so stale fixtures don't stay
-  // attached to the pitch board indefinitely. Re-checks hourly while mounted.
-  useEffect(() => {
-    if (!linkedEventId || !linkedEventDetails?.start_time) return;
-    const checkExpiry = () => {
-      const kickoff = new Date(linkedEventDetails.start_time as string).getTime();
-      if (!Number.isFinite(kickoff)) return;
-      const ageMs = Date.now() - kickoff;
-      if (ageMs > 24 * 60 * 60 * 1000) {
-        setLinkedEventId(null);
-      }
-    };
-    checkExpiry();
-    const interval = setInterval(checkExpiry, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [linkedEventId, linkedEventDetails?.start_time]);
-
-  // Extract opponent name from linked event
-  const opponentName = useMemo(() => {
-    if (linkedEventDetails?.opponent) return linkedEventDetails.opponent;
-    if (linkedEventDetails?.title) {
-      const vsMatch = linkedEventDetails.title.match(/\bvs?\b\s*(.+)/i);
-      if (vsMatch) return vsMatch[1].trim();
-    }
-    return "Opponent";
-  }, [linkedEventDetails]);
 
   // Goal handlers
   const handleAddGoal = useCallback((goal: Goal) => {
