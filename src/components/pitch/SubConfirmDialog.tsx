@@ -96,7 +96,7 @@ export default function SubConfirmDialog({
   useEffect(() => {
     if (!open || !isHalftimeOnly) return;
     const t = loadTimerStateForMinutes();
-    const p = loadPitchState(t?.teamId);
+    const p = t?.teamId ? loadPitchState(t.teamId) : null;
     if (!canShowHalftimePrompt(t, p)) {
       onAcknowledgeHalftime?.();
       onOpenChange(false);
