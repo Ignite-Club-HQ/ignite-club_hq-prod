@@ -112,7 +112,7 @@ export interface PitchBoardLayoutContextValue {
   handlePitchTouchStart: (...args: any[]) => any;
   handlePlayerClick: (...args: any[]) => any;
   handlePortraitTimerTouchStart: any;
-  handleRegeneratePlan: any;
+  handleRegeneratePlan: () => void;
   handleRemoveFillInPlayer: any;
   handleRemoveGoal: (...args: any[]) => any;
   handleResetFormation: (...args: any[]) => any;
