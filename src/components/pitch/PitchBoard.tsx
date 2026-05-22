@@ -3699,18 +3699,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return playersOnPitch.filter(p => p.teamSide === selectedTeamForSettings);
   }, [playersOnPitch, miniLeagueTeams, selectedTeamForSettings]);
 
-  // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
-  const tacticalOffsets = useMemo(() => 
-    computeTacticalOffsets(players, tacticalMode, teamSize, !!miniLeagueTeams),
-    [players, tacticalMode, teamSize, miniLeagueTeams]
-  );
+  // tacticalOffsets + ballOffset now live in usePitchBoardTactical (declared above).
 
-  // Compute ball visual offset to avoid overlapping with tactically-shifted players
-  // Don't apply offset while actively dragging the ball
-  const ballOffset = useMemo(() =>
-    (isDraggingBall || recentlyDraggedBallRef.current) ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
-    [ballPosition, players, tacticalOffsets, tacticalMode, isDraggingBall]
-  );
 
   // Calculate which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
