@@ -93,7 +93,7 @@ export interface PitchBoardLayoutContextValue {
   handleDragEnd: any;
   handleDragOver: any;
   handleDragStart: any;
-  handleExecuteNow: any;
+  handleExecuteNow: () => void;
   handleFormationChange: any;
   handleFormationChangeCancel: any;
   handleFormationChangeConfirm: any;
