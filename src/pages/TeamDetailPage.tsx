@@ -1346,7 +1346,9 @@ export default function TeamDetailPage() {
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
         const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
-          ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+          // Netball / basketball game boards are still in beta — hidden from
+          // all users except app admins until they're ready for general use.
+          ((isNetballClub || isBasketballClub) && isAppAdmin)
         );
         const launchPitchBoard = async () => {
           const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
