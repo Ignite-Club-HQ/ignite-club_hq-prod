@@ -2490,7 +2490,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     toast,
   };
 
-
+  // Keep manual-sub hook's dep ref synced each render.
+  manualSubDepsRef.current = {
+    isUndoingRef,
+    playersRef,
+    subMode,
+    selectedOnPitch,
+    selectedOnBench,
+    players,
+    benchToSubPlayer,
+    setPlayers,
+    setSelectedOnPitch,
+    setSelectedOnBench,
+    setSubMode,
+    setPendingSubBenchPlayer,
+    setRequiredPosition,
+    setPositionSwapDialogOpen,
+    setBenchToSubOpen,
+    runSubAnimation,
+    pushToUndoHistory,
+    toast,
+  };
 
 
   // Substitution dialog trigger now lives in usePitchBoardManualSub.
