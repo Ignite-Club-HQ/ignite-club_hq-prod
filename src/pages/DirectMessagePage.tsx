@@ -236,23 +236,14 @@ export default function DirectMessagePage() {
   // Mark direct message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !conversationId) return;
-
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "direct_message")
-        .eq("related_id", conversationId)
-        .eq("is_read", false);
-
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-
-    markNotificationsAsRead();
-  }, [user, conversationId, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "dm", conversationId },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, conversationId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");

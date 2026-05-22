@@ -142,22 +142,14 @@ export default function BroadcastChatPage() {
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
     if (!user) return;
-    
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "broadcast")
-        .eq("is_read", false);
-      
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-    
-    markNotificationsAsRead();
-  }, [user, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "broadcast" },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, refreshUnreadCount, decrementUnreadCount, queryClient]);
   
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");
