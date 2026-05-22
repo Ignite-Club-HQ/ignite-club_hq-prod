@@ -78,7 +78,10 @@ export default function EventsPage() {
   // Initialize from profile preference or default to list
   const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  // Default to today so events for the visually-highlighted date appear
+  // immediately on entering calendar view (users were having to click today
+  // to "wake up" the day summary even though it already looked selected).
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => new Date());
   // Day filter for list view (separate from calendar's selectedDate)
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
