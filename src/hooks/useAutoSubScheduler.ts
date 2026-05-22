@@ -305,10 +305,23 @@ export function useAutoSubScheduler({
         if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
       }
 
+      // Shared guard reused by both setTimeout branches: only fire the
+      // halftime dialog if the user hasn't acknowledged AND the timer is
+      // still parked on the genuine halftime boundary (H2, elapsed≤5,
+      // paused). Prevents stale prompts if the coach starts H2 within the
+      // 500ms delay.
+      const stillAtHalftimeBoundary = () => {
+        if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
+        const tHalf = gameTimerRef.current?.getCurrentHalf?.() ?? 1;
+        const tElapsed = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
+        const tRunning = gameTimerRef.current?.isRunning?.() ?? false;
+        return tHalf === 2 && tElapsed <= 5 && !tRunning;
+      };
+
       if (halftimeSubs.length === 0) {
         // No halftime subs — still show the halftime popup
         setTimeout(() => {
-          if (hasAcknowledgedHalftimePrompt(ackKey)) return;
+          if (!stillAtHalftimeBoundary()) return;
           playSubAlertBeep("Half time!");
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
@@ -318,7 +331,7 @@ export function useAutoSubScheduler({
       }
 
       setTimeout(() => {
-        if (hasAcknowledgedHalftimePrompt(ackKey)) return;
+        if (!stillAtHalftimeBoundary()) return;
         const [primarySub, ...additionalSubs] = halftimeSubs;
         const notificationBody =
           halftimeSubs.length > 1
