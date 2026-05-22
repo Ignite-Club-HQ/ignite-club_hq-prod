@@ -1633,7 +1633,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamSize, mockMode, selectedFormation, generateMockPlayers]);
 
-  // Arrow drawing state
+  // Arrow drawing state (refs owned by usePitchBoardDrawing below)
   const isDrawingArrowRef = useRef(false);
   const arrowStartRef = useRef<{ x: number; y: number } | null>(null);
   const tempArrowRef = useRef<any>(null);
