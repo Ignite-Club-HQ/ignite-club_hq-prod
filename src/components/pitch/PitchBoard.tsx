@@ -86,8 +86,6 @@ import {
   savePitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
-  validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
 import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
