@@ -43,7 +43,9 @@ function writeDraft(key: string, text: string) {
  * Like useState("") but persists the value to sessionStorage
  * so navigating away and back preserves the draft.
  */
-export function useChatDraft(chatId: string | undefined): [string, (value: string) => void, () => void] {
+export function useChatDraft(
+  chatId: string | undefined,
+): [string, (value: string | ((prev: string) => string)) => void, () => void] {
   const key = chatId ? `${DRAFT_PREFIX}${chatId}` : "";
 
   const [message, setMessageState] = useState(() => {
@@ -61,10 +63,12 @@ export function useChatDraft(chatId: string | undefined): [string, (value: strin
   }, [key]);
 
   const setMessage = useCallback(
-    (value: string) => {
-      setMessageState(value);
-      if (!key) return;
-      writeDraft(key, value);
+    (value: string | ((prev: string) => string)) => {
+      setMessageState((prev) => {
+        const next = typeof value === "function" ? value(prev) : value;
+        if (key) writeDraft(key, next);
+        return next;
+      });
     },
     [key]
   );
