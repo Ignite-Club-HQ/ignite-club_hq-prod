@@ -115,6 +115,7 @@ import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
 import { usePitchBoardLayoutContext } from "./PitchBoardLayoutContext";
+import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
 
 // Loading fallback for lazy-loaded dialogs
 const DialogLoader = () => (
@@ -137,7 +138,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
 );
 
 export default function PitchBoardPortraitLayout() {
-  const ctx: any = usePitchBoardLayoutContext();
+  const ctx: PitchBoardLayoutContextValue = usePitchBoardLayoutContext();
   const {
     autoSubActive,
     autoSubFromPreGame,
