@@ -2017,7 +2017,7 @@ export default function TeamDetailPage() {
           )}
 
           {/* Game History - basketball + netball only */}
-          {isMember && (isBasketballClub || isNetballClub) && (
+          {isMember && (isBasketballClub || isNetballClub) && isAppAdmin && (
             <AccordionItem value="game-history" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
