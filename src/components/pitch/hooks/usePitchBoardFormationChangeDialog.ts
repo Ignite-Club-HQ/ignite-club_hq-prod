@@ -10,7 +10,7 @@ export interface PendingFormationChange {
   minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
 }
 
-interface Args {
+export interface FormationChangeDialogDeps {
   players: Player[];
   setPlayers: (p: Player[]) => void;
   setTeamSize: (s: TeamSize) => void;
@@ -39,32 +39,34 @@ interface Args {
   toast: (opts: { title: string; description?: string }) => void;
 }
 
-export function usePitchBoardFormationChangeDialog(args: Args) {
-  const {
-    players, setPlayers, setTeamSize, setSelectedFormation,
-    autoPlacePlayersOnPitch, persistTeamSizeToDb, notifyFormationOrSizeChange,
-    applyFormationChange, setToolbarCollapsed, setPortraitSheetOpen,
-    autoSubActive, regeneratePlanRef, toast,
-  } = args;
-
+/**
+ * Owns formation-change confirmation dialog state and the confirm/cancel
+ * handlers. Reads dependencies via a ref so it can be called early in the
+ * component (before `applyFormationChange` etc. are defined).
+ */
+export function usePitchBoardFormationChangeDialog(
+  depsRef: MutableRefObject<FormationChangeDialogDeps | null>
+) {
   const [formationChangeDialogOpen, setFormationChangeDialogOpen] = useState(false);
   const [pendingFormationChange, setPendingFormationChange] = useState<PendingFormationChange | null>(null);
 
   const handleFormationChangeConfirm = useCallback(() => {
+    const deps = depsRef.current;
+    if (!deps) return;
     if (pendingFormationChange) {
       if (pendingFormationChange.newTeamSize) {
         const newSize = pendingFormationChange.newTeamSize;
-        setTeamSize(newSize);
-        setSelectedFormation(0);
-        const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-        setPlayers(placedPlayers);
-        persistTeamSizeToDb(newSize);
-        notifyFormationOrSizeChange('team_size', newSize, {
+        deps.setTeamSize(newSize);
+        deps.setSelectedFormation(0);
+        const placedPlayers = deps.autoPlacePlayersOnPitch(deps.players, newSize, 0);
+        deps.setPlayers(placedPlayers);
+        deps.persistTeamSizeToDb(newSize);
+        deps.notifyFormationOrSizeChange('team_size', newSize, {
           positionSwaps: pendingFormationChange.positionSwaps,
           benchMoves: pendingFormationChange.benchMoves,
         });
       } else {
-        applyFormationChange(pendingFormationChange.index, {
+        deps.applyFormationChange(pendingFormationChange.index, {
           positionSwaps: pendingFormationChange.positionSwaps,
           benchMoves: pendingFormationChange.benchMoves,
         });
@@ -72,16 +74,16 @@ export function usePitchBoardFormationChangeDialog(args: Args) {
     }
     setFormationChangeDialogOpen(false);
     setPendingFormationChange(null);
-    setToolbarCollapsed(true);
-    setPortraitSheetOpen(false);
+    deps.setToolbarCollapsed(true);
+    deps.setPortraitSheetOpen(false);
 
-    if (autoSubActive) {
+    if (deps.autoSubActive) {
       setTimeout(() => {
-        regeneratePlanRef.current?.();
-        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
+        deps.regeneratePlanRef.current?.();
+        deps.toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
       }, 300);
     }
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, setPlayers, setTeamSize, setSelectedFormation, persistTeamSizeToDb, autoSubActive, toast, notifyFormationOrSizeChange, setToolbarCollapsed, setPortraitSheetOpen, regeneratePlanRef]);
+  }, [depsRef, pendingFormationChange]);
 
   const handleFormationChangeCancel = useCallback(() => {
     setFormationChangeDialogOpen(false);
