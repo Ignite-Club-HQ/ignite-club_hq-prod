@@ -3566,27 +3566,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
 
-  // Drag/drop handlers now live in usePitchBoardDragDrop (declared near the
-  // top of the component). Wire the deps the hook reads each render:
-  dragDropDepsRef.current = {
-    readOnly,
-    players,
-    playersOnPitch,
-    playersRef,
-    containerRef,
-    capturePlayerDragOffset,
-    getClientPitchPosition,
-    getClientPointFromPitchPosition,
-    getPitchPlayerOverlappingDragged,
-    updateDraggedPlayerPosition,
-    swapPitchPlayers,
-    setBenchToSubPlayer,
-    setBenchToSubOpen,
-    setPortraitSheetOpen,
-    setToolbarCollapsed,
-    setSelectedOnPitch,
-    setSubPreviewOpen,
-  };
+  // Drag/drop dependency wiring moved below playersOnPitch/playersOnBench
+  // definitions (TDZ avoidance). See the assignment after those `useMemo`s.
+
 
 
   // Portrait bench long-press drag handlers
@@ -3671,6 +3653,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Memoize derived player lists to prevent recalculation on every render
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
+
+  // Wire the drag/drop hook's deps each render — the hook owns the handlers
+  // (declared near the top of this component); we just point it at the
+  // freshest helpers/state each render so identities stay stable while
+  // closures see live values.
+  dragDropDepsRef.current = {
+    readOnly,
+    players,
+    playersOnPitch,
+    playersRef,
+    containerRef,
+    capturePlayerDragOffset,
+    getClientPitchPosition,
+    getClientPointFromPitchPosition,
+    getPitchPlayerOverlappingDragged,
+    updateDraggedPlayerPosition,
+    swapPitchPlayers,
+    setBenchToSubPlayer,
+    setBenchToSubOpen,
+    setPortraitSheetOpen,
+    setToolbarCollapsed,
+    setSelectedOnPitch,
+    setSubPreviewOpen,
+  };
 
   // ── Auto-regenerate the sub plan when the on-pitch composition changes ──
   // Whenever a manual swap, drag-to-bench, drag-to-pitch, or any other action
