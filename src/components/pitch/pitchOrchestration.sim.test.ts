@@ -524,17 +524,68 @@ describe("Audit #5 — chronological-next pair matching", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Audit #4 — recalc 30s fairness short-circuit (known, deferred).
+// Audit #4 — recalc 30s fairness short-circuit (FIXED).
 // ---------------------------------------------------------------------------
-// `recalculateRemainingPlan` uses a 30-second equality threshold (lines 345
-// & 374 of pitchStateUtils.ts) and `break`s the inner sub loop when on-pitch
-// and bench leaders are within 30s of each other. With static `minutesPlayed`
-// snapshots that never simulate forward, this can collapse late-half recalcs
-// to []. The safety net in PitchBoard only catches the full-empty case.
-// Placeholder kept skipped so the deliberate fix can flip it on.
-describe.skip("Audit #4 — recalc 30s short-circuit (deferred)", () => {
+// `recalculateRemainingPlan` used a static `minutesPlayed` snapshot per
+// candidate. With balanced rosters the 30s fairness gate at line ~345 of
+// pitchStateUtils.ts collapsed the entire loop to []. Fix: simulate forward
+// across the planned sub windows (the leader's clock keeps ticking on pitch).
+describe("Audit #4 — recalc 30s short-circuit", () => {
   it("returns a non-empty plan when minutes are near-equal but bench + time remain", () => {
-    expect(true).toBe(true);
+    // 7-a-side (1 GK + 6 outfield) + 5 bench, 25-min halves.
+    // Roster fully equalised at 14:00 of H1 — pre-fix planner short-circuited.
+    const players: Player[] = [];
+    for (let i = 0; i < 7; i++) {
+      const pos = positionsForIdx(i, 7);
+      players.push({
+        id: `P${i}`,
+        name: `P${i}`,
+        position: { x: 50, y: 50 },
+        currentPitchPosition: pos,
+        assignedPositions: [pos],
+        // Outfielders all at 600s, GK at 840s (GK is filtered out of recalc).
+        minutesPlayed: i === 0 ? 840 : 600,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      players.push({
+        id: `B${i}`,
+        name: `B${i}`,
+        position: null,
+        currentPitchPosition: undefined,
+        assignedPositions: ["DEF", "MID", "FWD"] as PitchPosition[],
+        // Bench at 595s — only 5s below the on-pitch leaders, well inside the
+        // 30s fairness threshold. Pre-fix this caused an immediate [] return.
+        minutesPlayed: 595,
+      });
+    }
+
+    const plan = recalculateRemainingPlan(
+      players,
+      7,
+      25 * 60,
+      14 * 60,
+      1,
+      {
+        half: 1,
+        time: 14 * 60,
+        playerOut: players[1],
+        playerIn: players[7],
+        executed: false,
+      } as SubstitutionEvent,
+      false,
+    );
+
+    expect(plan.length, "recalc should not short-circuit to []").toBeGreaterThan(0);
+
+    // Chronologically valid: times within a half monotonically increase, and
+    // half 1 entries precede half 2 entries.
+    let lastAbs = -1;
+    for (const sub of plan) {
+      const abs = sub.half === 1 ? sub.time : 25 * 60 + sub.time;
+      expect(abs).toBeGreaterThan(lastAbs);
+      lastAbs = abs;
+    }
   });
 });
 
