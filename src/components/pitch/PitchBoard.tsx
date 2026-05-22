@@ -110,6 +110,9 @@ import { usePitchBoardDrawing } from "./hooks/usePitchBoardDrawing";
 import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
+import { PitchBoardLayoutContext } from "./PitchBoardLayoutContext";
+import PitchBoardLandscapeLayout from "./PitchBoardLandscapeLayout";
+import PitchBoardPortraitLayout from "./PitchBoardPortraitLayout";
 
 import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
