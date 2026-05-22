@@ -79,7 +79,7 @@ export interface PitchBoardLayoutContextValue {
   handleBenchLongPressMove: (...args: any[]) => any;
   handleBenchLongPressStart: (...args: any[]) => any;
   handleBenchToSubSelect: any;
-  handleCancelAutoSubPlan: any;
+  handleCancelAutoSubPlan: () => void;
   handleCancelManualSub: any;
   handleCancelPitchSwap: (...args: any[]) => any;
   handleCancelSwapBasedSub: (...args: any[]) => any;
