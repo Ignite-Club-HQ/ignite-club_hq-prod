@@ -578,12 +578,12 @@ describe("Audit #4 — recalc 30s short-circuit", () => {
 
     expect(plan.length, "recalc should not short-circuit to []").toBeGreaterThan(0);
 
-    // Chronologically valid: times within a half monotonically increase, and
-    // half 1 entries precede half 2 entries.
+    // Chronologically valid: times monotonically non-decreasing (multiple
+    // subs can share a window) and half 1 entries precede half 2 entries.
     let lastAbs = -1;
     for (const sub of plan) {
       const abs = sub.half === 1 ? sub.time : 25 * 60 + sub.time;
-      expect(abs).toBeGreaterThan(lastAbs);
+      expect(abs).toBeGreaterThanOrEqual(lastAbs);
       lastAbs = abs;
     }
   });
