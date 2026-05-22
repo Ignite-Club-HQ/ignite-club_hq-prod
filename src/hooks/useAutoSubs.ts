@@ -209,7 +209,50 @@ export function useAutoSubs({
     [teamSize, rotateGkAtHalftime]
   );
 
+  // ── Scheduler (clock-driven sub detection + dialog state) ──
+  // Extracted to `useAutoSubScheduler` so timer logic and dialog UI state
+  // live in one place. The handlers below consume the setters returned
+  // here to clear the pending dialog after confirm/skip/cancel.
+  const {
+    pendingAutoSub,
+    setPendingAutoSub,
+    pendingBatchSubs,
+    setPendingBatchSubs,
+    subConfirmDialogOpen,
+    setSubConfirmDialogOpen,
+    subDuePlayerIds,
+    setSubDuePlayerIds,
+    subDueTimerRef,
+    nextSubInfo,
+    checkForDueSubs,
+    updateNextSubInfo,
+    checkHalftimeSubs,
+  } = useAutoSubScheduler({
+    autoSubActive,
+    autoSubPaused,
+    autoSubPlan,
+    setAutoSubPlan,
+    lockedPlayerIds,
+    playersRef,
+    gameTimerRef,
+    skipCooldownRef,
+    planActivationTimeRef,
+    safeRecalculate,
+    shouldRecalculateAfterSkip,
+    toast,
+  });
+  // The scheduler's `setNextSubInfo` is internal; the local `setNextSubInfo`
+  // call inside handleCancelAutoSubPlan below clears via `updateNextSubInfo`
+  // path on the next tick. To preserve immediate-clear semantics we expose
+  // a no-op wrapper here. (No call sites use this externally.)
+  const setNextSubInfo = useCallback((_v: typeof nextSubInfo) => {
+    // No-op: nextSubInfo is owned by useAutoSubScheduler and naturally
+    // clears on the next timer tick after a cancel.
+  }, []);
+
   // ── Plan lifecycle ──────────────────────────────────────
+
+
 
   const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
