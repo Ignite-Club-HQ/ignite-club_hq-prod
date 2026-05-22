@@ -9,7 +9,7 @@
  */
 import type { SubstitutionEvent, Player } from "../types";
 import { getSubKey } from "../autoSubHelpers";
-import { assertValidPlan } from "./assertValidPlan";
+import { assertValidPlan, validatePlanIntegrity } from "./assertValidPlan";
 import type { PlanError, PlanEvent } from "./planEvents";
 
 export interface AutoSubState {
@@ -177,6 +177,27 @@ export function autoSubReducer(
       // scheduler hook has a single dispatch surface and we can later
       // attach due-highlight derivations here without touching call sites.
       return state;
+    }
+
+    // ── Step B legacy compat ───────────────────────────────────────────
+    case "SET_PLAN": {
+      // Integrity check only: legacy callers compute the full plan
+      // (executed + remaining) and may race ahead of player updates.
+      // Orphan detection is handled separately by usePitchBoardPlanRepair.
+      const err = validatePlanIntegrity(ev.plan, {
+        previousPlan: state.plan,
+        lockedIds: state.lockedIds,
+      });
+      if (err) return reject(err);
+      return accept({ plan: ev.plan });
+    }
+
+    case "SET_ACTIVE": {
+      return accept({ active: ev.active });
+    }
+
+    case "SET_PAUSED": {
+      return accept({ paused: ev.paused });
     }
 
     default: {
