@@ -14,6 +14,7 @@ import { useState, useRef, useCallback, useReducer, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player, SubstitutionEvent, TeamSize } from "@/components/pitch/types";
 import type { GameTimerRef } from "@/components/pitch/GameTimer";
+import { playSubAlertBeep } from "@/components/pitch/GameTimer";
 import {
   getSubKey,
   executeSubsOnPlayers,
