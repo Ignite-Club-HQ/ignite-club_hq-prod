@@ -98,6 +98,7 @@ import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } from "./hooks/usePitchBoardFormationChangeDialog";
 import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { usePitchBoardPinchZoom } from "./hooks/usePitchBoardPinchZoom";
+import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardDragDrop";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -1287,15 +1288,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
 
-  const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
-  const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
-  const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
-  const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
-  const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
-  const playerDragStartRef = useRef<{ playerId: string; position: { x: number; y: number }; currentPitchPosition?: PitchPosition } | null>(null);
-  
-  // Track recently-released players to suppress CSS transition "drift" on drop
-  const recentlyDraggedRef = useRef<Set<string>>(new Set());
+  // Player drag/drop is owned by usePitchBoardDragDrop. We declare it here
+  // (before the rest of the component reads its state/refs) but pass deps via
+  // a ref that is reassigned further down — same pattern as
+  // usePitchBoardFormationChangeDialog / usePitchBoardLineup.
+  const dragDropDepsRef = useRef<DragDropDeps>({} as DragDropDeps);
+  const {
+    draggedPlayer,
+    touchDragPlayer,
+    touchOffset,
+    setTouchDragPlayer,
+    setTouchOffset,
+    touchIdRef,
+    playerDragOffsetRef,
+    playerDragStartRef,
+    recentlyDraggedRef,
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    handlePitchDrop,
+    handleBenchDrop,
+    handleTouchStart,
+    applyPitchTouchMove,
+    finalizePitchTouchEnd,
+    handleBenchTouchMove,
+    handleBenchTouchEnd,
+  } = usePitchBoardDragDrop(dragDropDepsRef);
+
+
+
 
   // Zoom state
   const {
@@ -3454,233 +3475,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Pinch zoom (2 fingers) — consumed by the hook
     if (tryPinchMove(e)) return;
 
-    // Handle player drag - block in readOnly mode
-    if (readOnly) return;
-    if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
-      // Find the specific finger that started this drag
-      const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
-      if (!touch) return;
-      e.preventDefault();
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
+    // Player touch-drag (1 finger) — owned by usePitchBoardDragDrop.
+    applyPitchTouchMove(e);
   };
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
-    // Reset pinch distance when fingers lift
+    // Pinch end first — clears the pinch baseline if fingers lifted.
     tryPinchEnd(e);
-
-
-    
-    if (readOnly) return;
-    if (!touchDragPlayer) return;
-    
-    // Only respond to the finger that started this drag
-    const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
-    if (!touch) return;
-    
-    // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
-    const draggedId = touchDragPlayer;
-    recentlyDraggedRef.current.add(draggedId);
-    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
-    
-    const benchElement = document.getElementById('pitch-bench');
-
-    const droppedOnBench = false;
-    // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
-    const draggedSrc = players.find(p => p.id === touchDragPlayer);
-    const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
-    if (draggedIsBench) {
-      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
-      if (pitchEl) {
-        const rect = pitchEl.getBoundingClientRect();
-        const isOnPitch = touch.clientX >= rect.left && touch.clientX <= rect.right &&
-          touch.clientY >= rect.top && touch.clientY <= rect.bottom;
-        if (isOnPitch) {
-          setBenchToSubPlayer(touchDragPlayer);
-          setBenchToSubOpen(true);
-          setPortraitSheetOpen(false);
-          setToolbarCollapsed(true);
-          setTouchDragPlayer(null);
-          setTouchOffset(null);
-          touchIdRef.current = null;
-          playerDragOffsetRef.current = null;
-          playerDragStartRef.current = null;
-          return;
-        }
-      }
-    }
-
-    // Detect drop on another pitch token → swap positions
-    if (!droppedOnBench) {
-      const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
-      const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
-      const targetId = draggedCenterPoint
-        ? getPitchPlayerOverlappingDragged(touchDragPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
-        : getPitchPlayerOverlappingDragged(touchDragPlayer, touch.clientX, touch.clientY);
-      if (targetId && targetId !== touchDragPlayer) {
-        if (swapPitchPlayers(touchDragPlayer, targetId)) {
-          setTouchDragPlayer(null);
-          setTouchOffset(null);
-          touchIdRef.current = null;
-          playerDragOffsetRef.current = null;
-          playerDragStartRef.current = null;
-          return;
-        }
-      }
-    }
-
-    // Final position update from touchend to prevent coordinate gap with last touchmove
-    if (!droppedOnBench && containerRef.current) {
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
-    
-    setTouchDragPlayer(null);
-    setTouchOffset(null);
-    touchIdRef.current = null;
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
+    // Then finalise any in-flight player touch-drag (bench→pitch, swap, drop).
+    finalizePitchTouchEnd(e);
   };
 
 
 
 
-  const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
-    if (readOnly) return;
-    if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
-    const player = playersRef.current.find(p => p.id === playerId);
-    playerDragStartRef.current = player?.position
-      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
-      : null;
-    setDraggedPlayer(playerId);
-  };
+  // Drag/drop dependency wiring moved below playersOnPitch/playersOnBench
+  // definitions (TDZ avoidance). See the assignment after those `useMemo`s.
 
-  const handleDragEnd = () => {
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
 
-  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (readOnly) return;
-    if (!draggedPlayer || !containerRef.current) return;
-
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const draggedIsBench = dragged ? !playersOnPitch.some(p => p.id === draggedPlayer) : false;
-
-    // Bench → pitch: open BenchToSubDialog so the user picks who comes off.
-    if (draggedIsBench) {
-      setBenchToSubPlayer(draggedPlayer);
-      setBenchToSubOpen(true);
-      setPortraitSheetOpen(false);
-      setToolbarCollapsed(true);
-      setDraggedPlayer(null);
-      playerDragOffsetRef.current = null;
-      playerDragStartRef.current = null;
-      return;
-    }
-
-    // Detect drop on another pitch player → swap positions.
-    const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
-    const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
-    const targetId = draggedCenterPoint
-      ? getPitchPlayerOverlappingDragged(draggedPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
-      : getPitchPlayerOverlappingDragged(draggedPlayer, e.clientX, e.clientY);
-
-    if (targetId && targetId !== draggedPlayer) {
-      if (swapPitchPlayers(draggedPlayer, targetId)) {
-        setDraggedPlayer(null);
-        playerDragOffsetRef.current = null;
-        playerDragStartRef.current = null;
-        return;
-      }
-    }
-
-    const position = getClientPitchPosition(e.clientX, e.clientY);
-    if (position) updateDraggedPlayerPosition(draggedPlayer, position);
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
-
-  const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (readOnly) return;
-    if (!draggedPlayer) return;
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const draggedIsOnPitch = dragged ? playersOnPitch.some(p => p.id === draggedPlayer) : false;
-    if (draggedIsOnPitch) {
-      // Pitch → bench drag opens the sub picker for that pitch player.
-      setSelectedOnPitch(draggedPlayer);
-      setSubPreviewOpen(true);
-    } else {
-      // Bench player dropped back into bench area (which often overlaps the
-      // pitch when the bottom sheet is open). Treat as bench → pitch and open
-      // the BenchToSubDialog so the user can pick who comes off.
-      setBenchToSubPlayer(draggedPlayer);
-      setBenchToSubOpen(true);
-      setPortraitSheetOpen(false);
-      setToolbarCollapsed(true);
-    }
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // Touch handlers for mobile drag-and-drop
-  const handleTouchStart = (playerId: string, e: React.TouchEvent) => {
-    if (readOnly) return;
-    // Only allow one drag at a time – ignore if already tracking a finger
-    if (touchDragPlayer !== null) return;
-    const touch = e.touches[0];
-    touchIdRef.current = touch.identifier;
-    capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
-    const player = playersRef.current.find(p => p.id === playerId);
-    playerDragStartRef.current = player?.position
-      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
-      : null;
-    setTouchDragPlayer(playerId);
-    setTouchOffset({ x: touch.clientX, y: touch.clientY });
-    // (Bench auto-open removed — it stole pointer events and broke drag)
-  };
-
-  // Touch handler for bench players
-  const handleBenchTouchMove = useCallback((e: React.TouchEvent) => {
-    if (readOnly) return;
-    if (!touchDragPlayer || !containerRef.current || touchIdRef.current === null) return;
-    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
-    if (!touch) return;
-    e.preventDefault();
-    
-    const pitchRect = containerRef.current.getBoundingClientRect();
-    
-    // Check if touch is over the pitch
-    if (
-      touch.clientX >= pitchRect.left &&
-      touch.clientX <= pitchRect.right &&
-      touch.clientY >= pitchRect.top &&
-      touch.clientY <= pitchRect.bottom
-    ) {
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
-  }, [readOnly, touchDragPlayer, getClientPitchPosition, updateDraggedPlayerPosition]);
-
-  const handleBenchTouchEnd = useCallback(() => {
-    setTouchDragPlayer(null);
-    setTouchOffset(null);
-    touchIdRef.current = null;
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  }, []);
 
   // Portrait bench long-press drag handlers
   const handleBenchLongPressStart = useCallback((playerId: string, e: React.TouchEvent) => {
@@ -3764,6 +3576,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Memoize derived player lists to prevent recalculation on every render
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
+
+  // Wire the drag/drop hook's deps each render — the hook owns the handlers
+  // (declared near the top of this component); we just point it at the
+  // freshest helpers/state each render so identities stay stable while
+  // closures see live values.
+  dragDropDepsRef.current = {
+    readOnly,
+    players,
+    playersOnPitch,
+    playersRef,
+    containerRef,
+    capturePlayerDragOffset,
+    getClientPitchPosition,
+    getClientPointFromPitchPosition,
+    getPitchPlayerOverlappingDragged,
+    updateDraggedPlayerPosition,
+    swapPitchPlayers,
+    setBenchToSubPlayer,
+    setBenchToSubOpen,
+    setPortraitSheetOpen,
+    setToolbarCollapsed,
+    setSelectedOnPitch,
+    setSubPreviewOpen,
+  };
 
   // ── Auto-regenerate the sub plan when the on-pitch composition changes ──
   // Whenever a manual swap, drag-to-bench, drag-to-pitch, or any other action
