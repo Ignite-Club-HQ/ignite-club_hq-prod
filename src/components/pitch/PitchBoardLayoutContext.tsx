@@ -22,11 +22,12 @@ import type { GameTimerRef } from "./GameTimer";
  * tightened individually as needed.
  */
 export interface PitchBoardLayoutContextValue {
-  autoSubActive: any;
+  autoSubActive: boolean;
   autoSubFromPreGame: boolean;
   autoSubPanelOpen: boolean;
-  autoSubPaused: any;
-  autoSubPlan: any;
+  autoSubPaused: boolean;
+  autoSubPlan: SubstitutionEvent[];
+
   autoSubPlanDialogOpen: boolean;
   autoSubPlanEditMode: boolean;
   ballOffset: any;
@@ -78,11 +79,11 @@ export interface PitchBoardLayoutContextValue {
   handleBenchLongPressMove: (...args: any[]) => any;
   handleBenchLongPressStart: (...args: any[]) => any;
   handleBenchToSubSelect: any;
-  handleCancelAutoSubPlan: any;
+  handleCancelAutoSubPlan: () => void;
   handleCancelManualSub: any;
   handleCancelPitchSwap: (...args: any[]) => any;
   handleCancelSwapBasedSub: (...args: any[]) => any;
-  handleConfirmAutoSub: any;
+  handleConfirmAutoSub: () => void;
   handleConfirmManualSub: any;
   handleConfirmPitchSwap: (...args: any[]) => any;
   handleConfirmPitchSwapWithAccommodation: (...args: any[]) => any;
@@ -92,7 +93,7 @@ export interface PitchBoardLayoutContextValue {
   handleDragEnd: any;
   handleDragOver: any;
   handleDragStart: any;
-  handleExecuteNow: any;
+  handleExecuteNow: () => void;
   handleFormationChange: any;
   handleFormationChangeCancel: any;
   handleFormationChangeConfirm: any;
@@ -111,7 +112,7 @@ export interface PitchBoardLayoutContextValue {
   handlePitchTouchStart: (...args: any[]) => any;
   handlePlayerClick: (...args: any[]) => any;
   handlePortraitTimerTouchStart: any;
-  handleRegeneratePlan: any;
+  handleRegeneratePlan: () => void;
   handleRemoveFillInPlayer: any;
   handleRemoveGoal: (...args: any[]) => any;
   handleResetFormation: (...args: any[]) => any;
@@ -120,9 +121,10 @@ export interface PitchBoardLayoutContextValue {
   handleSaveSettings: any;
   handleSetupGame: (...args: any[]) => any;
   handleShowLineupPickerSettingChange: (...args: any[]) => any;
-  handleSkipAutoSub: any;
-  handleSkipNextSub: any;
-  handleStartAutoSubPlan: any;
+  handleSkipAutoSub: () => void;
+  handleSkipNextSub: () => void;
+  handleStartAutoSubPlan: (plan: SubstitutionEvent[]) => void;
+
   handleSubPreviewSelect: (...args: any[]) => any;
   handleSwapAndSubstitute: (...args: any[]) => any;
   handleTacticalModeChange: any;
@@ -130,8 +132,9 @@ export interface PitchBoardLayoutContextValue {
   handleTimerDragStart: any;
   handleTimerTouchStart: any;
   handleTimerUpdate: any;
-  handleToggleLockPlayer: any;
-  handleTogglePauseAutoSub: any;
+  handleToggleLockPlayer: (playerId: string) => void;
+  handleTogglePauseAutoSub: () => void;
+
   handleTouchStart: any;
   handleUndo: (...args: any[]) => any;
   handleUnlinkEvent: (...args: any[]) => any;
@@ -150,7 +153,7 @@ export interface PitchBoardLayoutContextValue {
   lastTapRef: React.MutableRefObject<{ playerId: string; time: number } | null>;
   linkedEventDetails: any;
   linkedEventId: any;
-  lockedPlayerIds: any;
+  lockedPlayerIds: Set<string>;
   manualSubConfirmOpen: any;
   maxSpreadMinutes: any;
   members: any;
@@ -159,13 +162,14 @@ export interface PitchBoardLayoutContextValue {
   mockMode: any;
   mode: PitchBoardMode;
   movablePitchPlayerIds: any;
-  nextSubInfo: any;
+  nextSubInfo: { playerInId: string; playerOutId: string; countdown: string } | null;
   onClose: () => void;
   onUnlinkEvent: () => void;
   openAutoSubPlanDialog: (...args: any[]) => any;
   opponentName: any;
-  pendingAutoSub: any;
-  pendingBatchSubs: any;
+  pendingAutoSub: SubstitutionEvent | null;
+  pendingBatchSubs: SubstitutionEvent[];
+
   pendingFormationChange: any;
   pendingManualSub: any;
   pendingSubBenchPlayer: string | null;
@@ -245,7 +249,7 @@ export interface PitchBoardLayoutContextValue {
   setShowLineupPicker: React.Dispatch<React.SetStateAction<any>>;
   setShowMatchHeader: React.Dispatch<React.SetStateAction<any>>;
   setStatsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSubConfirmDialogOpen: any;
+  setSubConfirmDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSubPreviewOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setTeamSize: React.Dispatch<React.SetStateAction<TeamSize>>;
   setTimerFormationDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -268,8 +272,9 @@ export interface PitchBoardLayoutContextValue {
   statsOpen: boolean;
   subAfterSwapDialogOpen: boolean;
   subAnimationPlayers: { in: string | null; out: string | null; swap: string | null };
-  subConfirmDialogOpen: any;
-  subDuePlayerIds: any;
+  subConfirmDialogOpen: boolean;
+  subDuePlayerIds: Set<string>;
+
   subMode: any;
   subPreviewOpen: boolean;
   swapBeforeSubDialogOpen: boolean;
