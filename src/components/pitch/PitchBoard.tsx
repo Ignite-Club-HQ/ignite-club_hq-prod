@@ -702,28 +702,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     await persistShowLineupPicker(enabled);
   }, [persistShowLineupPicker]);
 
-  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    // Reset player minutes for a fresh game setup.
-    // Dedupe by id defensively — duplicate ids here would render the same
-    // player twice in the auto-sub planner and projected-minutes view.
-    const seen = new Set<string>();
-    const freshPlayers = updatedPlayers
-      .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; })
-      .map(p => ({ ...p, minutesPlayed: 0 }));
-    setPlayers(freshPlayers);
-    setPreferredSecondHalfGkId(secondHalfGkId);
-    if (firstHalfGkId || secondHalfGkId) {
-      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
-    }
-    // Open auto-sub dialog BEFORE hiding lineup picker to prevent pitch board flash
-    setAutoSubPlanEditMode(false);
-    setAutoSubFromPreGame(true);
-    setAutoSubPlanDialogOpen(true);
-    // Hide lineup picker after a brief delay so dialog renders on top
-    setTimeout(() => {
-      setShowLineupPicker(false);
-    }, 100);
-  }, []);
+  // handleLineupConfirm now lives in usePitchBoardLineup (declared at top).
 
 
   // handleLinkEvent now lives in usePitchBoardEventLink (top of component).
