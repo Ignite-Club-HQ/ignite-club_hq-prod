@@ -3172,7 +3172,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Toggle player injury status
   const togglePlayerInjury = useCallback((playerId: string) => {
     if (readOnly) return;
-    setPlayers(prev => prev.map(p => 
+    setPlayers(prev => prev.map(p =>
       p.id === playerId ? { ...p, isInjured: !p.isInjured } : p
     ));
     const player = players.find(p => p.id === playerId);
@@ -3181,56 +3181,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: newInjuredState ? "Player marked as injured" : "Player marked as fit",
       description: `${player?.name} ${newInjuredState ? "will not be available for substitutions" : "is now available for substitutions"}`,
     });
-    
-    // If a sub plan exists and player became injured, recalculate the
-    // remaining plan so the injured player is excluded from rotation.
-    if (newInjuredState && autoSubPlan.some(s => !s.executed)) {
-      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
-      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
 
+    if (newInjuredState) {
       const updatedPlayers = players.map(p =>
         p.id === playerId ? { ...p, isInjured: true } : p
       );
-
-      const executedSubs = autoSubPlan.filter(s => s.executed);
-      const remainingSubs = autoSubPlan.filter(s => !s.executed);
-      // Anchor on a sub referencing the injured player if present, otherwise
-      // the first remaining sub — recalculation rebuilds the rest from current time.
-      const anchor =
-        remainingSubs.find(sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId) ||
-        remainingSubs[0];
-
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers,
-        parseInt(teamSize),
-        minutesPerHalfSecs,
-        currentElapsed,
-        currentHalf,
-        anchor,
-        rotateGkAtHalftime
-      );
-
-      let finalPlan: typeof autoSubPlan;
-      if (recalculated.length > 0 || remainingSubs.length === 0) {
-        finalPlan = [...executedSubs, ...recalculated];
-      } else {
-        const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
-        if (benchPlayers.length > 0) {
-          console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
-          // Strip any remaining sub that still references the injured player
-          finalPlan = [...executedSubs, ...remainingSubs.filter(s => s.playerIn.id !== playerId && s.playerOut.id !== playerId)];
-        } else {
-          finalPlan = [...executedSubs, ...recalculated];
-        }
-      }
-      setAutoSubPlan(finalPlan);
-      toast({
-        title: "Sub plan updated",
-        description: "Auto-substitution plan recalculated due to injury",
-      });
+      recalcPlanForInjury(updatedPlayers, playerId);
     }
-  }, [readOnly, players, toast, autoSubPlan, teamSize, rotateGkAtHalftime]);
+  }, [readOnly, players, toast, recalcPlanForInjury]);
 
   // Mark a pitch player as injured: sub them off, bring a bench player on, regenerate plan
   const handleMarkInjuredOnPitch = useCallback((playerId: string, replacementId?: string) => {
@@ -3241,7 +3199,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const injuredPosition = player.position;
     const injuredPitchPos = player.currentPitchPosition;
 
-    // Use the chosen replacement or null
     const replacement = replacementId ? players.find(p => p.id === replacementId) : null;
 
     pushToUndoHistory("Injury sub off", players);
@@ -3268,60 +3225,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       });
     }
 
-    // Regenerate auto-sub plan whenever a plan exists with remaining subs.
-    if (autoSubPlan.some(s => !s.executed)) {
-      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
-      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-
-      const updatedPlayers = players.map(p => {
-        if (p.id === playerId) {
-          return { ...p, position: null, currentPitchPosition: undefined, isInjured: true };
-        }
-        if (replacement && p.id === replacement.id) {
-          return { ...p, position: injuredPosition, currentPitchPosition: injuredPitchPos };
-        }
-        return p;
-      });
-
-      const executedSubs = autoSubPlan.filter(s => s.executed);
-      const remainingSubs = autoSubPlan.filter(s => !s.executed);
-      // Prefer a sub referencing the injured/replacement player, else first remaining.
-      const anchor =
-        remainingSubs.find(sub =>
-          sub.playerOut.id === playerId || sub.playerIn.id === playerId ||
-          (replacement && (sub.playerOut.id === replacement.id || sub.playerIn.id === replacement.id))
-        ) || remainingSubs[0];
-
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers,
-        parseInt(teamSize),
-        minutesPerHalfSecs,
-        currentElapsed,
-        currentHalf,
-        anchor,
-        rotateGkAtHalftime
-      );
-
-      let finalPlan: typeof autoSubPlan;
-      if (recalculated.length > 0 || remainingSubs.length === 0) {
-        finalPlan = [...executedSubs, ...recalculated];
-      } else {
-        const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
-        if (benchPlayers.length > 0) {
-          console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
-          finalPlan = [...executedSubs, ...remainingSubs.filter(s => s.playerIn.id !== playerId && s.playerOut.id !== playerId)];
-        } else {
-          finalPlan = [...executedSubs, ...recalculated];
-        }
+    const updatedPlayers = players.map(p => {
+      if (p.id === playerId) {
+        return { ...p, position: null, currentPitchPosition: undefined, isInjured: true };
       }
-      setAutoSubPlan(finalPlan);
-      toast({
-        title: "Sub plan updated",
-        description: "Auto-substitution plan recalculated due to injury",
-      });
-    }
-  }, [readOnly, players, toast, autoSubPlan, teamSize, pushToUndoHistory, rotateGkAtHalftime]);
+      if (replacement && p.id === replacement.id) {
+        return { ...p, position: injuredPosition, currentPitchPosition: injuredPitchPos };
+      }
+      return p;
+    });
+    recalcPlanForInjury(updatedPlayers, playerId, replacement?.id);
+  }, [readOnly, players, toast, pushToUndoHistory, recalcPlanForInjury]);
+
+
 
   // Fill-in player state + handlers (add/remove, remote sync, dialog open, jersey numbers).
   const {
