@@ -2467,7 +2467,7 @@ export default function HomePage() {
             teamId={pitchBoardTeam.id}
             teamName={pitchBoardTeam.name}
             members={pitchBoardTeam.members}
-            onClose={() => setPitchBoardTeam(null)}
+            onClose={() => { clearPitchBoardOpenFlag(); setPitchBoardTeam(null); }}
             readOnly={pitchBoardTeam.readOnly}
             initialLinkedEventId={pitchBoardTeam.linkedEventId}
           />
