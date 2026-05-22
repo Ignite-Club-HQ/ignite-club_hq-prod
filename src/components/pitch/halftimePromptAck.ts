@@ -1,6 +1,9 @@
 type TimerLike = {
   teamId?: string | null;
   minutesPerHalf?: number | null;
+  currentHalf?: number | null;
+  elapsedSeconds?: number | null;
+  isRunning?: boolean | null;
   lastUpdateTime?: number | null;
 };
 
@@ -50,9 +53,15 @@ export const getHalftimePromptAckKey = (
   if (!teamId) return null;
 
   const eventId = pitchState?.linkedEventId;
-  const localBoundary = timerState?.lastUpdateTime || pitchState?.lastUpdateTime || 0;
-  const gamePart = eventId ? `event-${eventId}` : `local-${localBoundary}`;
   const minutes = timerState?.minutesPerHalf || "na";
+  const halfMs = (Number(minutes) || 0) * 60_000;
+  const lastUpdate = timerState?.lastUpdateTime || pitchState?.lastUpdateTime || 0;
+  const elapsedMs = (timerState?.elapsedSeconds || 0) * 1000;
+  const estimatedKickoff = timerState?.currentHalf === 2 && timerState?.elapsedSeconds === 0 && !timerState?.isRunning
+    ? lastUpdate - halfMs
+    : lastUpdate - elapsedMs;
+  const kickoffBucket = estimatedKickoff > 0 ? Math.round(estimatedKickoff / 60_000) : 0;
+  const gamePart = eventId ? `event-${eventId}` : `local-${kickoffBucket}`;
 
   return `half-time:${safePart(teamId)}:${safePart(gamePart)}:${safePart(minutes)}`;
 };
