@@ -300,29 +300,51 @@ export const recalculateRemainingPlan = (
   };
   
   const subTimes = generateRemainingSubTimes();
-  
+
   const shouldAvoidSkippedPlayers = !skippedSub.executed;
   const skippedOutId = shouldAvoidSkippedPlayers ? skippedSub.playerOut.id : null;
   const skippedInId = shouldAvoidSkippedPlayers ? skippedSub.playerIn.id : null;
 
+  // Audit #4 fix — simulate forward across windows. Without this, a recalc
+  // against a near-equalised roster short-circuits at the 30s fairness gate
+  // (lines below) and returns [] even when bench depth + sub windows remain.
+  // We mirror the time accumulation that will actually happen on the clock.
+  const simulatedMinutes = new Map<string, number>();
+  outfieldPlayers.forEach(p => simulatedMinutes.set(p.id, p.minutesPlayed || 0));
+  const absOf = (t: number, h: 1 | 2) => (h === 1 ? t : halfDurationSeconds + t);
+  let lastAbs = currentHalf === 1
+    ? currentElapsedSeconds
+    : halfDurationSeconds + currentElapsedSeconds;
+
   for (const { time, half } of subTimes) {
+    // Advance simulated minutes for players currently on the pitch up to this window.
+    const nowAbs = absOf(time, half);
+    const delta = Math.max(0, nowAbs - lastAbs);
+    if (delta > 0) {
+      currentOnPitch.forEach((_pos, id) => {
+        simulatedMinutes.set(id, (simulatedMinutes.get(id) || 0) + delta);
+      });
+    }
+    lastAbs = nowAbs;
+
     // Determine how many subs to make in this window
     const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
     const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
-    
+
     const usedPlayerOutIds = new Set<string>();
     const usedPlayerInIds = new Set<string>();
-    
+
     for (let subIdx = 0; subIdx < subsThisWindow; subIdx++) {
       const onPitchSorted = Array.from(currentOnPitch.keys())
-        .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
+        .map(id => ({ id, time: simulatedMinutes.get(id) ?? (getPlayer(id)?.minutesPlayed || 0), player: getPlayer(id)! }))
         .filter(p => p.player && !usedPlayerOutIds.has(p.id) && !usedPlayerInIds.has(p.id))
         .sort((a, b) => b.time - a.time);
-      
+
       const benchSorted = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id) && !usedPlayerInIds.has(p.id))
-        .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
+        .map(p => ({ id: p.id, time: simulatedMinutes.get(p.id) ?? (p.minutesPlayed || 0), player: p }))
         .sort((a, b) => a.time - b.time);
+
 
       let onPitchCandidates = onPitchSorted;
       let benchCandidates = benchSorted;

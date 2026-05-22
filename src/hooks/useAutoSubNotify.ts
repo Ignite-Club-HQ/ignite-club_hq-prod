@@ -68,14 +68,13 @@ export function useAutoSubNotify(
             });
           }
         } else {
-          // Only team admins receive auto-sub pushes. Coaches and other roles
-          // can watch live (Watch Live) but are not pinged. The Subs Manager
-          // duty assignee is added below.
+          // Team admins AND coaches receive auto-sub execution pushes.
+          // The Subs Manager duty assignee is added below.
           const { data: roles, error } = await supabase
             .from("user_roles")
             .select("user_id")
             .eq("team_id", teamId)
-            .eq("role", "team_admin");
+            .in("role", ["team_admin", "coach"]);
           if (error) {
             console.error("[AutoSubNotify] role lookup failed:", error);
           } else {

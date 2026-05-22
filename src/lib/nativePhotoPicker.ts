@@ -156,5 +156,10 @@ export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise
   }
 }
 
-/** Check if current platform should use native photo picker */
-export const shouldUseNativePicker = () => isNativeIOS();
+/** Check if current platform should use native photo picker.
+ * Per project rule: native (iOS + Android) must use the Capacitor Camera
+ * plugin (Base64) — never the generic HTML <input type="file"> picker, which
+ * fails intermittently in the Android WebView (content:// URIs, blob: reads,
+ * and large image reads all break the standard browser flow). */
+export const shouldUseNativePicker = () =>
+  Capacitor.isNativePlatform() && (Capacitor.getPlatform() === "ios" || Capacitor.getPlatform() === "android");

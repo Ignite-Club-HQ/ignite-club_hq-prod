@@ -169,6 +169,23 @@ Deno.serve(async (req) => {
     const payload: Record<string, unknown> = body.payload || {};
     const initialMinutes = Math.max(1, Math.min(60, Number(body.minutes_per_half || 10)));
 
+    // Optional pitch_state patch from the client. We persist autoSubPlan /
+    // autoSubActive / players alongside the timer event so the cron
+    // (`check-pending-subs`) and spectators always see an up-to-date plan
+    // even if the local `GlobalSubMonitor` write loop hasn't fired yet
+    // (e.g. unlinked board, or admin closed the app right after planning).
+    // Audit fix #10: cap incoming arrays so a malformed client can't bloat
+    // the active_games row (which the cron re-reads every minute).
+    const MAX_PLAYERS = 30;
+    const MAX_PLAN = 200;
+    const incomingAutoSubPlan = Array.isArray(body.auto_sub_plan)
+      ? body.auto_sub_plan.slice(0, MAX_PLAN)
+      : null;
+    const incomingAutoSubActive = typeof body.auto_sub_active === "boolean" ? body.auto_sub_active : null;
+    const incomingPlayers = Array.isArray(body.players)
+      ? body.players.slice(0, MAX_PLAYERS)
+      : null;
+
     if (!event) {
       return new Response(JSON.stringify({ error: "missing event" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -190,11 +207,72 @@ Deno.serve(async (req) => {
     q = teamId ? q.eq("team_id", teamId) : q.eq("user_id", user.id).is("team_id", null);
     const { data: existing } = await q.maybeSingle();
 
+    // Audit fix #1: authorize the caller before any service-role write.
+    // - Team-scoped requests: must pass `can_control_pitch_board(team_id, event_id)`
+    //   (team_admin, club_admin/app_admin on owning club, or Subs Manager duty).
+    //   We pass the linked event id when known (incoming body wins, else existing
+    //   row's pitch_state.linkedEventId) so the duty fallback can apply.
+    // - Personal (no team_id) rows: caller must own the existing row.
+    if (teamId) {
+      const linkedEventIdFromExisting =
+        (existing?.pitch_state as Record<string, unknown> | null)?.["linkedEventId"];
+      const incomingPitchState = body.pitch_state as Record<string, unknown> | undefined;
+      const linkedEventIdFromIncoming =
+        (typeof body.linked_event_id === "string" && body.linked_event_id) ||
+        (incomingPitchState && typeof incomingPitchState.linkedEventId === "string"
+          ? (incomingPitchState.linkedEventId as string)
+          : null);
+      const eventIdForAuth =
+        (typeof linkedEventIdFromIncoming === "string" && linkedEventIdFromIncoming) ||
+        (typeof linkedEventIdFromExisting === "string" && linkedEventIdFromExisting) ||
+        null;
+      const { data: allowed, error: authzErr } = await supabase.rpc(
+        "can_control_pitch_board",
+        { _team_id: teamId, _event_id: eventIdForAuth },
+      );
+      if (authzErr || allowed !== true) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (existing && existing.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const prev: ServerTimer = existing?.timer_state?.schema_version === 2
       ? existing.timer_state as ServerTimer
       : emptyTimer(initialMinutes);
 
     const next = applyEvent(prev, event, payload);
+
+    // Merge any incoming pitch_state patch on top of existing pitch_state
+    // (so we don't drop fields the client didn't include).
+    const basePitchState: Record<string, unknown> =
+      (existing?.pitch_state as Record<string, unknown> | null) ?? { sport: "soccer", autoSubActive: true };
+    const mergedPitchState: Record<string, unknown> = { ...basePitchState };
+    if (incomingAutoSubPlan !== null) mergedPitchState.autoSubPlan = incomingAutoSubPlan;
+    if (incomingAutoSubActive !== null) mergedPitchState.autoSubActive = incomingAutoSubActive;
+    if (incomingPlayers !== null) mergedPitchState.players = incomingPlayers;
+
+    // Fresh-start events must reset `last_sub_check_time` to 0, otherwise a
+    // leftover value from a previous game / half would suppress the very
+    // first pending-sub notification of the new half (see check-pending-subs
+    // `absoluteSubTime > last_sub_check_time` filter).
+    //
+    // Audit fix #7 + #8: `adjust` (admin rewinds the clock) and `set_minutes`
+    // (changes half length, which redefines the absolute-seconds axis the
+    // counter is stored in) must ALSO reset the gate — otherwise either
+    // (a) subs that were formerly past `last_sub_check_time` will never
+    // re-fire after the rewind, or (b) the counter now points at a wrong
+    // game-time after minutes-per-half changes.
+    const isFreshStart =
+      event === "start_half" ||
+      event === "start_half_2" ||
+      event === "reset" ||
+      event === "adjust" ||
+      event === "set_minutes";
 
     let rowId = existing?.id;
     if (!rowId) {
@@ -206,7 +284,8 @@ Deno.serve(async (req) => {
           team_id: teamId,
           is_active: true,
           timer_state: next as unknown,
-          pitch_state: existing?.pitch_state ?? { sport: "soccer", autoSubActive: true },
+          pitch_state: mergedPitchState as unknown,
+          last_sub_check_time: 0,
           updated_at: nowIso(),
         })
         .select("id")
@@ -218,12 +297,15 @@ Deno.serve(async (req) => {
       }
       rowId = created.id;
     } else {
+      const updatePayload: Record<string, unknown> = {
+        timer_state: next as unknown,
+        pitch_state: mergedPitchState as unknown,
+        updated_at: nowIso(),
+        is_active: !next.is_game_finished,
+      };
+      if (isFreshStart) updatePayload.last_sub_check_time = 0;
       await admin.from("active_games")
-        .update({
-          timer_state: next as unknown,
-          updated_at: nowIso(),
-          is_active: !next.is_game_finished,
-        })
+        .update(updatePayload)
         .eq("id", rowId);
     }
 

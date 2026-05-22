@@ -68,6 +68,15 @@ export async function sendTimerEvent(args: {
   event: TimerEvent;
   minutesPerHalf?: number;
   payload?: Record<string, unknown>;
+  /**
+   * Optional pitch_state patch persisted server-side alongside the timer
+   * event. Use to keep `autoSubPlan` / `players` fresh for the pending-sub
+   * cron even when the board hasn't been linked to an event (so
+   * `GlobalSubMonitor`'s own DB sync is skipped).
+   */
+  autoSubPlan?: unknown[];
+  autoSubActive?: boolean;
+  players?: unknown[];
 }): Promise<TimerEventResponse> {
   const { data, error } = await supabase.functions.invoke("pitch-timer-event", {
     body: {
@@ -75,6 +84,9 @@ export async function sendTimerEvent(args: {
       event: args.event,
       minutes_per_half: args.minutesPerHalf,
       payload: args.payload ?? {},
+      ...(args.autoSubPlan !== undefined ? { auto_sub_plan: args.autoSubPlan } : {}),
+      ...(args.autoSubActive !== undefined ? { auto_sub_active: args.autoSubActive } : {}),
+      ...(args.players !== undefined ? { players: args.players } : {}),
     },
   });
   if (error) throw error;
@@ -82,24 +94,41 @@ export async function sendTimerEvent(args: {
 }
 
 export async function readServerTimer(teamId: string | null): Promise<TimerReadResponse> {
-  // Skip if user is not authenticated — avoids 401 blank-screen on /auth and during sign-out.
-  const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData?.session) {
-    return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
+  // Skip if user is not authenticated OR the access token is expired —
+  // avoids 401 blank-screen reports on /auth, during sign-out, and when
+  // a stale session is still in localStorage but auto-refresh hasn't run.
+  const empty: TimerReadResponse = { found: false, server_now: new Date().toISOString() };
+  let accessToken: string | null = null;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const session = sessionData?.session;
+    if (!session?.access_token) return empty;
+    const expiresAt = session.expires_at ?? 0;
+    const nowSec = Math.floor(Date.now() / 1000);
+    // If the token is expired (or about to be), skip — don't risk a 401.
+    if (expiresAt && expiresAt - nowSec <= 5) return empty;
+    accessToken = session.access_token;
+  } catch {
+    return empty;
   }
+
   const qs = teamId ? `?team_id=${encodeURIComponent(teamId)}` : "";
   try {
-    const { data, error } = await supabase.functions.invoke(`pitch-timer-read${qs}`, {
+    // Use raw fetch with an explicit Authorization header so we never fall
+    // back to the anon key (which is what triggers the 401 -> blank-screen
+    // runtime-error report in the Lovable preview).
+    const base = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+    const res = await fetch(`${base}/functions/v1/pitch-timer-read${qs}`, {
       method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+      },
     });
-    if (error) {
-      // Silently degrade — timer is non-critical and 401s during token refresh
-      // would otherwise blank the screen.
-      return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
-    }
-    return data as TimerReadResponse;
+    if (!res.ok) return empty;
+    return (await res.json()) as TimerReadResponse;
   } catch {
-    return { found: false, server_now: new Date().toISOString() } as TimerReadResponse;
+    return empty;
   }
 }
 

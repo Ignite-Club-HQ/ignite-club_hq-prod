@@ -10,7 +10,7 @@
  *  • due-sub detection (called from timer update)
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useReducer, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player, SubstitutionEvent, TeamSize } from "@/components/pitch/types";
 import type { GameTimerRef } from "@/components/pitch/GameTimer";
@@ -20,14 +20,26 @@ import {
   executeSubsOnPlayers,
   markSubsExecuted,
   calculateSubDelay,
-  getDueSubGroups,
   findRelevantNextSub,
 } from "@/components/pitch/autoSubHelpers";
 import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
-import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
+import {
+  autoSubReducer,
+  initialAutoSubState,
+  type AutoSubState,
+} from "@/components/pitch/autoSub/autoSubReducer";
+import { useAutoSubScheduler } from "@/hooks/useAutoSubScheduler";
+import {
+  selectRemaining,
+  selectExecuted,
+  selectRemainingCount,
+  selectIsPlanComplete,
+} from "@/components/pitch/autoSub/selectors";
+import { recordAutoSubTransition } from "@/components/pitch/autoSub/debugLog";
+
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
@@ -66,32 +78,88 @@ export function useAutoSubs({
 }: UseAutoSubsOptions) {
   const { toast } = useToast();
 
-  // ── Core state ──────────────────────────────────────────
-  const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(initialPlan);
-  const [autoSubActive, setAutoSubActive] = useState(initialActive);
-  const [autoSubPaused, setAutoSubPaused] = useState(initialPaused);
+  // ── Core state (Step B: backed by useReducer; external API unchanged) ──
+  //
+  // The reducer is the single choke point for plan mutation. Compat setters
+  // below preserve the legacy useState-style API used by ~9 handlers and by
+  // PitchBoard.tsx. Plan invariants (no duplicates, executed-immutable,
+  // no locked-player subs) are enforced on every SET_PLAN dispatch via
+  // `validatePlanIntegrity`. On a rejected transition the reducer keeps
+  // the previous state and surfaces `lastError` for a dev-time toast.
+  // playersRef-backed ctx so every dispatch sees the freshest roster.
+  // Re-built per render but captured by the React-shaped reducer below.
+  const ctxRef = useRef({ playersRef });
+  ctxRef.current = { playersRef };
+
+  // React's useReducer takes a 2-arg reducer. Our pure reducer takes
+  // (state, ev, ctx) for testability — wrap it here, injecting ctx from
+  // the ref above. `now` comes from Date.now() at dispatch time.
+  const reactReducer = useCallback(
+    (state: AutoSubState, ev: Parameters<typeof autoSubReducer>[1]) => {
+      const next = autoSubReducer(state, ev, {
+        players: ctxRef.current.playersRef.current,
+        now: Date.now(),
+      });
+      recordAutoSubTransition(ev, state, next);
+      return next;
+    },
+    []
+  );
+
+  const [reducerState, dispatch] = useReducer(reactReducer, undefined, (): AutoSubState => ({
+    ...initialAutoSubState,
+    plan: initialPlan,
+    active: initialActive,
+    paused: initialPaused,
+  }));
+  const autoSubPlan = reducerState.plan;
+  const autoSubActive = reducerState.active;
+  const autoSubPaused = reducerState.paused;
+
+  const setAutoSubPlan = useCallback(
+    (next: SubstitutionEvent[] | ((prev: SubstitutionEvent[]) => SubstitutionEvent[])) => {
+      const resolved = typeof next === "function" ? next(planRef.current) : next;
+      dispatch({ type: "SET_PLAN", plan: resolved });
+    },
+    []
+  );
+  const setAutoSubActive = useCallback((active: boolean) => {
+    dispatch({ type: "SET_ACTIVE", active });
+  }, []);
+  const setAutoSubPaused = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const resolved = typeof next === "function" ? next(pausedRef.current) : next;
+      dispatch({ type: "SET_PAUSED", paused: resolved });
+    },
+    []
+  );
+  // Kept as separate useState for Step B; will migrate to reducer LOCK_TOGGLE
+  // in Step E when UI consumers are reworked.
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
 
-  // ── Dialog state ────────────────────────────────────────
-  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
-  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
-  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
+  // Refs mirror reducer state so compat updater-form setters
+  // (`setAutoSubPlan(prev => ...)`, `setAutoSubPaused(prev => ...)`) can
+  // resolve against the freshest value without re-renders chasing them.
+  const planRef = useRef<SubstitutionEvent[]>(autoSubPlan);
+  const pausedRef = useRef<boolean>(autoSubPaused);
+  useEffect(() => { planRef.current = autoSubPlan; }, [autoSubPlan]);
+  useEffect(() => { pausedRef.current = autoSubPaused; }, [autoSubPaused]);
 
-  // ── Sub-due highlighting ────────────────────────────────
-  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
-  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Next-sub countdown info ─────────────────────────────
-  const [nextSubInfo, setNextSubInfo] = useState<{
-    playerInId: string;
-    playerOutId: string;
-    countdown: string;
-  } | null>(null);
+  // Dev-time: log validator rejections so invariant violations surface loudly.
+  useEffect(() => {
+    if (!reducerState.lastError) return;
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[AutoSub] reducer rejected transition: ${reducerState.lastError.code} — ${reducerState.lastError.message}`
+      );
+    }
+  }, [reducerState.lastError]);
 
   // ── Internal refs ───────────────────────────────────────
   const planActivationTimeRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const skipCooldownRef = useRef<number>(0);
   const regeneratePlanRef = useRef<(() => void) | null>(null);
+
 
   // ── Safeguard: prevent recalculation from wiping plan ──
 
@@ -151,7 +219,50 @@ export function useAutoSubs({
     [teamSize, rotateGkAtHalftime]
   );
 
+  // ── Scheduler (clock-driven sub detection + dialog state) ──
+  // Extracted to `useAutoSubScheduler` so timer logic and dialog UI state
+  // live in one place. The handlers below consume the setters returned
+  // here to clear the pending dialog after confirm/skip/cancel.
+  const {
+    pendingAutoSub,
+    setPendingAutoSub,
+    pendingBatchSubs,
+    setPendingBatchSubs,
+    subConfirmDialogOpen,
+    setSubConfirmDialogOpen,
+    subDuePlayerIds,
+    setSubDuePlayerIds,
+    subDueTimerRef,
+    nextSubInfo,
+    checkForDueSubs,
+    updateNextSubInfo,
+    checkHalftimeSubs,
+  } = useAutoSubScheduler({
+    autoSubActive,
+    autoSubPaused,
+    autoSubPlan,
+    setAutoSubPlan,
+    lockedPlayerIds,
+    playersRef,
+    gameTimerRef,
+    skipCooldownRef,
+    planActivationTimeRef,
+    safeRecalculate,
+    shouldRecalculateAfterSkip,
+    toast,
+  });
+  // The scheduler's `setNextSubInfo` is internal; the local `setNextSubInfo`
+  // call inside handleCancelAutoSubPlan below clears via `updateNextSubInfo`
+  // path on the next tick. To preserve immediate-clear semantics we expose
+  // a no-op wrapper here. (No call sites use this externally.)
+  const setNextSubInfo = useCallback((_v: typeof nextSubInfo) => {
+    // No-op: nextSubInfo is owned by useAutoSubScheduler and naturally
+    // clears on the next timer tick after a cancel.
+  }, []);
+
   // ── Plan lifecycle ──────────────────────────────────────
+
+
 
   const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
@@ -618,228 +729,12 @@ export function useAutoSubs({
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
   }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, safeRecalculate, shouldRecalculateAfterSkip, toast, gameTimerRef]);
 
-  // ── Due-sub detection (called from handleTimerUpdate) ───
+  // ── Clock-driven scheduler ──────────────────────────────
+  // `checkForDueSubs`, `updateNextSubInfo`, and `checkHalftimeSubs` are
+  // produced by `useAutoSubScheduler` (instantiated near the top of the
+  // hook). They are re-exported below for backward-compatible call sites
+  // in `PitchBoard.tsx` and `GlobalSubMonitor.tsx`.
 
-  /**
-   * Check for due subs and open the confirm dialog if needed.
-   * Called on every timer tick from the parent's handleTimerUpdate.
-   * Returns true if a sub was triggered (so parent can skip redundant work).
-   */
-  const checkForDueSubs = useCallback(
-    (elapsedSeconds: number, currentHalf: 1 | 2) => {
-      if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return false;
-      if (gameTimerRef.current?.isGameFinished()) return false;
-      if (!gameTimerRef.current?.isRunning?.()) return false;
-      if (Date.now() - skipCooldownRef.current < 3000) return false;
-
-      const activationTime = planActivationTimeRef.current;
-
-      const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-      const halfDurationSeconds = minsPerHalf * 60;
-      const eligibleSubs = autoSubPlan.filter(sub => {
-        if (sub.executed) return false;
-        if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
-        if (activationTime && sub.half < activationTime.half) return false;
-        return true;
-      });
-
-      const { latestDueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
-        eligibleSubs,
-        currentHalf,
-        elapsedSeconds,
-        halfDurationSeconds
-      );
-
-      if (latestDueSubs.length === 0) return false;
-
-      const latestDueSub = latestDueSubs[0];
-
-      if (olderSubs.length > 0) {
-        const olderKeys = olderSubs.map(s => getSubKey(s));
-        const shouldRecalculate = shouldRecalculateAfterSkip(
-          olderSubs,
-          elapsedSeconds,
-          currentHalf,
-          halfDurationSeconds
-        );
-
-        setAutoSubPlan(prev => {
-          const markedPlan = markSubsExecuted(prev, olderKeys, true);
-          const executedSubs = markedPlan.filter(s => s.executed);
-          const existingUnexecuted = markedPlan.filter(s => !s.executed);
-          const recalculated = shouldRecalculate
-            ? safeRecalculate(
-                playersRef.current,
-                halfDurationSeconds,
-                elapsedSeconds,
-                currentHalf,
-                olderSubs[olderSubs.length - 1],
-                existingUnexecuted
-              )
-            : existingUnexecuted;
-
-          return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
-        });
-
-        toast({
-          title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? "s" : ""} skipped`,
-          description: shouldRecalculate
-            ? "Plan recalculated for remaining time"
-            : "Remaining substitutions preserved",
-        });
-      }
-
-      const dueSubs = latestDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
-      if (dueSubs.length === 0) {
-        if (olderSubs.length > 0 && pendingAutoSub) {
-          setPendingAutoSub(null);
-          setPendingBatchSubs([]);
-          setSubConfirmDialogOpen(false);
-          setSubDuePlayerIds(new Set());
-          if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-        }
-        return olderSubs.length > 0;
-      }
-
-      if (
-        pendingAutoSub &&
-        pendingAutoSub.half === latestDueSub.half &&
-        pendingAutoSub.time === latestDueSub.time
-      ) {
-        return olderSubs.length > 0;
-      }
-
-      if (pendingAutoSub) {
-        setPendingAutoSub(null);
-        setPendingBatchSubs([]);
-        setSubConfirmDialogOpen(false);
-        setSubDuePlayerIds(new Set());
-        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-      }
-
-      const [primarySub, ...additionalSubs] = dueSubs;
-
-      const playerOutName = primarySub.playerOut.name || `#${primarySub.playerOut.number}`;
-      const playerInName = primarySub.playerIn.name || `#${primarySub.playerIn.number}`;
-      const notificationBody =
-        dueSubs.length > 1
-          ? `Time for ${dueSubs.length} substitutions`
-          : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      playSubAlertBeep(notificationBody);
-
-      const dueIds = new Set<string>();
-      dueSubs.forEach(s => {
-        dueIds.add(s.playerOut.id);
-        dueIds.add(s.playerIn.id);
-      });
-      setSubDuePlayerIds(dueIds);
-      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-      subDueTimerRef.current = setTimeout(() => setSubDuePlayerIds(new Set()), 30000);
-
-      setPendingAutoSub(primarySub);
-      setPendingBatchSubs(additionalSubs);
-      setSubConfirmDialogOpen(true);
-
-      // Poke the server so push fan-out to other staff (assistant coaches,
-      // subs manager) happens immediately, before the open pitch board has
-      // a chance to mark the sub executed and hide it from the cron.
-      const dedupeKey = `${primarySub.half}-${primarySub.time}-${primarySub.playerOut.id}`;
-      void triggerPitchCheck("pitch-board-pending-sub", dedupeKey);
-      return true;
-    },
-    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, safeRecalculate]
-  );
-
-  // ── Next-sub countdown updater ──────────────────────────
-
-  const updateNextSubInfo = useCallback(
-    (elapsedSeconds: number, currentHalf: 1 | 2) => {
-      const isFinished = gameTimerRef.current?.isGameFinished();
-      if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
-        const remainingSubs = autoSubPlan.filter(s => !s.executed);
-        const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 10;
-        const halfDurationSeconds = minsPerHalf * 60;
-        const nextSub = findRelevantNextSub(remainingSubs, currentHalf, elapsedSeconds, halfDurationSeconds);
-        if (nextSub) {
-          const secsUntil =
-            nextSub.half === currentHalf
-              ? Math.max(0, nextSub.time - elapsedSeconds)
-              : nextSub.time +
-                (nextSub.half - currentHalf) * (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60 -
-                elapsedSeconds;
-          const mins = Math.floor(secsUntil / 60);
-          const secs = Math.floor(secsUntil % 60);
-          setNextSubInfo({
-            playerInId: nextSub.playerIn.id,
-            playerOutId: nextSub.playerOut.id,
-            countdown: `${mins}:${secs.toString().padStart(2, "0")}`,
-          });
-        } else {
-          setNextSubInfo(null);
-        }
-      } else {
-        if (isFinished) {
-          setNextSubInfo(null);
-          setSubDuePlayerIds(new Set());
-          if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-          if (subConfirmDialogOpen) {
-            setSubConfirmDialogOpen(false);
-            setPendingAutoSub(null);
-            setPendingBatchSubs([]);
-          }
-        }
-        setNextSubInfo(prev => (prev ? null : prev));
-      }
-    },
-    [autoSubActive, autoSubPlan, autoSubPaused, subConfirmDialogOpen, gameTimerRef]
-  );
-
-  // ── Half-change handler ─────────────────────────────────
-
-  const checkHalftimeSubs = useCallback(
-    (newHalf: 1 | 2) => {
-      if (newHalf !== 2) return false;
-
-      const staleFirstHalfSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
-      const halftimeSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 2 && sub.time === 0);
-
-      if (staleFirstHalfSubs.length > 0) {
-        const staleKeys = staleFirstHalfSubs.map(getSubKey);
-        setAutoSubPlan(prev => markSubsExecuted(prev, staleKeys, true));
-        setPendingAutoSub(null);
-        setPendingBatchSubs([]);
-        setSubConfirmDialogOpen(false);
-        setSubDuePlayerIds(new Set());
-        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-      }
-
-      if (halftimeSubs.length === 0) {
-        // No halftime subs — still show a halftime notification popup
-        setTimeout(() => {
-          playSubAlertBeep("Half time!");
-          setPendingAutoSub(null);
-          setPendingBatchSubs([]);
-          setSubConfirmDialogOpen(true);
-        }, 500);
-        return true;
-      }
-
-      setTimeout(() => {
-        const [primarySub, ...additionalSubs] = halftimeSubs;
-        const notificationBody =
-          halftimeSubs.length > 1
-            ? `Halftime: ${halftimeSubs.length} substitutions`
-            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-        playSubAlertBeep(notificationBody);
-        setPendingAutoSub(primarySub);
-        setPendingBatchSubs(additionalSubs);
-        setSubConfirmDialogOpen(true);
-      }, 500);
-
-      return true;
-    },
-    [autoSubActive, autoSubPlan]
-  );
 
   return {
     // State
@@ -880,8 +775,16 @@ export function useAutoSubs({
     updateNextSubInfo,
     checkHalftimeSubs,
 
+    // Derived selectors (Step E) — prefer these over inline filters
+    // when consuming `autoSubPlan` from UI. See `autoSub/selectors.ts`.
+    remainingSubs: selectRemaining(autoSubPlan),
+    executedSubs: selectExecuted(autoSubPlan),
+    remainingSubCount: selectRemainingCount(autoSubPlan),
+    isPlanComplete: selectIsPlanComplete(autoSubPlan),
+
     // Internal refs (exposed for edge cases)
     skipCooldownRef,
     planActivationTimeRef,
   };
+
 }

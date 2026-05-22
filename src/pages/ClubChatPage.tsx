@@ -1400,7 +1400,15 @@ export default function ClubChatPage() {
       )}
 
       {/* Pinned vault banner */}
-      <PinnedVaultBanner record={pinnedVault.record} isAdmin={!!(isClubAdmin || isAppAdmin)} />
+      <PinnedVaultBanner
+        record={pinnedVault.record}
+        isAdmin={!!(isClubAdmin || isAppAdmin)}
+        onUnpin={
+          pinnedVault.record && (isClubAdmin || isAppAdmin || pinnedVault.record.set_by === user?.id)
+            ? () => pinnedVault.remove()
+            : undefined
+        }
+      />
 
       {/* Pinned messages banner */}
       <PinnedMessagesBanner

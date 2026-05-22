@@ -137,8 +137,10 @@ describe("createSubPlan — full fairness matrix (Phase 6)", () => {
               // plans. Calibrated to current planner output: tight cases
               // (5-a-side with a 5-deep bench in Frequent mode) sit around
               // 70% of match length because GK-protected halftime runs eat
-              // sub slots. Tightening this requires the unified-window
-              // builder work tracked in the original Phase 3 design notes.
+              // sub slots.
+              // TODO(audit#6): tighten this once the unified-window builder
+              // lands (collapse same-window in/out pairs at build time rather
+              // than tolerating ≤1 yo-yo). See audit #6 scope note.
               const spreadMin = (Math.max(...values) - Math.min(...values)) / 60;
               expect(
                 spreadMin,

@@ -8,6 +8,41 @@ import { showBrowserNotification, requestNotificationPermission } from "@/lib/no
 import { toast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, type ServerTimer } from "@/lib/serverTimer";
+import { getPitchStateKey, PITCH_STATE_KEY } from "./types";
+
+/**
+ * Read the current pitch board localStorage snapshot for this team so we can
+ * piggy-back autoSubPlan / players onto the next timer event. This keeps
+ * `active_games.pitch_state` fresh for the `check-pending-subs` cron even
+ * when the board is unlinked (so `GlobalSubMonitor`'s own DB sync is skipped).
+ */
+const readLocalPitchPatch = (teamId: string | null | undefined): {
+  autoSubPlan?: unknown[];
+  autoSubActive?: boolean;
+  players?: unknown[];
+} => {
+  try {
+    if (typeof localStorage === "undefined") return {};
+    const raw = teamId
+      ? (localStorage.getItem(getPitchStateKey(teamId)) || localStorage.getItem(PITCH_STATE_KEY))
+      : localStorage.getItem(PITCH_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as {
+      teamId?: string;
+      autoSubPlan?: unknown[];
+      autoSubActive?: boolean;
+      players?: unknown[];
+    };
+    if (teamId && parsed.teamId && parsed.teamId !== teamId) return {};
+    const patch: ReturnType<typeof readLocalPitchPatch> = {};
+    if (Array.isArray(parsed.autoSubPlan)) patch.autoSubPlan = parsed.autoSubPlan;
+    if (typeof parsed.autoSubActive === "boolean") patch.autoSubActive = parsed.autoSubActive;
+    if (Array.isArray(parsed.players)) patch.players = parsed.players;
+    return patch;
+  } catch {
+    return {};
+  }
+};
 
 // Helper to play audio beep
 const playBeepSound = (frequency: number, beepCount: number, beepDuration: number, beepGap: number) => {
@@ -440,6 +475,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       teamId: teamId ?? null,
       event: evt,
       minutesPerHalf,
+      ...readLocalPitchPatch(teamId ?? null),
     }).then((res) => {
       applyServerSnapshot(res.timer_state, res.server_now);
     }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
