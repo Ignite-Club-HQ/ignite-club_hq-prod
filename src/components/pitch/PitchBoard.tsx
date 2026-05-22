@@ -257,26 +257,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     checkForDueSubsRef: checkForDueSubsRef_timer,
   });
   
-  // Determine initial team size - prefer saved state, then DB value, then default
-  const getInitialTeamSize = (): TeamSize => {
-    if (savedState?.teamSize) return savedState.teamSize;
-    const candidateSize = String(initialTeamSize || "");
-    if (candidateSize && isSavedDefaultTeamSize(candidateSize)) {
-      return candidateSize;
-    }
-    return "7";
-  };
   
-  // Determine initial formation index from formation name
-  const getInitialFormationIndex = (size: TeamSize): number => {
-    if (savedState?.selectedFormation !== undefined) return savedState.selectedFormation;
-    if (initialFormation) {
-      const formations = FORMATIONS[size];
-      const index = formations.findIndex(f => f.name === initialFormation);
-      if (index >= 0) return index;
-    }
-    return 0;
-  };
+
   
   const [teamSize, setTeamSize] = useState<TeamSize>(getInitialTeamSize);
   const [selectedFormation, setSelectedFormation] = useState(() => getInitialFormationIndex(getInitialTeamSize()));
