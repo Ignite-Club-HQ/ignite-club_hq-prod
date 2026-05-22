@@ -15,8 +15,8 @@ export type TacticalFormationSuggestion = {
 };
 
 interface UsePitchBoardTacticalArgs {
-  players: PitchPlayer[];
-  teamSize: number;
+  players: Player[];
+  teamSize: TeamSize;
   selectedFormation: number;
   miniLeagueTeams: unknown;
   ballPosition: { x: number; y: number };
