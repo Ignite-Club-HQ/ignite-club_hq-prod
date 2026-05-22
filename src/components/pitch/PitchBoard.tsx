@@ -558,14 +558,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }
   
-  // Tactical mode state
-  type TacticalFormationSuggestion = {
-    mode: Exclude<TacticalMode, "neutral">;
-    formationIndex: number;
-    formationName: string;
-  };
-  const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
-  const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
+  // Tactical mode state now lives in usePitchBoardTactical (declared below after handleFormationChange + ball state).
+
   
   // Mini-league team selector for formation/tactical changes
   const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
