@@ -84,7 +84,6 @@ import {
 import ScoreTracker from "./ScoreTracker";
 import {
   savePitchState,
-  loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
@@ -104,14 +103,15 @@ import { usePitchBoardSubSelection } from "./hooks/usePitchBoardSubSelection";
 import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
+import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
 import { Download } from "lucide-react";
 const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
 
-const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
-const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
+
+
 
 interface PitchBoardProps {
   teamId: string;
@@ -223,17 +223,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // State initialization flag
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Load saved state once for initialization
-  // Use a sentinel to distinguish "not yet loaded" from "loaded but no state found"
-  const savedStateLoadedRef = useRef(false);
-  const savedStateRef = useRef<PitchBoardState | null>(null);
-  if (!savedStateLoadedRef.current) {
-    savedStateLoadedRef.current = true;
-    const loaded = loadPitchState(teamId);
-    savedStateRef.current = loaded;
-    console.log("[PitchState] Initial load result:", loaded ? "found" : "not found", "teamId:", teamId);
-  }
-  const savedState = savedStateRef.current;
+  // Step 9b: one-shot saved-state load + initial team-size/formation getters.
+  const { savedState, getInitialTeamSize, getInitialFormationIndex } =
+    usePitchBoardInitialState({ teamId, initialTeamSize, initialFormation });
   
   // Timer state + per-tick minute math live in usePitchBoardTimer (audit #9
   // step 1 of the PitchBoard split). Setters/callbacks that are created
@@ -265,26 +257,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     checkForDueSubsRef: checkForDueSubsRef_timer,
   });
   
-  // Determine initial team size - prefer saved state, then DB value, then default
-  const getInitialTeamSize = (): TeamSize => {
-    if (savedState?.teamSize) return savedState.teamSize;
-    const candidateSize = String(initialTeamSize || "");
-    if (candidateSize && isSavedDefaultTeamSize(candidateSize)) {
-      return candidateSize;
-    }
-    return "7";
-  };
   
-  // Determine initial formation index from formation name
-  const getInitialFormationIndex = (size: TeamSize): number => {
-    if (savedState?.selectedFormation !== undefined) return savedState.selectedFormation;
-    if (initialFormation) {
-      const formations = FORMATIONS[size];
-      const index = formations.findIndex(f => f.name === initialFormation);
-      if (index >= 0) return index;
-    }
-    return 0;
-  };
+
   
   const [teamSize, setTeamSize] = useState<TeamSize>(getInitialTeamSize);
   const [selectedFormation, setSelectedFormation] = useState(() => getInitialFormationIndex(getInitialTeamSize()));
