@@ -324,15 +324,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subPreviewOpen, setSubPreviewOpen] = useState(false);
   const [previewSwapPlayers, setPreviewSwapPlayers] = useState<{ sourceId: string | null; targetId: string | null }>({ sourceId: null, targetId: null });
 
-  // Formation/team-size change dialog state
-  const [formationChangeDialogOpen, setFormationChangeDialogOpen] = useState(false);
-  const [pendingFormationChange, setPendingFormationChange] = useState<{
-    index: number;
-    newTeamSize?: TeamSize; // Set when this is a team size change
-    positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
-    benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
-    minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
-  } | null>(null);
+  // Formation/team-size change dialog state + handlers live in
+  // usePitchBoardFormationChangeDialog. Dependencies are passed via a ref
+  // (updated on every render below) so the hook can be declared early.
+  const formationDialogDepsRef = useRef<FormationChangeDialogDeps | null>(null);
+  const {
+    formationChangeDialogOpen,
+    setFormationChangeDialogOpen,
+    pendingFormationChange,
+    setPendingFormationChange,
+    handleFormationChangeConfirm,
+    handleFormationChangeCancel,
+  } = usePitchBoardFormationChangeDialog(formationDialogDepsRef);
 
   // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   // gameTimerRef is declared above as part of usePitchBoardTimer wiring.
