@@ -167,8 +167,9 @@ export interface PitchBoardLayoutContextValue {
   onUnlinkEvent: () => void;
   openAutoSubPlanDialog: (...args: any[]) => any;
   opponentName: any;
-  pendingAutoSub: any;
-  pendingBatchSubs: any;
+  pendingAutoSub: SubstitutionEvent | null;
+  pendingBatchSubs: SubstitutionEvent[];
+
   pendingFormationChange: any;
   pendingManualSub: any;
   pendingSubBenchPlayer: string | null;
