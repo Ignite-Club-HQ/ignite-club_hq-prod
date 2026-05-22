@@ -4744,6 +4744,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         {f.name}
                       </button>
                     ))}
+                    {!readOnly && (
+                      <>
+                        <div className="h-px bg-border my-1" />
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2 text-muted-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleResetFormation();
+                            setTimerFormationDropdownOpen(false);
+                          }}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Reset Formation
+                        </button>
+                      </>
+                    )}
                   </div>
                   </>
                 )}
