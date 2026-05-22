@@ -3464,7 +3464,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Landscape layout: pitch full screen on left, controls stacked on right
   // ---- Layout context for landscape/portrait split ----
-  const layoutCtx = {
+  const layoutCtx: PitchBoardLayoutContextValue = {
     autoSubActive, autoSubFromPreGame, autoSubPanelOpen, autoSubPaused, autoSubPlan,
     autoSubPlanDialogOpen, autoSubPlanEditMode, ballOffset, ballPosition, benchDragPlayer,
     benchDragPos, benchInjuryConfirmOpen, benchInjuryTarget, benchLongPressTimer,
