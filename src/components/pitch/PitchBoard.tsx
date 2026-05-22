@@ -3349,75 +3349,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   pushToUndoHistoryRef_autoSubs.current = pushToUndoHistory;
   runSubAnimationRef_autoSubs.current = runSubAnimation;
 
-  // lastTimeUpdateRef and hasInitializedTimeRef are declared near the top of the component
-  // (after savedState loading) to allow pre-initialization from saved timer state.
-
-  // Timer update callback - check for pending subs and track minutes played
-  const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
-    // Mark game as in progress once timer starts
-    if (elapsedSeconds > 0 && !gameInProgress) {
-      setGameInProgress(true);
-    }
-    
-    // On first call, initialize the ref so the next tick computes a correct delta.
-    // We do NOT return early — we still want sub checks below to run.
-    if (!hasInitializedTimeRef.current) {
-      hasInitializedTimeRef.current = true;
-      lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
-      // Fall through — no time is added because delta will be 0 on this call
-    }
-    
-    // Track minutes played for players on pitch
-    const lastUpdate = lastTimeUpdateRef.current;
-    if (lastUpdate) {
-      let secondsElapsed = 0;
-      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
-      if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
-        // Normal tick within the same half
-        secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      } else if (lastUpdate.half === 1 && currentHalf === 2) {
-        // Half transition. Two sub-cases collapse into one formula:
-        //   - Normal end-of-H1 tick: elapsedSeconds === 0 → credit
-        //     (halfDuration - lastUpdate.seconds), i.e. the final second(s)
-        //     of H1 that GameTimer wraps when it flips to H2.
-        //   - Resume / drift catch-up that crosses halftime: elapsedSeconds
-        //     can be > 0 in H2 (see GameTimer.tsx ~L656). We must credit the
-        //     remainder of H1 PLUS the elapsed start of H2, otherwise the
-        //     whole halftime-crossing window vanishes from per-player minutes
-        //     and stats under-count by a large margin.
-        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds) + Math.max(0, elapsedSeconds);
-      }
-      if (secondsElapsed > 0) {
-        // Compute the cumulative game clock so we can cap each player's
-        // minutesPlayed at the total elapsed game time. This is a defensive
-        // guard against any double-accumulation (e.g. duplicated tick events,
-        // half-transition catchup colliding with a normal tick, or stale
-        // refs after remount). A player's on-pitch time can never logically
-        // exceed total game elapsed.
-        const totalElapsedNow = currentHalf === 2
-          ? halfDuration + elapsedSeconds
-          : elapsedSeconds;
-        setPlayers(prev => prev.map(p => {
-          if (p.position !== null) {
-            const next = (p.minutesPlayed || 0) + secondsElapsed;
-            return { ...p, minutesPlayed: Math.min(next, totalElapsedNow) };
-          }
-          return p;
-        }));
-      }
-    }
-    lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
-
-    // Update reactive elapsed game time for MatchStatsPanel
-    const totalElapsed = currentHalf === 2 
-      ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds 
-      : elapsedSeconds;
-    setElapsedGameTime(totalElapsed);
-
-    // Delegate next-sub countdown and due-sub detection to the hook
-    updateNextSubInfo(elapsedSeconds, currentHalf);
-    checkForDueSubs(elapsedSeconds, currentHalf);
-  }, [updateNextSubInfo, checkForDueSubs, gameInProgress]);
+  // Forward setters/callbacks into the timer hook (declared at the top of
+  // the component, before these values exist).
+  setPlayersRef.current = setPlayers;
+  setElapsedGameTimeRef.current = setElapsedGameTime;
+  updateNextSubInfoRef_timer.current = updateNextSubInfo;
+  checkForDueSubsRef_timer.current = checkForDueSubs;
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2, source: 'live' | 'reconcile' = 'live') => {
