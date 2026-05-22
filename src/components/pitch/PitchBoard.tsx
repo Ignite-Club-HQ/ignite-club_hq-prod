@@ -2501,7 +2501,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // and should not see a stale "Half Time!" dialog they have to dismiss.
     if (newHalf === 2) {
       const elapsedInHalf2 = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
-      if (elapsedInHalf2 > 30) {
+      if (elapsedInHalf2 > 30 || hasAcknowledgedHalftimePrompt(halftimePromptAckKey)) {
         return;
       }
     }
@@ -2544,9 +2544,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setPendingAutoSub(null);
         setPendingBatchSubs([]);
         setSubConfirmDialogOpen(true);
+        acknowledgeHalftimePrompt(halftimePromptAckKey);
       }, 500);
     }
-  }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
+  }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
   // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
