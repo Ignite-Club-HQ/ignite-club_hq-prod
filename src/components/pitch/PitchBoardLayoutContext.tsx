@@ -272,8 +272,9 @@ export interface PitchBoardLayoutContextValue {
   statsOpen: boolean;
   subAfterSwapDialogOpen: boolean;
   subAnimationPlayers: { in: string | null; out: string | null; swap: string | null };
-  subConfirmDialogOpen: any;
-  subDuePlayerIds: any;
+  subConfirmDialogOpen: boolean;
+  subDuePlayerIds: Set<string>;
+
   subMode: any;
   subPreviewOpen: boolean;
   swapBeforeSubDialogOpen: boolean;
