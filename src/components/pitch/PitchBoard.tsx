@@ -2460,10 +2460,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     toast,
   };
 
-  // Zoom handlers
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.25, 3));
-  };
+
+
 
   // Substitution dialog trigger - handles both direct subs and position swaps
   useEffect(() => {
@@ -2990,13 +2988,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
 
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.25, 0.5));
-  };
 
-  const handleResetZoom = () => {
-    setZoom(1);
-  };
+
 
   const handleUnlinkEvent = useCallback(async () => {
     setLinkedEventId(null);
@@ -3449,32 +3442,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handlePitchTouchStart = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
-    
+
     // Pinch zoom (2 fingers) - zoom without moving pitch
-    if (e.touches.length === 2) {
-      const dist = getPinchDistance(e.touches);
-      if (dist !== null) {
-        setLastPinchDistance(dist);
-      }
-    }
+    if (tryPinchStart(e)) return;
   };
 
   const handlePitchTouchMove = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
-    
-    // Pinch zoom (2 fingers)
-    if (e.touches.length === 2 && lastPinchDistance !== null) {
-      e.preventDefault();
-      const dist = getPinchDistance(e.touches);
-      if (dist !== null) {
-        const delta = (dist - lastPinchDistance) * 0.005;
-        setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
-        setLastPinchDistance(dist);
-      }
-      return;
-    }
-    
+
+    // Pinch zoom (2 fingers) — consumed by the hook
+    if (tryPinchMove(e)) return;
+
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
     if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
@@ -3489,9 +3468,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
     // Reset pinch distance when fingers lift
-    if (e.touches.length < 2) {
-      setLastPinchDistance(null);
-    }
+    tryPinchEnd(e);
+
+
     
     if (readOnly) return;
     if (!touchDragPlayer) return;
@@ -3564,14 +3543,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     playerDragStartRef.current = null;
   };
 
-  // Wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
-    }
-  };
+
+
 
   const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
     if (readOnly) return;
