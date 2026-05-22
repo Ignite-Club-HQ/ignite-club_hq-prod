@@ -22,11 +22,12 @@ import type { GameTimerRef } from "./GameTimer";
  * tightened individually as needed.
  */
 export interface PitchBoardLayoutContextValue {
-  autoSubActive: any;
+  autoSubActive: boolean;
   autoSubFromPreGame: boolean;
   autoSubPanelOpen: boolean;
-  autoSubPaused: any;
-  autoSubPlan: any;
+  autoSubPaused: boolean;
+  autoSubPlan: SubstitutionEvent[];
+
   autoSubPlanDialogOpen: boolean;
   autoSubPlanEditMode: boolean;
   ballOffset: any;
