@@ -198,6 +198,7 @@ export default function PitchBoardLandscapeLayout() {
     handleCancelManualSub,
     handleCancelPitchSwap,
     handleCancelSwapBasedSub,
+    handleAcknowledgeHalftimePrompt,
     handleConfirmAutoSub,
     handleConfirmManualSub,
     handleConfirmPitchSwap,
@@ -1787,6 +1788,7 @@ export default function PitchBoardLandscapeLayout() {
           substitution={pendingAutoSub}
           onConfirm={handleConfirmAutoSub}
           onSkip={handleSkipAutoSub}
+          onAcknowledgeHalftime={handleAcknowledgeHalftimePrompt}
           players={players}
         />
 
