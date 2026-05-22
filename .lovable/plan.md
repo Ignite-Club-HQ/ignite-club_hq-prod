@@ -1,64 +1,74 @@
-## Goal
-Collapse the 7 role/permission queries on `MessagesPage` into a single `get_messages_page_bootstrap` RPC, behind a runtime flag, with zero changes to existing behaviour until the flag is on.
+# Audit #4 + #6 — Scope & Fix
 
-## Phase 1 — Ship (this loop)
+## TL;DR
+- **#4 is a localized planner bug** with a clean, well-bounded fix (~15 LOC in `pitchStateUtils.ts`) and an existing skipped test ready to flip on. **Fix in this PR.**
+- **#6 is a planner architecture issue** (unified-window builder rewrite, ~300+ LOC across `AutoSubPlanDialog.tsx`'s halftime GK swap path) that the matrix test already tolerates as ≤1 yo-yo. **Defer with a documented scope note** — not safe to touch in the same PR as #4.
 
-### 1. Database (additive only)
-New `SECURITY DEFINER STABLE` function `public.get_messages_page_bootstrap(_user_id uuid)` returning a single JSON row:
+---
+
+## #4 — Recalc 30s short-circuit
+
+### Root cause
+`recalculateRemainingPlan` in `src/components/pitch/pitchStateUtils.ts` uses a static `minutesPlayed` snapshot for each candidate. Across the `for (const { time, half } of subTimes)` loop (lines 308–402), it never advances simulated minutes. So at line 345:
+
+```ts
+if ((mostPlayed.time - leastPlayed.time) < 30) break;
 ```
-{
-  is_app_admin: bool,
-  is_committee_member: bool,
-  admin_club_ids: uuid[],
-  admin_team_ids: uuid[],
-  all_roles: [{ role, club_id, team_id }],
-  member_club_ids: uuid[],
-  member_team_ids: uuid[],
-  pro_club_ids: uuid[],      -- clubs with active Pro
-  pro_team_ids: uuid[],      -- teams with active Pro
-  has_any_pro: bool
-}
-```
-- Reads only: `user_roles`, `teams`, `club_subscriptions`, `team_subscriptions`.
-- Does **not** touch `children`, `child_guardians`, `child_mini_league_assignments` (userLeagueIds keeps its own path — different RLS surface, defer to Phase 2).
-- `GRANT EXECUTE ... TO authenticated`.
 
-### 2. Frontend
-- New hook `src/hooks/useMessagesPageBootstrap.ts` — one `useQuery` calling the RPC, `staleTime: 5min`.
-- `MessagesPage` reads a runtime flag: `localStorage.getItem("msg_bootstrap_v1") === "1"` (default OFF).
-- When **flag OFF**: zero behaviour change. Existing 7 queries run as today.
-- When **flag ON**: the bootstrap query runs, and on success calls `queryClient.setQueryData(...)` for the 7 keys *before* the existing queries' `queryFn` resolves. Existing useQuery blocks stay in place but become instant cache hits and their `queryFn` is skipped for `staleTime` window.
-- Add a one-line dev console helper: `window.__enableMsgBootstrap = () => localStorage.setItem("msg_bootstrap_v1","1")`.
+…a recalc triggered mid-half against a roster with near-equal minutes returns `[]`, even though many sub windows + bench depth remain — because by window N, the on-pitch leader will have accumulated `(N * intervalSec)` more seconds and would clear the 30s threshold.
 
-### 3. Verification
-- Flip the flag on your account only, reload `/messages`.
-- Confirm in Network tab: 1 RPC call instead of 6–7 separate `user_roles`/subs queries.
-- Confirm UI renders identically (admin badges, pro gates, group filters).
-- If anything looks off → `localStorage.removeItem("msg_bootstrap_v1")` → instant rollback, no redeploy.
+The inner `continue` at line 358 and fallback at line 374 have the same blind spot.
 
-## Phase 2 — Cutover (next loop, once verified)
-- Remove the flag, replace the 7 `useQuery` blocks with `useMemo`-derived values from the bootstrap.
-- Add `userLeagueIds` to the bootstrap (separate migration since it touches more tables).
-- Drop the unused individual queries.
+### Fix
+Simulate forward inside the window loop. Maintain a local `simulatedMinutes: Map<string, number>` initialized from `getPlayer(id)?.minutesPlayed`, and:
 
-## Phase 3 — Cleanup (later)
-- Drop the now-unused branches of `hasAnyProAccess` chained queries.
-- Optional: prefetch the bootstrap on app shell mount so `/messages` opens with cache warm.
+1. Between windows, add `(currentWindowAbsTime - lastWindowAbsTime)` to every currently-on-pitch player's simulated total.
+2. Read sort keys from `simulatedMinutes` instead of `getPlayer().minutesPlayed`.
+3. Keep the 30s threshold semantics unchanged — only the inputs change.
+
+### Test
+Flip `describe.skip` → `describe` in `pitchOrchestration.sim.test.ts:535` and replace the placeholder with a concrete case:
+- 7-a-side, 5 bench, 25-min halves
+- Inject equalized `minutesPlayed` at 14:00 of H1 with `subsAtOnce=1, intervalMinutes=5`
+- Assert: returned plan is non-empty and chronologically valid.
+
+Run the matrix as a regression check (`bun run test:matrix`) — no behavior change expected for fresh-game starts because `simulatedMinutes` equals `minutesPlayed` at window 0.
+
+### Risk
+Low. The change is additive (simulate forward), preserves all thresholds, and is unreachable from the createSubPlan path (different function). Only `recalculateRemainingPlan` callers are affected — primarily PitchBoard recalc on manual sub / pitch event.
+
+---
+
+## #6 — Halftime GK-swap yo-yo
+
+### Root cause
+In `AutoSubPlanDialog.tsx`'s halftime GK injection path (lines ~703–824), the H1 bench queue gets built as `[outfieldOnBench[0], ...h1Regulars, halftimeGkIn]`. When the bench size is tight (5-a-side, single bench, or 7-a-side with a small bench), the same halftime window ends up issuing both an `in` and an `out` for the new-GK's bench peer, producing one same-window yo-yo. The matrix test tolerates this (≤1) by design — see lines 148–175 of `AutoSubPlanDialog.matrix.test.ts`.
+
+### Why defer
+A clean fix requires what the code comments call the **unified-window builder rewrite** (referenced in matrix test line 140–141 and the Phase 3 design notes). Sketch:
+
+1. Replace the dual H1 queue + halftime-injection path with a single window-list builder that knows about GK protection windows up front.
+2. Collapse same-window `(in, out)` pairs at build time, never at validate time.
+3. Re-derive the GK-protected outfield run as a constraint on the unified list, not a post-hoc patch.
+
+That touches the planner's hottest path. Doing it alongside #4 invalidates the matrix baseline and risks regressing the 240-case sweep. It belongs in its own PR with its own matrix run.
+
+### Action now
+- Leave the ≤1 yo-yo tolerance in place.
+- Convert the matrix test comment (lines 136–141) into a `// TODO(audit#6):` marker referencing the unified-window builder so the next person picking this up has the breadcrumb.
+
+---
+
+## Files touched in this PR
+- `src/components/pitch/pitchStateUtils.ts` — simulate-forward in `recalculateRemainingPlan` (~15 LOC).
+- `src/components/pitch/pitchOrchestration.sim.test.ts` — un-skip Audit #4 test, add concrete assertion.
+- `src/components/pitch/AutoSubPlanDialog.matrix.test.ts` — comment-only TODO marker for #6.
 
 ## Out of scope
-- No RLS changes.
-- No changes to the inbox-message RPCs (`get_inbox_latest_*_messages`).
-- No changes to `chat_groups` SELECT (separate, larger fix).
-- No changes to caching/realtime logic.
+- #6 unified-window builder rewrite (own PR, own matrix soak).
+- #9 PitchBoard split (own project).
 
-## Rollback
-| Scenario | Action |
-|---|---|
-| Issue with bootstrap data | `localStorage.removeItem("msg_bootstrap_v1")` — instant |
-| Want to revert all code | Revert this chat message |
-| Want to remove the RPC | One migration: `DROP FUNCTION public.get_messages_page_bootstrap` |
-
-## Risk
-- **DB**: zero (additive, read-only, no policy changes).
-- **Frontend (flag off)**: zero (no code path touched).
-- **Frontend (flag on)**: medium → mitigated by per-user opt-in and instant rollback.
+## Verification
+1. `bunx vitest run src/components/pitch/pitchOrchestration.sim.test.ts` — new test passes, existing pass.
+2. `bun run test:matrix` — 240 cases stay green (yo-yo count unchanged at ≤1).
+3. Manual PitchBoard smoke: mid-half manual sub on a balanced roster now produces a non-empty remaining plan.
