@@ -87,16 +87,17 @@ export default function SubConfirmDialog({
   }, [open, countdown]);
 
   // Guard: the informational "Half Time" popup should ONLY render at the
-  // genuine halftime boundary (timer paused at H2/elapsed=0). If the dialog
-  // somehow opens with no substitution while the timer is past halftime or
-  // still in H1, auto-dismiss to avoid showing a stale prompt mid-game.
+  // genuine halftime boundary (timer paused at H2/elapsed≤5) AND only when
+  // the user hasn't already acknowledged this game's halftime prompt.
+  // Uses the shared `canShowHalftimePrompt` helper so every open site —
+  // PitchBoard.handleHalfChange, useAutoSubScheduler.checkHalftimeSubs,
+  // GlobalSubMonitor — applies the exact same gating, and the dialog
+  // self-dismisses if it somehow opens outside that window.
   useEffect(() => {
     if (!open || !isHalftimeOnly) return;
     const t = loadTimerStateForMinutes();
-    if (!t) return;
-    const atHalftimeBoundary =
-      t.currentHalf === 2 && (t.elapsedSeconds || 0) <= 5 && !t.isRunning;
-    if (!atHalftimeBoundary) {
+    const p = loadPitchState(t?.teamId);
+    if (!canShowHalftimePrompt(t, p)) {
       onAcknowledgeHalftime?.();
       onOpenChange(false);
     }
