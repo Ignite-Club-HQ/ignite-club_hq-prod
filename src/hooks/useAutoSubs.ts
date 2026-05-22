@@ -38,6 +38,7 @@ import {
   selectRemainingCount,
   selectIsPlanComplete,
 } from "@/components/pitch/autoSub/selectors";
+import { recordAutoSubTransition } from "@/components/pitch/autoSub/debugLog";
 
 
 export interface UseAutoSubsOptions {
