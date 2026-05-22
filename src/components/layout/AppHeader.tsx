@@ -494,7 +494,10 @@ export function AppHeader() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(5);
-      if (activeClubFilter) q = q.eq("club_id", activeClubFilter);
+      // Include notifications scoped to the active club AND global ones (club_id IS NULL),
+      // since some types like join_request / team_invite / role_request are intentionally
+      // stored without a club_id and would otherwise be hidden by an active club filter.
+      if (activeClubFilter) q = q.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
       const { data, error } = await q;
       if (error) throw error;
       return data;
