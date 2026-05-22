@@ -2283,41 +2283,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // handleFormationChange now lives in usePitchBoardLineup (declared at top).
 
-  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
-    setTacticalMode(mode);
-
-    if (mode === "neutral") {
-      setTacticalFormationSuggestion(null);
-      return;
-    }
-
-    const rec = RECOMMENDED_FORMATIONS[teamSize];
-    const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
-    const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
-
-    if (suggestedIndex !== selectedFormation && suggestedFormation) {
-      setTacticalFormationSuggestion({
-        mode,
-        formationIndex: suggestedIndex,
-        formationName: suggestedFormation.name,
-      });
-    } else {
-      setTacticalFormationSuggestion(null);
-    }
-  }, [teamSize, selectedFormation]);
-
-  const handleApplyTacticalSuggestion = useCallback(() => {
-    if (!tacticalFormationSuggestion) return;
-    handleFormationChange(String(tacticalFormationSuggestion.formationIndex));
-    setTacticalFormationSuggestion(null);
-  }, [tacticalFormationSuggestion, handleFormationChange]);
-
-  const handleDismissTacticalSuggestion = useCallback(() => {
-    setTacticalFormationSuggestion(null);
-    // Minimise the bottom drawer after dismissing
-    setToolbarCollapsed(true);
-    setPortraitSheetOpen(false);
-  }, []);
+  const {
+    tacticalMode,
+    setTacticalMode,
+    tacticalFormationSuggestion,
+    setTacticalFormationSuggestion,
+    handleTacticalModeChange,
+    handleApplyTacticalSuggestion,
+    handleDismissTacticalSuggestion,
+    tacticalOffsets,
+    ballOffset,
+  } = usePitchBoardTactical({
+    players,
+    teamSize,
+    selectedFormation,
+    miniLeagueTeams,
+    ballPosition,
+    isDraggingBall,
+    recentlyDraggedBallRef,
+    handleFormationChange,
+    setToolbarCollapsed,
+    setPortraitSheetOpen,
+  });
 
   // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
   const notifyFormationOrSizeChange = useCallback(async (
