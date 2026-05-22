@@ -84,6 +84,7 @@ export interface PitchBoardLayoutContextValue {
   handleCancelPitchSwap: (...args: any[]) => any;
   handleCancelSwapBasedSub: (...args: any[]) => any;
   handleConfirmAutoSub: () => void;
+  handleAcknowledgeHalftimePrompt: () => void;
   handleConfirmManualSub: any;
   handleConfirmPitchSwap: (...args: any[]) => any;
   handleConfirmPitchSwapWithAccommodation: (...args: any[]) => any;
