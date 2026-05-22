@@ -15,6 +15,20 @@ import { Capacitor } from '@capacitor/core';
 let pendingNavigationUrl: string | null = null;
 let navigationHandled = false;
 
+const PENDING_NAV_KEY = 'pendingPushNavigationUrl';
+
+function persistPendingNav(url: string) {
+  try { sessionStorage.setItem(PENDING_NAV_KEY, url); } catch {}
+}
+
+function readPersistedPendingNav(): string | null {
+  try { return sessionStorage.getItem(PENDING_NAV_KEY); } catch { return null; }
+}
+
+function clearPersistedPendingNav() {
+  try { sessionStorage.removeItem(PENDING_NAV_KEY); } catch {}
+}
+
 // Global flag for pending force-update prompt (survives timing races)
 let pendingForceUpdatePrompt: { storeUrl?: string } | null = null;
 
@@ -28,15 +42,25 @@ export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null 
 }
 
 /**
- * Get any pending navigation URL from a notification tap
+ * Get any pending navigation URL from a notification tap.
+ * Falls back to sessionStorage so Android cold-start taps survive a slow
+ * auth bootstrap (e.g. token refresh on resume) without losing the route.
  */
 export function getPendingNotificationNavigation(): string | null {
-  const url = pendingNavigationUrl;
+  const url = pendingNavigationUrl || readPersistedPendingNav();
   if (url) {
-    pendingNavigationUrl = null; // Clear after reading
+    pendingNavigationUrl = null;
+    clearPersistedPendingNav();
     navigationHandled = true;
   }
   return url;
+}
+
+/**
+ * Peek at the pending notification URL without consuming it.
+ */
+export function peekPendingNotificationNavigation(): string | null {
+  return pendingNavigationUrl || readPersistedPendingNav();
 }
 
 /**
