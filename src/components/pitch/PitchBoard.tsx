@@ -232,6 +232,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const setElapsedGameTimeRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
   const updateNextSubInfoRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
   const checkForDueSubsRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
+  const minutesPerHalfRef = useRef<number>(initialMinutesPerHalf);
   const gameTimerRef = useRef<GameTimerRef>(null);
   const {
     gameInProgress,
@@ -244,7 +245,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } = usePitchBoardTimer({
     teamId,
     savedState,
-    minutesPerHalf: initialMinutesPerHalf,
+    minutesPerHalfRef,
     gameTimerRef,
     setPlayersRef,
     setElapsedGameTimeRef,
