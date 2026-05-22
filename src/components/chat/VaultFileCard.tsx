@@ -235,14 +235,13 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
         return;
       }
       try {
-        // For storage-hosted files, request a signed URL when possible
-        if (file.file_url?.includes("/storage/v1/object/public/")) {
-          // Public bucket — open directly
-          safeOpenUrl(file.file_url);
-          return;
-        }
-        // Try to extract bucket + path for signed URL; fall back to opening URL as-is
-        safeOpenUrl(file.file_url);
+        // For storage-hosted files, hand off to the native viewer so the user
+        // doesn't see a raw supabase URL in an in-app browser chrome.
+        const { safeOpenFile } = await import("@/lib/safeOpenFile");
+        await safeOpenFile(file.file_url, {
+          fileName: file.name || undefined,
+          mimeType: file.file_type || undefined,
+        });
       } catch (err) {
         console.warn("Failed to open vault file:", err);
         toast.error("Could not open file");
