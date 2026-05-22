@@ -127,11 +127,6 @@ export function useAutoSubs({
   // in Step E when UI consumers are reworked.
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
 
-  // ── Dialog state (unchanged in Step B) ──────────────────
-  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
-  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
-  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
-
   // Refs mirror reducer state so compat updater-form setters
   // (`setAutoSubPlan(prev => ...)`, `setAutoSubPaused(prev => ...)`) can
   // resolve against the freshest value without re-renders chasing them.
@@ -150,21 +145,11 @@ export function useAutoSubs({
     }
   }, [reducerState.lastError]);
 
-  // ── Sub-due highlighting ────────────────────────────────
-  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
-  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Next-sub countdown info ─────────────────────────────
-  const [nextSubInfo, setNextSubInfo] = useState<{
-    playerInId: string;
-    playerOutId: string;
-    countdown: string;
-  } | null>(null);
-
   // ── Internal refs ───────────────────────────────────────
   const planActivationTimeRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const skipCooldownRef = useRef<number>(0);
   const regeneratePlanRef = useRef<(() => void) | null>(null);
+
 
   // ── Safeguard: prevent recalculation from wiping plan ──
 
