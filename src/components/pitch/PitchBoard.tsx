@@ -1700,19 +1700,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // If no saved state and no realPlayers yet, wait for realPlayers to load
   }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation, isStrictMatchEventRoster, savedRosterHasPlayersOutsideCurrentRoster, applyStrictMatchRoster]);
 
-  // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
-  const handleLineupSkip = useCallback(() => {
-    if (!miniLeagueTeams) {
-      setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
-    }
-    setShowLineupPicker(false);
-    // Proceed to step 2: auto-sub setup (same as confirm flow)
-    setTimeout(() => {
-      setAutoSubPlanEditMode(false);
-      setAutoSubFromPreGame(true);
-      setAutoSubPlanDialogOpen(true);
-    }, 300);
-  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
+  // handleLineupSkip now lives in usePitchBoardLineup (declared at top).
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   // Debounced to avoid excessive saves during drag operations
