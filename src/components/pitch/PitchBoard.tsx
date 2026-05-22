@@ -93,6 +93,7 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
+import { usePitchBoardFillIn } from "./hooks/usePitchBoardFillIn";
 import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
@@ -1459,7 +1460,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [trainingMenuOpen, setTrainingMenuOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [fillInDialogOpen, setFillInDialogOpen] = useState(false);
+  // fillInDialogOpen state lives in usePitchBoardFillIn (declared below).
   const [trainingSettingsDialogOpen, setTrainingSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
@@ -1518,32 +1519,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
   }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasPlayersOutsideCurrentRoster, savedRosterHasNoPlayersOnPitch]);
 
-  // Shared-session fill-in sync. The soccer pitch board hydrates from each
-  // device's own localStorage, so a fill-in added by one controller (e.g. an
-  // admin) is invisible to another controller (e.g. the Subs Manager) until
-  // we explicitly merge in remote fill-ins from the shared `active_games`
-  // row. Additions only — removals are intentionally not auto-applied to
-  // avoid wiping a fill-in the local user just added before their own sync
-  // write has landed in the DB.
-  const remoteFillIns = useRemoteFillInSync(teamId, !readOnly);
-  useEffect(() => {
-    if (readOnly) return;
-    if (!remoteFillIns || remoteFillIns.length === 0) return;
-    setPlayers(prev => {
-      const knownIds = new Set(prev.map(p => p.id));
-      const additions = remoteFillIns.filter(p => !knownIds.has(p.id));
-      if (additions.length === 0) return prev;
-      // Drop incoming pitch positions — start them on our bench so we don't
-      // collide with the local formation layout.
-      const normalised = additions.map(p => ({
-        ...p,
-        position: null,
-        currentPitchPosition: undefined,
-        isFillIn: true,
-      }));
-      return [...prev, ...normalised];
-    });
-  }, [remoteFillIns, readOnly]);
+  // Shared-session fill-in sync moved into usePitchBoardFillIn (below).
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
@@ -4498,102 +4474,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [readOnly, players, toast, autoSubPlan, teamSize, pushToUndoHistory, rotateGkAtHalftime]);
 
-  // Add fill-in player to the bench
-  const handleAddFillInPlayer = useCallback((playerData: { name: string; number?: number; positions: PitchPosition[] }) => {
-    if (readOnly) return;
-    
-    const fillInId = `fill-in-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newPlayer: Player = {
-      id: fillInId,
-      name: playerData.name,
-      number: playerData.number,
-      position: null, // On bench
-      assignedPositions: playerData.positions,
-      currentPitchPosition: undefined,
-      minutesPlayed: 0,
-      isFillIn: true,
-    };
-    
-    setPlayers(prev => [...prev, newPlayer]);
-    toast({
-      title: "Fill-in player added",
-      description: `${playerData.name} has been added to the bench`,
-    });
-
-    // If a sub plan exists, recalculate so the new bench player is included.
-    if (autoSubPlan.some(s => !s.executed)) {
-      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
-      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-
-      const updatedPlayers = [...players, newPlayer];
-      const executedSubs = autoSubPlan.filter(s => s.executed);
-      const remainingSubs = autoSubPlan.filter(s => !s.executed);
-      const anchor = remainingSubs[0];
-
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers,
-        parseInt(teamSize),
-        minutesPerHalfSecs,
-        currentElapsed,
-        currentHalf,
-        anchor,
-        rotateGkAtHalftime
-      );
-
-      const finalPlan = recalculated.length > 0
-        ? [...executedSubs, ...recalculated]
-        : [...executedSubs, ...remainingSubs];
-      setAutoSubPlan(finalPlan);
-      toast({
-        title: "Sub plan updated",
-        description: "Auto-substitution plan recalculated for new fill-in",
-      });
-    }
-  }, [readOnly, toast, players, autoSubPlan, teamSize, rotateGkAtHalftime]);
-
-  // Remove fill-in player
-  const handleRemoveFillInPlayer = useCallback((playerId: string) => {
-    if (readOnly) return;
-    
-    const player = players.find(p => p.id === playerId);
-    if (!player?.isFillIn) return;
-    
-    // Don't allow removing if player is currently on pitch
-    if (player.position !== null) {
-      toast({
-        title: "Cannot remove",
-        description: "Move the player to the bench first before removing",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setPlayers(prev => prev.filter(p => p.id !== playerId));
-
-    // If autosubs reference this fill-in player, fully cancel the plan
-    // (clears plan, active flag, paused flag, and any pending sub dialog state).
-    const referencedInPlan = autoSubPlan.some(
-      sub => sub.playerIn.id === playerId || sub.playerOut.id === playerId
-    );
-    if (autoSubActive && referencedInPlan) {
-      handleCancelAutoSubPlan();
-      toast({
-        title: "Auto-subs cancelled",
-        description: `${player.name} was in the plan — auto-subs have been cancelled`,
-      });
-    } else {
-      toast({
-        title: "Fill-in player removed",
-        description: `${player.name} has been removed`,
-      });
-    }
-  }, [readOnly, players, toast, autoSubPlan, autoSubActive, handleCancelAutoSubPlan]);
-
-  // Get existing jersey numbers for auto-suggest
-  const existingJerseyNumbers = useMemo(() => {
-    return players.map(p => p.number).filter((n): n is number => n !== undefined);
-  }, [players]);
+  // Fill-in player state + handlers (add/remove, remote sync, dialog open, jersey numbers).
+  const {
+    fillInDialogOpen,
+    setFillInDialogOpen,
+    handleAddFillInPlayer,
+    handleRemoveFillInPlayer,
+    existingJerseyNumbers,
+  } = usePitchBoardFillIn({
+    readOnly,
+    teamId,
+    players,
+    setPlayers,
+    autoSubPlan,
+    setAutoSubPlan,
+    autoSubActive,
+    handleCancelAutoSubPlan,
+    teamSize,
+    rotateGkAtHalftime,
+    gameTimerRef,
+    toast,
+  });
 
   // Auto-open substitution preview dialog when a pitch player is selected in sub mode
   useEffect(() => {
