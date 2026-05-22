@@ -3475,94 +3475,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Pinch zoom (2 fingers) — consumed by the hook
     if (tryPinchMove(e)) return;
 
-    // Handle player drag - block in readOnly mode
-    if (readOnly) return;
-    if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
-      // Find the specific finger that started this drag
-      const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
-      if (!touch) return;
-      e.preventDefault();
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
+    // Player touch-drag (1 finger) — owned by usePitchBoardDragDrop.
+    applyPitchTouchMove(e);
   };
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
-    // Reset pinch distance when fingers lift
+    // Pinch end first — clears the pinch baseline if fingers lifted.
     tryPinchEnd(e);
-
-
-    
-    if (readOnly) return;
-    if (!touchDragPlayer) return;
-    
-    // Only respond to the finger that started this drag
-    const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
-    if (!touch) return;
-    
-    // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
-    const draggedId = touchDragPlayer;
-    recentlyDraggedRef.current.add(draggedId);
-    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
-    
-    const benchElement = document.getElementById('pitch-bench');
-
-    const droppedOnBench = false;
-    // Bench → pitch via touch drag: open BenchToSubDialog so user picks who comes off.
-    const draggedSrc = players.find(p => p.id === touchDragPlayer);
-    const draggedIsBench = draggedSrc ? !playersOnPitch.some(p => p.id === touchDragPlayer) : false;
-    if (draggedIsBench) {
-      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
-      if (pitchEl) {
-        const rect = pitchEl.getBoundingClientRect();
-        const isOnPitch = touch.clientX >= rect.left && touch.clientX <= rect.right &&
-          touch.clientY >= rect.top && touch.clientY <= rect.bottom;
-        if (isOnPitch) {
-          setBenchToSubPlayer(touchDragPlayer);
-          setBenchToSubOpen(true);
-          setPortraitSheetOpen(false);
-          setToolbarCollapsed(true);
-          setTouchDragPlayer(null);
-          setTouchOffset(null);
-          touchIdRef.current = null;
-          playerDragOffsetRef.current = null;
-          playerDragStartRef.current = null;
-          return;
-        }
-      }
-    }
-
-    // Detect drop on another pitch token → swap positions
-    if (!droppedOnBench) {
-      const draggedCenter = getClientPitchPosition(touch.clientX, touch.clientY);
-      const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
-      const targetId = draggedCenterPoint
-        ? getPitchPlayerOverlappingDragged(touchDragPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
-        : getPitchPlayerOverlappingDragged(touchDragPlayer, touch.clientX, touch.clientY);
-      if (targetId && targetId !== touchDragPlayer) {
-        if (swapPitchPlayers(touchDragPlayer, targetId)) {
-          setTouchDragPlayer(null);
-          setTouchOffset(null);
-          touchIdRef.current = null;
-          playerDragOffsetRef.current = null;
-          playerDragStartRef.current = null;
-          return;
-        }
-      }
-    }
-
-    // Final position update from touchend to prevent coordinate gap with last touchmove
-    if (!droppedOnBench && containerRef.current) {
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
-    
-    setTouchDragPlayer(null);
-    setTouchOffset(null);
-    touchIdRef.current = null;
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
+    // Then finalise any in-flight player touch-drag (bench→pitch, swap, drop).
+    finalizePitchTouchEnd(e);
   };
+
 
 
 
