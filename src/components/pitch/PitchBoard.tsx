@@ -105,6 +105,7 @@ import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
 import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
+import { usePitchBoardLifecycle } from "./hooks/usePitchBoardLifecycle";
 import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
@@ -1487,102 +1488,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // 4-5s "Loading your profile..." reload when the user returns).
   useWakeLock(true);
 
-  // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
-  // Also record the route so we can restore it after a cold app launch
-  // (e.g. iOS killed the app while the phone was locked).
-  //
-  // IMPORTANT: We DO NOT include teamId/teamName/readOnly in the dep array.
-  // Re-running this effect on every prop change would briefly remove the
-  // open-flag during the cleanup→setup window. If iOS happens to suspend
-  // the WebView in that window, the cold-restart restore logic sees no
-  // flag and the user lands on home instead of resuming the board.
-  // Instead, we keep the context fresh via a separate effect below that
-  // only re-writes the LAST_CONTEXT_KEY without ever clearing the flag.
-  useEffect(() => {
-    localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
-    try {
-      const path = window.location.pathname + window.location.search;
-      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
-    } catch {
-      /* ignore */
-    }
-    // Runtime sentinel so PitchBoardResumeRedirect knows the board is already
-    // mounted in THIS JS context and skips re-navigating on warm resume.
-    // Lives on `window`, so a cold WebView restart resets it (undefined) and
-    // cold-start restore still runs.
-    (window as any).__pitchBoardMounted = true;
-    // Clear widget-dismissed flag so widget reappears when pitch board closes
-    localStorage.removeItem("pitch-widget-dismissed");
-    return () => {
-      localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
-      localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
-      localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
-      (window as any).__pitchBoardMounted = false;
-    };
-  }, []);
-
-  // Keep the restore context up to date as props change WITHOUT clearing
-  // the open-flag (see note above).
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        PITCH_BOARD_LAST_CONTEXT_KEY,
-        JSON.stringify({ teamId, teamName, readOnly })
-      );
-      // Also refresh the stored path in case the user navigated within
-      // the board (e.g. opened from /events/:id then drilled into a sub-route).
-      const path = window.location.pathname + window.location.search;
-      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
-    } catch {
-      /* ignore */
-    }
-  }, [teamId, teamName, readOnly]);
-
-
-  // Handle expired sub notification taps — if opened from a pending_sub notification
-  // but no sub dialog appears, show a toast and let the user see the pitch board.
-  // We listen for the 'open-pitch-board' event so this works even if PitchBoard is already mounted.
-  useEffect(() => {
-    const checkExpiredSub = () => {
-      const source = localStorage.getItem('pitch-board-open-source');
-      if (source !== 'pending_sub') return;
-      localStorage.removeItem('pitch-board-open-source');
-      
-      // Wait a moment for auto-sub system to potentially open the dialog
-      setTimeout(() => {
-        if (!subConfirmDialogOpen) {
-          toast({
-            title: "Substitution has passed",
-            description: "That substitution is no longer pending. You can review the current game state here.",
-          });
-        }
-      }, 1500);
-    };
-
-    // Check on mount (cold open from notification)
-    checkExpiredSub();
-
-    // Also check when pitch board is re-opened via event (already mounted)
-    const handleOpenEvent = () => checkExpiredSub();
-    window.addEventListener('open-pitch-board', handleOpenEvent);
-    return () => window.removeEventListener('open-pitch-board', handleOpenEvent);
-  }, []);
-
-  // Auto-reset game 30 minutes after completion
-  const autoResetDoneRef = useRef(false);
-  const shouldAutoReset = useRef(false);
-  useEffect(() => {
-    if (autoResetDoneRef.current) return;
-    const timerState = loadTimerStateForMinutes(teamId);
-    if (timerState?.isGameFinished && timerState?.gameFinishedAt) {
-      const minutesSinceFinished = (Date.now() - timerState.gameFinishedAt) / (1000 * 60);
-      if (minutesSinceFinished >= 30) {
-        shouldAutoReset.current = true;
-        autoResetDoneRef.current = true;
-        console.log(`Game for team ${teamId} finished ${Math.round(minutesSinceFinished)} mins ago - will auto-reset`);
-      }
-    }
-  }, [teamId]);
+  // Step 9e — open-flag/context lifecycle + expired-sub toast + auto-reset.
+  const { autoResetDoneRef, shouldAutoReset } = usePitchBoardLifecycle({
+    teamId,
+    teamName,
+    readOnly,
+    subConfirmDialogOpen,
+    toast,
+  });
 
   // Step 9d — player bootstrap (saved-state merge / fresh auto-place).
   const { hasLoadedRef } = usePitchBoardPlayerBootstrap({
