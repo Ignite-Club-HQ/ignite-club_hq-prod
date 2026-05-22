@@ -111,6 +111,7 @@ import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_
 import { type PitchBoardMode } from "./ModeSwitch";
 import { PitchBoardLayoutContext } from "./PitchBoardLayoutContext";
 import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
+import { acknowledgeHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
 import PitchBoardLandscapeLayout from "./PitchBoardLandscapeLayout";
 import PitchBoardPortraitLayout from "./PitchBoardPortraitLayout";
 
