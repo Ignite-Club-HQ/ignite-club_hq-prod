@@ -2492,42 +2492,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
 
-  // Substitution dialog trigger - handles both direct subs and position swaps
-  useEffect(() => {
-    // Skip if we're undoing - prevents infinite loop
-    if (isUndoingRef.current) return;
-    
-    if (subMode && selectedOnPitch && selectedOnBench) {
-      const pitchPlayer = players.find(p => p.id === selectedOnPitch);
-      const benchPlayer = players.find(p => p.id === selectedOnBench);
-      
-      if (pitchPlayer?.position && benchPlayer) {
-        const pitchPositionType = pitchPlayer.currentPitchPosition;
-        
-        // Check if bench player can play in the pitch player's position
-        const canPlayPosition = !benchPlayer.assignedPositions?.length || 
-          !pitchPositionType || 
-          benchPlayer.assignedPositions.includes(pitchPositionType);
-        
-        if (!canPlayPosition) {
-          // Show swap dialog - need to find someone to swap positions
-          setPendingSubBenchPlayer(selectedOnBench);
-          setRequiredPosition(pitchPositionType || null);
-          setPositionSwapDialogOpen(true);
-          setSelectedOnPitch(null);
-          setSelectedOnBench(null);
-        } else {
-          // Direct substitution - show confirmation dialog
-          console.log("[Undo] Direct sub - showing ManualSubConfirmDialog");
-          setPendingManualSub({ pitchPlayerId: selectedOnPitch, benchPlayerId: selectedOnBench });
-          setManualSubConfirmOpen(true);
-          setSelectedOnPitch(null);
-          setSelectedOnBench(null);
-        }
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOnPitch, selectedOnBench, subMode]);
+  // Substitution dialog trigger now lives in usePitchBoardManualSub.
 
   // Handle position swap and substitute
   const handleSwapAndSubstitute = (playerToRemoveId: string, playerToSwapId: string) => {
