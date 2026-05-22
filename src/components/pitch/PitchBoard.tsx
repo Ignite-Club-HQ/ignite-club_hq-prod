@@ -1453,6 +1453,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [swapPlayer2, setSwapPlayer2] = useState<string | null>(null);
   const [pitchSwapConfirmOpen, setPitchSwapConfirmOpen] = useState(false);
 
+  // Step 8a — substitution selection state + derived sets
+  const {
+    subMode,
+    setSubMode,
+    selectedOnPitch,
+    setSelectedOnPitch,
+    selectedOnBench,
+    setSelectedOnBench,
+    getValidBenchPlayerIds,
+    getValidSwapPlayerIds,
+    movablePitchPlayerIds,
+  } = usePitchBoardSubSelection({
+    players,
+    swapMode,
+    swapPlayer1,
+    miniLeagueTeams,
+  });
+
+
 
 
   // Swap-based substitution state (for sequencing: swap dialog first, then sub dialog)
