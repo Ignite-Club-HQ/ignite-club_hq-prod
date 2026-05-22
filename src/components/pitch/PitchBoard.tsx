@@ -485,6 +485,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  const halftimePromptAckKey = useMemo(
+    () => getHalftimePromptAckKey(loadTimerStateForMinutes(teamId), savedState),
+    [teamId, savedState]
+  );
   // Settings ref for usePitchSettings (avoids stale closures)
   const pitchSettingsRef = useRef({
     rotationSpeed,
@@ -1349,6 +1353,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     playersRef,
     setPlayers,
     teamSize,
+    halftimePromptAckKey,
     rotateGkAtHalftime,
     pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
     runSubAnimationRef: runSubAnimationRef_autoSubs,
