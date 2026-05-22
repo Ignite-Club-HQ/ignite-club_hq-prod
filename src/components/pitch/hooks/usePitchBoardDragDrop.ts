@@ -41,9 +41,9 @@ interface DragPlayer {
 
 export interface DragDropDeps {
   readOnly: boolean;
-  players: Player[];
-  playersOnPitch: Player[];
-  playersRef: MutableRefObject<Player[]>;
+  players: DragPlayer[];
+  playersOnPitch: DragPlayer[];
+  playersRef: MutableRefObject<DragPlayer[]>;
   containerRef: MutableRefObject<HTMLDivElement | null>;
 
   capturePlayerDragOffset: (playerId: string, clientX: number, clientY: number) => void;
