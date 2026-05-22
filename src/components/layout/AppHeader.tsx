@@ -515,7 +515,7 @@ export function AppHeader() {
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .eq("club_id", activeClubFilter)
+        .or(`club_id.eq.${activeClubFilter},club_id.is.null`)
         .eq("is_read", false);
       return count || 0;
     },
