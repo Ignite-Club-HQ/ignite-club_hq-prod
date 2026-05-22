@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import type { PitchPosition } from "./PositionBadge";
 import type { PitchBoardMode } from "./ModeSwitch";
+import type { GameTimerRef } from "./GameTimer";
 
 /**
  * Shared context bag passed from PitchBoard to its landscape & portrait
