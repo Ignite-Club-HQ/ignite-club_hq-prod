@@ -121,9 +121,10 @@ export interface PitchBoardLayoutContextValue {
   handleSaveSettings: any;
   handleSetupGame: (...args: any[]) => any;
   handleShowLineupPickerSettingChange: (...args: any[]) => any;
-  handleSkipAutoSub: any;
-  handleSkipNextSub: any;
-  handleStartAutoSubPlan: any;
+  handleSkipAutoSub: () => void;
+  handleSkipNextSub: () => void;
+  handleStartAutoSubPlan: (plan: SubstitutionEvent[]) => void;
+
   handleSubPreviewSelect: (...args: any[]) => any;
   handleSwapAndSubstitute: (...args: any[]) => any;
   handleTacticalModeChange: any;
