@@ -123,7 +123,7 @@ export function usePitchBoardTimer({
     const lastUpdate = lastTimeUpdateRef.current;
     if (lastUpdate) {
       let secondsElapsed = 0;
-      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60;
+      const halfDuration = (gameTimerRef.current?.getMinutesPerHalf() || (minutesPerHalfRef.current ?? 10)) * 60;
       if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
         // Normal tick within the same half
         secondsElapsed = elapsedSeconds - lastUpdate.seconds;
@@ -161,7 +161,7 @@ export function usePitchBoardTimer({
 
     // Update reactive elapsed game time for MatchStatsPanel
     const totalElapsed = currentHalf === 2
-      ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds
+      ? (gameTimerRef.current?.getMinutesPerHalf() || (minutesPerHalfRef.current ?? 10)) * 60 + elapsedSeconds
       : elapsedSeconds;
     setElapsedGameTimeRef.current?.(totalElapsed);
 
@@ -169,7 +169,7 @@ export function usePitchBoardTimer({
     // Refs because useAutoSubs runs later in the parent component.
     updateNextSubInfoRef.current?.(elapsedSeconds, currentHalf);
     checkForDueSubsRef.current?.(elapsedSeconds, currentHalf);
-  }, [gameInProgress, minutesPerHalf, gameTimerRef, setPlayersRef, setElapsedGameTimeRef, updateNextSubInfoRef, checkForDueSubsRef]);
+  }, [gameInProgress, minutesPerHalfRef, gameTimerRef, setPlayersRef, setElapsedGameTimeRef, updateNextSubInfoRef, checkForDueSubsRef]);
 
   return {
     gameInProgress,
