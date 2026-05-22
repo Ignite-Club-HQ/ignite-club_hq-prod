@@ -90,11 +90,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUser
            pushDelegate.userNotificationCenter?(center, didReceive: response, withCompletionHandler: completionHandler) != nil {
             return
         }
-        // Plugin not ready yet (cold start) - buffer the userInfo and replay it
-        // once the plugin has loaded.
-        let userInfo = response.notification.request.content.userInfo
-        PendingNotificationTap.shared.store(userInfo: userInfo)
+        // Plugin not ready yet (cold start). Retry forwarding on a short delay
+        // so the JS pushNotificationActionPerformed listener still fires once
+        // the bridge has loaded.
+        let attemptForward: (Int) -> Void = { [weak self] _ in }
+        var attempts = 0
+        func tryForward() {
+            attempts += 1
+            if let pushDelegate = self.capacitorPushDelegate(),
+               pushDelegate.userNotificationCenter?(center, didReceive: response, withCompletionHandler: {}) != nil {
+                return
+            }
+            if attempts < 20 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { tryForward() }
+            } else {
+                print("[AppDelegate] Push plugin never became ready to receive tap")
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { tryForward() }
         completionHandler()
+        _ = attemptForward
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
