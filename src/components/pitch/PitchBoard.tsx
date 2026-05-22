@@ -1349,10 +1349,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return player.teamSide === "a" ? miniLeagueTeams.teamAColor : miniLeagueTeams.teamBColor;
   }, [miniLeagueTeams]);
 
-  // Substitution mode state
-  const [subMode, setSubMode] = useState(false);
-  const [selectedOnPitch, setSelectedOnPitch] = useState<string | null>(null);
-  const [selectedOnBench, setSelectedOnBench] = useState<string | null>(null);
+  // Substitution mode selection + derived sets now live in usePitchBoardSubSelection.
+  // (Hook call placed after swapMode/swapPlayer1 are declared, since it depends on them.)
   const [subAnimationPlayers, setSubAnimationPlayers] = useState<{ in: string | null; out: string | null; swap: string | null }>({ in: null, out: null, swap: null });
   const subAnimationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Brief visual + haptic feedback when two pitch players swap positions via drag.
