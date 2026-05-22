@@ -2363,6 +2363,10 @@ export default function VaultPage() {
   };
 
   const goBack = () => {
+    if (fromChat) {
+      navigate(-1);
+      return;
+    }
     if (folderPath.length > 0) {
       const newPath = [...folderPath];
       newPath.pop();
