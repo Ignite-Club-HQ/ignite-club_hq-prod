@@ -343,7 +343,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Prefer the event the board was launched from. Falling back to savedState
   // first caused stale links (or no link at all) when entering from "Prepare
   // Lineup" on a different event than the previously-saved game.
-  const [linkedEventId, setLinkedEventId] = useState<string | null>(() => initialLinkedEventId || savedState?.linkedEventId || null);
+  const {
+    linkedEventId,
+    setLinkedEventId,
+    handleLinkEvent,
+    linkedEventDetails,
+    opponentName,
+  } = usePitchBoardEventLink({
+    initialLinkedEventId,
+    savedLinkedEventId: savedState?.linkedEventId,
+    teamId,
+    teamName,
+    userId: user?.id,
+  });
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
