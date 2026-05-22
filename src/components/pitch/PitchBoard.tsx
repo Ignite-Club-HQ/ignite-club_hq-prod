@@ -1441,12 +1441,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     runSubAnimationRef: runSubAnimationRef_autoSubs,
   });
 
-  const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
-  const [pendingManualSub, setPendingManualSub] = useState<{ 
-    pitchPlayerId: string; 
-    benchPlayerId: string;
-    swapPlayerId?: string; // Optional: if set, includes a position swap in the sub
-  } | null>(null);
+  // manualSubConfirmOpen + pendingManualSub now live in usePitchBoardManualSub (declared below).
+
 
   // Position swap mode state (swapping two players on pitch without substitution)
   const [swapMode, setSwapMode] = useState(false);
