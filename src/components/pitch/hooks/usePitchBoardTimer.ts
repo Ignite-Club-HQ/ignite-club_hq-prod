@@ -29,7 +29,9 @@ import { getCurrentGameSeconds } from "../timerUtils";
 interface UsePitchBoardTimerOptions {
   teamId: string;
   savedState: PitchBoardState | null;
-  minutesPerHalf: number;
+  /** Live ref to the component's `minutesPerHalf` state (used only as a
+   *  fallback when the GameTimer instance hasn't reported one yet). */
+  minutesPerHalfRef: RefObject<number>;
   gameTimerRef: RefObject<GameTimerRef | null>;
   /**
    * Refs to setters / callbacks that are created later in the component
