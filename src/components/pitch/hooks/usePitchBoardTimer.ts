@@ -161,11 +161,11 @@ export function usePitchBoardTimer({
       : elapsedSeconds;
     setElapsedGameTime(totalElapsed);
 
-    // Delegate next-sub countdown and due-sub detection to the auto-sub hook
-    updateNextSubInfo(elapsedSeconds, currentHalf);
-    checkForDueSubs(elapsedSeconds, currentHalf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateNextSubInfo, checkForDueSubs, gameInProgress, minutesPerHalf]);
+    // Delegate next-sub countdown and due-sub detection to the auto-sub hook.
+    // Refs because useAutoSubs runs later in the parent component.
+    updateNextSubInfoRef.current?.(elapsedSeconds, currentHalf);
+    checkForDueSubsRef.current?.(elapsedSeconds, currentHalf);
+  }, [gameInProgress, minutesPerHalf, gameTimerRef, setPlayers, setElapsedGameTime, updateNextSubInfoRef, checkForDueSubsRef]);
 
   return {
     gameInProgress,
