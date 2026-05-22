@@ -95,6 +95,7 @@ import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
 import { usePitchBoardFillIn } from "./hooks/usePitchBoardFillIn";
 import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
+import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } from "./hooks/usePitchBoardFormationChangeDialog";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -323,15 +324,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subPreviewOpen, setSubPreviewOpen] = useState(false);
   const [previewSwapPlayers, setPreviewSwapPlayers] = useState<{ sourceId: string | null; targetId: string | null }>({ sourceId: null, targetId: null });
 
-  // Formation/team-size change dialog state
-  const [formationChangeDialogOpen, setFormationChangeDialogOpen] = useState(false);
-  const [pendingFormationChange, setPendingFormationChange] = useState<{
-    index: number;
-    newTeamSize?: TeamSize; // Set when this is a team size change
-    positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
-    benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
-    minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
-  } | null>(null);
+  // Formation/team-size change dialog state + handlers live in
+  // usePitchBoardFormationChangeDialog. Dependencies are passed via a ref
+  // (updated on every render below) so the hook can be declared early.
+  const formationDialogDepsRef = useRef<FormationChangeDialogDeps | null>(null);
+  const {
+    formationChangeDialogOpen,
+    setFormationChangeDialogOpen,
+    pendingFormationChange,
+    setPendingFormationChange,
+    handleFormationChangeConfirm,
+    handleFormationChangeCancel,
+  } = usePitchBoardFormationChangeDialog(formationDialogDepsRef);
 
   // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   // gameTimerRef is declared above as part of usePitchBoardTimer wiring.
@@ -2724,49 +2728,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange, selectedTeamForSettings]);
 
-  // Handle formation change dialog confirm
-  const handleFormationChangeConfirm = useCallback(() => {
-    if (pendingFormationChange) {
-      if (pendingFormationChange.newTeamSize) {
-        // This is a team size change
-        const newSize = pendingFormationChange.newTeamSize;
-        setTeamSize(newSize);
-        setSelectedFormation(0);
-        const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-        setPlayers(placedPlayers);
-        persistTeamSizeToDb(newSize);
-        // Notify team staff about the team size change
-        notifyFormationOrSizeChange('team_size', newSize, {
-          positionSwaps: pendingFormationChange.positionSwaps,
-          benchMoves: pendingFormationChange.benchMoves,
-        });
-      } else {
-        applyFormationChange(pendingFormationChange.index, {
-          positionSwaps: pendingFormationChange.positionSwaps,
-          benchMoves: pendingFormationChange.benchMoves,
-        });
-      }
-    }
-    setFormationChangeDialogOpen(false);
-    setPendingFormationChange(null);
-    // Minimise the bottom drawer after applying
-    setToolbarCollapsed(true);
-    setPortraitSheetOpen(false);
-
-    // Auto-regenerate the plan if auto-subs are active
-    if (autoSubActive) {
-      setTimeout(() => {
-        regeneratePlanRef.current?.();
-        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
-      }, 300);
-    }
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast, notifyFormationOrSizeChange]);
-
-  // Handle formation change dialog cancel
-  const handleFormationChangeCancel = useCallback(() => {
-    setFormationChangeDialogOpen(false);
-    setPendingFormationChange(null);
-  }, []);
+  // Keep the formation-dialog hook's dependency ref in sync each render so its
+  // confirm handler can call into late-defined functions like
+  // applyFormationChange / notifyFormationOrSizeChange.
+  formationDialogDepsRef.current = {
+    players,
+    setPlayers,
+    setTeamSize,
+    setSelectedFormation,
+    autoPlacePlayersOnPitch,
+    persistTeamSizeToDb,
+    notifyFormationOrSizeChange,
+    applyFormationChange,
+    setToolbarCollapsed,
+    setPortraitSheetOpen,
+    autoSubActive,
+    regeneratePlanRef,
+    toast,
+  };
 
   // Zoom handlers
   const handleZoomIn = () => {
