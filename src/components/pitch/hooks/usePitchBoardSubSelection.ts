@@ -18,8 +18,6 @@ interface UsePitchBoardSubSelectionArgs {
  */
 export function usePitchBoardSubSelection({
   players,
-  playersOnPitch,
-  playersOnBench,
   swapMode,
   swapPlayer1,
   miniLeagueTeams,
@@ -27,6 +25,15 @@ export function usePitchBoardSubSelection({
   const [subMode, setSubMode] = useState(false);
   const [selectedOnPitch, setSelectedOnPitch] = useState<string | null>(null);
   const [selectedOnBench, setSelectedOnBench] = useState<string | null>(null);
+
+  const playersOnPitch = useMemo(
+    () => players.filter((p) => p.position !== null),
+    [players]
+  );
+  const playersOnBench = useMemo(
+    () => players.filter((p) => p.position === null),
+    [players]
+  );
 
   // Which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
