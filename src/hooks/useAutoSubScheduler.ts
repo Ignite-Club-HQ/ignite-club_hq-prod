@@ -27,6 +27,7 @@ import {
 } from "@/components/pitch/autoSubHelpers";
 import { validateAndFixRemainingPlan } from "@/components/pitch/pitchStateUtils";
 import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
+import { acknowledgeHalftimePrompt, hasAcknowledgedHalftimePrompt } from "@/components/pitch/halftimePromptAck";
 
 export interface UseAutoSubSchedulerArgs {
   autoSubActive: boolean;
@@ -282,6 +283,10 @@ export function useAutoSubScheduler({
     (newHalf: 1 | 2) => {
       if (newHalf !== 2) return false;
 
+      const timerState = gameTimerRef.current;
+      const ackKey = `half-time:${timerState ? "live" : "unknown"}:${timerState?.getMinutesPerHalf?.() ?? "na"}`;
+      if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
+
       const staleFirstHalfSubs = autoSubPlan.filter(
         (sub) => !sub.executed && sub.half === 1
       );
@@ -302,15 +307,18 @@ export function useAutoSubScheduler({
       if (halftimeSubs.length === 0) {
         // No halftime subs — still show the halftime popup
         setTimeout(() => {
+          if (hasAcknowledgedHalftimePrompt(ackKey)) return;
           playSubAlertBeep("Half time!");
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
+          acknowledgeHalftimePrompt(ackKey);
         }, 500);
         return true;
       }
 
       setTimeout(() => {
+        if (hasAcknowledgedHalftimePrompt(ackKey)) return;
         const [primarySub, ...additionalSubs] = halftimeSubs;
         const notificationBody =
           halftimeSubs.length > 1
@@ -320,11 +328,12 @@ export function useAutoSubScheduler({
         setPendingAutoSub(primarySub);
         setPendingBatchSubs(additionalSubs);
         setSubConfirmDialogOpen(true);
+        acknowledgeHalftimePrompt(ackKey);
       }, 500);
 
       return true;
     },
-    [autoSubPlan, setAutoSubPlan]
+    [autoSubPlan, setAutoSubPlan, gameTimerRef]
   );
 
   return {
