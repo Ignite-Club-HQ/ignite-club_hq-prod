@@ -111,6 +111,7 @@ import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePi
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 import { PitchBoardLayoutContext } from "./PitchBoardLayoutContext";
+import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
 import PitchBoardLandscapeLayout from "./PitchBoardLandscapeLayout";
 import PitchBoardPortraitLayout from "./PitchBoardPortraitLayout";
 
