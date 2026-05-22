@@ -63,8 +63,8 @@ export function usePitchBoardTimer({
   gameTimerRef,
   setPlayers,
   setElapsedGameTime,
-  updateNextSubInfo,
-  checkForDueSubs,
+  updateNextSubInfoRef,
+  checkForDueSubsRef,
 }: UsePitchBoardTimerOptions): UsePitchBoardTimerResult {
   // Pre-initialize time-tracking refs based on saved timer state. Without
   // this, GameTimer initializes with elapsedSeconds=0, fires
