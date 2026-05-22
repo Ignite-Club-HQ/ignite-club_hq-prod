@@ -3353,6 +3353,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Forward setters/callbacks into the timer hook (declared at the top of
   // the component, before these values exist).
   setPlayersRef.current = setPlayers;
+  minutesPerHalfRef.current = minutesPerHalf;
   setElapsedGameTimeRef.current = setElapsedGameTime;
   updateNextSubInfoRef_timer.current = updateNextSubInfo;
   checkForDueSubsRef_timer.current = checkForDueSubs;
