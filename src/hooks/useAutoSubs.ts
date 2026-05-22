@@ -32,6 +32,12 @@ import {
   type AutoSubState,
 } from "@/components/pitch/autoSub/autoSubReducer";
 import { useAutoSubScheduler } from "@/hooks/useAutoSubScheduler";
+import {
+  selectRemaining,
+  selectExecuted,
+  selectRemainingCount,
+  selectIsPlanComplete,
+} from "@/components/pitch/autoSub/selectors";
 
 
 export interface UseAutoSubsOptions {
