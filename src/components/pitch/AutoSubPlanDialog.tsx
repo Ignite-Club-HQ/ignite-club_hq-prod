@@ -4428,6 +4428,20 @@ function DialogInner({
                         <span>{frequentFallbackNotice}</span>
                       </div>
                     )}
+                    {(() => {
+                      if (!rotateGkAtHalftime || !preferredSecondHalfGkId) return null;
+                      if (minutesPerHalf * 60 <= 12 * 60) return null;
+                      const gk2H = players.find(p => p.id === preferredSecondHalfGkId);
+                      if (!gk2H || gk2H.position) return null;
+                      return (
+                        <div className="flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-700 dark:text-sky-400">
+                          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span>
+                            <strong>{gk2H.name}</strong> starts on the bench and is set as 2H GK — extra subs are added so they get outfield minutes in the 1st half. This can widen the minutes spread. Pick a starter as 2H GK for a tighter plan.
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}
