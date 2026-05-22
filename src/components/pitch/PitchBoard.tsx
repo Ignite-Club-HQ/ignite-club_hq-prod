@@ -91,6 +91,7 @@ import {
   validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { getCurrentGameSeconds } from "./timerUtils";
+import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
