@@ -708,86 +708,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, []);
 
 
-  const handleLinkEvent = useCallback(async (eventId: string | null) => {
-    const previousLinkedEventId = linkedEventId;
-    setLinkedEventId(eventId);
-    
-    // Only send email notifications when linking (not unlinking) and event is different
-    if (eventId && eventId !== previousLinkedEventId && user?.id) {
-      try {
-        const isEventGroup = teamId.startsWith("event-group-");
-        let recipientUserIds: string[] = [];
+  // handleLinkEvent now lives in usePitchBoardEventLink (top of component).
 
-        if (isEventGroup) {
-          // Mini-league: notify Referee + Subs Manager of this specific match
-          const groupId = teamId.replace("event-group-", "");
-          const { data: matchDuties } = await supabase
-            .from('event_group_duties')
-            .select('assigned_to')
-            .eq('group_id', groupId)
-            .in('name', ['Referee', 'Subs Manager'])
-            .not('assigned_to', 'is', null);
 
-          recipientUserIds = (matchDuties || [])
-            .map((d: any) => d.assigned_to as string)
-            .filter(uid => uid && uid !== user.id);
-        } else {
-          // Regular team: notify coaches/admins + Subs Manager for the linked event
-          const { data: teamAdmins } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .eq('team_id', teamId)
-            .in('role', ['team_admin', 'coach']);
-
-          const ids = new Set<string>(
-            (teamAdmins || [])
-              .map((r: any) => r.user_id as string)
-              .filter(uid => uid && uid !== user.id)
-          );
-
-          if (eventId) {
-            const { data: subsManagers } = await supabase
-              .from('duties')
-              .select('assigned_to')
-              .eq('event_id', eventId)
-              .eq('name', 'Subs Manager')
-              .not('assigned_to', 'is', null);
-            (subsManagers || []).forEach((d: any) => {
-              if (d.assigned_to && d.assigned_to !== user.id) ids.add(d.assigned_to as string);
-            });
-          }
-
-          recipientUserIds = Array.from(ids);
-        }
-
-        if (recipientUserIds.length > 0) {
-          // Get event details for the notification message
-          const { data: eventData } = await supabase
-            .from('events')
-            .select('title')
-            .eq('id', eventId)
-            .single();
-          
-          const eventTitle = eventData?.title || 'a game';
-          
-          for (const recipientUserId of recipientUserIds) {
-            supabase.rpc('send_pitch_board_notification_email_rpc', {
-              _recipient_user_id: recipientUserId,
-              _team_id: teamId,
-              _team_name: teamName,
-              _notification_type: 'game_linked',
-              _notification_message: `The pitch board has been linked to "${eventTitle}"`,
-              _event_id: eventId,
-            }).then((r: any) => {
-              if (r?.error) console.error('[PitchBoard] Failed to send game linked email:', r.error);
-            });
-          }
-        }
-      } catch (error) {
-        console.error('[PitchBoard] Error sending game linked notifications:', error);
-      }
-    }
-  }, [linkedEventId, teamId, teamName, user?.id]);
 
   // Undo history for subs and swaps (stores player states)
   const [undoHistory, setUndoHistory] = useState<{ players: Player[]; description: string }[]>([]);
