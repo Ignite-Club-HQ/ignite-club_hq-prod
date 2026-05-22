@@ -111,6 +111,7 @@ import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_
 import { type PitchBoardMode } from "./ModeSwitch";
 import { PitchBoardLayoutContext } from "./PitchBoardLayoutContext";
 import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
+import { acknowledgeHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
 import PitchBoardLandscapeLayout from "./PitchBoardLandscapeLayout";
 import PitchBoardPortraitLayout from "./PitchBoardPortraitLayout";
 
@@ -484,6 +485,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  const halftimePromptAckKey = useMemo(
+    () => getHalftimePromptAckKey(loadTimerStateForMinutes(teamId), savedState),
+    [teamId, savedState]
+  );
+  const handleAcknowledgeHalftimePrompt = useCallback(() => {
+    acknowledgeHalftimePrompt(getHalftimePromptAckKey(loadTimerStateForMinutes(teamId), savedState) ?? halftimePromptAckKey);
+  }, [teamId, savedState, halftimePromptAckKey]);
   // Settings ref for usePitchSettings (avoids stale closures)
   const pitchSettingsRef = useRef({
     rotationSpeed,
@@ -1348,6 +1356,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     playersRef,
     setPlayers,
     teamSize,
+    halftimePromptAckKey,
     rotateGkAtHalftime,
     pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
     runSubAnimationRef: runSubAnimationRef_autoSubs,
@@ -2495,7 +2504,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // and should not see a stale "Half Time!" dialog they have to dismiss.
     if (newHalf === 2) {
       const elapsedInHalf2 = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
-      if (elapsedInHalf2 > 30) {
+      if (elapsedInHalf2 > 30 || hasAcknowledgedHalftimePrompt(halftimePromptAckKey)) {
         return;
       }
     }
@@ -2540,7 +2549,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setSubConfirmDialogOpen(true);
       }, 500);
     }
-  }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
+  }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
   // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
@@ -3301,6 +3310,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     handleBallTouchStart, handleBenchDrop, handleBenchLongPressEnd, handleBenchLongPressMove,
     handleBenchLongPressStart, handleBenchToSubSelect, handleCancelAutoSubPlan,
     handleCancelManualSub, handleCancelPitchSwap, handleCancelSwapBasedSub, handleConfirmAutoSub,
+    handleAcknowledgeHalftimePrompt,
     handleConfirmManualSub, handleConfirmPitchSwap, handleConfirmPitchSwapWithAccommodation,
     handleConfirmSubAfterSwap, handleConfirmSwapBeforeSub, handleDismissTacticalSuggestion,
     handleDragEnd, handleDragOver, handleDragStart, handleExecuteNow, handleFormationChange,

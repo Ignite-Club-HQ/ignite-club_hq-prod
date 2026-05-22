@@ -106,8 +106,10 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
               if (wasProcessed) {
                 console.log('[useNativePush] Processed pending notification navigation');
               } else {
-                // Retry with increasing delays for cold start timing
-                const retryDelays = [500, 1500, 3000];
+                // Retry with increasing delays for cold start timing.
+                // Android cold-start + auth bootstrap can take well over 3s,
+                // so retry generously (covers a slow token refresh on resume).
+                const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
                 retryDelays.forEach(delay => {
                   setTimeout(() => {
                     const wasProcessedRetry = processPendingNotificationNavigation(navigate);
@@ -280,6 +282,22 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
       console.error('[useNativePush] Error handling notification action:', err);
     }
   }, [navigate]);
+
+  // Once we have an authenticated user, consume any pending push-tap nav
+  // that arrived during the auth bootstrap. Without this, Index's redirect
+  // chain can swallow the navigate() call fired from the early action listener.
+  useEffect(() => {
+    if (!userId || !isNative) return;
+    // Try immediately and a couple of times after route settles
+    const tryConsume = () => processPendingNotificationNavigation(navigate);
+    if (tryConsume()) {
+      console.log('[useNativePush] Consumed pending nav after auth ready');
+      return;
+    }
+    const t1 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (250ms)'); }, 250);
+    const t2 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (1000ms)'); }, 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [userId, isNative, navigate]);
 
   // Initialize native push when user is available
   useEffect(() => {

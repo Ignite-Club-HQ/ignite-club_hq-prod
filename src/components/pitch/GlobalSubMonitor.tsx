@@ -25,6 +25,7 @@ import {
   calculateSubDelay,
   getDueSubGroups,
 } from "./autoSubHelpers";
+import { acknowledgeHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
@@ -549,6 +550,23 @@ export default function GlobalSubMonitor() {
     if (!timerState || !pitchState) return;
     if (pitchState.autoSubPaused) return;
 
+    // Guard against stale/finished games re-triggering the "Half Time" popup
+    // every time the user opens the app. If the timer has been sitting idle
+    // for hours, or the game was already marked finished, clear the persisted
+    // state so the popup doesn't resurrect on every cold-start.
+    const STALE_TIMER_MS = 4 * 60 * 60 * 1000; // 4h
+    const lastUpdate = timerState.lastUpdateTime ?? 0;
+    const isStale =
+      Boolean((timerState as any).isGameFinished) ||
+      (lastUpdate > 0 && Date.now() - lastUpdate > STALE_TIMER_MS);
+    if (isStale) {
+      try {
+        localStorage.removeItem(TIMER_STATE_KEY);
+      } catch { /* ignore */ }
+      lastCheckedSubRef.current = null;
+      return;
+    }
+
     // Calculate halftime state before early-returning on empty plan
     const halfDuration = timerState.minutesPerHalf * 60;
     const elapsed = getCurrentGameSeconds(timerState);
@@ -568,6 +586,9 @@ export default function GlobalSubMonitor() {
     const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
     
     if (isHalftimeBreak) {
+      const halftimeAckKey = getHalftimePromptAckKey(timerState, pitchState);
+      if (hasAcknowledgedHalftimePrompt(halftimeAckKey)) return;
+
       const staleFirstHalfSubs = pitchState.autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
         !sub.executed && sub.half === 2 && sub.time === 0
@@ -1091,6 +1112,12 @@ export default function GlobalSubMonitor() {
     lastCheckedSubRef.current = null;
   }, [pendingAutoSub, pendingBatchSubs]);
 
+  const handleAcknowledgeHalftime = useCallback(() => {
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
+    acknowledgeHalftimePrompt(getHalftimePromptAckKey(timerState, pitchState));
+  }, []);
+
   return (
     <>
       <SubConfirmDialog
@@ -1100,6 +1127,7 @@ export default function GlobalSubMonitor() {
         batchSubstitutions={pendingBatchSubs}
         onConfirm={handleConfirmAutoSub}
         onSkip={handleSkipAutoSub}
+        onAcknowledgeHalftime={handleAcknowledgeHalftime}
         players={currentPlayers}
       />
       {finishedGameData && (

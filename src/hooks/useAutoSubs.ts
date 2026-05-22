@@ -56,6 +56,8 @@ export interface UseAutoSubsOptions {
   setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   /** Current team size */
   teamSize: TeamSize;
+  /** Stable key for suppressing the half-time dialog after it is acknowledged. */
+  halftimePromptAckKey?: string | null;
   /** Whether GK rotation at halftime is enabled */
   rotateGkAtHalftime: boolean;
   /** Push to undo history before making changes (ref to avoid hook ordering issues) */
@@ -72,6 +74,7 @@ export function useAutoSubs({
   playersRef,
   setPlayers,
   teamSize,
+  halftimePromptAckKey,
   rotateGkAtHalftime,
   pushToUndoHistoryRef,
   runSubAnimationRef,
@@ -242,6 +245,7 @@ export function useAutoSubs({
     autoSubPaused,
     autoSubPlan,
     setAutoSubPlan,
+    halftimePromptAckKey,
     lockedPlayerIds,
     playersRef,
     gameTimerRef,

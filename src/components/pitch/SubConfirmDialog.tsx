@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { loadTimerStateForMinutes } from "./pitchStateUtils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeftRight, Check, X, Clock, Users, Timer } from "lucide-react";
@@ -45,6 +46,7 @@ interface SubConfirmDialogProps {
   batchSubstitutions?: SubstitutionEvent[];
   onConfirm: () => void;
   onSkip: () => void;
+  onAcknowledgeHalftime?: () => void;
   players: Player[];
   secondsUntilDue?: number;
   isGameFinished?: boolean;
@@ -57,6 +59,7 @@ export default function SubConfirmDialog({
   batchSubstitutions = [],
   onConfirm,
   onSkip,
+  onAcknowledgeHalftime,
   players,
   secondsUntilDue = 0,
   isGameFinished = false,
@@ -81,7 +84,23 @@ export default function SubConfirmDialog({
     }, 1000);
     return () => clearInterval(interval);
   }, [open, countdown]);
-  
+
+  // Guard: the informational "Half Time" popup should ONLY render at the
+  // genuine halftime boundary (timer paused at H2/elapsed=0). If the dialog
+  // somehow opens with no substitution while the timer is past halftime or
+  // still in H1, auto-dismiss to avoid showing a stale prompt mid-game.
+  useEffect(() => {
+    if (!open || !isHalftimeOnly) return;
+    const t = loadTimerStateForMinutes();
+    if (!t) return;
+    const atHalftimeBoundary =
+      t.currentHalf === 2 && (t.elapsedSeconds || 0) <= 5 && !t.isRunning;
+    if (!atHalftimeBoundary) {
+      onAcknowledgeHalftime?.();
+      onOpenChange(false);
+    }
+  }, [open, isHalftimeOnly, onAcknowledgeHalftime, onOpenChange]);
+
   if (!open) return null;
   if (!substitution && !isHalftimeOnly) return null;
   
@@ -287,7 +306,7 @@ export default function SubConfirmDialog({
         
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
           {isHalftimeOnly ? (
-            <Button onClick={() => onOpenChange(false)} className="flex-1 gap-2 h-12 text-base">
+            <Button onClick={() => { onAcknowledgeHalftime?.(); onOpenChange(false); }} className="flex-1 gap-2 h-12 text-base">
               <Check className="h-4 w-4" />
               OK
             </Button>
