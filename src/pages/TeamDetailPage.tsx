@@ -68,6 +68,7 @@ const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
 const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
 const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
