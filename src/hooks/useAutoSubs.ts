@@ -95,11 +95,14 @@ export function useAutoSubs({
   // (state, ev, ctx) for testability — wrap it here, injecting ctx from
   // the ref above. `now` comes from Date.now() at dispatch time.
   const reactReducer = useCallback(
-    (state: AutoSubState, ev: Parameters<typeof autoSubReducer>[1]) =>
-      autoSubReducer(state, ev, {
+    (state: AutoSubState, ev: Parameters<typeof autoSubReducer>[1]) => {
+      const next = autoSubReducer(state, ev, {
         players: ctxRef.current.playersRef.current,
         now: Date.now(),
-      }),
+      });
+      recordAutoSubTransition(ev, state, next);
+      return next;
+    },
     []
   );
 
