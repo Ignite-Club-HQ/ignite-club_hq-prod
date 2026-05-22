@@ -765,8 +765,16 @@ export function useAutoSubs({
     updateNextSubInfo,
     checkHalftimeSubs,
 
+    // Derived selectors (Step E) — prefer these over inline filters
+    // when consuming `autoSubPlan` from UI. See `autoSub/selectors.ts`.
+    remainingSubs: selectRemaining(autoSubPlan),
+    executedSubs: selectExecuted(autoSubPlan),
+    remainingSubCount: selectRemainingCount(autoSubPlan),
+    isPlanComplete: selectIsPlanComplete(autoSubPlan),
+
     // Internal refs (exposed for edge cases)
     skipCooldownRef,
     planActivationTimeRef,
   };
+
 }
