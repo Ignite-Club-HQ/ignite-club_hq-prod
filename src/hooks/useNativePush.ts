@@ -106,8 +106,10 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
               if (wasProcessed) {
                 console.log('[useNativePush] Processed pending notification navigation');
               } else {
-                // Retry with increasing delays for cold start timing
-                const retryDelays = [500, 1500, 3000];
+                // Retry with increasing delays for cold start timing.
+                // Android cold-start + auth bootstrap can take well over 3s,
+                // so retry generously (covers a slow token refresh on resume).
+                const retryDelays = [500, 1500, 3000, 5000, 8000, 12000];
                 retryDelays.forEach(delay => {
                   setTimeout(() => {
                     const wasProcessedRetry = processPendingNotificationNavigation(navigate);
