@@ -93,6 +93,7 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
+import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
