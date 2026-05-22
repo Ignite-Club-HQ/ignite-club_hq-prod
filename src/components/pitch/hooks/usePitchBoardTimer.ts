@@ -22,7 +22,7 @@
 import { useCallback, useRef, useState, type RefObject, type Dispatch, type SetStateAction } from "react";
 import type { GameTimerRef } from "../GameTimer";
 import type { Player } from "../types";
-import type { PitchBoardState } from "../pitchStateUtils";
+import type { PitchBoardState } from "../types";
 import { loadTimerStateForMinutes } from "../pitchStateUtils";
 import { getCurrentGameSeconds } from "../timerUtils";
 
