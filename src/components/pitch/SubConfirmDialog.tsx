@@ -84,7 +84,23 @@ export default function SubConfirmDialog({
     }, 1000);
     return () => clearInterval(interval);
   }, [open, countdown]);
-  
+
+  // Guard: the informational "Half Time" popup should ONLY render at the
+  // genuine halftime boundary (timer paused at H2/elapsed=0). If the dialog
+  // somehow opens with no substitution while the timer is past halftime or
+  // still in H1, auto-dismiss to avoid showing a stale prompt mid-game.
+  useEffect(() => {
+    if (!open || !isHalftimeOnly) return;
+    const t = loadTimerStateForMinutes();
+    if (!t) return;
+    const atHalftimeBoundary =
+      t.currentHalf === 2 && (t.elapsedSeconds || 0) <= 5 && !t.isRunning;
+    if (!atHalftimeBoundary) {
+      onAcknowledgeHalftime?.();
+      onOpenChange(false);
+    }
+  }, [open, isHalftimeOnly, onAcknowledgeHalftime, onOpenChange]);
+
   if (!open) return null;
   if (!substitution && !isHalftimeOnly) return null;
   
