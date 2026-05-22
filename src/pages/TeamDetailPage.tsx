@@ -2517,6 +2517,7 @@ export default function TeamDetailPage() {
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
+                clearPitchBoardOpenFlag();
                 setShowPitchBoard(false);
                 setLinkedEventId(null);
                 setPitchBoardMembersOverride([]);
