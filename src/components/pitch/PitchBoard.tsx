@@ -330,7 +330,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } | null>(null);
 
   // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
-  const gameTimerRef = useRef<GameTimerRef>(null);
+  // gameTimerRef is declared above as part of usePitchBoardTimer wiring.
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
