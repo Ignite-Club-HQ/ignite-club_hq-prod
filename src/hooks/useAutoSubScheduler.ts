@@ -34,6 +34,7 @@ export interface UseAutoSubSchedulerArgs {
   autoSubPaused: boolean;
   autoSubPlan: SubstitutionEvent[];
   setAutoSubPlan: Dispatch<SetStateAction<SubstitutionEvent[]>>;
+  halftimePromptAckKey?: string | null;
   lockedPlayerIds: Set<string>;
   playersRef: MutableRefObject<Player[]>;
   gameTimerRef: MutableRefObject<GameTimerRef | null>;
@@ -62,6 +63,7 @@ export function useAutoSubScheduler({
   autoSubPaused,
   autoSubPlan,
   setAutoSubPlan,
+  halftimePromptAckKey,
   lockedPlayerIds,
   playersRef,
   gameTimerRef,
@@ -283,8 +285,7 @@ export function useAutoSubScheduler({
     (newHalf: 1 | 2) => {
       if (newHalf !== 2) return false;
 
-      const timerState = gameTimerRef.current;
-      const ackKey = `half-time:${timerState ? "live" : "unknown"}:${timerState?.getMinutesPerHalf?.() ?? "na"}`;
+      const ackKey = halftimePromptAckKey ?? null;
       if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
 
       const staleFirstHalfSubs = autoSubPlan.filter(
@@ -333,7 +334,7 @@ export function useAutoSubScheduler({
 
       return true;
     },
-    [autoSubPlan, setAutoSubPlan, gameTimerRef]
+    [autoSubPlan, setAutoSubPlan, halftimePromptAckKey]
   );
 
   return {
