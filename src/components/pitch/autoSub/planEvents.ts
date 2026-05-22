@@ -22,7 +22,13 @@ export type PlanEvent =
       reason: ReplaceReason;
     }
   | { type: "LOCK_TOGGLE"; playerId: string }
-  | { type: "TICK"; elapsed: number; half: 1 | 2 };
+  | { type: "TICK"; elapsed: number; half: 1 | 2 }
+  // ── Step B compat: legacy callers that already compute a full plan
+  // (executed + remaining mixed). Validated via `validatePlanIntegrity`
+  // only — orphan check is the caller's responsibility for these events.
+  | { type: "SET_PLAN"; plan: SubstitutionEvent[] }
+  | { type: "SET_ACTIVE"; active: boolean }
+  | { type: "SET_PAUSED"; paused: boolean };
 
 export type PlanErrorCode =
   | "orphan-player"
