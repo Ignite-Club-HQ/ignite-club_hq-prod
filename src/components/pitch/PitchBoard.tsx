@@ -3317,57 +3317,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
-  // Ball drag handlers
-  const handleBallDragStart = () => {
-    setIsDraggingBall(true);
-  };
+  // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
-  const handleBallDrag = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-  };
 
-  const handleBallDragEnd = () => {
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
-    setIsDraggingBall(false);
-  };
-
-  const handleBallTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    isDraggingBallRef.current = true;
-    setIsDraggingBall(true);
-    // Immediately update position on touch start
-    if (containerRef.current) {
-      const touch = e.touches[0];
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-    }
-  };
-
-  const handleBallTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingBallRef.current || !containerRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((touch.clientX - rect.left) / rect.width) * 100;
-    const y = ((touch.clientY - rect.top) / rect.height) * 100;
-    setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-  };
-
-  const handleBallTouchEnd = () => {
-    isDraggingBallRef.current = false;
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
-    setIsDraggingBall(false);
-  };
 
   const handleZoomOut = () => {
     setZoom(prev => Math.max(prev - 0.25, 0.5));
