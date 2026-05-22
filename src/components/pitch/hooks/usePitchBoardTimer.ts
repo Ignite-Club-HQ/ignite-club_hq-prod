@@ -63,8 +63,8 @@ export function usePitchBoardTimer({
   savedState,
   minutesPerHalf,
   gameTimerRef,
-  setPlayers,
-  setElapsedGameTime,
+  setPlayersRef,
+  setElapsedGameTimeRef,
   updateNextSubInfoRef,
   checkForDueSubsRef,
 }: UsePitchBoardTimerOptions): UsePitchBoardTimerResult {
