@@ -10,7 +10,7 @@
  *  • due-sub detection (called from timer update)
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useReducer, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player, SubstitutionEvent, TeamSize } from "@/components/pitch/types";
 import type { GameTimerRef } from "@/components/pitch/GameTimer";
@@ -28,6 +28,11 @@ import {
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
 import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
+import {
+  autoSubReducer,
+  initialAutoSubState,
+  type AutoSubState,
+} from "@/components/pitch/autoSub/autoSubReducer";
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
@@ -66,16 +71,84 @@ export function useAutoSubs({
 }: UseAutoSubsOptions) {
   const { toast } = useToast();
 
-  // ── Core state ──────────────────────────────────────────
-  const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(initialPlan);
-  const [autoSubActive, setAutoSubActive] = useState(initialActive);
-  const [autoSubPaused, setAutoSubPaused] = useState(initialPaused);
+  // ── Core state (Step B: backed by useReducer; external API unchanged) ──
+  //
+  // The reducer is the single choke point for plan mutation. Compat setters
+  // below preserve the legacy useState-style API used by ~9 handlers and by
+  // PitchBoard.tsx. Plan invariants (no duplicates, executed-immutable,
+  // no locked-player subs) are enforced on every SET_PLAN dispatch via
+  // `validatePlanIntegrity`. On a rejected transition the reducer keeps
+  // the previous state and surfaces `lastError` for a dev-time toast.
+  // playersRef-backed ctx so every dispatch sees the freshest roster.
+  // Re-built per render but captured by the React-shaped reducer below.
+  const ctxRef = useRef({ playersRef });
+  ctxRef.current = { playersRef };
+
+  // React's useReducer takes a 2-arg reducer. Our pure reducer takes
+  // (state, ev, ctx) for testability — wrap it here, injecting ctx from
+  // the ref above. `now` comes from Date.now() at dispatch time.
+  const reactReducer = useCallback(
+    (state: AutoSubState, ev: Parameters<typeof autoSubReducer>[1]) =>
+      autoSubReducer(state, ev, {
+        players: ctxRef.current.playersRef.current,
+        now: Date.now(),
+      }),
+    []
+  );
+
+  const [reducerState, dispatch] = useReducer(reactReducer, undefined, (): AutoSubState => ({
+    ...initialAutoSubState,
+    plan: initialPlan,
+    active: initialActive,
+    paused: initialPaused,
+  }));
+  const autoSubPlan = reducerState.plan;
+  const autoSubActive = reducerState.active;
+  const autoSubPaused = reducerState.paused;
+
+  const setAutoSubPlan = useCallback(
+    (next: SubstitutionEvent[] | ((prev: SubstitutionEvent[]) => SubstitutionEvent[])) => {
+      const resolved = typeof next === "function" ? next(planRef.current) : next;
+      dispatch({ type: "SET_PLAN", plan: resolved });
+    },
+    []
+  );
+  const setAutoSubActive = useCallback((active: boolean) => {
+    dispatch({ type: "SET_ACTIVE", active });
+  }, []);
+  const setAutoSubPaused = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const resolved = typeof next === "function" ? next(pausedRef.current) : next;
+      dispatch({ type: "SET_PAUSED", paused: resolved });
+    },
+    []
+  );
+  // Kept as separate useState for Step B; will migrate to reducer LOCK_TOGGLE
+  // in Step E when UI consumers are reworked.
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
 
-  // ── Dialog state ────────────────────────────────────────
+  // ── Dialog state (unchanged in Step B) ──────────────────
   const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
+
+  // Refs mirror reducer state so compat updater-form setters
+  // (`setAutoSubPlan(prev => ...)`, `setAutoSubPaused(prev => ...)`) can
+  // resolve against the freshest value without re-renders chasing them.
+  const planRef = useRef<SubstitutionEvent[]>(autoSubPlan);
+  const pausedRef = useRef<boolean>(autoSubPaused);
+  useEffect(() => { planRef.current = autoSubPlan; }, [autoSubPlan]);
+  useEffect(() => { pausedRef.current = autoSubPaused; }, [autoSubPaused]);
+
+  // Dev-time: log validator rejections so invariant violations surface loudly.
+  useEffect(() => {
+    if (!reducerState.lastError) return;
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[AutoSub] reducer rejected transition: ${reducerState.lastError.code} — ${reducerState.lastError.message}`
+      );
+    }
+  }, [reducerState.lastError]);
 
   // ── Sub-due highlighting ────────────────────────────────
   const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
