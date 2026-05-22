@@ -2758,6 +2758,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     toast,
   };
 
+  // Keep lineup hook's dep ref synced each render.
+  lineupDepsRef.current = {
+    players,
+    teamSize,
+    selectedFormation,
+    miniLeagueTeams,
+    autoSubActive,
+    selectedTeamForSettings,
+    setPlayers,
+    setSelectedFormation,
+    setPreferredSecondHalfGkId,
+    setAutoSubPlanEditMode,
+    setAutoSubFromPreGame,
+    setAutoSubPlanDialogOpen,
+    setShowLineupPicker,
+    setPendingFormationChange,
+    setFormationChangeDialogOpen,
+    autoPlacePlayersOnPitch,
+    autoPlaceMiniLeaguePlayers,
+    persistFormationToDb,
+    notifyFormationOrSizeChange,
+    regeneratePlanRef,
+    toast,
+  };
+
   // Zoom handlers
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.25, 3));
