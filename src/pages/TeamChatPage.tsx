@@ -31,6 +31,7 @@ import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
@@ -150,7 +151,7 @@ export default function TeamChatPage() {
     return () => noteChatUnmount("TeamChat", k, null);
   }, []);
   const { teamId } = useParams<{ teamId: string }>();
-  const { user, profile, refreshUnreadCount, initialized } = useAuth();
+  const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const navigate = useNavigate();
@@ -193,25 +194,18 @@ export default function TeamChatPage() {
   const isNativePlatform = Capacitor.isNativePlatform();
   const useVirtualizedChat = true;
 
-  // Mark team message notifications as read when opening this thread
+  // Mark team message notifications as read when opening this thread.
+  // Uses optimistic + fire-and-forget to clear the bell badge immediately.
   useEffect(() => {
     if (!user || !teamId) return;
-    
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "team_message")
-        .eq("is_read", false);
-      
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-    
-    markNotificationsAsRead();
-  }, [user, teamId, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "team", teamId },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, teamId, refreshUnreadCount, decrementUnreadCount, queryClient]);
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
