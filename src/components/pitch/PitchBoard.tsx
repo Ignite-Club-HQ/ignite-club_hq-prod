@@ -3566,142 +3566,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
 
-
-  const handleDragStart = (playerId: string, e?: React.DragEvent<HTMLDivElement>) => {
-    if (readOnly) return;
-    if (e) capturePlayerDragOffset(playerId, e.clientX, e.clientY);
-    const player = playersRef.current.find(p => p.id === playerId);
-    playerDragStartRef.current = player?.position
-      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
-      : null;
-    setDraggedPlayer(playerId);
+  // Drag/drop handlers now live in usePitchBoardDragDrop (declared near the
+  // top of the component). Wire the deps the hook reads each render:
+  dragDropDepsRef.current = {
+    readOnly,
+    players,
+    playersOnPitch,
+    playersRef,
+    containerRef,
+    capturePlayerDragOffset,
+    getClientPitchPosition,
+    getClientPointFromPitchPosition,
+    getPitchPlayerOverlappingDragged,
+    updateDraggedPlayerPosition,
+    swapPitchPlayers,
+    setBenchToSubPlayer,
+    setBenchToSubOpen,
+    setPortraitSheetOpen,
+    setToolbarCollapsed,
+    setSelectedOnPitch,
+    setSubPreviewOpen,
   };
 
-  const handleDragEnd = () => {
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
-
-  const handlePitchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (readOnly) return;
-    if (!draggedPlayer || !containerRef.current) return;
-
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const draggedIsBench = dragged ? !playersOnPitch.some(p => p.id === draggedPlayer) : false;
-
-    // Bench → pitch: open BenchToSubDialog so the user picks who comes off.
-    if (draggedIsBench) {
-      setBenchToSubPlayer(draggedPlayer);
-      setBenchToSubOpen(true);
-      setPortraitSheetOpen(false);
-      setToolbarCollapsed(true);
-      setDraggedPlayer(null);
-      playerDragOffsetRef.current = null;
-      playerDragStartRef.current = null;
-      return;
-    }
-
-    // Detect drop on another pitch player → swap positions.
-    const draggedCenter = getClientPitchPosition(e.clientX, e.clientY);
-    const draggedCenterPoint = draggedCenter ? getClientPointFromPitchPosition(draggedCenter) : null;
-    const targetId = draggedCenterPoint
-      ? getPitchPlayerOverlappingDragged(draggedPlayer, draggedCenterPoint.x, draggedCenterPoint.y)
-      : getPitchPlayerOverlappingDragged(draggedPlayer, e.clientX, e.clientY);
-
-    if (targetId && targetId !== draggedPlayer) {
-      if (swapPitchPlayers(draggedPlayer, targetId)) {
-        setDraggedPlayer(null);
-        playerDragOffsetRef.current = null;
-        playerDragStartRef.current = null;
-        return;
-      }
-    }
-
-    const position = getClientPitchPosition(e.clientX, e.clientY);
-    if (position) updateDraggedPlayerPosition(draggedPlayer, position);
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
-
-  const handleBenchDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (readOnly) return;
-    if (!draggedPlayer) return;
-    const dragged = players.find(p => p.id === draggedPlayer);
-    const draggedIsOnPitch = dragged ? playersOnPitch.some(p => p.id === draggedPlayer) : false;
-    if (draggedIsOnPitch) {
-      // Pitch → bench drag opens the sub picker for that pitch player.
-      setSelectedOnPitch(draggedPlayer);
-      setSubPreviewOpen(true);
-    } else {
-      // Bench player dropped back into bench area (which often overlaps the
-      // pitch when the bottom sheet is open). Treat as bench → pitch and open
-      // the BenchToSubDialog so the user can pick who comes off.
-      setBenchToSubPlayer(draggedPlayer);
-      setBenchToSubOpen(true);
-      setPortraitSheetOpen(false);
-      setToolbarCollapsed(true);
-    }
-    setDraggedPlayer(null);
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // Touch handlers for mobile drag-and-drop
-  const handleTouchStart = (playerId: string, e: React.TouchEvent) => {
-    if (readOnly) return;
-    // Only allow one drag at a time – ignore if already tracking a finger
-    if (touchDragPlayer !== null) return;
-    const touch = e.touches[0];
-    touchIdRef.current = touch.identifier;
-    capturePlayerDragOffset(playerId, touch.clientX, touch.clientY);
-    const player = playersRef.current.find(p => p.id === playerId);
-    playerDragStartRef.current = player?.position
-      ? { playerId, position: { ...player.position }, currentPitchPosition: player.currentPitchPosition }
-      : null;
-    setTouchDragPlayer(playerId);
-    setTouchOffset({ x: touch.clientX, y: touch.clientY });
-    // (Bench auto-open removed — it stole pointer events and broke drag)
-  };
-
-  // Touch handler for bench players
-  const handleBenchTouchMove = useCallback((e: React.TouchEvent) => {
-    if (readOnly) return;
-    if (!touchDragPlayer || !containerRef.current || touchIdRef.current === null) return;
-    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
-    if (!touch) return;
-    e.preventDefault();
-    
-    const pitchRect = containerRef.current.getBoundingClientRect();
-    
-    // Check if touch is over the pitch
-    if (
-      touch.clientX >= pitchRect.left &&
-      touch.clientX <= pitchRect.right &&
-      touch.clientY >= pitchRect.top &&
-      touch.clientY <= pitchRect.bottom
-    ) {
-      const position = getClientPitchPosition(touch.clientX, touch.clientY);
-      if (position) updateDraggedPlayerPosition(touchDragPlayer, position);
-    }
-  }, [readOnly, touchDragPlayer, getClientPitchPosition, updateDraggedPlayerPosition]);
-
-  const handleBenchTouchEnd = useCallback(() => {
-    setTouchDragPlayer(null);
-    setTouchOffset(null);
-    touchIdRef.current = null;
-    playerDragOffsetRef.current = null;
-    playerDragStartRef.current = null;
-  }, []);
 
   // Portrait bench long-press drag handlers
   const handleBenchLongPressStart = useCallback((playerId: string, e: React.TouchEvent) => {
