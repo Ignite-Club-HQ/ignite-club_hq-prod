@@ -171,9 +171,12 @@ export function initNotificationLaunchHandler() {
               // Not a full URL, treat as internal path
             }
             
-            // Store for React Router navigation
+            // Store for React Router navigation (in-memory + sessionStorage)
+            // so the URL survives a slow auth bootstrap on Android cold start.
             console.log('[NotificationLaunch] Storing URL for React Router navigation');
             pendingNavigationUrl = url;
+            navigationHandled = false;
+            persistPendingNav(url);
           } else {
             console.log('[NotificationLaunch] No URL found in notification data:', JSON.stringify(data));
           }
