@@ -1304,11 +1304,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [zoom, setZoom] = useState(1);
   const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
 
-  // Ball position state
-  const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
-  const [isDraggingBall, setIsDraggingBall] = useState(false);
-  const isDraggingBallRef = useRef(false);
-  const recentlyDraggedBallRef = useRef(false);
+  // Ball state + drag/touch handlers live in usePitchBoardBall
+  const {
+    ballPosition,
+    setBallPosition,
+    isDraggingBall,
+    recentlyDraggedBallRef,
+    handleBallDragStart,
+    handleBallDrag,
+    handleBallDragEnd,
+    handleBallTouchStart,
+    handleBallTouchMove,
+    handleBallTouchEnd,
+  } = usePitchBoardBall({
+    containerRef,
+    initialBallPosition: savedState?.ballPosition,
+  });
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
