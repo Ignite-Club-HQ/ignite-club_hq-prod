@@ -1555,7 +1555,7 @@ export default function ClubChatPage() {
               showBoardPicker={true}
               onBoardPick={() => setBoardPickerOpen(true)}
               showVaultPicker={true}
-              onAppendToken={(token) => setMessage(message ? `${message} ${token}` : token)}
+              onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
               hasText={!!message.trim()}
             />
             <MentionInput
