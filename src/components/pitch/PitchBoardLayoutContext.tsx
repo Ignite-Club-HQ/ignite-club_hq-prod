@@ -162,7 +162,7 @@ export interface PitchBoardLayoutContextValue {
   mockMode: any;
   mode: PitchBoardMode;
   movablePitchPlayerIds: any;
-  nextSubInfo: any;
+  nextSubInfo: { playerInId: string; playerOutId: string; countdown: string } | null;
   onClose: () => void;
   onUnlinkEvent: () => void;
   openAutoSubPlanDialog: (...args: any[]) => any;
