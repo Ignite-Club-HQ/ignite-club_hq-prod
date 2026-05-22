@@ -81,7 +81,7 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
   return null;
 }
 
-export function PinnedVaultBanner({ record, isAdmin = false }: PinnedVaultBannerProps) {
+export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVaultBannerProps) {
   const navigate = useNavigate();
 
   const cacheKey = useMemo(() => {
