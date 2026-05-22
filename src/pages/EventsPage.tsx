@@ -1061,9 +1061,16 @@ export default function EventsPage() {
                 </CardContent>
               </Card>
             ) : (
-              upcomingEvents?.map((event, idx) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
-              ))
+              <>
+                {upcomingEvents?.slice(0, 10).map((event, idx) => (
+                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} stackIndex={idx} />
+                ))}
+                {(upcomingEvents?.length || 0) > 10 && (
+                  <p className="text-center text-xs text-muted-foreground py-2">
+                    +{upcomingEvents!.length - 10} more upcoming events
+                  </p>
+                )}
+              </>
             )}
           </TabsContent>
 
