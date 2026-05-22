@@ -125,30 +125,46 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left"
-      aria-label={`Open pinned vault: ${target.label}`}
-    >
-      <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center relative">
-        <Icon className="h-3.5 w-3.5 text-primary" />
-        <Pin className="h-2.5 w-2.5 text-primary absolute -top-0.5 -right-0.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
-            Pinned vault
-          </span>
+    <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20">
+      <button
+        type="button"
+        onClick={handleClick}
+        className="flex-1 min-w-0 flex items-center gap-3 hover:bg-primary/10 active:bg-primary/15 transition-colors text-left -mx-2 px-2 py-1 rounded"
+        aria-label={`Open pinned vault: ${target.label}`}
+      >
+        <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center relative">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+          <Pin className="h-2.5 w-2.5 text-primary absolute -top-0.5 -right-0.5" />
         </div>
-        <p className="text-sm text-foreground truncate leading-tight mt-0.5">
-          {target.label}
-        </p>
-        <p className="text-[11px] text-muted-foreground truncate leading-tight">
-          {target.sublabel}
-        </p>
-      </div>
-      <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-    </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
+              Pinned vault
+            </span>
+          </div>
+          <p className="text-sm text-foreground truncate leading-tight mt-0.5">
+            {target.label}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate leading-tight">
+            {target.sublabel}
+          </p>
+        </div>
+        <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      </button>
+      {onUnpin && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            hapticSelectionTick();
+            onUnpin();
+          }}
+          className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          aria-label="Unpin vault"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
