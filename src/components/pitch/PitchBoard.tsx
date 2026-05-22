@@ -99,6 +99,7 @@ import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } fr
 import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { usePitchBoardPinchZoom } from "./hooks/usePitchBoardPinchZoom";
 import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardDragDrop";
+import { usePitchBoardTactical } from "./hooks/usePitchBoardTactical";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -558,14 +559,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }
   
-  // Tactical mode state
-  type TacticalFormationSuggestion = {
-    mode: Exclude<TacticalMode, "neutral">;
-    formationIndex: number;
-    formationName: string;
-  };
-  const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
-  const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
+  // Tactical mode state now lives in usePitchBoardTactical (declared below after handleFormationChange + ball state).
+
   
   // Mini-league team selector for formation/tactical changes
   const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
@@ -2289,41 +2284,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // handleFormationChange now lives in usePitchBoardLineup (declared at top).
 
-  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
-    setTacticalMode(mode);
-
-    if (mode === "neutral") {
-      setTacticalFormationSuggestion(null);
-      return;
-    }
-
-    const rec = RECOMMENDED_FORMATIONS[teamSize];
-    const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
-    const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
-
-    if (suggestedIndex !== selectedFormation && suggestedFormation) {
-      setTacticalFormationSuggestion({
-        mode,
-        formationIndex: suggestedIndex,
-        formationName: suggestedFormation.name,
-      });
-    } else {
-      setTacticalFormationSuggestion(null);
-    }
-  }, [teamSize, selectedFormation]);
-
-  const handleApplyTacticalSuggestion = useCallback(() => {
-    if (!tacticalFormationSuggestion) return;
-    handleFormationChange(String(tacticalFormationSuggestion.formationIndex));
-    setTacticalFormationSuggestion(null);
-  }, [tacticalFormationSuggestion, handleFormationChange]);
-
-  const handleDismissTacticalSuggestion = useCallback(() => {
-    setTacticalFormationSuggestion(null);
-    // Minimise the bottom drawer after dismissing
-    setToolbarCollapsed(true);
-    setPortraitSheetOpen(false);
-  }, []);
+  const {
+    tacticalMode,
+    setTacticalMode,
+    tacticalFormationSuggestion,
+    setTacticalFormationSuggestion,
+    handleTacticalModeChange,
+    handleApplyTacticalSuggestion,
+    handleDismissTacticalSuggestion,
+    tacticalOffsets,
+    ballOffset,
+  } = usePitchBoardTactical({
+    players,
+    teamSize,
+    selectedFormation,
+    miniLeagueTeams,
+    ballPosition,
+    isDraggingBall,
+    recentlyDraggedBallRef,
+    handleFormationChange,
+    setToolbarCollapsed,
+    setPortraitSheetOpen,
+  });
 
   // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
   const notifyFormationOrSizeChange = useCallback(async (
@@ -3718,18 +3700,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return playersOnPitch.filter(p => p.teamSide === selectedTeamForSettings);
   }, [playersOnPitch, miniLeagueTeams, selectedTeamForSettings]);
 
-  // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
-  const tacticalOffsets = useMemo(() => 
-    computeTacticalOffsets(players, tacticalMode, teamSize, !!miniLeagueTeams),
-    [players, tacticalMode, teamSize, miniLeagueTeams]
-  );
+  // tacticalOffsets + ballOffset now live in usePitchBoardTactical (declared above).
 
-  // Compute ball visual offset to avoid overlapping with tactically-shifted players
-  // Don't apply offset while actively dragging the ball
-  const ballOffset = useMemo(() =>
-    (isDraggingBall || recentlyDraggedBallRef.current) ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
-    [ballPosition, players, tacticalOffsets, tacticalMode, isDraggingBall]
-  );
 
   // Calculate which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
