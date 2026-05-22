@@ -1297,8 +1297,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
 
   // Zoom state
-  const [zoom, setZoom] = useState(1);
-  const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
+  const {
+    zoom,
+    setZoom,
+    handleZoomIn,
+    handleZoomOut,
+    handleResetZoom,
+    handleWheel,
+    tryPinchStart,
+    tryPinchMove,
+    tryPinchEnd,
+  } = usePitchBoardPinchZoom();
 
   // Ball state + drag/touch handlers live in usePitchBoardBall
   const {
