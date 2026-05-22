@@ -283,6 +283,22 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     }
   }, [navigate]);
 
+  // Once we have an authenticated user, consume any pending push-tap nav
+  // that arrived during the auth bootstrap. Without this, Index's redirect
+  // chain can swallow the navigate() call fired from the early action listener.
+  useEffect(() => {
+    if (!userId || !isNative) return;
+    // Try immediately and a couple of times after route settles
+    const tryConsume = () => processPendingNotificationNavigation(navigate);
+    if (tryConsume()) {
+      console.log('[useNativePush] Consumed pending nav after auth ready');
+      return;
+    }
+    const t1 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (250ms)'); }, 250);
+    const t2 = setTimeout(() => { if (tryConsume()) console.log('[useNativePush] Consumed pending nav post-auth (1000ms)'); }, 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [userId, isNative, navigate]);
+
   // Initialize native push when user is available
   useEffect(() => {
     if (!userId || !enabled || initializedRef.current) {
