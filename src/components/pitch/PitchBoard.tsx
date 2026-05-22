@@ -2527,6 +2527,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         };
         
         setTimeout(() => {
+          if (!canShowHalftimePrompt(loadTimerStateForMinutes(teamId), savedState)) return;
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
           setPendingAutoSub(gkSwapEvent);
@@ -2543,13 +2544,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // actionable to confirm, so skip the empty prompt.
     if (newHalf === 2 && source === 'live') {
       setTimeout(() => {
+        if (!canShowHalftimePrompt(loadTimerStateForMinutes(teamId), savedState)) return;
         playSubAlertBeep("Half Time!");
         setPendingAutoSub(null);
         setPendingBatchSubs([]);
         setSubConfirmDialogOpen(true);
       }, 500);
     }
-  }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
+  }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, savedState, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen, teamId]);
 
   // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
