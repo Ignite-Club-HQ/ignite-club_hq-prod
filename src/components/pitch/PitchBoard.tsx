@@ -1287,15 +1287,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
 
-  const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
-  const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
-  const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
-  const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
-  const playerDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
-  const playerDragStartRef = useRef<{ playerId: string; position: { x: number; y: number }; currentPitchPosition?: PitchPosition } | null>(null);
-  
-  // Track recently-released players to suppress CSS transition "drift" on drop
-  const recentlyDraggedRef = useRef<Set<string>>(new Set());
+  // Player drag/drop — owned by usePitchBoardDragDrop (declared after the
+  // helpers it needs are defined; see further down in this component).
+
+
 
   // Zoom state
   const {
