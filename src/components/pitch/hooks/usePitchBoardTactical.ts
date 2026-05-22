@@ -6,8 +6,7 @@ import {
   computeBallOffset,
   RECOMMENDED_FORMATIONS,
 } from "../tacticalMode";
-import { FORMATIONS } from "../formations";
-import type { PitchPlayer } from "../types";
+import { FORMATIONS, type TeamSize } from "../types";
 
 export type TacticalFormationSuggestion = {
   mode: Exclude<TacticalMode, "neutral">;
