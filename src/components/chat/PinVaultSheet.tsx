@@ -416,16 +416,14 @@ function FolderList({
                 </div>
                 <p className="text-sm font-medium text-foreground truncate flex-1">{f.name}</p>
               </button>
-              {f.has_children !== false && (
-                <button
-                  type="button"
-                  onClick={() => onDrillIn(f)}
-                  className="px-3 flex items-center justify-center border-l border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
-                  aria-label={`Open ${f.name}`}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => onDrillIn(f)}
+                className="px-3 flex items-center justify-center border-l border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                aria-label={`Open ${f.name}`}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
           </li>
         );
