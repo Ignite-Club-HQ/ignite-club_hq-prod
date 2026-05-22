@@ -2577,7 +2577,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* Game Board Modal — basketball */}
-      {showPitchBoard && isBasketballClub && createPortal(
+      {showPitchBoard && isBasketballClub && isAppAdmin && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-4">
