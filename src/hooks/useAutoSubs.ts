@@ -79,7 +79,24 @@ export function useAutoSubs({
   // no locked-player subs) are enforced on every SET_PLAN dispatch via
   // `validatePlanIntegrity`. On a rejected transition the reducer keeps
   // the previous state and surfaces `lastError` for a dev-time toast.
-  const [reducerState, dispatch] = useReducer(autoSubReducer, undefined, (): AutoSubState => ({
+  // playersRef-backed ctx so every dispatch sees the freshest roster.
+  // Re-built per render but captured by the React-shaped reducer below.
+  const ctxRef = useRef({ playersRef });
+  ctxRef.current = { playersRef };
+
+  // React's useReducer takes a 2-arg reducer. Our pure reducer takes
+  // (state, ev, ctx) for testability — wrap it here, injecting ctx from
+  // the ref above. `now` comes from Date.now() at dispatch time.
+  const reactReducer = useCallback(
+    (state: AutoSubState, ev: Parameters<typeof autoSubReducer>[1]) =>
+      autoSubReducer(state, ev, {
+        players: ctxRef.current.playersRef.current,
+        now: Date.now(),
+      }),
+    []
+  );
+
+  const [reducerState, dispatch] = useReducer(reactReducer, undefined, (): AutoSubState => ({
     ...initialAutoSubState,
     plan: initialPlan,
     active: initialActive,
@@ -91,10 +108,6 @@ export function useAutoSubs({
 
   const setAutoSubPlan = useCallback(
     (next: SubstitutionEvent[] | ((prev: SubstitutionEvent[]) => SubstitutionEvent[])) => {
-      // Resolve updater form against the freshest state via reducer pattern.
-      // We don't have a direct prev getter, so dispatch a function-typed
-      // "SET_PLAN" by computing through a callback. React's useReducer doesn't
-      // accept updater fns, so we read from a ref kept in sync below.
       const resolved = typeof next === "function" ? next(planRef.current) : next;
       dispatch({ type: "SET_PLAN", plan: resolved });
     },
@@ -113,6 +126,11 @@ export function useAutoSubs({
   // Kept as separate useState for Step B; will migrate to reducer LOCK_TOGGLE
   // in Step E when UI consumers are reworked.
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+
+  // ── Dialog state (unchanged in Step B) ──────────────────
+  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
+  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
+  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
 
   // Refs mirror reducer state so compat updater-form setters
   // (`setAutoSubPlan(prev => ...)`, `setAutoSubPaused(prev => ...)`) can
