@@ -96,6 +96,7 @@ import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
 import { usePitchBoardFillIn } from "./hooks/usePitchBoardFillIn";
 import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } from "./hooks/usePitchBoardFormationChangeDialog";
+import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -336,6 +337,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     handleFormationChangeConfirm,
     handleFormationChangeCancel,
   } = usePitchBoardFormationChangeDialog(formationDialogDepsRef);
+
+  // Lineup confirm/skip + formation change (preview & apply) live in
+  // usePitchBoardLineup. Same ref-passing pattern as above.
+  const lineupDepsRef = useRef<LineupDeps | null>(null);
+  const {
+    handleLineupConfirm,
+    handleLineupSkip,
+    handleFormationChange,
+    applyFormationChange,
+  } = usePitchBoardLineup(lineupDepsRef);
 
   // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   // gameTimerRef is declared above as part of usePitchBoardTimer wiring.
@@ -691,28 +702,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     await persistShowLineupPicker(enabled);
   }, [persistShowLineupPicker]);
 
-  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    // Reset player minutes for a fresh game setup.
-    // Dedupe by id defensively — duplicate ids here would render the same
-    // player twice in the auto-sub planner and projected-minutes view.
-    const seen = new Set<string>();
-    const freshPlayers = updatedPlayers
-      .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; })
-      .map(p => ({ ...p, minutesPlayed: 0 }));
-    setPlayers(freshPlayers);
-    setPreferredSecondHalfGkId(secondHalfGkId);
-    if (firstHalfGkId || secondHalfGkId) {
-      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
-    }
-    // Open auto-sub dialog BEFORE hiding lineup picker to prevent pitch board flash
-    setAutoSubPlanEditMode(false);
-    setAutoSubFromPreGame(true);
-    setAutoSubPlanDialogOpen(true);
-    // Hide lineup picker after a brief delay so dialog renders on top
-    setTimeout(() => {
-      setShowLineupPicker(false);
-    }, 100);
-  }, []);
+  // handleLineupConfirm now lives in usePitchBoardLineup (declared at top).
 
 
   // handleLinkEvent now lives in usePitchBoardEventLink (top of component).
@@ -1689,19 +1679,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // If no saved state and no realPlayers yet, wait for realPlayers to load
   }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation, isStrictMatchEventRoster, savedRosterHasPlayersOutsideCurrentRoster, applyStrictMatchRoster]);
 
-  // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
-  const handleLineupSkip = useCallback(() => {
-    if (!miniLeagueTeams) {
-      setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
-    }
-    setShowLineupPicker(false);
-    // Proceed to step 2: auto-sub setup (same as confirm flow)
-    setTimeout(() => {
-      setAutoSubPlanEditMode(false);
-      setAutoSubFromPreGame(true);
-      setAutoSubPlanDialogOpen(true);
-    }, 300);
-  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
+  // handleLineupSkip now lives in usePitchBoardLineup (declared at top).
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   // Debounced to avoid excessive saves during drag operations
@@ -2278,146 +2256,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }, []);
 
-  // Handle formation selection - preview changes and show confirmation
-  const handleFormationChange = (value: string) => {
-    const index = parseInt(value);
-    if (index === selectedFormation) return; // No change
-    const formation = FORMATIONS[teamSize][index];
-    if (!formation) return;
-
-    // In mini-league mode, skip preview dialog and apply directly
-    if (miniLeagueTeams) {
-      applyFormationChange(index);
-      return;
-    }
-
-    const numPositions = parseInt(teamSize);
-    
-    // Calculate what changes would happen
-    const playersOnPitch = players.filter(p => p.position !== null);
-    const benchPlayers = players.filter(p => p.position === null);
-    const allPlayers = [...playersOnPitch, ...benchPlayers];
-    
-    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[] = [];
-    const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
-    
-    // Who will be on pitch after change
-    const willBeOnPitch = allPlayers.slice(0, numPositions);
-    const willBeOnBench = allPlayers.slice(numPositions);
-    
-    // Players going from pitch to bench
-    for (const player of playersOnPitch) {
-      if (willBeOnBench.some(p => p.id === player.id)) {
-        benchMoves.push({ player, direction: "to-bench", position: player.currentPitchPosition });
-      }
-    }
-    
-    // Players coming from bench to pitch
-    for (let i = 0; i < willBeOnPitch.length; i++) {
-      const player = willBeOnPitch[i];
-      if (benchPlayers.some(p => p.id === player.id) && formation.positions[i]) {
-        const newPos = getPositionFromCoords(formation.positions[i].y, teamSize);
-        benchMoves.push({ player, direction: "to-pitch", position: newPos });
-      }
-    }
-    
-    // Position changes for players staying on pitch
-    // Use optimal matching to minimize position changes instead of naive index assignment
-    const minorAdjustments: { player: Player; fromLabel: string; toLabel: string }[] = [];
-    const stayingOnPitch = willBeOnPitch.filter(
-      p => p.currentPitchPosition && playersOnPitch.some(pp => pp.id === p.id) && !willBeOnBench.some(bp => bp.id === p.id)
-    );
-    
-    // Build new formation slot info
-    const formationSlots = formation.positions.map((pos, i) => ({
-      index: i,
-      position: getPositionFromCoords(pos.y, teamSize),
-      x: pos.x,
-      y: pos.y,
-      taken: false,
-    }));
-    
-    // Mark slots taken by bench-to-pitch players
-    for (let i = 0; i < willBeOnPitch.length; i++) {
-      const player = willBeOnPitch[i];
-      if (benchPlayers.some(p => p.id === player.id)) {
-        formationSlots[i].taken = true;
-      }
-    }
-    
-    // Greedy matching: first pass - exact position+side matches, second - same position, third - remaining
-    const playerSlotMap = new Map<string, number>(); // player.id -> slot index
-    const availableSlots = () => formationSlots.filter(s => !s.taken);
-    
-    // Pass 1: exact specific label match (e.g. "Left Mid" → "Left Mid")
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-      const slot = availableSlots().find(s => {
-        const toLabel = getSpecificPositionLabel(s.x, s.position);
-        return toLabel === fromLabel;
-      });
-      if (slot) {
-        slot.taken = true;
-        playerSlotMap.set(player.id, slot.index);
-      }
-    }
-    
-    // Pass 2: same position category (e.g. MID → MID, any side)
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const slot = availableSlots().find(s => s.position === player.currentPitchPosition);
-      if (slot) {
-        slot.taken = true;
-        playerSlotMap.set(player.id, slot.index);
-      }
-    }
-    
-    // Pass 3: assign remaining players to closest available slots
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const remaining = availableSlots();
-      if (remaining.length > 0) {
-        // Pick slot closest to player's current position
-        const px = player.position?.x ?? 50;
-        const py = player.position?.y ?? 50;
-        remaining.sort((a, b) => {
-          const distA = Math.abs(a.x - px) + Math.abs(a.y - py);
-          const distB = Math.abs(b.x - px) + Math.abs(b.y - py);
-          return distA - distB;
-        });
-        remaining[0].taken = true;
-        playerSlotMap.set(player.id, remaining[0].index);
-      }
-    }
-    
-    // Now compute swaps and adjustments from the optimal mapping
-    for (const player of stayingOnPitch) {
-      const slotIdx = playerSlotMap.get(player.id);
-      if (slotIdx == null) continue;
-      const slot = formationSlots[slotIdx];
-      const newPosition = slot.position;
-      if (player.currentPitchPosition !== newPosition) {
-        positionSwaps.push({ player, fromPosition: player.currentPitchPosition!, toPosition: newPosition, fromX: player.position?.x, toX: slot.x });
-      } else {
-        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-        const toLabel = getSpecificPositionLabel(slot.x, newPosition);
-        if (fromLabel !== toLabel) {
-          minorAdjustments.push({ player, fromLabel, toLabel });
-        }
-      }
-    }
-
-    // If there are any changes, show confirmation
-    if (positionSwaps.length > 0 || benchMoves.length > 0 || minorAdjustments.length > 0) {
-      setPendingFormationChange({ index, positionSwaps, benchMoves, minorAdjustments });
-      setFormationChangeDialogOpen(true);
-      return;
-    }
-
-    // Apply immediately if no meaningful changes
-    applyFormationChange(index);
-  };
+  // handleFormationChange now lives in usePitchBoardLineup (declared at top).
 
   const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
     setTacticalMode(mode);
@@ -2565,168 +2404,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
-  const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
-    const formation = FORMATIONS[teamSize][index];
-    if (!formation) return;
-
-    setSelectedFormation(index);
-    
-    // Persist to database
-    persistFormationToDb(formation.name);
-
-    // For mini-league mode, re-place teams with the new formation
-    if (miniLeagueTeams) {
-      const targetTeam = selectedTeamForSettings;
-      setPlayers(prev => {
-        // Ensure teamSide is set on all players
-        const playersWithTeamSide = prev.map(p => {
-          if (p.teamSide) return p;
-          let teamSide: "a" | "b" | undefined;
-          if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
-            teamSide = "a";
-          } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
-            teamSide = "b";
-          }
-          return { ...p, teamSide };
-        });
-        
-        if (targetTeam === "both") {
-          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
-        }
-        
-        // Single team formation change - use autoPlaceMiniLeaguePlayers for the target team,
-        // but preserve the other team's positions
-        const scaleToBottomHalf = (pos: { x: number; y: number }) => ({
-          x: pos.x,
-          y: 50 + (pos.y / 100) * 45,
-        });
-        const scaleToTopHalf = (pos: { x: number; y: number }) => ({
-          x: 100 - pos.x,
-          y: 50 - (pos.y / 100) * 45,
-        });
-        const scaleFunc = targetTeam === "a" ? scaleToBottomHalf : scaleToTopHalf;
-        
-        // Get on-pitch players for target team in a stable order
-        const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
-        const teamOnBench = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position === null);
-        
-        return playersWithTeamSide.map(p => {
-          if (p.teamSide !== targetTeam) return p; // Leave other team unchanged
-          if (p.position === null) return p; // Leave bench players unchanged
-          
-          const playerIndex = teamOnPitch.findIndex(pp => pp.id === p.id);
-          
-          if (playerIndex >= 0 && playerIndex < formation.positions.length) {
-            const pos = scaleFunc(formation.positions[playerIndex]);
-            return {
-              ...p,
-              position: pos,
-              currentPitchPosition: getPositionFromCoords(formation.positions[playerIndex].y, teamSize),
-            };
-          }
-          // More players than formation slots - send to bench
-          return { ...p, position: null, currentPitchPosition: undefined };
-        });
-      });
-      
-      const teamLabel = targetTeam === "both" ? "both teams" 
-        : targetTeam === "a" ? (miniLeagueTeams.teamAName || "Team A")
-        : (miniLeagueTeams.teamBName || "Team B");
-      toast({ title: "Formation applied", description: `${formation.name} set for ${teamLabel}` });
-      return;
-    }
-
-    const numPositions = parseInt(teamSize);
-    
-    setPlayers(prev => {
-      const playersOnPitch = prev.filter(p => p.position !== null);
-      const benchPlayers = prev.filter(p => p.position === null);
-      const allPlayers = [...playersOnPitch, ...benchPlayers];
-      
-      const updated = prev.map(p => ({ ...p, position: null as { x: number; y: number } | null, currentPitchPosition: undefined as PitchPosition | undefined }));
-      
-      // Determine who goes on pitch
-      const willBeOnPitch = allPlayers.slice(0, numPositions);
-      const stayingOnPitch = willBeOnPitch.filter(p => playersOnPitch.some(pp => pp.id === p.id));
-      const comingFromBench = willBeOnPitch.filter(p => benchPlayers.some(bp => bp.id === p.id));
-      
-      // Build formation slots
-      const slots = formation.positions.map((pos, i) => ({
-        index: i,
-        position: getPositionFromCoords(pos.y, teamSize),
-        x: pos.x,
-        y: pos.y,
-        taken: false,
-      }));
-      
-      // Optimal matching for staying players
-      const playerSlotMap = new Map<string, number>();
-      const availSlots = () => slots.filter(s => !s.taken);
-      
-      // Pass 1: exact specific label match
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-        const slot = availSlots().find(s => getSpecificPositionLabel(s.x, s.position) === fromLabel);
-        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
-      }
-      // Pass 2: same category
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const slot = availSlots().find(s => s.position === player.currentPitchPosition);
-        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
-      }
-      // Pass 3: closest remaining
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const remaining = availSlots();
-        if (remaining.length > 0) {
-          const px = player.position?.x ?? 50;
-          const py = player.position?.y ?? 50;
-          remaining.sort((a, b) => (Math.abs(a.x - px) + Math.abs(a.y - py)) - (Math.abs(b.x - px) + Math.abs(b.y - py)));
-          remaining[0].taken = true;
-          playerSlotMap.set(player.id, remaining[0].index);
-        }
-      }
-      
-      // Place staying players at their matched slots
-      for (const player of stayingOnPitch) {
-        const slotIdx = playerSlotMap.get(player.id);
-        if (slotIdx == null) continue;
-        const playerIndex = updated.findIndex(p => p.id === player.id);
-        if (playerIndex !== -1) {
-          const pos = { ...formation.positions[slotIdx] };
-          updated[playerIndex].position = pos;
-          updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
-        }
-      }
-      
-      // Place bench-to-pitch players in remaining slots
-      const remainingSlots = slots.filter(s => !s.taken);
-      for (let i = 0; i < comingFromBench.length && i < remainingSlots.length; i++) {
-        const playerIndex = updated.findIndex(p => p.id === comingFromBench[i].id);
-        if (playerIndex !== -1) {
-          const pos = { ...formation.positions[remainingSlots[i].index] };
-          updated[playerIndex].position = pos;
-          updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
-        }
-      }
-      
-      return updated;
-    });
-
-    toast({ title: "Formation applied", description: `${formation.name} formation set` });
-
-    // Notify team staff about the formation change
-    notifyFormationOrSizeChange('formation', formation.name, changeDetails);
-
-    // Auto-regenerate the plan if auto-subs are active
-    if (autoSubActive) {
-      setTimeout(() => {
-        regeneratePlanRef.current?.();
-      }, 300);
-    }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange, selectedTeamForSettings]);
+  // applyFormationChange now lives in usePitchBoardLineup (declared at top).
 
   // Keep the formation-dialog hook's dependency ref in sync each render so its
   // confirm handler can call into late-defined functions like
@@ -2743,6 +2421,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setToolbarCollapsed,
     setPortraitSheetOpen,
     autoSubActive,
+    regeneratePlanRef,
+    toast,
+  };
+
+  // Keep lineup hook's dep ref synced each render.
+  lineupDepsRef.current = {
+    players,
+    teamSize,
+    selectedFormation,
+    miniLeagueTeams,
+    autoSubActive,
+    selectedTeamForSettings,
+    setPlayers,
+    setSelectedFormation,
+    setPreferredSecondHalfGkId,
+    setAutoSubPlanEditMode,
+    setAutoSubFromPreGame,
+    setAutoSubPlanDialogOpen,
+    setShowLineupPicker,
+    setPendingFormationChange,
+    setFormationChangeDialogOpen,
+    autoPlacePlayersOnPitch,
+    autoPlaceMiniLeaguePlayers,
+    persistFormationToDb,
+    notifyFormationOrSizeChange,
     regeneratePlanRef,
     toast,
   };
