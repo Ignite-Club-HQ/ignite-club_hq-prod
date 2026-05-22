@@ -89,6 +89,8 @@ export default function VaultPage() {
   const queryClient = useQueryClient();
   const { folderId: urlFolderId } = useParams<{ folderId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromChat = (location.state as { fromChat?: boolean } | null)?.fromChat === true;
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const [currentView, setCurrentView] = useState<FolderView>({ type: "root" });
