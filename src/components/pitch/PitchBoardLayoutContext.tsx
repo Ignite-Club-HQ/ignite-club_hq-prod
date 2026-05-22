@@ -153,7 +153,7 @@ export interface PitchBoardLayoutContextValue {
   lastTapRef: React.MutableRefObject<{ playerId: string; time: number } | null>;
   linkedEventDetails: any;
   linkedEventId: any;
-  lockedPlayerIds: any;
+  lockedPlayerIds: Set<string>;
   manualSubConfirmOpen: any;
   maxSpreadMinutes: any;
   members: any;
