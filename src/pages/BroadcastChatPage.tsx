@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
@@ -100,7 +101,7 @@ export default function BroadcastChatPage() {
     const k = noteChatMount("Broadcast", null);
     return () => noteChatUnmount("Broadcast", k, null);
   }, []);
-  const { user, refreshUnreadCount, initialized } = useAuth();
+  const { user, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const navigate = useNavigate();

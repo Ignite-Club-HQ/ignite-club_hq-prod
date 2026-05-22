@@ -31,6 +31,7 @@ import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";

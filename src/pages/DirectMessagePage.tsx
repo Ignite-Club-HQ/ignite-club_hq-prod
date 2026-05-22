@@ -10,6 +10,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
@@ -185,7 +186,7 @@ export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, initialized, refreshUnreadCount } = useAuth();
+  const { user, profile, initialized, refreshUnreadCount, decrementUnreadCount } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
