@@ -96,6 +96,7 @@ import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
 import { usePitchBoardFillIn } from "./hooks/usePitchBoardFillIn";
 import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } from "./hooks/usePitchBoardFormationChangeDialog";
+import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
