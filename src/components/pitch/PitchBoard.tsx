@@ -223,24 +223,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }
   const savedState = savedStateRef.current;
   
-  // Pre-initialize time-tracking refs based on saved timer state.
-  // This prevents handleTimerUpdate from re-adding time that was already
-  // captured in savedState.players[].minutesPlayed (+ catchup).
-  // Without this, GameTimer initializes with elapsedSeconds=0, fires
-  // handleTimerUpdate(0), then restores to the full elapsed time, causing
-  // handleTimerUpdate to add a delta equal to the entire game duration — doubling minutes.
-  const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
-  const hasInitializedTimeRef = useRef(false);
-  if (savedState && !hasInitializedTimeRef.current) {
-    const timerNow = loadTimerStateForMinutes(teamId);
-    if (timerNow) {
-      const halfElapsed = getCurrentGameSeconds(timerNow);
-      const currentHalf = (timerNow.currentHalf || 1) as 1 | 2;
-      lastTimeUpdateRef.current = { seconds: halfElapsed, half: currentHalf };
-      hasInitializedTimeRef.current = true;
-      console.log("[PitchState] Pre-initialized time ref:", { halfElapsed, currentHalf });
-    }
-  }
+  // Timer state + per-tick minute math live in usePitchBoardTimer (audit #9
+  // step 1 of the PitchBoard split). Setters/callbacks that are created
+  // later in the component body are wired in via refs — see assignments
+  // after `useState<Player[]>`, after `useAutoSubs`, and after the
+  // `elapsedGameTime` state declaration further down.
+  const setPlayersRef = useRef<React.Dispatch<React.SetStateAction<Player[]>> | null>(null);
+  const setElapsedGameTimeRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
+  const updateNextSubInfoRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
+  const checkForDueSubsRef_timer = useRef<((elapsedSeconds: number, currentHalf: 1 | 2) => void) | null>(null);
+  const gameTimerRef = useRef<GameTimerRef>(null);
+  const {
+    gameInProgress,
+    setGameInProgress,
+    timerResetKey,
+    setTimerResetKey,
+    lastTimeUpdateRef,
+    hasInitializedTimeRef,
+    handleTimerUpdate,
+  } = usePitchBoardTimer({
+    teamId,
+    savedState,
+    minutesPerHalf: initialMinutesPerHalf,
+    gameTimerRef,
+    setPlayersRef,
+    setElapsedGameTimeRef,
+    updateNextSubInfoRef: updateNextSubInfoRef_timer,
+    checkForDueSubsRef: checkForDueSubsRef_timer,
+  });
   
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {
