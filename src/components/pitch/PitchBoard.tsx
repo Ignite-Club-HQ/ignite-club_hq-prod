@@ -103,6 +103,7 @@ import { usePitchBoardTactical } from "./hooks/usePitchBoardTactical";
 import { usePitchBoardSubSelection } from "./hooks/usePitchBoardSubSelection";
 import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
+import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -568,103 +569,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Mini-league team selector for formation/tactical changes
   const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
 
-  // Sync settings from props when they change (e.g., when edited on team page)
-  // Also sync on initial mount if no saved state exists for the setting
-  useEffect(() => {
-    setRotationSpeed(initialRotationSpeed);
-  }, [initialRotationSpeed]);
-  
-  useEffect(() => {
-    setDisablePositionSwaps(initialDisablePositionSwaps);
-  }, [initialDisablePositionSwaps]);
-  
-  useEffect(() => {
-    setDisableBatchSubs(initialDisableBatchSubs);
-  }, [initialDisableBatchSubs]);
-  
-  useEffect(() => {
-    setRotateGkAtHalftime(initialRotateGkAtHalftime);
-  }, [initialRotateGkAtHalftime]);
-
-  // Sync minutesPerHalf from props ONLY before the game starts. Once the
-  // timer is running (or the user has accumulated any elapsed time), a
-  // re-render from a React Query refetch must NEVER clobber the live
-  // half-duration — that would silently shorten/extend the current half
-  // and was the cause of the "resets to 10 mins as soon as game starts" bug
-  // (mini-league / event-group entry points fall back to `|| 10` when the
-  // backing row is briefly nullish during an invalidation/refetch).
-  useEffect(() => {
-    if (gameInProgress) {
-      console.info('[TimerAudit] PitchBoard mph-sync skipped: gameInProgress', {
-        teamId, initialMinutesPerHalf, currentMph: minutesPerHalf,
-      });
-      return;
-    }
-    if (!initialMinutesPerHalf || initialMinutesPerHalf <= 0) {
-      console.info('[TimerAudit] PitchBoard mph-sync skipped: invalid prop', {
-        teamId, initialMinutesPerHalf,
-      });
-      return;
-    }
-    // Belt-and-braces: also consult localStorage so a parent refetch landing
-    // in the ~1s gap between Play press and the first tick (where
-    // `gameInProgress` is still false) cannot snap the live half to a stale
-    // `|| 10` fallback. The timer writes `isRunning: true` synchronously on
-    // start, so this catches the race window.
-    try {
-      const t = loadTimerStateForMinutes(teamId);
-      if (t && (t.isRunning || (t.elapsedSeconds && t.elapsedSeconds > 0) || t.currentHalf === 2 || t.isGameFinished)) {
-        console.info('[TimerAudit] PitchBoard mph-sync blocked by localStorage', {
-          teamId, initialMinutesPerHalf, currentMph: minutesPerHalf, localStorageState: t,
-        });
-        return;
-      }
-    } catch {}
-    console.info('[TimerAudit] PitchBoard setMinutesPerHalf', {
-      teamId, from: minutesPerHalf, to: initialMinutesPerHalf, gameInProgress,
-      ts: new Date().toISOString(),
-    });
-    setMinutesPerHalf(initialMinutesPerHalf);
-  }, [initialMinutesPerHalf, gameInProgress, teamId]);
-
-  useEffect(() => {
-    setMaxSpreadMinutes(initialMaxSpreadMinutes);
-  }, [initialMaxSpreadMinutes]);
-
-  // Sync team size and formation from props if no saved state - runs on mount and when props change
-  useEffect(() => {
-    // Keep local reset defaults in sync with backend defaults
-    const candidateSize = String(initialTeamSize || "");
-    const nextDefaultSize: TeamSize = isSavedDefaultTeamSize(candidateSize) ? candidateSize : "7";
-    savedTeamDefaultsRef.current = {
-      minutesPerHalf: initialMinutesPerHalf,
-      rotationSpeed: initialRotationSpeed,
-      disablePositionSwaps: initialDisablePositionSwaps,
-      disableBatchSubs: initialDisableBatchSubs,
-      rotateGkAtHalftime: initialRotateGkAtHalftime,
-      maxSpreadMinutes: initialMaxSpreadMinutes,
-      teamSize: nextDefaultSize,
-      formation: initialFormation || null,
-    };
-
-    // Only sync if there's no saved state for this team (fresh session)
-    if (!savedState && initialTeamSize) {
-      const validSize = String(initialTeamSize) as TeamSize;
-      if (isSavedDefaultTeamSize(validSize)) {
-        setTeamSize(validSize);
-        // Also update formation if provided
-        if (initialFormation) {
-          const formations = FORMATIONS[validSize];
-          const index = formations.findIndex(f => f.name === initialFormation);
-          if (index >= 0) {
-            setSelectedFormation(index);
-          }
-        } else {
-          setSelectedFormation(0); // Reset to first formation for new size
-        }
-      }
-    }
-  }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
+  // Step 9a — prop → state sync effects (7 effects + savedTeamDefaultsRef
+  // refresh) now live in usePitchBoardPropSync.
+  usePitchBoardPropSync({
+    teamId,
+    savedState,
+    initialTeamSize,
+    initialFormation,
+    initialMinutesPerHalf,
+    initialRotationSpeed,
+    initialDisablePositionSwaps,
+    initialDisableBatchSubs,
+    initialRotateGkAtHalftime,
+    initialMaxSpreadMinutes,
+    gameInProgress,
+    minutesPerHalf,
+    setTeamSize,
+    setSelectedFormation,
+    setMinutesPerHalf,
+    setRotationSpeed,
+    setDisablePositionSwaps,
+    setDisableBatchSubs,
+    setRotateGkAtHalftime,
+    setMaxSpreadMinutes,
+    savedTeamDefaultsRef,
+  });
 
   // Setting change handlers — update local state and persist via hook
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
