@@ -41,6 +41,22 @@ export function usePitchBoardLifecycle({
   toastRef.current = toast;
 
   // 1. Open-flag + path (mount-only; see PitchBoard note for why).
+  //
+  // IMPORTANT: We deliberately do NOT clear PITCH_BOARD_OPEN_KEY /
+  // PITCH_BOARD_OPEN_PATH_KEY / PITCH_BOARD_LAST_CONTEXT_KEY on unmount.
+  // PitchBoard can unmount for many transient reasons unrelated to the user
+  // closing it:
+  //  - Parent query refetch briefly flips a gating prop
+  //    (e.g. hasProFootball) and re-mounts the portal.
+  //  - iOS WebView suspend on screen-lock tears down the React tree while
+  //    the OS keeps the process alive (only happens for some game states —
+  //    notably when a game is running and other native work keeps the app
+  //    alive past the usual freeze).
+  //  - Low-memory remounts on Android.
+  // If unmount cleanup wiped the flag, PitchBoardResumeRedirect would have
+  // nothing to restore on resume and the user would land on the team page
+  // with the board gone. The flag is cleared explicitly via
+  // `clearPitchBoardOpenFlag()` from the close handlers instead.
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
     try {
@@ -52,9 +68,9 @@ export function usePitchBoardLifecycle({
     (window as any).__pitchBoardMounted = true;
     localStorage.removeItem("pitch-widget-dismissed");
     return () => {
-      localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
-      localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
-      localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
+      // Only flip the in-memory mounted marker so PitchBoardResumeRedirect
+      // can re-attempt a restore. The persisted open flag stays put — see
+      // the IMPORTANT comment above.
       (window as any).__pitchBoardMounted = false;
     };
   }, []);
