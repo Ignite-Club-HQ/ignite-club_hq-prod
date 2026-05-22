@@ -416,7 +416,7 @@ function FolderList({
                 </div>
                 <p className="text-sm font-medium text-foreground truncate flex-1">{f.name}</p>
               </button>
-              {f.has_children && (
+              {f.has_children !== false && (
                 <button
                   type="button"
                   onClick={() => onDrillIn(f)}
