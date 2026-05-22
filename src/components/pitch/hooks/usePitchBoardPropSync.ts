@@ -1,8 +1,11 @@
 import { useEffect, MutableRefObject } from "react";
-import type { TeamSize } from "../formations";
-import { FORMATIONS, isSavedDefaultTeamSize } from "../formations";
+import type { TeamSize, PitchBoardState } from "../types";
+import { FORMATIONS } from "../types";
 import { loadTimerStateForMinutes } from "../pitchStateUtils";
-import type { PitchBoardState } from "../pitchStateUtils";
+
+const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
+const isSavedDefaultTeamSize = (value: string): value is TeamSize =>
+  SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
 
 export interface SavedTeamDefaults {
   minutesPerHalf: number;
