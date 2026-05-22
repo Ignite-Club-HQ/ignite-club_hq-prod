@@ -45,6 +45,7 @@ interface SubConfirmDialogProps {
   batchSubstitutions?: SubstitutionEvent[];
   onConfirm: () => void;
   onSkip: () => void;
+  onAcknowledgeHalftime?: () => void;
   players: Player[];
   secondsUntilDue?: number;
   isGameFinished?: boolean;
@@ -57,6 +58,7 @@ export default function SubConfirmDialog({
   batchSubstitutions = [],
   onConfirm,
   onSkip,
+  onAcknowledgeHalftime,
   players,
   secondsUntilDue = 0,
   isGameFinished = false,
@@ -287,7 +289,7 @@ export default function SubConfirmDialog({
         
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
           {isHalftimeOnly ? (
-            <Button onClick={() => onOpenChange(false)} className="flex-1 gap-2 h-12 text-base">
+            <Button onClick={() => { onAcknowledgeHalftime?.(); onOpenChange(false); }} className="flex-1 gap-2 h-12 text-base">
               <Check className="h-4 w-4" />
               OK
             </Button>
