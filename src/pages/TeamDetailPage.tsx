@@ -68,6 +68,7 @@ const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
 const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
 const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
@@ -1345,7 +1346,9 @@ export default function TeamDetailPage() {
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
         const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
           (isSoccerClub && (hasProFootball || isAppAdmin)) ||
-          ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+          // Netball / basketball game boards are still in beta — hidden from
+          // all users except app admins until they're ready for general use.
+          ((isNetballClub || isBasketballClub) && isAppAdmin)
         );
         const launchPitchBoard = async () => {
           const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
@@ -2014,7 +2017,7 @@ export default function TeamDetailPage() {
           )}
 
           {/* Game History - basketball + netball only */}
-          {isMember && (isBasketballClub || isNetballClub) && (
+          {isMember && (isBasketballClub || isNetballClub) && isAppAdmin && (
             <AccordionItem value="game-history" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -2516,6 +2519,7 @@ export default function TeamDetailPage() {
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
+                clearPitchBoardOpenFlag();
                 setShowPitchBoard(false);
                 setLinkedEventId(null);
                 setPitchBoardMembersOverride([]);
@@ -2544,7 +2548,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* Game Board Modal — netball */}
-      {showPitchBoard && isNetballClub && createPortal(
+      {showPitchBoard && isNetballClub && isAppAdmin && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-4">
@@ -2559,6 +2563,7 @@ export default function TeamDetailPage() {
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
+                clearPitchBoardOpenFlag();
                 setShowPitchBoard(false);
                 setLinkedEventId(null);
                 setPitchBoardMembersOverride([]);
@@ -2572,7 +2577,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* Game Board Modal — basketball */}
-      {showPitchBoard && isBasketballClub && createPortal(
+      {showPitchBoard && isBasketballClub && isAppAdmin && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-4">
@@ -2587,6 +2592,7 @@ export default function TeamDetailPage() {
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
+                clearPitchBoardOpenFlag();
                 setShowPitchBoard(false);
                 setLinkedEventId(null);
                 setPitchBoardMembersOverride([]);

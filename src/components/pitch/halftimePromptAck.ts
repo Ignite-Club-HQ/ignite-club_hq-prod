@@ -78,3 +78,31 @@ export const acknowledgeHalftimePrompt = (key: string | null | undefined): void 
   acks[key] = Date.now();
   writeAcks(acks);
 };
+
+/**
+ * Single source of truth for whether the informational "Half Time" prompt
+ * (or any halftime-only auto-sub dialog) is allowed to open right now.
+ *
+ * Returns true only when:
+ *   1. The user has NOT already acknowledged this game's halftime prompt
+ *   2. The timer is actually parked on the genuine halftime boundary —
+ *      currentHalf === 2, elapsedSeconds <= 5, isRunning === false
+ *
+ * Every site that opens the halftime dialog (PitchBoard handleHalfChange,
+ * useAutoSubScheduler.checkHalftimeSubs, GlobalSubMonitor) MUST call this
+ * before flipping `subConfirmDialogOpen = true` so stale mid-game prompts
+ * cannot leak through (e.g. on reconcile, push-launch, or a delayed
+ * setTimeout firing after the second half has resumed).
+ */
+export const canShowHalftimePrompt = (
+  timerState: TimerLike | null | undefined,
+  pitchState: PitchLike | null | undefined
+): boolean => {
+  if (!timerState) return false;
+  if (timerState.currentHalf !== 2) return false;
+  if ((timerState.elapsedSeconds || 0) > 5) return false;
+  if (timerState.isRunning) return false;
+  const ackKey = getHalftimePromptAckKey(timerState, pitchState);
+  if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
+  return true;
+};

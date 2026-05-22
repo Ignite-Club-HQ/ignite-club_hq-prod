@@ -1967,7 +1967,7 @@ export default function GroupChatPage() {
             showBoardPicker={true}
             onBoardPick={() => setBoardPickerOpen(true)}
             showVaultPicker={!!group?.club_id}
-            onAppendToken={(token) => setMessage(message ? `${message} ${token}` : token)}
+            onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
             hasText={!!message.trim()}
           />
           <MentionInput

@@ -30,6 +30,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
+import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 import CourtBoardResumeCard from "@/components/home/CourtBoardResumeCard";
 
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
@@ -2466,7 +2467,7 @@ export default function HomePage() {
             teamId={pitchBoardTeam.id}
             teamName={pitchBoardTeam.name}
             members={pitchBoardTeam.members}
-            onClose={() => setPitchBoardTeam(null)}
+            onClose={() => { clearPitchBoardOpenFlag(); setPitchBoardTeam(null); }}
             readOnly={pitchBoardTeam.readOnly}
             initialLinkedEventId={pitchBoardTeam.linkedEventId}
           />

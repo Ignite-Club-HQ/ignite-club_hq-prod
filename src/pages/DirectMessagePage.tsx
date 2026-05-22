@@ -1498,7 +1498,7 @@ export default function DirectMessagePage() {
                     showBoardPicker={true}
                     onBoardPick={() => setBoardPickerOpen(true)}
                     showVaultPicker={!!sharedClubId}
-                    onAppendToken={(token) => setMessage(message ? `${message} ${token}` : token)}
+                    onAppendToken={(token) => setMessage((prev) => (prev ? `${prev} ${token}` : token))}
                     hasText={!!message.trim()}
                   />
                 )}

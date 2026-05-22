@@ -558,10 +558,11 @@ export default function EventDetailPage() {
   const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
   const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
-  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer; netball + basketball are open
+  // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer.
+  // Netball + basketball game boards are still in beta and restricted to app admins only.
   const canAccessSoccerBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
-  const canAccessNetballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
-  const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
+  const canAccessNetballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isNetballClub && !!isAppAdmin;
+  const canAccessBasketballBoard = canManagePitchBoard && event?.type === 'game' && !!event?.team_id && !!isBasketballClub && !!isAppAdmin;
   const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
 
   const wantOpenPitchBoard = searchParams.get("openPitchBoard") === "1";
