@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import type { Player, PitchPosition } from "../types";
+import type { Player } from "../types";
+import type { PitchPosition } from "../PositionBadge";
 
 export interface ManualSubDeps {
   isUndoingRef: MutableRefObject<boolean>;
