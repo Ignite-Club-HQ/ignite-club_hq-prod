@@ -3310,6 +3310,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     handleBallTouchStart, handleBenchDrop, handleBenchLongPressEnd, handleBenchLongPressMove,
     handleBenchLongPressStart, handleBenchToSubSelect, handleCancelAutoSubPlan,
     handleCancelManualSub, handleCancelPitchSwap, handleCancelSwapBasedSub, handleConfirmAutoSub,
+    handleAcknowledgeHalftimePrompt,
     handleConfirmManualSub, handleConfirmPitchSwap, handleConfirmPitchSwapWithAccommodation,
     handleConfirmSubAfterSwap, handleConfirmSwapBeforeSub, handleDismissTacticalSuggestion,
     handleDragEnd, handleDragOver, handleDragStart, handleExecuteNow, handleFormationChange,
