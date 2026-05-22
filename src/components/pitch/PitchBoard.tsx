@@ -93,6 +93,7 @@ import {
 import { getCurrentGameSeconds } from "./timerUtils";
 import { usePitchBoardTimer } from "./hooks/usePitchBoardTimer";
 import { usePitchBoardEventLink } from "./hooks/usePitchBoardEventLink";
+import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -1304,11 +1305,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [zoom, setZoom] = useState(1);
   const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
 
-  // Ball position state
-  const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
-  const [isDraggingBall, setIsDraggingBall] = useState(false);
-  const isDraggingBallRef = useRef(false);
-  const recentlyDraggedBallRef = useRef(false);
+  // Ball state + drag/touch handlers live in usePitchBoardBall
+  const {
+    ballPosition,
+    setBallPosition,
+    isDraggingBall,
+    recentlyDraggedBallRef,
+    handleBallDragStart,
+    handleBallDrag,
+    handleBallDragEnd,
+    handleBallTouchStart,
+    handleBallTouchMove,
+    handleBallTouchEnd,
+  } = usePitchBoardBall({
+    containerRef,
+    initialBallPosition: savedState?.ballPosition,
+  });
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
@@ -3306,57 +3318,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
-  // Ball drag handlers
-  const handleBallDragStart = () => {
-    setIsDraggingBall(true);
-  };
+  // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
-  const handleBallDrag = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-  };
 
-  const handleBallDragEnd = () => {
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
-    setIsDraggingBall(false);
-  };
-
-  const handleBallTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    isDraggingBallRef.current = true;
-    setIsDraggingBall(true);
-    // Immediately update position on touch start
-    if (containerRef.current) {
-      const touch = e.touches[0];
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-    }
-  };
-
-  const handleBallTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingBallRef.current || !containerRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((touch.clientX - rect.left) / rect.width) * 100;
-    const y = ((touch.clientY - rect.top) / rect.height) * 100;
-    setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
-  };
-
-  const handleBallTouchEnd = () => {
-    isDraggingBallRef.current = false;
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
-    setIsDraggingBall(false);
-  };
 
   const handleZoomOut = () => {
     setZoom(prev => Math.max(prev - 0.25, 0.5));
