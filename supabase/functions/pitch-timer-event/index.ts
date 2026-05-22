@@ -207,6 +207,40 @@ Deno.serve(async (req) => {
     q = teamId ? q.eq("team_id", teamId) : q.eq("user_id", user.id).is("team_id", null);
     const { data: existing } = await q.maybeSingle();
 
+    // Audit fix #1: authorize the caller before any service-role write.
+    // - Team-scoped requests: must pass `can_control_pitch_board(team_id, event_id)`
+    //   (team_admin, club_admin/app_admin on owning club, or Subs Manager duty).
+    //   We pass the linked event id when known (incoming body wins, else existing
+    //   row's pitch_state.linkedEventId) so the duty fallback can apply.
+    // - Personal (no team_id) rows: caller must own the existing row.
+    if (teamId) {
+      const linkedEventIdFromExisting =
+        (existing?.pitch_state as Record<string, unknown> | null)?.["linkedEventId"];
+      const incomingPitchState = body.pitch_state as Record<string, unknown> | undefined;
+      const linkedEventIdFromIncoming =
+        (typeof body.linked_event_id === "string" && body.linked_event_id) ||
+        (incomingPitchState && typeof incomingPitchState.linkedEventId === "string"
+          ? (incomingPitchState.linkedEventId as string)
+          : null);
+      const eventIdForAuth =
+        (typeof linkedEventIdFromIncoming === "string" && linkedEventIdFromIncoming) ||
+        (typeof linkedEventIdFromExisting === "string" && linkedEventIdFromExisting) ||
+        null;
+      const { data: allowed, error: authzErr } = await supabase.rpc(
+        "can_control_pitch_board",
+        { _team_id: teamId, _event_id: eventIdForAuth },
+      );
+      if (authzErr || allowed !== true) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (existing && existing.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const prev: ServerTimer = existing?.timer_state?.schema_version === 2
       ? existing.timer_state as ServerTimer
       : emptyTimer(initialMinutes);
