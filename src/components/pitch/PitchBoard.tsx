@@ -1482,6 +1482,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Bench-to-pitch drag substitution state
   const [benchToSubOpen, setBenchToSubOpen] = useState(false);
   const [benchToSubPlayer, setBenchToSubPlayer] = useState<string | null>(null);
+
+  // Step 8b — manual-sub confirm dialog flow (state + handlers + trigger effect)
+  const {
+    manualSubConfirmOpen,
+    setManualSubConfirmOpen,
+    pendingManualSub,
+    setPendingManualSub,
+    handleConfirmManualSub,
+    handleCancelManualSub,
+    handleBenchToSubSelect,
+    manualSubDepsRef,
+  } = usePitchBoardManualSub();
   const [benchDragPlayer, setBenchDragPlayer] = useState<string | null>(null);
   const [benchDragPos, setBenchDragPos] = useState<{ x: number; y: number } | null>(null);
   const benchLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
