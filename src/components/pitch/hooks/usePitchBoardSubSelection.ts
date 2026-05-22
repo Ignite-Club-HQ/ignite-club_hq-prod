@@ -3,8 +3,6 @@ import type { Player } from "../types";
 
 interface UsePitchBoardSubSelectionArgs {
   players: Player[];
-  playersOnPitch: Player[];
-  playersOnBench: Player[];
   swapMode: boolean;
   swapPlayer1: string | null;
   miniLeagueTeams: unknown;
