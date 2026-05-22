@@ -63,7 +63,7 @@ export interface UsePitchBoardTimerResult {
 export function usePitchBoardTimer({
   teamId,
   savedState,
-  minutesPerHalf,
+  minutesPerHalfRef,
   gameTimerRef,
   setPlayersRef,
   setElapsedGameTimeRef,
