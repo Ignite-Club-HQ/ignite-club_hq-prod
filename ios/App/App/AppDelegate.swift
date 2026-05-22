@@ -60,15 +60,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUser
     }
     
     // MARK: - UNUserNotificationCenterDelegate
-    
+    //
+    // We set AppDelegate as the UNUserNotificationCenter delegate so we receive
+    // cold-start notification taps (the Capacitor PushNotifications plugin's
+    // own `load()` runs later and would otherwise miss them). We then forward
+    // the calls to the plugin so its JS `pushNotificationActionPerformed`
+    // listener fires and the app navigates to the tapped message.
+
+    private func capacitorPushDelegate() -> UNUserNotificationCenterDelegate? {
+        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController,
+              let plugin = bridgeVC.bridge?.plugin(withName: "PushNotifications") as? UNUserNotificationCenterDelegate else {
+            return nil
+        }
+        return plugin
+    }
+
     // Show notifications even when app is in foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        if let pushDelegate = capacitorPushDelegate(),
+           pushDelegate.userNotificationCenter?(center, willPresent: notification, withCompletionHandler: completionHandler) != nil {
+            return
+        }
         completionHandler([.banner, .badge, .sound])
     }
-    
-    // Handle notification tap
+
+    // Handle notification tap - forward to Capacitor so pushNotificationActionPerformed fires
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        // Let Capacitor handle the notification action
+        if let pushDelegate = capacitorPushDelegate(),
+           pushDelegate.userNotificationCenter?(center, didReceive: response, withCompletionHandler: completionHandler) != nil {
+            return
+        }
+        // Plugin not ready yet (cold start) - buffer the userInfo and replay it
+        // once the plugin has loaded.
+        let userInfo = response.notification.request.content.userInfo
+        PendingNotificationTap.shared.store(userInfo: userInfo)
         completionHandler()
     }
 
