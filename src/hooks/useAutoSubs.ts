@@ -14,25 +14,24 @@ import { useState, useRef, useCallback, useReducer, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player, SubstitutionEvent, TeamSize } from "@/components/pitch/types";
 import type { GameTimerRef } from "@/components/pitch/GameTimer";
-import { playSubAlertBeep } from "@/components/pitch/GameTimer";
 import {
   getSubKey,
   executeSubsOnPlayers,
   markSubsExecuted,
   calculateSubDelay,
-  getDueSubGroups,
   findRelevantNextSub,
 } from "@/components/pitch/autoSubHelpers";
 import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan,
 } from "@/components/pitch/pitchStateUtils";
-import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
 import {
   autoSubReducer,
   initialAutoSubState,
   type AutoSubState,
 } from "@/components/pitch/autoSub/autoSubReducer";
+import { useAutoSubScheduler } from "@/hooks/useAutoSubScheduler";
+
 
 export interface UseAutoSubsOptions {
   /** Initial plan from saved state */
