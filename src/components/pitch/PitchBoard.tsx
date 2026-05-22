@@ -104,6 +104,7 @@ import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
+import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
 import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
@@ -1583,63 +1584,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId]);
 
-  // Track if we've done initial load
-  const hasLoadedRef = useRef(false);
-  
-  // Handle initialization and merging new players
-  useEffect(() => {
-    // Only process once per component mount
-    if (hasLoadedRef.current) return;
-    
-    if (savedState) {
-      // If mockMode is true, we have saved mock players - don't merge real players
-      // Just use the saved state as-is
-      if (savedState.mockMode) {
-        hasLoadedRef.current = true;
-        setHasInitialized(true);
-        return;
-      }
-
-      if (savedState.players.length === 0 && realPlayers.length > 0) {
-        console.log("[PitchState] Replacing stale empty saved state with live roster");
-        clearPitchState(teamId);
-        setPlayers(
-          miniLeagueTeams
-            ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
-            : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
-        );
-        hasLoadedRef.current = true;
-        setHasInitialized(true);
-        return;
-      }
-      
-      // We have saved state with real players - check if we need to merge new real players
-      const savedPlayerIds = new Set(savedState.players.map(p => p.id));
-      const newPlayers = realPlayers.filter(p => !savedPlayerIds.has(p.id));
-      if (isStrictMatchEventRoster && savedRosterHasPlayersOutsideCurrentRoster) {
-        setPlayers(prev => applyStrictMatchRoster(prev));
-      }
-      
-      // If there are new players not in saved state, add them
-      if (newPlayers.length > 0) {
-        setPlayers(prev => applyStrictMatchRoster([...prev, ...newPlayers]));
-      }
-      
-      hasLoadedRef.current = true;
-      setHasInitialized(true);
-    } else if (realPlayers.length > 0) {
-      // No saved state, but we have real players - auto-place them
-      // Use mini-league two-team mode if configured, otherwise single team mode
-      if (miniLeagueTeams) {
-        setPlayers(autoPlaceMiniLeaguePlayers(realPlayers, teamSize));
-      } else {
-        setPlayers(autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation));
-      }
-      hasLoadedRef.current = true;
-      setHasInitialized(true);
-    }
-    // If no saved state and no realPlayers yet, wait for realPlayers to load
-  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation, isStrictMatchEventRoster, savedRosterHasPlayersOutsideCurrentRoster, applyStrictMatchRoster]);
+  // Step 9d — player bootstrap (saved-state merge / fresh auto-place).
+  const { hasLoadedRef } = usePitchBoardPlayerBootstrap({
+    savedState,
+    realPlayers,
+    teamId,
+    teamSize,
+    selectedFormation,
+    miniLeagueTeams,
+    isStrictMatchEventRoster,
+    savedRosterHasPlayersOutsideCurrentRoster,
+    applyStrictMatchRoster,
+    autoPlacePlayersOnPitch,
+    autoPlaceMiniLeaguePlayers,
+    setPlayers,
+    setHasInitialized,
+  });
 
   // handleLineupSkip now lives in usePitchBoardLineup (declared at top).
 
