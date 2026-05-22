@@ -25,6 +25,7 @@ import {
   calculateSubDelay,
   getDueSubGroups,
 } from "./autoSubHelpers";
+import { acknowledgeHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
@@ -585,6 +586,9 @@ export default function GlobalSubMonitor() {
     const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
     
     if (isHalftimeBreak) {
+      const halftimeAckKey = getHalftimePromptAckKey(timerState, pitchState);
+      if (hasAcknowledgedHalftimePrompt(halftimeAckKey)) return;
+
       const staleFirstHalfSubs = pitchState.autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
         !sub.executed && sub.half === 2 && sub.time === 0
@@ -1108,6 +1112,12 @@ export default function GlobalSubMonitor() {
     lastCheckedSubRef.current = null;
   }, [pendingAutoSub, pendingBatchSubs]);
 
+  const handleAcknowledgeHalftime = useCallback(() => {
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
+    acknowledgeHalftimePrompt(getHalftimePromptAckKey(timerState, pitchState));
+  }, []);
+
   return (
     <>
       <SubConfirmDialog
@@ -1117,6 +1127,7 @@ export default function GlobalSubMonitor() {
         batchSubstitutions={pendingBatchSubs}
         onConfirm={handleConfirmAutoSub}
         onSkip={handleSkipAutoSub}
+        onAcknowledgeHalftime={handleAcknowledgeHalftime}
         players={currentPlayers}
       />
       {finishedGameData && (
