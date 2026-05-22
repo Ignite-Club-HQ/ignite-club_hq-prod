@@ -84,7 +84,6 @@ import {
 import ScoreTracker from "./ScoreTracker";
 import {
   savePitchState,
-  loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
