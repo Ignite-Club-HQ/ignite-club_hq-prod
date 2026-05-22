@@ -310,11 +310,27 @@ async function notifyTeamStaff(
   for (const userId of enabledUsers) {
     const insertedNotifId = insertedNotifMap.get(userId);
 
+    // Build deep-link URL that re-opens the pitch board on tap.
+    // - Mini-league games (teamId begins with `event-group-`) live under
+    //   the event/group pitch route.
+    // - Regular team games use the team detail page with ?openPitchBoard=1,
+    //   which PitchBoardResumeRedirect / TeamDetailPage both consume.
+    // - Fall back to "/" only if we have neither a team nor a linked event.
+    let pushUrl = '/';
+    if (isMiniLeague && linkedEventId) {
+      const groupId = teamId!.replace(/^event-group-/, '');
+      pushUrl = `/events/${linkedEventId}/groups/${groupId}/pitch`;
+    } else if (teamId) {
+      pushUrl = `/teams/${teamId}?openPitchBoard=1`;
+    } else if (linkedEventId) {
+      pushUrl = `/events/${linkedEventId}?openPitchBoard=1`;
+    }
+
     // Push notification (don't await individually)
     deliveryPromises.push(
       sendPushNotification(
         supabase, userId, pushTitle, pushBody,
-        '/',
+        pushUrl,
         `pitch-${notificationType}-${gameId}`,
         'pitch_board',
         insertedNotifId
