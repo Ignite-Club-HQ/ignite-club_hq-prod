@@ -121,7 +121,7 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
 
   const handleClick = () => {
     hapticSelectionTick();
-    navigate(target.href);
+    navigate(target.href, { state: { fromChat: true } });
   };
 
   return (
