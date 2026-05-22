@@ -1607,7 +1607,15 @@ export default function TeamChatPage() {
       )}
 
       {/* Pinned vault banner */}
-      <PinnedVaultBanner record={pinnedVault.record} isAdmin={!!isAdmin} />
+      <PinnedVaultBanner
+        record={pinnedVault.record}
+        isAdmin={!!isAdmin}
+        onUnpin={
+          pinnedVault.record && (isAdmin || pinnedVault.record.set_by === user?.id)
+            ? () => pinnedVault.remove()
+            : undefined
+        }
+      />
 
       {/* Pinned messages banner */}
       <PinnedMessagesBanner
