@@ -1,5 +1,13 @@
 import { useCallback, useRef, useState, type MutableRefObject } from "react";
-import type { PitchPosition, Player } from "@/types/pitch";
+import type { PitchPosition } from "../PositionBadge";
+
+// Structural Player — PitchBoard defines its own Player interface inline.
+// We only need the fields the drag handlers actually read.
+interface DragPlayer {
+  id: string;
+  position?: { x: number; y: number };
+  currentPitchPosition?: PitchPosition;
+}
 
 /**
  * Player drag-and-drop for PitchBoard.
