@@ -586,8 +586,9 @@ export default function GlobalSubMonitor() {
     const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
     
     if (isHalftimeBreak) {
-      const halftimeAckKey = getHalftimePromptAckKey(timerState, pitchState);
-      if (hasAcknowledgedHalftimePrompt(halftimeAckKey)) return;
+      // Unified gate: must be at genuine halftime boundary AND not acknowledged.
+      if (!canShowHalftimePrompt(timerState, pitchState)) return;
+
 
       const staleFirstHalfSubs = pitchState.autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
