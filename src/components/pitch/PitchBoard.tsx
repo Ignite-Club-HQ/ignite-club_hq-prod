@@ -98,6 +98,7 @@ import { usePitchBoardBall } from "./hooks/usePitchBoardBall";
 import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } from "./hooks/usePitchBoardFormationChangeDialog";
 import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { usePitchBoardPinchZoom } from "./hooks/usePitchBoardPinchZoom";
+import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardDragDrop";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
@@ -1287,8 +1288,33 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   playersRef.current = players;
   const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
 
-  // Player drag/drop — owned by usePitchBoardDragDrop (declared after the
-  // helpers it needs are defined; see further down in this component).
+  // Player drag/drop is owned by usePitchBoardDragDrop. We declare it here
+  // (before the rest of the component reads its state/refs) but pass deps via
+  // a ref that is reassigned further down — same pattern as
+  // usePitchBoardFormationChangeDialog / usePitchBoardLineup.
+  const dragDropDepsRef = useRef<DragDropDeps>({} as DragDropDeps);
+  const {
+    draggedPlayer,
+    touchDragPlayer,
+    touchOffset,
+    setTouchDragPlayer,
+    setTouchOffset,
+    touchIdRef,
+    playerDragOffsetRef,
+    playerDragStartRef,
+    recentlyDraggedRef,
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    handlePitchDrop,
+    handleBenchDrop,
+    handleTouchStart,
+    applyPitchTouchMove,
+    finalizePitchTouchEnd,
+    handleBenchTouchMove,
+    handleBenchTouchEnd,
+  } = usePitchBoardDragDrop(dragDropDepsRef);
+
 
 
 
