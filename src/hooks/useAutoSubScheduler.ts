@@ -27,7 +27,7 @@ import {
 } from "@/components/pitch/autoSubHelpers";
 import { validateAndFixRemainingPlan } from "@/components/pitch/pitchStateUtils";
 import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
-import { acknowledgeHalftimePrompt, hasAcknowledgedHalftimePrompt } from "@/components/pitch/halftimePromptAck";
+import { hasAcknowledgedHalftimePrompt } from "@/components/pitch/halftimePromptAck";
 
 export interface UseAutoSubSchedulerArgs {
   autoSubActive: boolean;
@@ -313,7 +313,6 @@ export function useAutoSubScheduler({
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
-          acknowledgeHalftimePrompt(ackKey);
         }, 500);
         return true;
       }
@@ -329,7 +328,6 @@ export function useAutoSubScheduler({
         setPendingAutoSub(primarySub);
         setPendingBatchSubs(additionalSubs);
         setSubConfirmDialogOpen(true);
-        acknowledgeHalftimePrompt(ackKey);
       }, 500);
 
       return true;
