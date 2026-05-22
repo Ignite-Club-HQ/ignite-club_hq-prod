@@ -106,6 +106,7 @@ import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
 import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
 import { usePitchBoardLifecycle } from "./hooks/usePitchBoardLifecycle";
+import { usePitchBoardDrawing } from "./hooks/usePitchBoardDrawing";
 import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
