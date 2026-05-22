@@ -198,6 +198,7 @@ export default function PitchBoardPortraitLayout() {
     handleCancelManualSub,
     handleCancelPitchSwap,
     handleCancelSwapBasedSub,
+    handleAcknowledgeHalftimePrompt,
     handleConfirmAutoSub,
     handleConfirmManualSub,
     handleConfirmPitchSwap,
@@ -1761,6 +1762,7 @@ export default function PitchBoardPortraitLayout() {
         batchSubstitutions={pendingBatchSubs}
         onConfirm={handleConfirmAutoSub}
         onSkip={handleSkipAutoSub}
+        onAcknowledgeHalftime={handleAcknowledgeHalftimePrompt}
         players={players}
       />
 

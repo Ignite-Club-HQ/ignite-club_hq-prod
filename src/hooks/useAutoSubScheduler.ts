@@ -27,12 +27,14 @@ import {
 } from "@/components/pitch/autoSubHelpers";
 import { validateAndFixRemainingPlan } from "@/components/pitch/pitchStateUtils";
 import { triggerPitchCheck } from "@/lib/triggerPitchCheck";
+import { hasAcknowledgedHalftimePrompt } from "@/components/pitch/halftimePromptAck";
 
 export interface UseAutoSubSchedulerArgs {
   autoSubActive: boolean;
   autoSubPaused: boolean;
   autoSubPlan: SubstitutionEvent[];
   setAutoSubPlan: Dispatch<SetStateAction<SubstitutionEvent[]>>;
+  halftimePromptAckKey?: string | null;
   lockedPlayerIds: Set<string>;
   playersRef: MutableRefObject<Player[]>;
   gameTimerRef: MutableRefObject<GameTimerRef | null>;
@@ -61,6 +63,7 @@ export function useAutoSubScheduler({
   autoSubPaused,
   autoSubPlan,
   setAutoSubPlan,
+  halftimePromptAckKey,
   lockedPlayerIds,
   playersRef,
   gameTimerRef,
@@ -282,6 +285,9 @@ export function useAutoSubScheduler({
     (newHalf: 1 | 2) => {
       if (newHalf !== 2) return false;
 
+      const ackKey = halftimePromptAckKey ?? null;
+      if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
+
       const staleFirstHalfSubs = autoSubPlan.filter(
         (sub) => !sub.executed && sub.half === 1
       );
@@ -302,6 +308,7 @@ export function useAutoSubScheduler({
       if (halftimeSubs.length === 0) {
         // No halftime subs — still show the halftime popup
         setTimeout(() => {
+          if (hasAcknowledgedHalftimePrompt(ackKey)) return;
           playSubAlertBeep("Half time!");
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
@@ -311,6 +318,7 @@ export function useAutoSubScheduler({
       }
 
       setTimeout(() => {
+        if (hasAcknowledgedHalftimePrompt(ackKey)) return;
         const [primarySub, ...additionalSubs] = halftimeSubs;
         const notificationBody =
           halftimeSubs.length > 1
@@ -324,7 +332,7 @@ export function useAutoSubScheduler({
 
       return true;
     },
-    [autoSubPlan, setAutoSubPlan]
+    [autoSubPlan, setAutoSubPlan, halftimePromptAckKey]
   );
 
   return {
