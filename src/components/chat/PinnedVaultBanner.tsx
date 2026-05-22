@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Pin, Folder, FileText, ExternalLink, EyeOff } from "lucide-react";
+import { Pin, Folder, FileText, ExternalLink, EyeOff, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { hapticSelectionTick } from "@/lib/haptics";
@@ -10,6 +10,8 @@ interface PinnedVaultBannerProps {
   record: PinnedVaultRecord | null;
   /** When admin and disabled, render a subtle "hidden" hint so they can re-enable from the menu. */
   isAdmin?: boolean;
+  /** When provided, render an ✕ button on the banner to remove the pin. Caller decides who can unpin. */
+  onUnpin?: () => void;
 }
 
 interface ResolvedTarget {
