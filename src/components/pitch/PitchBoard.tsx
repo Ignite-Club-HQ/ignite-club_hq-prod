@@ -99,6 +99,7 @@ import { usePitchBoardFormationChangeDialog, type FormationChangeDialogDeps } fr
 import { usePitchBoardLineup, type LineupDeps } from "./hooks/usePitchBoardLineup";
 import { usePitchBoardPinchZoom } from "./hooks/usePitchBoardPinchZoom";
 import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardDragDrop";
+import { usePitchBoardTactical } from "./hooks/usePitchBoardTactical";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
