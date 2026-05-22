@@ -100,14 +100,15 @@ describe("autoSubReducer", () => {
     const players = [mkPlayer("A"), mkPlayer("B", false), mkPlayer("C"), mkPlayer("D", false)];
     const s1 = mkSub("A", "B", 1, 60);
     const s2 = mkSub("C", "D", 1, 120);
-    const prev = stateWith({ active: true, plan: [s1, s2] });
+    // lastSkipAt seeded so the first SKIP at now=5000 is past the 3s cooldown.
+    const prev = stateWith({ active: true, plan: [s1, s2], lastSkipAt: 0 });
 
-    const after1 = autoSubReducer(prev, { type: "SKIP", subKey: getSubKey(s1) }, ctx(players, 1000));
+    const after1 = autoSubReducer(prev, { type: "SKIP", subKey: getSubKey(s1) }, ctx(players, 5000));
     expect(after1.plan[0].skipped).toBe(true);
-    expect(after1.lastSkipAt).toBe(1000);
+    expect(after1.lastSkipAt).toBe(5000);
 
     // 500ms later — inside 3s cooldown
-    const after2 = autoSubReducer(after1, { type: "SKIP", subKey: getSubKey(s2) }, ctx(players, 1500));
+    const after2 = autoSubReducer(after1, { type: "SKIP", subKey: getSubKey(s2) }, ctx(players, 5500));
     expect(after2.lastError?.code).toBe("cooldown");
     expect(after2.plan[1].skipped).toBeUndefined();
   });
@@ -147,22 +148,20 @@ describe("autoSubReducer", () => {
     expect(next.plan.slice(1)).toEqual(repairOutput);
   });
 
-  it("REPLACE_REMAINING rejects if it would remove an executed entry", () => {
+  it("REPLACE_REMAINING rejects a remaining tail that collides with an executed entry", () => {
     const players = [mkPlayer("A"), mkPlayer("B", false)];
     const executedSub = { ...mkSub("A", "B"), executed: true };
     const prev = stateWith({ active: true, plan: [executedSub] });
-    // Caller passes a `remaining` that accidentally includes an EXECUTED sub
-    // marked as pending — would mutate-executed. Should reject.
+    // Caller's `remaining` accidentally re-includes the same sub key as
+    // pending. Reducer concatenates executed + remaining → duplicate key.
     const next = autoSubReducer(
       prev,
       { type: "REPLACE_REMAINING", remaining: [{ ...executedSub, executed: false }], reason: "repair" },
       ctx(players)
     );
-    // The remaining filter strips !executed only, so the executed will be
-    // preserved; this case is implicitly safe. Sanity-check no error and
-    // the executed entry is intact.
-    expect(next.lastError).toBeNull();
-    expect(next.plan[0].executed).toBe(true);
+    expect(next.lastError?.code).toBe("duplicate-sub");
+    // Original plan is preserved on reject.
+    expect(next.plan).toEqual([executedSub]);
   });
 
   it("LOCK_TOGGLE rejects if a remaining sub already targets the locked player", () => {
