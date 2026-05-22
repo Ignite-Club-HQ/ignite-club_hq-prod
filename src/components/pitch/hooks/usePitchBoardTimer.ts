@@ -146,7 +146,7 @@ export function usePitchBoardTimer({
         const totalElapsedNow = currentHalf === 2
           ? halfDuration + elapsedSeconds
           : elapsedSeconds;
-        setPlayers(prev => prev.map(p => {
+        setPlayersRef.current?.(prev => prev.map(p => {
           if (p.position !== null) {
             const next = (p.minutesPlayed || 0) + secondsElapsed;
             return { ...p, minutesPlayed: Math.min(next, totalElapsedNow) };
@@ -161,13 +161,13 @@ export function usePitchBoardTimer({
     const totalElapsed = currentHalf === 2
       ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds
       : elapsedSeconds;
-    setElapsedGameTime(totalElapsed);
+    setElapsedGameTimeRef.current?.(totalElapsed);
 
     // Delegate next-sub countdown and due-sub detection to the auto-sub hook.
     // Refs because useAutoSubs runs later in the parent component.
     updateNextSubInfoRef.current?.(elapsedSeconds, currentHalf);
     checkForDueSubsRef.current?.(elapsedSeconds, currentHalf);
-  }, [gameInProgress, minutesPerHalf, gameTimerRef, setPlayers, setElapsedGameTime, updateNextSubInfoRef, checkForDueSubsRef]);
+  }, [gameInProgress, minutesPerHalf, gameTimerRef, setPlayersRef, setElapsedGameTimeRef, updateNextSubInfoRef, checkForDueSubsRef]);
 
   return {
     gameInProgress,
