@@ -314,7 +314,7 @@ export function useAutoSubScheduler({
         if (hasAcknowledgedHalftimePrompt(ackKey)) return false;
         const tHalf = gameTimerRef.current?.getCurrentHalf?.() ?? 1;
         const tElapsed = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
-        const tRunning = gameTimerRef.current?.getIsRunning?.() ?? false;
+        const tRunning = gameTimerRef.current?.isRunning?.() ?? false;
         return tHalf === 2 && tElapsed <= 5 && !tRunning;
       };
 
