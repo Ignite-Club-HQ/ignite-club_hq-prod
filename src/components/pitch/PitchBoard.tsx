@@ -101,6 +101,7 @@ import { usePitchBoardPinchZoom } from "./hooks/usePitchBoardPinchZoom";
 import { usePitchBoardDragDrop, type DragDropDeps } from "./hooks/usePitchBoardDragDrop";
 import { usePitchBoardTactical } from "./hooks/usePitchBoardTactical";
 import { usePitchBoardSubSelection } from "./hooks/usePitchBoardSubSelection";
+import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 
