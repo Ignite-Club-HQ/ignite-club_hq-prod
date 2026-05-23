@@ -37,6 +37,8 @@ interface OpenGroup {
   club_id: string;
   member_count: number;
   joined: boolean;
+  last_text: string | null;
+  last_at: string | null;
 }
 
 interface DiscoverGroupsListProps {
