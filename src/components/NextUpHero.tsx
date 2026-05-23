@@ -126,27 +126,30 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     },
   });
 
-  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
+  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveClass: string }[] = [
     {
       status: "going",
       label: "Going",
-      icon: <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />,
-      activeClass: "bg-primary text-white shadow-lg shadow-primary/50 dark:shadow-primary/60 ring-2 ring-primary ring-offset-2 ring-offset-card",
+      icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--primary)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-primary/50 hover:text-foreground",
     },
     {
       status: "maybe",
       label: "Maybe",
-      icon: <HelpCircle className="h-4 w-4" strokeWidth={2.5} />,
-      activeClass: "bg-warning text-white shadow-lg shadow-warning/50 dark:shadow-warning/60 ring-2 ring-warning ring-offset-2 ring-offset-card",
+      icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "bg-warning text-warning-foreground shadow-[0_8px_24px_-6px_hsl(var(--warning)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--warning)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-warning/50 hover:text-foreground",
     },
     {
       status: "not_going",
       label: "Can't go",
-      icon: <X className="h-4 w-4" strokeWidth={3} />,
-      activeClass: "bg-destructive text-white shadow-lg shadow-destructive/50 dark:shadow-destructive/60 ring-2 ring-destructive ring-offset-2 ring-offset-card",
+      icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
+      activeClass: "bg-destructive text-destructive-foreground shadow-[0_8px_24px_-6px_hsl(var(--destructive)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--destructive)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-destructive/50 hover:text-foreground",
     },
   ];
-  const selectedLabel = rsvpButtons.find((b) => b.status === currentStatus)?.label;
+  
 
   return (
     <section>
@@ -224,52 +227,43 @@ export function NextUpHero({ event }: NextUpHeroProps) {
 
           {/* RSVP Buttons */}
           {!event.is_cancelled && !event.is_bye && (
-            <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
-              <div
-                role="radiogroup"
-                aria-label="RSVP response"
-                className="inline-flex w-full items-stretch gap-1.5 rounded-xl bg-muted/60 dark:bg-background/60 p-1.5"
-              >
-                {rsvpButtons.map(({ status, label, icon, activeClass }) => {
-                  const isActive = currentStatus === status;
-                  const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      aria-label={label}
-                      disabled={rsvpMutation.isPending}
-                      onClick={() => !isActive && rsvpMutation.mutate(status)}
-                      className={[
-                        "flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm",
-                        "transition-all duration-200 ease-out touch-manipulation",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                        "disabled:cursor-not-allowed",
-                        isActive
-                          ? `${activeClass} font-bold scale-[1.06] z-10 animate-scale-in`
-                          : "bg-transparent text-muted-foreground/60 dark:text-muted-foreground/50 font-medium hover:text-foreground/80 active:scale-[0.97]",
-                      ].join(" ")}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <span className={isActive ? "text-white drop-shadow-sm" : "opacity-60"}>{icon}</span>
-                      )}
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="h-4 text-xs flex items-center gap-1.5" aria-live="polite">
-                {selectedLabel && !rsvpMutation.isPending && (
-                  <span className="inline-flex items-center gap-1 font-medium text-foreground/90 animate-fade-in">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
-                    RSVP confirmed: <span className="font-bold">{selectedLabel}</span>
-                  </span>
-                )}
-              </div>
+            <div
+              role="radiogroup"
+              aria-label="RSVP response"
+              className="flex w-full items-stretch gap-2 pt-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {rsvpButtons.map(({ status, label, icon, activeClass, inactiveClass }) => {
+                const isActive = currentStatus === status;
+                const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    aria-label={isActive ? `${label} (selected)` : label}
+                    disabled={rsvpMutation.isPending}
+                    onClick={() => !isActive && rsvpMutation.mutate(status)}
+                    className={[
+                      "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-sm",
+                      "transition-all duration-200 ease-out touch-manipulation will-change-transform",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                      "disabled:cursor-not-allowed",
+                      isActive
+                        ? `${activeClass} font-bold scale-[1.04] animate-scale-in`
+                        : `${inactiveClass} font-medium active:scale-[0.97]`,
+                    ].join(" ")}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    ) : (
+                      icon
+                    )}
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </CardContent>
