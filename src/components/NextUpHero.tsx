@@ -51,9 +51,9 @@ const typeBorderColors: Record<string, string> = {
 };
 
 const typeGlowColors: Record<string, string> = {
-  game: "shadow-destructive/10",
-  training: "shadow-primary/10",
-  social: "shadow-warning/10",
+  game: "shadow-destructive/5",
+  training: "shadow-primary/5",
+  social: "shadow-warning/5",
 };
 
 export function NextUpHero({ event }: NextUpHeroProps) {
@@ -131,22 +131,22 @@ export function NextUpHero({ event }: NextUpHeroProps) {
       status: "going",
       label: "Going",
       icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--primary)/0.85)]",
-      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-primary/50 hover:text-foreground",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
+      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "bg-warning text-warning-foreground shadow-[0_8px_24px_-6px_hsl(var(--warning)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--warning)/0.85)]",
-      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-warning/50 hover:text-foreground",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
+      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
-      activeClass: "bg-destructive text-destructive-foreground shadow-[0_8px_24px_-6px_hsl(var(--destructive)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--destructive)/0.85)]",
-      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-destructive/50 hover:text-foreground",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
+      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
     },
   ];
   
@@ -155,7 +155,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     <section>
       <h2 className="text-lg font-semibold mb-3">Next Up</h2>
       <Card
-        className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl ${event.is_cancelled ? "opacity-60" : ""}`}
+        className={`border ${typeBorderColors[event.type] || "border-primary/60"} shadow-md ${typeGlowColors[event.type] || "shadow-primary/5"} cursor-pointer transition-all hover:shadow-lg ${event.is_cancelled ? "opacity-60" : ""}`}
         onClick={() => navigate(`/events/${event.id}`)}
       >
         <CardContent className="p-5 space-y-4">
@@ -246,12 +246,12 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                     disabled={rsvpMutation.isPending}
                     onClick={() => !isActive && rsvpMutation.mutate(status)}
                     className={[
-                      "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-sm",
+                      "flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2.5 text-sm",
                       "transition-all duration-200 ease-out touch-manipulation will-change-transform",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
-                      "disabled:cursor-not-allowed",
+                      "disabled:cursor-not-allowed disabled:opacity-100",
                       isActive
-                        ? `${activeClass} font-bold scale-[1.04] animate-scale-in`
+                        ? `${activeClass} font-extrabold scale-[1.06] animate-scale-in`
                         : `${inactiveClass} font-medium active:scale-[0.97]`,
                     ].join(" ")}
                   >
