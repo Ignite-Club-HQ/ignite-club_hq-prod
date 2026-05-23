@@ -139,6 +139,12 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
                   const storeUrl = data?.store_url;
+                  // Stash scroll target so chat pages can recover from a lost search param
+                  try {
+                    import('@/lib/pendingChatJump').then(({ captureJumpFromNotification }) => {
+                      captureJumpFromNotification(data, url);
+                    });
+                  } catch {}
                   
                   // Handle store_url (e.g. from update reminders) — open externally
                   if (storeUrl) {
@@ -252,7 +258,15 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
       const data = notification.notification?.data;
       const url = data?.url || data?.link || data?.path;
       const storeUrl = data?.store_url;
-      
+
+      // Stash scroll target before navigation so chat pages can recover from a
+      // lost search param even on warm-resume taps.
+      try {
+        import('@/lib/pendingChatJump').then(({ captureJumpFromNotification }) => {
+          captureJumpFromNotification(data, url);
+        });
+      } catch {}
+
       // Handle store_url (e.g. from update reminders) — open externally
       if (storeUrl) {
         console.log('[useNativePush] Store URL detected, opening in browser:', storeUrl);

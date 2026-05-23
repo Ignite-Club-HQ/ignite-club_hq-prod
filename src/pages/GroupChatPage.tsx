@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { consumePendingChatJump } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -268,7 +269,11 @@ export default function GroupChatPage() {
     virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    groupId ? consumePendingChatJump("group", groupId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   // Scroll to and highlight the message referenced by ?message=… (notification deep link).

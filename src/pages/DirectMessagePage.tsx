@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { consumePendingChatJump } from "@/lib/pendingChatJump";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -249,7 +250,11 @@ export default function DirectMessagePage() {
     virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    conversationId ? consumePendingChatJump("dm", conversationId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
