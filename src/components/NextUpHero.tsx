@@ -130,20 +130,20 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     {
       status: "going",
       label: "Going",
-      icon: <CheckCircle2 className="h-4 w-4" />,
-      activeClass: "bg-primary text-white border-primary shadow-md shadow-primary/40 dark:shadow-primary/50 ring-2 ring-primary/40 dark:ring-primary/60",
+      icon: <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />,
+      activeClass: "bg-primary text-white shadow-lg shadow-primary/50 dark:shadow-primary/60 ring-2 ring-primary ring-offset-2 ring-offset-card",
     },
     {
       status: "maybe",
       label: "Maybe",
-      icon: <HelpCircle className="h-4 w-4" />,
-      activeClass: "bg-warning text-white border-warning shadow-md shadow-warning/40 dark:shadow-warning/50 ring-2 ring-warning/40 dark:ring-warning/60",
+      icon: <HelpCircle className="h-4 w-4" strokeWidth={2.5} />,
+      activeClass: "bg-warning text-white shadow-lg shadow-warning/50 dark:shadow-warning/60 ring-2 ring-warning ring-offset-2 ring-offset-card",
     },
     {
       status: "not_going",
       label: "Can't go",
-      icon: <X className="h-4 w-4" />,
-      activeClass: "bg-destructive text-white border-destructive shadow-md shadow-destructive/40 dark:shadow-destructive/50 ring-2 ring-destructive/40 dark:ring-destructive/60",
+      icon: <X className="h-4 w-4" strokeWidth={3} />,
+      activeClass: "bg-destructive text-white shadow-lg shadow-destructive/50 dark:shadow-destructive/60 ring-2 ring-destructive ring-offset-2 ring-offset-card",
     },
   ];
   const selectedLabel = rsvpButtons.find((b) => b.status === currentStatus)?.label;
