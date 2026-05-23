@@ -51,9 +51,9 @@ const typeBorderColors: Record<string, string> = {
 };
 
 const typeGlowColors: Record<string, string> = {
-  game: "shadow-destructive/10",
-  training: "shadow-primary/10",
-  social: "shadow-warning/10",
+  game: "shadow-destructive/5",
+  training: "shadow-primary/5",
+  social: "shadow-warning/5",
 };
 
 export function NextUpHero({ event }: NextUpHeroProps) {
@@ -126,32 +126,36 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     },
   });
 
-  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
+  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveClass: string }[] = [
     {
       status: "going",
       label: "Going",
-      icon: <CheckCircle2 className="h-4 w-4" />,
-      activeClass: "bg-primary text-primary-foreground hover:bg-primary/90",
+      icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
     {
       status: "maybe",
       label: "Maybe",
-      icon: <HelpCircle className="h-4 w-4" />,
-      activeClass: "bg-warning text-warning-foreground hover:bg-warning/90",
+      icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
     {
       status: "not_going",
       label: "Can't go",
-      icon: <X className="h-4 w-4" />,
-      activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
   ];
+  
 
   return (
     <section>
       <h2 className="text-lg font-semibold mb-3">Next Up</h2>
       <Card
-        className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl ${event.is_cancelled ? "opacity-60" : ""}`}
+        className={`border ${typeBorderColors[event.type] || "border-primary/60"} shadow-md ${typeGlowColors[event.type] || "shadow-primary/5"} cursor-pointer transition-all hover:shadow-lg ${event.is_cancelled ? "opacity-60" : ""}`}
         onClick={() => navigate(`/events/${event.id}`)}
       >
         <CardContent className="p-5 space-y-4">
@@ -223,25 +227,43 @@ export function NextUpHero({ event }: NextUpHeroProps) {
 
           {/* RSVP Buttons */}
           {!event.is_cancelled && !event.is_bye && (
-            <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-              {rsvpButtons.map(({ status, label, icon, activeClass }) => {
+            <div
+              role="radiogroup"
+              aria-label="RSVP response"
+              className="flex w-full items-stretch gap-2 pt-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {rsvpButtons.map(({ status, label, icon, activeClass, inactiveClass }) => {
                 const isActive = currentStatus === status;
+                const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
                 return (
-                  <Button
+                  <button
                     key={status}
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                    className={`flex-1 gap-1.5 text-sm font-medium ${isActive ? activeClass : ""}`}
-                    disabled={rsvpMutation.isPending || isActive}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    aria-label={isActive ? `${label} (selected)` : label}
+                    disabled={rsvpMutation.isPending}
                     onClick={() => !isActive && rsvpMutation.mutate(status)}
+                    className={[
+                      "flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border px-2 py-2.5 text-sm",
+                      "transition-all duration-200 ease-out touch-manipulation will-change-transform",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                      "disabled:cursor-not-allowed disabled:opacity-100",
+                      isActive
+                        ? `${activeClass} font-semibold animate-scale-in`
+                        : `${inactiveClass} font-medium active:scale-[0.97]`,
+                    ].join(" ")}
                   >
-                    {rsvpMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    {isLoading ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    ) : isActive ? (
+                      <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={3} />
                     ) : (
                       icon
                     )}
-                    {label}
-                  </Button>
+                    <span>{label}</span>
+                  </button>
                 );
               })}
             </div>

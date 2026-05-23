@@ -21,7 +21,6 @@ import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
-import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
 import { isParentFirstEvent } from "@/lib/rsvpAudience";
 
@@ -316,9 +315,9 @@ function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: str
   const parts: React.ReactNode[] = [];
   
   // User status
-  if (parentHasRsvpd && currentStatus === "going") parts.push(<span key="you" className="text-primary font-medium">You: Going</span>);
-  else if (parentHasRsvpd && currentStatus === "maybe") parts.push(<span key="you" className="text-warning font-medium">You: Maybe</span>);
-  else if (parentHasRsvpd && currentStatus === "not_going") parts.push(<span key="you" className="text-destructive font-medium">You: Can't go</span>);
+  if (parentHasRsvpd && currentStatus === "going") parts.push(<span key="you" className="text-muted-foreground font-medium">Going</span>);
+  else if (parentHasRsvpd && currentStatus === "maybe") parts.push(<span key="you" className="text-muted-foreground font-medium">Maybe</span>);
+  else if (parentHasRsvpd && currentStatus === "not_going") parts.push(<span key="you" className="text-muted-foreground font-medium">Can't go</span>);
 
   if (goingChildren.length > 0) {
     const names = goingChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
@@ -541,30 +540,28 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
   });
 
-  // RSVP buttons: outline by default, fill with semantic tint when selected.
-  // Lower contrast than the previous solid-primary going button so the team identity
-  // and event details remain the strongest things on the card.
+  // RSVP buttons: selected state must read as locked-in and confirmed at a glance.
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
     {
       status: "going",
       label: "Going",
       icon: <Check className="h-3.5 w-3.5" />,
-      activeClass: "bg-primary/15 text-primary border-primary/50 shadow-sm hover:bg-primary/20",
-      inactiveHint: "border-border/70 text-foreground/80 hover:bg-primary/5 hover:border-primary/30 hover:text-primary",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-3.5 w-3.5" />,
-      activeClass: "bg-warning/15 text-warning border-warning/45",
-      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-3.5 w-3.5" />,
-      activeClass: "bg-destructive/15 text-destructive border-destructive/45",
-      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
   ];
 
@@ -605,8 +602,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     >
       {/* Team color rail — primary recognition cue, identical system to the schedule cards */}
       <span
-        className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
-        style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
+        className="absolute left-0 top-0 bottom-0 w-0.5 pointer-events-none"
+        style={{ backgroundColor: teamRailHex, opacity: isToday ? 0.35 : 0.22 }}
         aria-hidden="true"
       />
       {/* Right-edge tap affordance — hidden when RSVP pill is shown to avoid
@@ -813,10 +810,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                             size="sm"
                             aria-pressed={isActive}
                             aria-label={`${soleChildFirst} RSVP ${label}`}
-                            className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
-                              isActive ? activeClass : inactiveHint
+                            className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
+                              isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                             }`}
-                            disabled={childRsvpMutation.isPending || isActive}
+                            disabled={childRsvpMutation.isPending}
                             onClick={() => !isActive && childRsvpMutation.mutate({ childId: soleChild!.id, status })}
                           >
                             {isThisPending ? (
@@ -867,10 +864,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                     size="sm"
                                     aria-pressed={isActive}
                                     aria-label={`${child.name} RSVP ${label}`}
-                                    className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                      isActive ? activeClass : inactiveHint
+                                    className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                      isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                     }`}
-                                    disabled={childRsvpMutation.isPending || isActive}
+                                    disabled={childRsvpMutation.isPending}
                                     onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
                                   >
                                     {isThisPending ? (
@@ -910,25 +907,25 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   )}
 
                   {/* Summary line — child-first, then teammate count */}
-                  <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
+                  <div className="rounded-xl border border-border/25 bg-muted/[0.06] px-2.5 py-1.5 space-y-0.5 opacity-75">
                     {childStatusLines.length > 0 ? (
                       childStatusLines.map((line, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[11px] text-foreground/90 font-medium">
-                          <User className="h-3 w-3 shrink-0" />
+                        <div key={i} className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground font-medium">
+                          <User className="h-3 w-3 shrink-0 opacity-60" />
                           <span className="truncate">{line}</span>
                         </div>
                       ))
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <User className="h-3 w-3 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                        <User className="h-3 w-3 shrink-0 opacity-60" />
                         <span className="truncate">
                           {isSingleChild ? `${soleChildFirst} hasn't been RSVP'd yet` : "Players awaiting RSVP"}
                         </span>
                       </div>
                     )}
                     {teammatesGoing > 0 && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Users className="h-3 w-3 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                        <Users className="h-3 w-3 shrink-0 opacity-60" />
                         <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
                       </div>
                     )}
@@ -943,9 +940,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                       className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                     >
                       <span>
-                        {currentStatus
-                          ? `You: ${currentStatus === "going" ? "Going" : currentStatus === "maybe" ? "Maybe" : "Can't go"}`
-                          : "Are you attending too?"}
+                        {currentStatus ? "Your attendance" : "Are you attending too?"}
                       </span>
                       <ChevronDown className={`h-3 w-3 transition-transform ${parentRsvpOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -960,10 +955,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                               size="sm"
                               aria-pressed={isActive}
                               aria-label={`Your RSVP ${label}`}
-                              className={`flex-1 h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                isActive ? activeClass : inactiveHint
+                              className={`flex-1 h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                               }`}
-                              disabled={rsvpMutation.isPending || isActive}
+                              disabled={rsvpMutation.isPending}
                               onClick={() => !isActive && rsvpMutation.mutate(status)}
                             >
                               {rsvpMutation.isPending && rsvpMutation.variables === status ? (
@@ -995,10 +990,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                         size="sm"
                         aria-pressed={isActive}
                         aria-label={`RSVP ${label}`}
-                        className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
-                          isActive ? activeClass : inactiveHint
+                        className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
+                          isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                         }`}
-                        disabled={rsvpMutation.isPending || isActive}
+                        disabled={rsvpMutation.isPending}
                         onClick={() => !isActive && rsvpMutation.mutate(status)}
                       >
                         {rsvpMutation.isPending && rsvpMutation.variables === status ? (
@@ -1019,26 +1014,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
                   }
                   const teammatesGoing = rsvpSummary?.totalCount || 0;
-                  const summary = buildPersonalRsvpLine({
-                    parentStatus: currentStatus,
-                    goingChildNames: [],
-                    totalGoing: teammatesGoing,
-                  });
-                  const personal = currentStatus === "going";
+                  if (currentStatus && teammatesGoing === 0) return null;
                   return (
-                    <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
-                      <div className={`flex items-center gap-1.5 text-[11px] ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3 shrink-0 opacity-70" />
-                        <span className="truncate">{summary || "You haven't responded yet"}</span>
-                      </div>
+                    <div className="rounded-xl border border-border/20 bg-muted/[0.04] px-2.5 py-1.5 space-y-0.5 opacity-70">
                       {teammatesGoing > 0 && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <Users className="h-3 w-3 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                          <Users className="h-3 w-3 shrink-0 opacity-60" />
                           <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
                         </div>
                       )}
                       {!currentStatus && (
-                        <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
+                        <p className="text-[10px] text-muted-foreground/70 italic">
                           Tap an option above to RSVP
                         </p>
                       )}
@@ -1077,10 +1063,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                       size="sm"
                                       aria-pressed={isActive}
                                       aria-label={`${child.name} RSVP ${label}`}
-                                      className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                        isActive ? activeClass : inactiveHint
+                                      className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                        isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                       }`}
-                                      disabled={childRsvpMutation.isPending || isActive}
+                                      disabled={childRsvpMutation.isPending}
                                       onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
                                     >
                                       {isActive ? <Check className="h-3 w-3" /> : icon}
