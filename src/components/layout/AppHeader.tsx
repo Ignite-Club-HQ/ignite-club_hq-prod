@@ -682,6 +682,20 @@ export function AppHeader() {
           }
           return;
         }
+        case "photo_prompt_reminder": {
+          // related_id is the event_id — open Media gallery filtered to team/event with upload sheet.
+          const { data: ev } = await supabase
+            .from("events")
+            .select("id, team_id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (ev?.team_id) {
+            navigate(`/media?team=${ev.team_id}&event=${ev.id}&upload=1`);
+          } else {
+            navigate(`/media?upload=1`);
+          }
+          return;
+        }
         case "comment_reaction":
         case "comment_reply": {
           let targetPhotoId: string | null = null;
