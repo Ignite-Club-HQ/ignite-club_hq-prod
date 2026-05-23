@@ -27,6 +27,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const { data: keepers = [], isLoading } = useQuery({
     queryKey: ["match-goalkeepers", eventId, (rsvps || []).length],
