@@ -40,6 +40,8 @@ export function PinnedMessagesBanner({
   onUnpin,
 }: PinnedMessagesBannerProps) {
   const [listOpen, setListOpen] = useState(false);
+  const [confirmPin, setConfirmPin] = useState<PinnedMessageWithContent | null>(null);
+
 
   if (pins.length === 0) return null;
 
