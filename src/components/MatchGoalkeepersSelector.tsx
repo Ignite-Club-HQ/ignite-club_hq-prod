@@ -212,6 +212,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
 
               {goingMembers.map((rsvp: any) => {
                 const already = assignedUserIds.has(rsvp.user_id);
+                const isPending = addMutation.isPending && pendingId === rsvp.user_id;
                 return (
                   <Button
                     key={rsvp.id}
@@ -219,6 +220,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
                     className="w-full justify-start h-auto py-3"
                     disabled={already || addMutation.isPending}
                     onClick={async () => {
+                      setPendingId(rsvp.user_id);
                       await addMutation.mutateAsync({ userId: rsvp.user_id });
                     }}
                   >
@@ -229,13 +231,18 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm">{rsvp.profiles?.display_name || "Unknown"}</span>
-                    {already && <Badge className="ml-auto" variant="secondary">Added</Badge>}
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                    ) : already ? (
+                      <Badge className="ml-auto" variant="secondary">Added</Badge>
+                    ) : null}
                   </Button>
                 );
               })}
 
               {goingChildren.map((rsvp: any) => {
                 const already = assignedChildIds.has(rsvp.child_id);
+                const isPending = addMutation.isPending && pendingId === rsvp.child_id;
                 return (
                   <Button
                     key={rsvp.id}
@@ -243,6 +250,7 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
                     className="w-full justify-start h-auto py-3"
                     disabled={already || addMutation.isPending}
                     onClick={async () => {
+                      setPendingId(rsvp.child_id);
                       await addMutation.mutateAsync({ childId: rsvp.child_id });
                     }}
                   >
@@ -253,7 +261,11 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
                     </Avatar>
                     <span className="text-sm">{rsvp.children?.name || "Unknown"}</span>
                     <Badge variant="outline" className="ml-2 text-xs">Child</Badge>
-                    {already && <Badge className="ml-auto" variant="secondary">Added</Badge>}
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin ml-auto" />
+                    ) : already ? (
+                      <Badge className="ml-auto" variant="secondary">Added</Badge>
+                    ) : null}
                   </Button>
                 );
               })}
