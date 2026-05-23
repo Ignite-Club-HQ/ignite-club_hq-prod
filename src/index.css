@@ -83,7 +83,7 @@ html, body {
     --success: 160 84% 32%;
     --warning: 45 93% 38%;
     --info: 200 80% 42%;
-    --rsvp-selected: 214 90% 48%;
+    --rsvp-selected: 217 76% 44%;
     --rsvp-selected-foreground: 0 0% 100%;
 
     /* Event type accents — premium, semantic, theme-aware */
@@ -150,7 +150,7 @@ html, body {
     --success: 160 84% 45%;
     --warning: 45 93% 50%;
     --info: 200 80% 55%;
-    --rsvp-selected: 214 94% 58%;
+    --rsvp-selected: 217 70% 52%;
     --rsvp-selected-foreground: 0 0% 100%;
 
     /* Event type accents — brightened for dark surfaces */

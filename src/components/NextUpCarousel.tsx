@@ -546,22 +546,22 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       status: "going",
       label: "Going",
       icon: <Check className="h-3.5 w-3.5" />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
-      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-3.5 w-3.5" />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
-      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-3.5 w-3.5" />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
-      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground disabled:opacity-45",
     },
   ];
 
@@ -811,7 +811,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                             aria-pressed={isActive}
                             aria-label={`${soleChildFirst} RSVP ${label}`}
                             className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
-                              isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                              isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                             }`}
                             disabled={childRsvpMutation.isPending}
                             onClick={() => !isActive && childRsvpMutation.mutate({ childId: soleChild!.id, status })}
@@ -865,7 +865,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                     aria-pressed={isActive}
                                     aria-label={`${child.name} RSVP ${label}`}
                                     className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
-                                      isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                                      isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                     }`}
                                     disabled={childRsvpMutation.isPending}
                                     onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
@@ -956,7 +956,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                               aria-pressed={isActive}
                               aria-label={`Your RSVP ${label}`}
                               className={`flex-1 h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
-                                isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                                isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                               }`}
                               disabled={rsvpMutation.isPending}
                               onClick={() => !isActive && rsvpMutation.mutate(status)}
@@ -991,7 +991,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                         aria-pressed={isActive}
                         aria-label={`RSVP ${label}`}
                         className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
-                          isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                          isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                         }`}
                         disabled={rsvpMutation.isPending}
                         onClick={() => !isActive && rsvpMutation.mutate(status)}
@@ -1064,7 +1064,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                       aria-pressed={isActive}
                                       aria-label={`${child.name} RSVP ${label}`}
                                       className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
-                                        isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
+                                        isActive ? `${activeClass} font-semibold animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                       }`}
                                       disabled={childRsvpMutation.isPending}
                                       onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
