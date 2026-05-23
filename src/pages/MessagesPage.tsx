@@ -2893,6 +2893,11 @@ export default function MessagesPage() {
           <ContactClubButton clubFilter={activeClubFilter} />
         )}
 
+        {/* Discover open-to-club Operations / Volunteers groups */}
+        {!showSkeletonLoading && (
+          <DiscoverGroupsList activeClubFilter={activeClubFilter} />
+        )}
+
         {/* Sponsor/Ad Carousel */}
         <SponsorOrAdCarousel location="messages" activeClubFilter={activeClubFilter} />
       </div>
