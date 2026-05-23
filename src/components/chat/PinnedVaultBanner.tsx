@@ -138,7 +138,9 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
   };
 
   return (
+    <>
     <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20">
+
       <button
         type="button"
         onClick={handleClick}
