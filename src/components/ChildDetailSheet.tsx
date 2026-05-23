@@ -33,6 +33,7 @@ export default function ChildDetailSheet({
   onEditPosition,
   onSwapTeam,
   onLink,
+  onRemove,
 }: ChildDetailSheetProps) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
