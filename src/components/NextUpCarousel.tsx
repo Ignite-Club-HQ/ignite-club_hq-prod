@@ -1016,18 +1016,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     return <p className="text-[11px] text-muted-foreground/60 text-center invisible">placeholder</p>;
                   }
                   const teammatesGoing = rsvpSummary?.totalCount || 0;
-                  const summary = buildPersonalRsvpLine({
-                    parentStatus: currentStatus,
-                    goingChildNames: [],
-                    totalGoing: teammatesGoing,
-                  });
-                  const personal = currentStatus === "going";
+                  if (currentStatus && teammatesGoing === 0) return null;
                   return (
-                    <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
-                      <div className={`flex items-center gap-1.5 text-[11px] ${personal ? "text-foreground/90 font-medium" : "text-muted-foreground"}`}>
-                        <Check className="h-3 w-3 shrink-0 opacity-70" />
-                        <span className="truncate">{summary || "You haven't responded yet"}</span>
-                      </div>
+                    <div className="rounded-xl border border-border/35 bg-muted/10 px-2.5 py-1.5 space-y-1">
                       {teammatesGoing > 0 && (
                         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                           <Users className="h-3 w-3 shrink-0" />
@@ -1035,7 +1026,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                         </div>
                       )}
                       {!currentStatus && (
-                        <p className="text-[10px] text-muted-foreground/70 italic pt-0.5">
+                        <p className="text-[10px] text-muted-foreground/70 italic">
                           Tap an option above to RSVP
                         </p>
                       )}
