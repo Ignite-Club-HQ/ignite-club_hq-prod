@@ -77,8 +77,16 @@ export function useKeyboardOpen(threshold = KEYBOARD_OPEN_THRESHOLD) {
     };
   }, [threshold]);
 
-  if (isNativeIOS) return iosOpen || iosHeight > threshold || fallbackOpen || isEditableFocused;
-  if (isNativeAndroid) return androidHeight > threshold || fallbackOpen || isEditableFocused;
-  return fallbackOpen || isEditableFocused;
+  // On native, trust Capacitor keyboard events as the sole source of truth.
+  // Focusing an editable element does NOT mean the soft keyboard is up
+  // (e.g. external keyboard, programmatic focus, popover trigger), and using
+  // `isEditableFocused` here caused the BottomNav to vanish on pages with
+  // any focused input (regression: Schedule page after closing the filter
+  // popover, etc.).
+  if (isNativeIOS) return iosOpen || iosHeight > threshold;
+  if (isNativeAndroid) return androidHeight > threshold;
+  // Web fallback: visualViewport shrink is authoritative; editable-focus is
+  // only a last-resort signal when visualViewport isn't available.
+  return fallbackOpen || (typeof window !== "undefined" && !window.visualViewport && isEditableFocused);
 }
 
