@@ -33,7 +33,6 @@ import { useAuth } from "@/hooks/useAuth";
 interface OpenGroup {
   id: string;
   name: string;
-  description: string | null;
   category: string | null;
   club_id: string;
   member_count: number;
