@@ -6,10 +6,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { hapticSelectionTick } from "@/lib/haptics";
 import type { PinnedMessageWithContent } from "@/hooks/usePinnedMessages";
+
 
 interface PinnedMessagesBannerProps {
   pins: PinnedMessageWithContent[];
