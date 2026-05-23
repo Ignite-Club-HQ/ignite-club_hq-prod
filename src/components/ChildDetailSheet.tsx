@@ -117,8 +117,6 @@ export default function ChildDetailSheet({
                         Remove from Team
                       </Button>
                     )}
-                      </Button>
-                    )}
                   </>
                 )}
               </div>
