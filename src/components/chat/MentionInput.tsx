@@ -566,7 +566,7 @@ export function MentionInput({
     setShowSuggestions(false);
     setMentionSearch("");
     setMentionStartIndex(-1);
-  }, [segments]);
+  }, [segments, disableMentions]);
 
   const handleDisplayChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newDisplay = e.target.value;
