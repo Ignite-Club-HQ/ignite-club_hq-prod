@@ -14,7 +14,6 @@ import {
   Shield,
   Sparkles,
   Trophy,
-  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +36,8 @@ interface OpenGroup {
   club_id: string;
   member_count: number;
   joined: boolean;
+  last_text: string | null;
+  last_at: string | null;
 }
 
 interface DiscoverGroupsListProps {
@@ -115,7 +116,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (rows.length === 0) return [];
 
       const ids = rows.map((r) => r.id);
-      const [{ data: mine }, { data: members }] = await Promise.all([
+      const [{ data: mine }, { data: members }, { data: msgs }] = await Promise.all([
         supabase
           .from("group_members")
           .select("group_id")
@@ -125,11 +126,25 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           .from("group_members")
           .select("group_id")
           .in("group_id", ids),
+        supabase
+          .from("group_messages")
+          .select("group_id, text, image_url, created_at, is_system_message")
+          .in("group_id", ids)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(200),
       ]);
       const joined = new Set((mine ?? []).map((m: any) => m.group_id));
       const counts = new Map<string, number>();
       (members ?? []).forEach((m: any) => {
         counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1);
+      });
+      const lastByGroup = new Map<string, { text: string | null; at: string }>();
+      (msgs ?? []).forEach((m: any) => {
+        if (m.is_system_message) return;
+        if (lastByGroup.has(m.group_id)) return;
+        const text = m.text?.trim() || (m.image_url ? "📷 Photo" : null);
+        lastByGroup.set(m.group_id, { text, at: m.created_at });
       });
       return rows.map((r) => ({
         id: r.id,
@@ -138,6 +153,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         club_id: r.club_id,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
+        last_text: lastByGroup.get(r.id)?.text ?? null,
+        last_at: lastByGroup.get(r.id)?.at ?? null,
       }));
     },
   });
@@ -205,52 +222,75 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const renderRow = (g: OpenGroup) => {
     const meta = CATEGORY_META[categoryKey(g.category)];
     const Icon = meta.icon;
+    const active = g.last_at
+      ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
+      : false;
+    const subtitle =
+      g.last_text ||
+      (g.member_count === 0
+        ? "Needs volunteers — be the first to join"
+        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`);
+
     return (
       <button
         key={g.id}
         type="button"
         onClick={() => g.joined && navigate(`/groups/${g.id}`)}
         className={cn(
-          "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors",
+          "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-all",
+          "active:scale-[0.99]",
           g.joined
-            ? "bg-muted/40 hover:bg-muted/60 opacity-90"
-            : "hover:bg-muted/40",
+            ? "opacity-70 hover:opacity-100 hover:bg-muted/50"
+            : "hover:bg-muted/60",
         )}
       >
-        <div className={cn("relative h-9 w-9 rounded-lg flex items-center justify-center shrink-0", meta.tone)}>
-          <Icon className="h-4 w-4" />
+        <div
+          className={cn(
+            "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
+            meta.tone,
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
           {g.joined && (
-            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-              <Check className="h-2 w-2 text-white" strokeWidth={3} />
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+              <Check className="h-1.5 w-1.5 text-white" strokeWidth={4} />
             </span>
           )}
+          {!g.joined && active && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border-2 border-background" />
+          )}
         </div>
+
         <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium truncate", g.joined && "text-muted-foreground")}>
-            {g.name}
-          </p>
-          {g.category ? (
-            <p className="text-[11px] text-muted-foreground truncate leading-tight">
-              {g.category}
+          <div className="flex items-center gap-2">
+            <p
+              className={cn(
+                "text-[13px] font-semibold truncate text-foreground",
+                g.joined && "font-medium",
+              )}
+            >
+              {g.name}
             </p>
-          ) : null}
-          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
-            <Users className="h-2.5 w-2.5" />
-            <span>{g.member_count} {g.member_count === 1 ? "member" : "members"}</span>
-            {!g.joined && g.member_count === 0 && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-normal border-amber-500/40 text-amber-600 dark:text-amber-400">
-                Needs volunteers
-              </Badge>
+            {active && !g.joined && (
+              <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                Active today
+              </span>
             )}
           </div>
+          <p className="text-[11px] text-muted-foreground/80 truncate leading-tight">
+            {subtitle}
+          </p>
         </div>
+
         {g.joined ? (
-          <span className="text-[11px] text-muted-foreground shrink-0 pr-1">Joined</span>
+          <span className="text-[11px] text-muted-foreground shrink-0 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            Open
+          </span>
         ) : (
           <Button
             size="sm"
             variant="default"
-            className="h-7 px-3 text-xs shrink-0"
+            className="h-7 px-3 text-xs font-semibold shrink-0 rounded-full"
             disabled={joiningId === g.id}
             onClick={(e) => {
               e.stopPropagation();
@@ -258,12 +298,13 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               joinMutation.mutate(g.id);
             }}
           >
-            {joiningId === g.id ? "Joining…" : "Join"}
+            {joiningId === g.id ? "…" : "+ Join"}
           </Button>
         )}
       </button>
     );
   };
+
 
   return (
     <Card className="border-dashed shadow-none">
@@ -359,15 +400,16 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
                   No groups match your filters.
                 </p>
               ) : showCategories ? (
-                <div className="space-y-1">
+                <div className="space-y-3 pt-1">
                   {grouped.map(({ key, meta, items }) => {
                     const collapsed = collapsedCats.has(key);
+                    const joinable = items.filter((i) => !i.joined).length;
                     return (
                       <div key={key}>
                         <button
                           type="button"
                           onClick={() => toggleCat(key)}
-                          className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/90 hover:text-foreground transition-colors"
                         >
                           {collapsed ? (
                             <ChevronRight className="h-3 w-3" />
@@ -375,11 +417,20 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
                             <ChevronDown className="h-3 w-3" />
                           )}
                           <span>{meta.label}</span>
-                          <span className="text-muted-foreground/70 font-normal normal-case tracking-normal">
-                            ({items.length})
+                          <span className="text-muted-foreground/50 font-normal normal-case tracking-normal">
+                            · {items.length}
                           </span>
+                          {joinable > 0 && (
+                            <span className="ml-auto normal-case tracking-normal text-[10px] font-medium text-primary">
+                              {joinable} to join
+                            </span>
+                          )}
                         </button>
-                        {!collapsed && <div className="space-y-0.5">{items.map(renderRow)}</div>}
+                        {!collapsed && (
+                          <div className="space-y-0.5 mt-0.5 animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                            {items.map(renderRow)}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
