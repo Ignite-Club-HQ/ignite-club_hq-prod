@@ -97,9 +97,11 @@ export default function MatchGoalkeepersSelector({ eventId, teamId, isAdmin, rsv
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["match-goalkeepers", eventId] });
+      setPendingId(null);
       toast({ title: "Goalkeeper added 🧤" });
     },
     onError: (e: Error) => {
+      setPendingId(null);
       toast({ title: e.message || "Failed to add goalkeeper", variant: "destructive" });
     },
   });
