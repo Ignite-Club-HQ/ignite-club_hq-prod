@@ -602,8 +602,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     >
       {/* Team color rail — primary recognition cue, identical system to the schedule cards */}
       <span
-        className="absolute left-0 top-0 bottom-0 w-1 pointer-events-none"
-        style={{ backgroundColor: teamRailHex, opacity: isToday ? 1 : 0.75 }}
+        className="absolute left-0 top-0 bottom-0 w-0.5 pointer-events-none"
+        style={{ backgroundColor: teamRailHex, opacity: isToday ? 0.35 : 0.22 }}
         aria-hidden="true"
       />
       {/* Right-edge tap affordance — hidden when RSVP pill is shown to avoid
@@ -810,8 +810,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                             size="sm"
                             aria-pressed={isActive}
                             aria-label={`${soleChildFirst} RSVP ${label}`}
-                            className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
-                              isActive ? activeClass : inactiveHint
+                            className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
+                              isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                             }`}
                             disabled={childRsvpMutation.isPending || isActive}
                             onClick={() => !isActive && childRsvpMutation.mutate({ childId: soleChild!.id, status })}
@@ -864,8 +864,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                     size="sm"
                                     aria-pressed={isActive}
                                     aria-label={`${child.name} RSVP ${label}`}
-                                    className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                      isActive ? activeClass : inactiveHint
+                                    className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                      isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                     }`}
                                     disabled={childRsvpMutation.isPending || isActive}
                                     onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
@@ -957,8 +957,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                               size="sm"
                               aria-pressed={isActive}
                               aria-label={`Your RSVP ${label}`}
-                              className={`flex-1 h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                isActive ? activeClass : inactiveHint
+                              className={`flex-1 h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                               }`}
                               disabled={rsvpMutation.isPending || isActive}
                               onClick={() => !isActive && rsvpMutation.mutate(status)}
@@ -992,8 +992,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                         size="sm"
                         aria-pressed={isActive}
                         aria-label={`RSVP ${label}`}
-                        className={`flex-1 gap-1.5 text-[12px] font-semibold h-9 rounded-full transition-all ${
-                          isActive ? activeClass : inactiveHint
+                        className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
+                          isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                         }`}
                         disabled={rsvpMutation.isPending || isActive}
                         onClick={() => !isActive && rsvpMutation.mutate(status)}
