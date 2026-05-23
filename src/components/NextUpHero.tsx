@@ -126,24 +126,27 @@ export function NextUpHero({ event }: NextUpHeroProps) {
     },
   });
 
-  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
+  const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveClass: string }[] = [
     {
       status: "going",
       label: "Going",
-      icon: <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />,
-      activeClass: "bg-primary text-white shadow-lg shadow-primary/50 dark:shadow-primary/60 ring-2 ring-primary ring-offset-2 ring-offset-card",
+      icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--primary)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-primary/50 hover:text-foreground",
     },
     {
       status: "maybe",
       label: "Maybe",
-      icon: <HelpCircle className="h-4 w-4" strokeWidth={2.5} />,
-      activeClass: "bg-warning text-white shadow-lg shadow-warning/50 dark:shadow-warning/60 ring-2 ring-warning ring-offset-2 ring-offset-card",
+      icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
+      activeClass: "bg-warning text-warning-foreground shadow-[0_8px_24px_-6px_hsl(var(--warning)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--warning)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-warning/50 hover:text-foreground",
     },
     {
       status: "not_going",
       label: "Can't go",
-      icon: <X className="h-4 w-4" strokeWidth={3} />,
-      activeClass: "bg-destructive text-white shadow-lg shadow-destructive/50 dark:shadow-destructive/60 ring-2 ring-destructive ring-offset-2 ring-offset-card",
+      icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
+      activeClass: "bg-destructive text-destructive-foreground shadow-[0_8px_24px_-6px_hsl(var(--destructive)/0.7)] dark:shadow-[0_8px_24px_-4px_hsl(var(--destructive)/0.85)]",
+      inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-destructive/50 hover:text-foreground",
     },
   ];
   const selectedLabel = rsvpButtons.find((b) => b.status === currentStatus)?.label;
