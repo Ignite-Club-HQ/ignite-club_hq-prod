@@ -62,6 +62,7 @@ export default {
         info: "hsl(var(--info))",
         rsvp: {
           selected: {
+            DEFAULT: "hsl(var(--rsvp-selected))",
             foreground: "hsl(var(--rsvp-selected-foreground))",
           },
         },
