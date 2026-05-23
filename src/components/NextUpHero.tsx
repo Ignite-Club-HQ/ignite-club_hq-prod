@@ -228,7 +228,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
               <div
                 role="radiogroup"
                 aria-label="RSVP response"
-                className="inline-flex w-full gap-0 rounded-lg border border-border/60 bg-muted/40 p-1"
+                className="inline-flex w-full items-stretch gap-1.5 rounded-xl bg-muted/60 dark:bg-background/60 p-1.5"
               >
                 {rsvpButtons.map(({ status, label, icon, activeClass }) => {
                   const isActive = currentStatus === status;
@@ -243,30 +243,30 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                       disabled={rsvpMutation.isPending}
                       onClick={() => !isActive && rsvpMutation.mutate(status)}
                       className={[
-                        "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-sm font-semibold",
+                        "flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm",
                         "transition-all duration-200 ease-out touch-manipulation",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                         "disabled:cursor-not-allowed",
                         isActive
-                          ? `${activeClass} scale-[1.02] animate-scale-in`
-                          : "bg-transparent text-muted-foreground/80 border border-transparent hover:text-foreground active:scale-[0.98]",
+                          ? `${activeClass} font-bold scale-[1.06] z-10 animate-scale-in`
+                          : "bg-transparent text-muted-foreground/60 dark:text-muted-foreground/50 font-medium hover:text-foreground/80 active:scale-[0.97]",
                       ].join(" ")}
                     >
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <span className={isActive ? "text-white" : "opacity-70"}>{icon}</span>
+                        <span className={isActive ? "text-white drop-shadow-sm" : "opacity-60"}>{icon}</span>
                       )}
                       <span>{label}</span>
                     </button>
                   );
                 })}
               </div>
-              <div className="h-4 text-xs text-muted-foreground flex items-center gap-1.5" aria-live="polite">
+              <div className="h-4 text-xs flex items-center gap-1.5" aria-live="polite">
                 {selectedLabel && !rsvpMutation.isPending && (
-                  <span className="inline-flex items-center gap-1 text-foreground/80 animate-fade-in">
-                    <CheckCircle2 className="h-3 w-3 text-primary" />
-                    Selected: <span className="font-medium">{selectedLabel}</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-foreground/90 animate-fade-in">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
+                    RSVP confirmed: <span className="font-bold">{selectedLabel}</span>
                   </span>
                 )}
               </div>
