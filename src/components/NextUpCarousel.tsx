@@ -21,7 +21,6 @@ import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
-import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
 import { isParentFirstEvent } from "@/lib/rsvpAudience";
 
@@ -541,30 +540,28 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
   });
 
-  // RSVP buttons: outline by default, fill with semantic tint when selected.
-  // Lower contrast than the previous solid-primary going button so the team identity
-  // and event details remain the strongest things on the card.
+  // RSVP buttons: selected state must read as locked-in and confirmed at a glance.
   const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
     {
       status: "going",
       label: "Going",
       icon: <Check className="h-3.5 w-3.5" />,
-      activeClass: "bg-primary/15 text-primary border-primary/50 shadow-sm hover:bg-primary/20",
-      inactiveHint: "border-border/70 text-foreground/80 hover:bg-primary/5 hover:border-primary/30 hover:text-primary",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
+      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-3.5 w-3.5" />,
-      activeClass: "bg-warning/15 text-warning border-warning/45",
-      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
+      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-3.5 w-3.5" />,
-      activeClass: "bg-destructive/15 text-destructive border-destructive/45",
-      inactiveHint: "border-border/70 text-foreground/70 hover:bg-muted/40",
+      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
+      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
     },
   ];
 
