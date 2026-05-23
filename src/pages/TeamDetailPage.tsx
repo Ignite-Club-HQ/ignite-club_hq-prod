@@ -134,6 +134,7 @@ export default function TeamDetailPage() {
   const [moveToTeam, setMoveToTeam] = useState<{ type: "adult" | "child"; id: string; name: string; roles?: string[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
+  const [removeChild, setRemoveChild] = useState<{ childId: string; name: string } | null>(null);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
@@ -2782,8 +2783,42 @@ export default function TeamDetailPage() {
           onEditPosition={() => setPositionSheetPlayer({ id: selectedChild.childId, name: selectedChild.childName, type: "child" })}
           onSwapTeam={() => setMoveToTeam({ type: "child", id: selectedChild.childId, name: selectedChild.childName })}
           onLink={selectedChild.isPending && selectedChild.linkInviteIds ? () => setLinkChildToParent({ childName: selectedChild.childName, existingChildId: selectedChild.childId, pendingInviteIds: selectedChild.linkInviteIds || [] }) : undefined}
+          onRemove={(isAdmin || isClubAdmin) && !selectedChild.isPending ? () => setRemoveChild({ childId: selectedChild.childId, name: selectedChild.childName }) : undefined}
         />
       )}
+      <AlertDialog open={!!removeChild} onOpenChange={(open) => { if (!open) setRemoveChild(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {removeChild?.name} from the team. Their parent can request to join again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!removeChild || !id) return;
+                const { error } = await supabase
+                  .from("child_team_assignments")
+                  .delete()
+                  .eq("child_id", removeChild.childId)
+                  .eq("team_id", id);
+                if (error) {
+                  toast({ title: "Failed to remove player", variant: "destructive" });
+                } else {
+                  queryClient.invalidateQueries({ queryKey: ["team-children", id] });
+                  toast({ title: "Player removed" });
+                }
+                setRemoveChild(null);
+              }}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
