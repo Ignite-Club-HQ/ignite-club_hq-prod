@@ -33,7 +33,6 @@ import { useAuth } from "@/hooks/useAuth";
 interface OpenGroup {
   id: string;
   name: string;
-  description: string | null;
   category: string | null;
   club_id: string;
   member_count: number;
@@ -103,7 +102,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
         .from("chat_groups")
-        .select("id, name, description, category, club_id")
+        .select("id, name, category, club_id")
         .eq("join_policy", "open_to_club")
         .is("deleted_at", null)
         .not("club_id", "is", null)
@@ -135,7 +134,6 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       return rows.map((r) => ({
         id: r.id,
         name: r.name,
-        description: r.description ?? null,
         category: r.category ?? null,
         club_id: r.club_id,
         member_count: counts.get(r.id) ?? 0,
@@ -172,8 +170,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (!q) return true;
       return (
         g.name.toLowerCase().includes(q) ||
-        (g.category ?? "").toLowerCase().includes(q) ||
-        (g.description ?? "").toLowerCase().includes(q)
+        (g.category ?? "").toLowerCase().includes(q)
       );
     });
   }, [groups, search, chip]);
@@ -232,9 +229,9 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           <p className={cn("text-sm font-medium truncate", g.joined && "text-muted-foreground")}>
             {g.name}
           </p>
-          {g.description ? (
+          {g.category ? (
             <p className="text-[11px] text-muted-foreground truncate leading-tight">
-              {g.description}
+              {g.category}
             </p>
           ) : null}
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
