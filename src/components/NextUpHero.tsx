@@ -131,21 +131,22 @@ export function NextUpHero({ event }: NextUpHeroProps) {
       status: "going",
       label: "Going",
       icon: <CheckCircle2 className="h-4 w-4" />,
-      activeClass: "bg-primary text-primary-foreground hover:bg-primary/90",
+      activeClass: "bg-primary text-white border-primary shadow-md shadow-primary/40 dark:shadow-primary/50 ring-2 ring-primary/40 dark:ring-primary/60",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-4 w-4" />,
-      activeClass: "bg-warning text-warning-foreground hover:bg-warning/90",
+      activeClass: "bg-warning text-white border-warning shadow-md shadow-warning/40 dark:shadow-warning/50 ring-2 ring-warning/40 dark:ring-warning/60",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-4 w-4" />,
-      activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      activeClass: "bg-destructive text-white border-destructive shadow-md shadow-destructive/40 dark:shadow-destructive/50 ring-2 ring-destructive/40 dark:ring-destructive/60",
     },
   ];
+  const selectedLabel = rsvpButtons.find((b) => b.status === currentStatus)?.label;
 
   return (
     <section>
