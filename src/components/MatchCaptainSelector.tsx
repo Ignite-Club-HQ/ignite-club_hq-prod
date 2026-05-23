@@ -239,7 +239,10 @@ export default function MatchCaptainSelector({
                   key={rsvp.id}
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => assignMutation.mutate({ userId: rsvp.user_id })}
+                  onClick={() => {
+                    setPendingId(rsvp.user_id);
+                    assignMutation.mutate({ userId: rsvp.user_id });
+                  }}
                   disabled={assignMutation.isPending}
                 >
                   <Avatar className="h-10 w-10 mr-3">
@@ -249,7 +252,7 @@ export default function MatchCaptainSelector({
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-base">{rsvp.profiles?.display_name || "Unknown"}</span>
-                  {assignMutation.isPending && (
+                  {assignMutation.isPending && pendingId === rsvp.user_id && (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
                   )}
                 </Button>
@@ -260,7 +263,10 @@ export default function MatchCaptainSelector({
                   key={rsvp.id}
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => assignMutation.mutate({ childId: rsvp.child_id })}
+                  onClick={() => {
+                    setPendingId(rsvp.child_id);
+                    assignMutation.mutate({ childId: rsvp.child_id });
+                  }}
                   disabled={assignMutation.isPending}
                 >
                   <Avatar className="h-10 w-10 mr-3">
@@ -270,7 +276,7 @@ export default function MatchCaptainSelector({
                   </Avatar>
                   <span className="text-base">{rsvp.children?.name || "Unknown"}</span>
                   <Badge variant="outline" className="ml-2 text-xs">Child</Badge>
-                  {assignMutation.isPending && (
+                  {assignMutation.isPending && pendingId === rsvp.child_id && (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
                   )}
                 </Button>
