@@ -58,15 +58,15 @@ const ROLE_LABEL: Record<MemberRole, string> = {
 
 /** Tailwind classes for role chip (uses semantic tokens). */
 export const ROLE_BADGE_CLASS: Record<MemberRole, string> = {
-  club_admin: "bg-primary/15 text-primary border-primary/25",
-  committee_member: "bg-primary/15 text-primary border-primary/25",
-  coach: "bg-accent/20 text-accent-foreground border-accent/30",
-  team_admin: "bg-accent/20 text-accent-foreground border-accent/30",
-  league_admin: "bg-primary/15 text-primary border-primary/25",
-  player: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
-  parent: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/25",
+  club_admin: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
+  committee_member: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
+  coach: "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/40",
+  team_admin: "bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/40",
+  league_admin: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
+  player: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/40",
+  parent: "bg-sky-500/20 text-sky-800 dark:text-sky-200 border-sky-500/40",
   basic_user: "bg-muted text-muted-foreground border-border",
-  app_admin: "bg-primary/15 text-primary border-primary/25",
+  app_admin: "bg-rose-500/20 text-rose-800 dark:text-rose-200 border-rose-500/40",
 };
 
 function pickPrimary(roles: MemberRole[]): MemberRole | null {
