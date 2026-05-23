@@ -117,7 +117,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (rows.length === 0) return [];
 
       const ids = rows.map((r) => r.id);
-      const [{ data: mine }, { data: members }] = await Promise.all([
+      const [{ data: mine }, { data: members }, { data: msgs }] = await Promise.all([
         supabase
           .from("group_members")
           .select("group_id")
@@ -127,11 +127,25 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           .from("group_members")
           .select("group_id")
           .in("group_id", ids),
+        supabase
+          .from("group_messages")
+          .select("group_id, text, image_url, created_at, is_system_message")
+          .in("group_id", ids)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(200),
       ]);
       const joined = new Set((mine ?? []).map((m: any) => m.group_id));
       const counts = new Map<string, number>();
       (members ?? []).forEach((m: any) => {
         counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1);
+      });
+      const lastByGroup = new Map<string, { text: string | null; at: string }>();
+      (msgs ?? []).forEach((m: any) => {
+        if (m.is_system_message) return;
+        if (lastByGroup.has(m.group_id)) return;
+        const text = m.text?.trim() || (m.image_url ? "📷 Photo" : null);
+        lastByGroup.set(m.group_id, { text, at: m.created_at });
       });
       return rows.map((r) => ({
         id: r.id,
@@ -140,6 +154,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         club_id: r.club_id,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
+        last_text: lastByGroup.get(r.id)?.text ?? null,
+        last_at: lastByGroup.get(r.id)?.at ?? null,
       }));
     },
   });
