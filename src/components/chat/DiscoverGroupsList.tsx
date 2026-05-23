@@ -2,22 +2,30 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
+  Briefcase,
+  Calendar,
+  Check,
   ChevronDown,
   ChevronRight,
+  Coins,
+  HandHeart,
   HelpCircle,
-  MessageCircle,
   Search,
+  Shield,
   Sparkles,
+  Trophy,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,26 +33,58 @@ import { useAuth } from "@/hooks/useAuth";
 interface OpenGroup {
   id: string;
   name: string;
+  description: string | null;
   category: string | null;
   club_id: string;
-  clubs?: { name: string | null } | null;
+  member_count: number;
   joined: boolean;
 }
 
 interface DiscoverGroupsListProps {
-  /** When set, restrict to this club only (matches the inbox club filter). */
   activeClubFilter?: string | null;
 }
 
+type CategoryKey =
+  | "operations"
+  | "volunteers"
+  | "events"
+  | "match day"
+  | "admin"
+  | "finance"
+  | "other";
+
+const CATEGORY_META: Record<
+  CategoryKey,
+  { label: string; icon: typeof Briefcase; tone: string }
+> = {
+  operations: { label: "Operations", icon: Briefcase, tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  volunteers: { label: "Volunteers", icon: HandHeart, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  events: { label: "Events", icon: Calendar, tone: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+  "match day": { label: "Match Day", icon: Trophy, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  admin: { label: "Admin", icon: Shield, tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+  finance: { label: "Finance", icon: Coins, tone: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
+  other: { label: "Other", icon: Sparkles, tone: "bg-muted text-muted-foreground" },
+};
+
+function categoryKey(raw: string | null | undefined): CategoryKey {
+  const k = (raw ?? "").trim().toLowerCase();
+  if (k in CATEGORY_META) return k as CategoryKey;
+  return "other";
+}
+
+const FILTER_CHIPS: { key: "all" | CategoryKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "operations", label: "Operations" },
+  { key: "volunteers", label: "Volunteers" },
+  { key: "events", label: "Events" },
+  { key: "match day", label: "Match Day" },
+  { key: "admin", label: "Admin" },
+];
+
 /**
- * Lists club chat groups in the Operations / Volunteers categories that are
- * open for any club member to self-join (WhatsApp-style). Already-joined
- * groups are shown with a "Joined" badge so users understand why the list
- * may be empty.
- *
- * Discoverability is gated server-side by the
- * `Club members can discover open groups` RLS policy on `chat_groups`. The
- * actual join goes through the `join_open_chat_group` SECURITY DEFINER RPC.
+ * WhatsApp/Slack-style channel discovery for Operations & Volunteers chat
+ * groups in the user's active club. Server-side RLS on `chat_groups` gates
+ * which groups are surfaced; `join_open_chat_group` RPC handles the join.
  */
 export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsListProps) {
   const { user } = useAuth();
@@ -53,6 +93,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const [expanded, setExpanded] = useState(true);
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [chip, setChip] = useState<(typeof FILTER_CHIPS)[number]["key"]>("all");
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
 
   const { data: groups = [] } = useQuery({
     queryKey: ["discover-open-groups", user?.id, activeClubFilter ?? null],
@@ -61,7 +103,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
         .from("chat_groups")
-        .select("id, name, category, club_id, clubs:club_id(name)")
+        .select("id, name, description, category, club_id")
         .eq("join_policy", "open_to_club")
         .is("deleted_at", null)
         .not("club_id", "is", null)
@@ -70,17 +112,35 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (activeClubFilter) q = q.eq("club_id", activeClubFilter);
       const { data, error } = await q;
       if (error) throw error;
-      const rows = (data ?? []) as unknown as Omit<OpenGroup, "joined">[];
+      const rows = (data ?? []) as any[];
       if (rows.length === 0) return [];
 
       const ids = rows.map((r) => r.id);
-      const { data: mine } = await supabase
-        .from("group_members")
-        .select("group_id")
-        .eq("user_id", user!.id)
-        .in("group_id", ids);
+      const [{ data: mine }, { data: members }] = await Promise.all([
+        supabase
+          .from("group_members")
+          .select("group_id")
+          .eq("user_id", user!.id)
+          .in("group_id", ids),
+        supabase
+          .from("group_members")
+          .select("group_id")
+          .in("group_id", ids),
+      ]);
       const joined = new Set((mine ?? []).map((m: any) => m.group_id));
-      return rows.map((r) => ({ ...r, joined: joined.has(r.id) }));
+      const counts = new Map<string, number>();
+      (members ?? []).forEach((m: any) => {
+        counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1);
+      });
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description ?? null,
+        category: r.category ?? null,
+        club_id: r.club_id,
+        member_count: counts.get(r.id) ?? 0,
+        joined: joined.has(r.id),
+      }));
     },
   });
 
@@ -107,28 +167,122 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groups;
-    return groups.filter(
-      (g) =>
+    return groups.filter((g) => {
+      if (chip !== "all" && categoryKey(g.category) !== chip) return false;
+      if (!q) return true;
+      return (
         g.name.toLowerCase().includes(q) ||
         (g.category ?? "").toLowerCase().includes(q) ||
-        (g.clubs?.name ?? "").toLowerCase().includes(q),
-    );
-  }, [groups, search]);
+        (g.description ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [groups, search, chip]);
+
+  // Group filtered list by category for scalability
+  const grouped = useMemo(() => {
+    const map = new Map<CategoryKey, OpenGroup[]>();
+    for (const g of filtered) {
+      const k = categoryKey(g.category);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(g);
+    }
+    // Stable order
+    const order: CategoryKey[] = ["operations", "volunteers", "events", "match day", "admin", "finance", "other"];
+    return order
+      .filter((k) => map.has(k))
+      .map((k) => ({ key: k, meta: CATEGORY_META[k], items: map.get(k)! }));
+  }, [filtered]);
 
   const joinableCount = groups.filter((g) => !g.joined).length;
+  const showCategories = groups.length >= 6;
+
+  const toggleCat = (k: string) => {
+    setCollapsedCats((s) => {
+      const next = new Set(s);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  };
+
+  const renderRow = (g: OpenGroup) => {
+    const meta = CATEGORY_META[categoryKey(g.category)];
+    const Icon = meta.icon;
+    return (
+      <button
+        key={g.id}
+        type="button"
+        onClick={() => g.joined && navigate(`/groups/${g.id}`)}
+        className={cn(
+          "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors",
+          g.joined
+            ? "bg-muted/40 hover:bg-muted/60 opacity-90"
+            : "hover:bg-muted/40",
+        )}
+      >
+        <div className={cn("relative h-9 w-9 rounded-lg flex items-center justify-center shrink-0", meta.tone)}>
+          <Icon className="h-4 w-4" />
+          {g.joined && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+              <Check className="h-2 w-2 text-white" strokeWidth={3} />
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={cn("text-sm font-medium truncate", g.joined && "text-muted-foreground")}>
+            {g.name}
+          </p>
+          {g.description ? (
+            <p className="text-[11px] text-muted-foreground truncate leading-tight">
+              {g.description}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+            <Users className="h-2.5 w-2.5" />
+            <span>{g.member_count} {g.member_count === 1 ? "member" : "members"}</span>
+            {!g.joined && g.member_count === 0 && (
+              <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-normal border-amber-500/40 text-amber-600 dark:text-amber-400">
+                Needs volunteers
+              </Badge>
+            )}
+          </div>
+        </div>
+        {g.joined ? (
+          <span className="text-[11px] text-muted-foreground shrink-0 pr-1">Joined</span>
+        ) : (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-7 px-3 text-xs shrink-0"
+            disabled={joiningId === g.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              setJoiningId(g.id);
+              joinMutation.mutate(g.id);
+            }}
+          >
+            {joiningId === g.id ? "Joining…" : "Join"}
+          </Button>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <Card className="border-dashed">
+    <Card className="border-dashed shadow-none">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-medium truncate">Discover groups</span>
-          <Badge variant="secondary" className="shrink-0">{joinableCount}</Badge>
+          {joinableCount > 0 && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] shrink-0">
+              {joinableCount} new
+            </Badge>
+          )}
           <Popover>
             <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
               <button
@@ -146,12 +300,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             >
               <p className="font-medium text-sm mb-1">How this works</p>
               <p className="text-muted-foreground">
-                Any club admin can mark an <strong>Operations</strong> or <strong>Volunteers</strong> group as
-                "open to club" (in the group's edit page). Those groups show up here
-                and any club member can tap <strong>Join</strong> to enter instantly — no approval needed.
-              </p>
-              <p className="text-muted-foreground mt-2">
-                Groups you've already joined show a "Joined" badge so you know they exist.
+                Admins can mark <strong>Operations</strong> or <strong>Volunteers</strong> groups
+                as open. Any club member can tap <strong>Join</strong> — no approval needed.
               </p>
             </PopoverContent>
           </Popover>
@@ -162,73 +312,87 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
       </button>
+
       {expanded && (
-        <CardContent className="pt-0 pb-3 space-y-2">
-          <p className="text-xs text-muted-foreground -mt-1 mb-2">
-            Open Operations &amp; Volunteers groups in your club. Join any without needing an admin.
-          </p>
-
-          {groups.length > 3 && (
-            <div className="relative mb-2">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search open groups…"
-                className="h-8 pl-8 text-xs"
-              />
-            </div>
-          )}
-
+        <div className="px-2 pb-2 space-y-2">
           {groups.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic py-2">
-              No open groups to discover right now. Ask a club admin to mark an Operations or Volunteers group as open to the club.
-            </p>
-          ) : filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic py-2">
-              No groups match "{search}".
+            <p className="text-xs text-muted-foreground italic px-2 py-3">
+              No open groups yet. Ask a club admin to open an Operations or Volunteers group to the club.
             </p>
           ) : (
-            filtered.map((g) => (
-              <div
-                key={g.id}
-                className="flex items-center gap-3 p-2 rounded-md bg-muted/30"
-              >
-                <div className="p-2 rounded-full bg-primary/10 shrink-0">
-                  <MessageCircle className="h-4 w-4 text-primary" />
+            <>
+              {groups.length > 4 && (
+                <div className="space-y-2 px-1">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search groups…"
+                      className="h-8 pl-8 text-xs"
+                    />
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-1 scrollbar-none">
+                    {FILTER_CHIPS.map((c) => {
+                      const has = c.key === "all" || groups.some((g) => categoryKey(g.category) === c.key);
+                      if (!has) return null;
+                      const active = chip === c.key;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setChip(c.key)}
+                          className={cn(
+                            "shrink-0 h-6 px-2.5 rounded-full text-[11px] font-medium border transition-colors",
+                            active
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:text-foreground",
+                          )}
+                        >
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{g.name}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {[g.clubs?.name, g.category].filter(Boolean).join(" · ")}
-                  </p>
+              )}
+
+              {filtered.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic px-2 py-3">
+                  No groups match your filters.
+                </p>
+              ) : showCategories ? (
+                <div className="space-y-1">
+                  {grouped.map(({ key, meta, items }) => {
+                    const collapsed = collapsedCats.has(key);
+                    return (
+                      <div key={key}>
+                        <button
+                          type="button"
+                          onClick={() => toggleCat(key)}
+                          className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                        >
+                          {collapsed ? (
+                            <ChevronRight className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                          <span>{meta.label}</span>
+                          <span className="text-muted-foreground/70 font-normal normal-case tracking-normal">
+                            ({items.length})
+                          </span>
+                        </button>
+                        {!collapsed && <div className="space-y-0.5">{items.map(renderRow)}</div>}
+                      </div>
+                    );
+                  })}
                 </div>
-                {g.joined ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => navigate(`/groups/${g.id}`)}
-                  >
-                    <Badge variant="outline" className="mr-1">Joined</Badge>
-                    Open
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={joiningId === g.id}
-                    onClick={() => {
-                      setJoiningId(g.id);
-                      joinMutation.mutate(g.id);
-                    }}
-                  >
-                    {joiningId === g.id ? "Joining…" : "Join"}
-                  </Button>
-                )}
-              </div>
-            ))
+              ) : (
+                <div className="space-y-0.5">{filtered.map(renderRow)}</div>
+              )}
+            </>
           )}
-        </CardContent>
+        </div>
       )}
     </Card>
   );
