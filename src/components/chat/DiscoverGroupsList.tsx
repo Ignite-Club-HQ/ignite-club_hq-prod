@@ -35,7 +35,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const { data: groups = [] } = useQuery({
