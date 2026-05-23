@@ -7,6 +7,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
 import { VaultFileCard } from "./VaultFileCard";
 import { Capacitor } from "@capacitor/core";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MentionInputProps {
   value: string;
