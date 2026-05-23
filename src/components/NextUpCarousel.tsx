@@ -924,8 +924,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                       </div>
                     )}
                     {teammatesGoing > 0 && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Users className="h-3 w-3 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                        <Users className="h-3 w-3 shrink-0 opacity-60" />
                         <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
                       </div>
                     )}
@@ -1016,10 +1016,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   const teammatesGoing = rsvpSummary?.totalCount || 0;
                   if (currentStatus && teammatesGoing === 0) return null;
                   return (
-                    <div className="rounded-xl border border-border/35 bg-muted/10 px-2.5 py-1.5 space-y-1">
+                    <div className="rounded-xl border border-border/20 bg-muted/[0.04] px-2.5 py-1.5 space-y-0.5 opacity-70">
                       {teammatesGoing > 0 && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <Users className="h-3 w-3 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                          <Users className="h-3 w-3 shrink-0 opacity-60" />
                           <span>{teammatesGoing} {teammatesGoing === 1 ? "teammate" : "teammates"} going</span>
                         </div>
                       )}
