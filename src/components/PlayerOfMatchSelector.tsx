@@ -50,6 +50,7 @@ export default function PlayerOfMatchSelector({
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [selectedReward, setSelectedReward] = useState<any | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const lastRewardStorageKey = useMemo(
     () => `pom-last-reward:${clubId}:${teamId ?? "club"}`,
