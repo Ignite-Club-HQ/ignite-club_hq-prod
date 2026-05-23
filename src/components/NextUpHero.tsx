@@ -257,6 +257,8 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                   >
                     {isLoading ? (
                       <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    ) : isActive ? (
+                      <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={3} />
                     ) : (
                       icon
                     )}

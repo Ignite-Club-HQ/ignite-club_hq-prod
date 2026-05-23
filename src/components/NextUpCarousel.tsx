@@ -315,9 +315,9 @@ function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: str
   const parts: React.ReactNode[] = [];
   
   // User status
-  if (parentHasRsvpd && currentStatus === "going") parts.push(<span key="you" className="text-primary font-medium">You: Going</span>);
-  else if (parentHasRsvpd && currentStatus === "maybe") parts.push(<span key="you" className="text-warning font-medium">You: Maybe</span>);
-  else if (parentHasRsvpd && currentStatus === "not_going") parts.push(<span key="you" className="text-destructive font-medium">You: Can't go</span>);
+  if (parentHasRsvpd && currentStatus === "going") parts.push(<span key="you" className="text-muted-foreground font-medium">Going</span>);
+  else if (parentHasRsvpd && currentStatus === "maybe") parts.push(<span key="you" className="text-muted-foreground font-medium">Maybe</span>);
+  else if (parentHasRsvpd && currentStatus === "not_going") parts.push(<span key="you" className="text-muted-foreground font-medium">Can't go</span>);
 
   if (goingChildren.length > 0) {
     const names = goingChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
@@ -940,9 +940,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                       className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors touch-manipulation"
                     >
                       <span>
-                        {currentStatus
-                          ? `You: ${currentStatus === "going" ? "Going" : currentStatus === "maybe" ? "Maybe" : "Can't go"}`
-                          : "Are you attending too?"}
+                        {currentStatus ? "Your attendance" : "Are you attending too?"}
                       </span>
                       <ChevronDown className={`h-3 w-3 transition-transform ${parentRsvpOpen ? "rotate-180" : ""}`} />
                     </button>
