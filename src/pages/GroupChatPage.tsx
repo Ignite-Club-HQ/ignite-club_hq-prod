@@ -1739,11 +1739,14 @@ export default function GroupChatPage() {
 
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
+    : (group as any)?.competition_id
+    ? "Competition chat"
     : group?.team_id
     ? "Team group"
     : group?.club_id
     ? "Club group"
     : "Personal group";
+
   const groupHeaderSublabel = groupOnlineCount > 0
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
     : groupBaseSublabel;
