@@ -300,6 +300,9 @@ export function MentionInput({
   teamId,
   clubId,
   groupId,
+  dmOtherUserId,
+  clubAdminMemberUserId,
+  disableMentions = false,
   showEmojiPicker = true,
   onGifSelect,
 }: MentionInputProps) {
