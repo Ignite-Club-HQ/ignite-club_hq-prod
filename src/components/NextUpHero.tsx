@@ -131,22 +131,22 @@ export function NextUpHero({ event }: NextUpHeroProps) {
       status: "going",
       label: "Going",
       icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
-      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
+      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
-      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
+      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)]",
-      inactiveClass: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
+      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
     },
   ];
   
