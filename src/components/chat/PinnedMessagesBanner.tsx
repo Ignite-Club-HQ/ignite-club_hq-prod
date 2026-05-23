@@ -156,7 +156,7 @@ export function PinnedMessagesBanner({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onUnpin(pin.message_id);
+                          setConfirmPin(pin);
                         }}
                         className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                         aria-label="Unpin message"
