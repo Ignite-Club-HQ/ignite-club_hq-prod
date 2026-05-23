@@ -34,6 +34,11 @@ interface EditGroupDialogProps {
     name: string;
     allowed_roles: AppRole[];
     membership_mode?: string | null;
+    category?: string | null;
+    club_id?: string | null;
+    team_id?: string | null;
+    mini_league_id?: string | null;
+    join_policy?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -41,9 +46,16 @@ interface EditGroupDialogProps {
 
 export default function EditGroupDialog({ group, open: controlledOpen, onOpenChange }: EditGroupDialogProps) {
   const isManual = group.membership_mode === "manual";
+  const qualifiesForOpenJoin =
+    isManual &&
+    !!group.club_id &&
+    !group.team_id &&
+    !group.mini_league_id &&
+    (group.category === "Operations" || group.category === "Volunteers");
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
+  const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
   const queryClient = useQueryClient();
   
   // Support both controlled and uncontrolled modes
