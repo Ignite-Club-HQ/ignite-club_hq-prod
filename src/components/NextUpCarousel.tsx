@@ -1063,10 +1063,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                       size="sm"
                                       aria-pressed={isActive}
                                       aria-label={`${child.name} RSVP ${label}`}
-                                      className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
-                                        isActive ? activeClass : inactiveHint
+                                      className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
+                                        isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                       }`}
-                                      disabled={childRsvpMutation.isPending || isActive}
+                                      disabled={childRsvpMutation.isPending}
                                       onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
                                     >
                                       {isActive ? <Check className="h-3 w-3" /> : icon}
