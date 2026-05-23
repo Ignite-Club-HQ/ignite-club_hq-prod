@@ -149,6 +149,15 @@ export function initNotificationLaunchHandler() {
             });
           } catch {}
 
+          // Stash the message id so the chat page can still scroll to the new
+          // message even if the URL `?message=` search param is lost during
+          // the Android cold-start route shuffle.
+          try {
+            import('./pendingChatJump').then(({ captureJumpFromNotification }) => {
+              captureJumpFromNotification(data, url);
+            });
+          } catch {}
+
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);
             
