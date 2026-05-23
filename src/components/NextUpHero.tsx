@@ -149,7 +149,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
       inactiveClass: "bg-transparent text-foreground/70 border border-border hover:border-destructive/50 hover:text-foreground",
     },
   ];
-  const selectedLabel = rsvpButtons.find((b) => b.status === currentStatus)?.label;
+  
 
   return (
     <section>
