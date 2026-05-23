@@ -107,6 +107,18 @@ export default function ChildDetailSheet({
                         Move to Another Team
                       </Button>
                     )}
+                    {onRemove && (
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-2 h-11 text-destructive hover:text-destructive"
+                        onClick={() => { onOpenChange(false); onRemove(); }}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                        Remove from Team
+                      </Button>
+                    )}
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
