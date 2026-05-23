@@ -99,9 +99,11 @@ export default function MatchCaptainSelector({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match-captain", eventId] });
       setSelectDialogOpen(false);
+      setPendingId(null);
       toast({ title: "Captain assigned 🛡️" });
     },
     onError: (e: Error) => {
+      setPendingId(null);
       toast({ title: e.message || "Failed to assign captain", variant: "destructive" });
     },
   });
