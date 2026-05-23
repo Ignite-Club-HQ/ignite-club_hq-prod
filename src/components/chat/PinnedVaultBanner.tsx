@@ -170,7 +170,7 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
           onClick={(e) => {
             e.stopPropagation();
             hapticSelectionTick();
-            onUnpin();
+            setConfirmOpen(true);
           }}
           className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           aria-label="Unpin vault"
@@ -179,5 +179,23 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
         </button>
       )}
     </div>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove pinned vault?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will unpin "{target?.label ?? "this vault"}" from the chat for everyone. You can pin it again from the chat menu.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { onUnpin?.(); setConfirmOpen(false); }}>
+            Unpin
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
+
   );
 }
