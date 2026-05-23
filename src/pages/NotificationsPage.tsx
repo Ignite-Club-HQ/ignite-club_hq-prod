@@ -298,16 +298,27 @@ export default function NotificationsPage() {
 
   // Translate raw RPC / network errors into a friendly, actionable toast message.
   const friendlyRequestError = (error: unknown, action: "approve" | "deny"): string => {
-    const raw = (error instanceof Error ? error.message : String(error ?? "")).toLowerCase();
+    const e = error as { message?: string; details?: string; hint?: string; code?: string } | null;
+    const raw = [e?.message, e?.details, e?.hint, e?.code, String(error ?? "")]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     const verb = action === "approve" ? "approve" : "deny";
 
-    if (raw.includes("not authorized")) {
+    if (raw.includes("not authorized") || raw.includes("permission denied")) {
       return `You don't have permission to ${verb} this request. Only team admins, coaches, and club admins can manage join requests.`;
     }
-    if (raw.includes("already processed")) {
-      return "This request has already been handled by another admin. Pull to refresh to see the latest list.";
+    if (
+      raw.includes("already processed") ||
+      raw.includes("already approved") ||
+      raw.includes("already denied") ||
+      raw.includes("already handled") ||
+      raw.includes("not pending")
+    ) {
+      const past = action === "approve" ? "approved" : "denied";
+      return `This request has already been ${past} — likely by another admin. Pull to refresh to see the latest list.`;
     }
-    if (raw.includes("request not found")) {
+    if (raw.includes("request not found") || raw.includes("not found")) {
       return "This request no longer exists — it may have been withdrawn or already actioned.";
     }
     if (raw.includes("network") || raw.includes("failed to fetch") || raw.includes("timeout")) {
