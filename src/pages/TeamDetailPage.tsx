@@ -2819,7 +2819,6 @@ export default function TeamDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      )}
     </div>
   );
 }
