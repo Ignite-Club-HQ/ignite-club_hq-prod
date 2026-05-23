@@ -19,6 +19,12 @@ interface MentionInputProps {
   teamId?: string;
   clubId?: string;
   groupId?: string;
+  /** DM: the other participant's user id. Restricts mentions to {me, other}. */
+  dmOtherUserId?: string;
+  /** Club-admin thread: the member's user id. Restricts mentions to {member, club admins of clubId}. */
+  clubAdminMemberUserId?: string;
+  /** Disable mentions entirely (e.g. broadcast chat). */
+  disableMentions?: boolean;
   showEmojiPicker?: boolean;
   /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
   onGifSelect?: (gifUrl: string) => void;
