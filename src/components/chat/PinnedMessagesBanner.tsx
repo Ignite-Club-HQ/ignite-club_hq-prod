@@ -171,6 +171,29 @@ export function PinnedMessagesBanner({
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={!!confirmPin} onOpenChange={(o) => { if (!o) setConfirmPin(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unpin this message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmPin ? `"${previewText(confirmPin).slice(0, 120)}"` : ""} will no longer be pinned in this chat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmPin) onUnpin?.(confirmPin.message_id);
+                setConfirmPin(null);
+              }}
+            >
+              Unpin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }
