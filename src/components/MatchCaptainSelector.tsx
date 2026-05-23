@@ -43,6 +43,7 @@ export default function MatchCaptainSelector({
   const queryClient = useQueryClient();
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const { data: captain, isLoading } = useQuery({
     queryKey: ["match-captain", eventId],
