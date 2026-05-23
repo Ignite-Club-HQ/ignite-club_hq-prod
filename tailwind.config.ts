@@ -60,6 +60,11 @@ export default {
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         info: "hsl(var(--info))",
+        rsvp: {
+          selected: {
+            foreground: "hsl(var(--rsvp-selected-foreground))",
+          },
+        },
         "pitch-green": "hsl(var(--pitch-green))",
         "chat-bubble-own": {
           DEFAULT: "hsl(var(--chat-bubble-own))",

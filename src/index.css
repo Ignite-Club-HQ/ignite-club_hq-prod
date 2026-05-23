@@ -83,6 +83,7 @@ html, body {
     --success: 160 84% 32%;
     --warning: 45 93% 38%;
     --info: 200 80% 42%;
+    --rsvp-selected-foreground: 0 0% 100%;
 
     /* Event type accents — premium, semantic, theme-aware */
     --event-game: 32 95% 44%;       /* amber for matches */
@@ -148,6 +149,7 @@ html, body {
     --success: 160 84% 45%;
     --warning: 45 93% 50%;
     --info: 200 80% 55%;
+    --rsvp-selected-foreground: 0 0% 100%;
 
     /* Event type accents — brightened for dark surfaces */
     --event-game: 32 95% 56%;
