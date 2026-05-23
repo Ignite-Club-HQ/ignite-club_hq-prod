@@ -292,9 +292,11 @@ export default function PlayerOfMatchSelector({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["player-of-match", eventId] });
       setSelectDialogOpen(false);
+      setPendingId(null);
       toast({ title: "Player of the Match awarded! 🏆" });
     },
     onError: (error: Error) => {
+      setPendingId(null);
       toast({ title: error.message || "Failed to award Player of the Match", variant: "destructive" });
     },
   });
