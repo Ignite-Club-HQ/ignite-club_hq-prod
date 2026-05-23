@@ -35,7 +35,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const { data: groups = [] } = useQuery({
@@ -91,8 +91,6 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     onSettled: () => setJoiningId(null),
   });
 
-  if (groups.length === 0) return null;
-
   return (
     <Card className="border-dashed">
       <button
@@ -113,36 +111,42 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       </button>
       {expanded && (
         <CardContent className="pt-0 pb-3 space-y-2">
-          <p className="text-xs text-muted-foreground -mt-1 mb-1">
+          <p className="text-xs text-muted-foreground -mt-1 mb-2">
             Open Operations &amp; Volunteers groups in your club. Join any without needing an admin.
           </p>
-          {groups.map((g) => (
-            <div
-              key={g.id}
-              className="flex items-center gap-3 p-2 rounded-md bg-muted/30"
-            >
-              <div className="p-2 rounded-full bg-primary/10 shrink-0">
-                <MessageCircle className="h-4 w-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{g.name}</p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {[g.clubs?.name, g.category].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={joiningId === g.id}
-                onClick={() => {
-                  setJoiningId(g.id);
-                  joinMutation.mutate(g.id);
-                }}
+          {groups.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-2">
+              No open groups to discover right now. Ask a club admin to mark an Operations or Volunteers group as open to the club.
+            </p>
+          ) : (
+            groups.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center gap-3 p-2 rounded-md bg-muted/30"
               >
-                {joiningId === g.id ? "Joining…" : "Join"}
-              </Button>
-            </div>
-          ))}
+                <div className="p-2 rounded-full bg-primary/10 shrink-0">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{g.name}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {[g.clubs?.name, g.category].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={joiningId === g.id}
+                  onClick={() => {
+                    setJoiningId(g.id);
+                    joinMutation.mutate(g.id);
+                  }}
+                >
+                  {joiningId === g.id ? "Joining…" : "Join"}
+                </Button>
+              </div>
+            ))
+          )}
         </CardContent>
       )}
     </Card>
