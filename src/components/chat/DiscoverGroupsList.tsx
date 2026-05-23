@@ -102,7 +102,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
         .from("chat_groups")
-        .select("id, name, description, category, club_id")
+        .select("id, name, category, club_id")
         .eq("join_policy", "open_to_club")
         .is("deleted_at", null)
         .not("club_id", "is", null)
