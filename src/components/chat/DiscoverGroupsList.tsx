@@ -401,15 +401,16 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
                   No groups match your filters.
                 </p>
               ) : showCategories ? (
-                <div className="space-y-1">
+                <div className="space-y-3 pt-1">
                   {grouped.map(({ key, meta, items }) => {
                     const collapsed = collapsedCats.has(key);
+                    const joinable = items.filter((i) => !i.joined).length;
                     return (
                       <div key={key}>
                         <button
                           type="button"
                           onClick={() => toggleCat(key)}
-                          className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/90 hover:text-foreground transition-colors"
                         >
                           {collapsed ? (
                             <ChevronRight className="h-3 w-3" />
@@ -417,11 +418,20 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
                             <ChevronDown className="h-3 w-3" />
                           )}
                           <span>{meta.label}</span>
-                          <span className="text-muted-foreground/70 font-normal normal-case tracking-normal">
-                            ({items.length})
+                          <span className="text-muted-foreground/50 font-normal normal-case tracking-normal">
+                            · {items.length}
                           </span>
+                          {joinable > 0 && (
+                            <span className="ml-auto normal-case tracking-normal text-[10px] font-medium text-primary">
+                              {joinable} to join
+                            </span>
+                          )}
                         </button>
-                        {!collapsed && <div className="space-y-0.5">{items.map(renderRow)}</div>}
+                        {!collapsed && (
+                          <div className="space-y-0.5 mt-0.5 animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                            {items.map(renderRow)}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
