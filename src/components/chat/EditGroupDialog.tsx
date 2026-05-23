@@ -167,6 +167,26 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
             </p>
           )}
 
+          {qualifiesForOpenJoin && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="edit-group-open-join"
+                  checked={openToClub}
+                  onCheckedChange={(v) => setOpenToClub(v === true)}
+                />
+                <div className="space-y-0.5">
+                  <label htmlFor="edit-group-open-join" className="text-sm font-medium cursor-pointer">
+                    Let any club member join
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    This group appears under "Discover groups" so club members can join without being added by an admin.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
