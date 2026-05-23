@@ -251,7 +251,7 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                       "disabled:cursor-not-allowed disabled:opacity-100",
                       isActive
-                        ? `${activeClass} font-extrabold scale-[1.06] animate-scale-in`
+                        ? `${activeClass} font-semibold animate-scale-in`
                         : `${inactiveClass} font-medium active:scale-[0.97]`,
                     ].join(" ")}
                   >
