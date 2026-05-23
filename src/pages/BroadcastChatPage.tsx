@@ -1150,6 +1150,7 @@ export default function BroadcastChatPage() {
               }}
               onKeyPress={handleKeyPress}
               disabled={false}
+              disableMentions
               onGifSelect={setImageUrl}
             />
             <ChatSendButton

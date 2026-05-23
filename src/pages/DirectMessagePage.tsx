@@ -1503,6 +1503,7 @@ export default function DirectMessagePage() {
                   onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                   placeholder="Type a message..."
                   disabled={false}
+                  dmOtherUserId={otherUserId || undefined}
                   onGifSelect={setDmImageUrl}
                 />
                 <ChatSendButton

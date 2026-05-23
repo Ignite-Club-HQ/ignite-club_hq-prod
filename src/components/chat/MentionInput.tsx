@@ -7,6 +7,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
 import { VaultFileCard } from "./VaultFileCard";
 import { Capacitor } from "@capacitor/core";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MentionInputProps {
   value: string;
@@ -19,6 +20,12 @@ interface MentionInputProps {
   teamId?: string;
   clubId?: string;
   groupId?: string;
+  /** DM: the other participant's user id. Restricts mentions to {me, other}. */
+  dmOtherUserId?: string;
+  /** Club-admin thread: the member's user id. Restricts mentions to {member, club admins of clubId}. */
+  clubAdminMemberUserId?: string;
+  /** Disable mentions entirely (e.g. broadcast chat). */
+  disableMentions?: boolean;
   showEmojiPicker?: boolean;
   /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
   onGifSelect?: (gifUrl: string) => void;
@@ -294,6 +301,9 @@ export function MentionInput({
   teamId,
   clubId,
   groupId,
+  dmOtherUserId,
+  clubAdminMemberUserId,
+  disableMentions = false,
   showEmojiPicker = true,
   onGifSelect,
 }: MentionInputProps) {
@@ -380,30 +390,96 @@ export function MentionInput({
     onChange(value.replace(new RegExp(`\\s*\\[vaultroot:${scope}:${id}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
   }, [onChange, value]);
 
-  // Fetch users based on team/club/group context
+  const { user: currentUser } = useAuth();
+
+  // Fetch the set of users who are actually members of this chat thread.
+  // Mentions are strictly scoped to thread participants so users can't be
+  // notified into threads they don't belong to.
   const { data: users } = useQuery({
-    queryKey: ["mention-users", teamId, clubId, groupId, mentionSearch],
+    queryKey: [
+      "mention-users",
+      teamId,
+      clubId,
+      groupId,
+      dmOtherUserId,
+      clubAdminMemberUserId,
+      currentUser?.id,
+      mentionSearch,
+    ],
     queryFn: async () => {
       let userIds: string[] = [];
 
-      if (groupId) {
+      if (dmOtherUserId) {
+        userIds = [dmOtherUserId, currentUser?.id].filter(Boolean) as string[];
+      } else if (clubAdminMemberUserId && clubId) {
+        const { data: admins } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", clubId)
+          .eq("role", "club_admin");
+        userIds = [
+          ...new Set([
+            clubAdminMemberUserId,
+            ...(admins?.map((r) => r.user_id) || []),
+          ]),
+        ];
+      } else if (groupId) {
         const { data: group } = await supabase
           .from("chat_groups")
-          .select("team_id, club_id")
+          .select("team_id, club_id, membership_mode, allowed_roles, mini_league_id")
           .eq("id", groupId)
-          .single();
+          .maybeSingle();
 
-        if (group?.team_id) {
-          const { data: roles } = await supabase
+        const mlId = (group as any)?.mini_league_id as string | null | undefined;
+        const mode = (group as any)?.membership_mode as string | null | undefined;
+        const allowedRoles = ((group as any)?.allowed_roles as string[] | null | undefined) || [];
+
+        if (mlId) {
+          // Mini-league: league admins + per-league admins + parents of players
+          const [leagueRow, perLeagueAdmins, players] = await Promise.all([
+            supabase.from("mini_leagues").select("club_id").eq("id", mlId).maybeSingle(),
+            supabase.from("mini_league_admins").select("user_id").eq("mini_league_id", mlId),
+            supabase
+              .from("mini_league_players")
+              .select("parent_user_id")
+              .eq("mini_league_id", mlId)
+              .not("parent_user_id", "is", null),
+          ]);
+          const ids = new Set<string>();
+          const mlClubId = (leagueRow.data as any)?.club_id as string | undefined;
+          if (mlClubId) {
+            const { data: clubRoles } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("club_id", mlClubId)
+              .eq("role", "league_admin");
+            (clubRoles || []).forEach((r) => ids.add(r.user_id));
+          }
+          (perLeagueAdmins.data || []).forEach((a) => ids.add(a.user_id));
+          (players.data || []).forEach((p: any) => p.parent_user_id && ids.add(p.parent_user_id));
+          userIds = Array.from(ids);
+        } else if ((!group?.team_id && !group?.club_id) || mode === "manual") {
+          // Manual / personal group: use explicit group_members
+          const { data: gm } = await supabase
+            .from("group_members")
+            .select("user_id")
+            .eq("group_id", groupId);
+          userIds = [...new Set((gm || []).map((m) => m.user_id))];
+        } else if (group?.team_id) {
+          let q = supabase
             .from("user_roles")
             .select("user_id")
             .eq("team_id", group.team_id);
+          if (allowedRoles.length > 0) q = q.in("role", allowedRoles as any);
+          const { data: roles } = await q;
           userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
         } else if (group?.club_id) {
-          const { data: roles } = await supabase
+          let q = supabase
             .from("user_roles")
             .select("user_id")
             .eq("club_id", group.club_id);
+          if (allowedRoles.length > 0) q = q.in("role", allowedRoles as any);
+          const { data: roles } = await q;
           userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
         }
       } else if (teamId) {
@@ -411,24 +487,19 @@ export function MentionInput({
           .from("user_roles")
           .select("user_id")
           .eq("team_id", teamId);
-        userIds = roles?.map((r) => r.user_id) || [];
+        userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
       } else if (clubId) {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("club_id", clubId);
-        userIds = roles?.map((r) => r.user_id) || [];
+        userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
       }
 
-      if (userIds.length === 0) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .not("display_name", "is", null)
-          .ilike("display_name", `%${mentionSearch}%`)
-          .limit(5);
-        return data as SuggestedUser[];
-      }
+      // Strict: if no scope resolved any members, do NOT fall back to a
+      // global profile search — that would let users be tagged into threads
+      // they don't belong to.
+      if (userIds.length === 0) return [] as SuggestedUser[];
 
       const { data } = await supabase
         .from("profiles")
@@ -438,10 +509,11 @@ export function MentionInput({
         .ilike("display_name", `%${mentionSearch}%`)
         .limit(5);
 
-      return data as SuggestedUser[];
+      return (data || []) as SuggestedUser[];
     },
-    enabled: showSuggestions && mentionSearch.length >= 0,
+    enabled: !disableMentions && showSuggestions && mentionSearch.length >= 0,
   });
+
 
   // Highlighted segments for the overlay
   const highlightedSegments = useMemo(() => {
@@ -455,8 +527,11 @@ export function MentionInput({
 
   // Check for @ mention trigger in display text
   const checkForMentionTrigger = useCallback((text: string, cursorPos: number) => {
+    if (disableMentions) return;
     const textBeforeCursor = text.slice(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+
+
 
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
@@ -491,7 +566,7 @@ export function MentionInput({
     setShowSuggestions(false);
     setMentionSearch("");
     setMentionStartIndex(-1);
-  }, [segments]);
+  }, [segments, disableMentions]);
 
   const handleDisplayChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newDisplay = e.target.value;
