@@ -527,8 +527,11 @@ export function MentionInput({
 
   // Check for @ mention trigger in display text
   const checkForMentionTrigger = useCallback((text: string, cursorPos: number) => {
+    if (disableMentions) return;
     const textBeforeCursor = text.slice(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+
+
 
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
