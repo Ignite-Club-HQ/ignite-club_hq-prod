@@ -546,22 +546,22 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       status: "going",
       label: "Going",
       icon: <Check className="h-3.5 w-3.5" />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
-      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-3.5 w-3.5" />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
-      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-3.5 w-3.5" />,
-      activeClass: "border-primary bg-primary text-rsvp-selected-foreground shadow-[0_10px_28px_-8px_hsl(var(--primary)/0.75)] dark:shadow-[0_0_22px_hsl(var(--primary)/0.45),0_10px_28px_-8px_hsl(var(--primary)/0.9)] hover:bg-primary disabled:opacity-100",
-      inactiveHint: "border-border/40 bg-background/20 text-muted-foreground/70 shadow-none hover:border-primary/30 hover:bg-muted/30 hover:text-foreground/80 disabled:opacity-45",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)] hover:bg-rsvp-selected disabled:opacity-100",
+      inactiveHint: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80 disabled:opacity-45",
     },
   ];
 
@@ -907,17 +907,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                   )}
 
                   {/* Summary line — child-first, then teammate count */}
-                  <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2 space-y-1">
+                  <div className="rounded-xl border border-border/25 bg-muted/[0.06] px-2.5 py-1.5 space-y-0.5 opacity-75">
                     {childStatusLines.length > 0 ? (
                       childStatusLines.map((line, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[11px] text-foreground/90 font-medium">
-                          <User className="h-3 w-3 shrink-0" />
+                        <div key={i} className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground font-medium">
+                          <User className="h-3 w-3 shrink-0 opacity-60" />
                           <span className="truncate">{line}</span>
                         </div>
                       ))
                     ) : (
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <User className="h-3 w-3 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
+                        <User className="h-3 w-3 shrink-0 opacity-60" />
                         <span className="truncate">
                           {isSingleChild ? `${soleChildFirst} hasn't been RSVP'd yet` : "Players awaiting RSVP"}
                         </span>
