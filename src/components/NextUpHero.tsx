@@ -224,27 +224,52 @@ export function NextUpHero({ event }: NextUpHeroProps) {
 
           {/* RSVP Buttons */}
           {!event.is_cancelled && !event.is_bye && (
-            <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-              {rsvpButtons.map(({ status, label, icon, activeClass }) => {
-                const isActive = currentStatus === status;
-                return (
-                  <Button
-                    key={status}
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                    className={`flex-1 gap-1.5 text-sm font-medium ${isActive ? activeClass : ""}`}
-                    disabled={rsvpMutation.isPending || isActive}
-                    onClick={() => !isActive && rsvpMutation.mutate(status)}
-                  >
-                    {rsvpMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      icon
-                    )}
-                    {label}
-                  </Button>
-                );
-              })}
+            <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
+              <div
+                role="radiogroup"
+                aria-label="RSVP response"
+                className="inline-flex w-full gap-0 rounded-lg border border-border/60 bg-muted/40 p-1"
+              >
+                {rsvpButtons.map(({ status, label, icon, activeClass }) => {
+                  const isActive = currentStatus === status;
+                  const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      aria-label={label}
+                      disabled={rsvpMutation.isPending}
+                      onClick={() => !isActive && rsvpMutation.mutate(status)}
+                      className={[
+                        "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-sm font-semibold",
+                        "transition-all duration-200 ease-out touch-manipulation",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                        "disabled:cursor-not-allowed",
+                        isActive
+                          ? `${activeClass} scale-[1.02] animate-scale-in`
+                          : "bg-transparent text-muted-foreground/80 border border-transparent hover:text-foreground active:scale-[0.98]",
+                      ].join(" ")}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <span className={isActive ? "text-white" : "opacity-70"}>{icon}</span>
+                      )}
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="h-4 text-xs text-muted-foreground flex items-center gap-1.5" aria-live="polite">
+                {selectedLabel && !rsvpMutation.isPending && (
+                  <span className="inline-flex items-center gap-1 text-foreground/80 animate-fade-in">
+                    <CheckCircle2 className="h-3 w-3 text-primary" />
+                    Selected: <span className="font-medium">{selectedLabel}</span>
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
