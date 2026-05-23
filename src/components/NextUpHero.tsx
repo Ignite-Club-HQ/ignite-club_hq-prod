@@ -131,22 +131,22 @@ export function NextUpHero({ event }: NextUpHeroProps) {
       status: "going",
       label: "Going",
       icon: <CheckCircle2 className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
-      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
     {
       status: "maybe",
       label: "Maybe",
       icon: <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2.75} />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
-      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
     {
       status: "not_going",
       label: "Can't go",
       icon: <X className="h-[18px] w-[18px]" strokeWidth={3} />,
-      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground ring-2 ring-rsvp-selected/30 shadow-[0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.9)] dark:shadow-[0_0_24px_hsl(var(--rsvp-selected)/0.55),0_12px_30px_-8px_hsl(var(--rsvp-selected)/0.95)]",
-      inactiveClass: "border-border/25 bg-transparent text-muted-foreground/55 shadow-none hover:border-rsvp-selected/25 hover:bg-muted/20 hover:text-muted-foreground/80",
+      activeClass: "border-rsvp-selected bg-rsvp-selected text-rsvp-selected-foreground shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.35)] dark:shadow-[0_2px_6px_-2px_hsl(var(--rsvp-selected)/0.45)]",
+      inactiveClass: "border-border/50 bg-transparent text-foreground/75 shadow-none hover:border-rsvp-selected/40 hover:bg-muted/30 hover:text-foreground",
     },
   ];
   
