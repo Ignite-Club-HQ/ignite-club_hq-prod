@@ -170,8 +170,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       if (!q) return true;
       return (
         g.name.toLowerCase().includes(q) ||
-        (g.category ?? "").toLowerCase().includes(q) ||
-        (g.description ?? "").toLowerCase().includes(q)
+        (g.category ?? "").toLowerCase().includes(q)
       );
     });
   }, [groups, search, chip]);
