@@ -142,7 +142,7 @@ export function AlbumCarousel({
           <div
             key={p.id}
             className="relative shrink-0 w-full snap-center aspect-square bg-muted cursor-pointer"
-            style={{ scrollSnapAlign: "center", minWidth: "100%" }}
+            style={{ scrollSnapAlign: "center", scrollSnapStop: "always", minWidth: "100%" }}
           >
             <LazyImage
               src={p.file_url || p.image_url}
