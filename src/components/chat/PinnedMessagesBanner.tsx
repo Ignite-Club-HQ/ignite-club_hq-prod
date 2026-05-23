@@ -92,7 +92,7 @@ export function PinnedMessagesBanner({
             onClick={(e) => {
               e.stopPropagation();
               hapticSelectionTick();
-              onUnpin(latest.message_id);
+              setConfirmPin(latest);
             }}
             className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Unpin message"
