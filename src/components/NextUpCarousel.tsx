@@ -813,7 +813,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                             className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
                               isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                             }`}
-                            disabled={childRsvpMutation.isPending || isActive}
+                            disabled={childRsvpMutation.isPending}
                             onClick={() => !isActive && childRsvpMutation.mutate({ childId: soleChild!.id, status })}
                           >
                             {isThisPending ? (
@@ -867,7 +867,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                                     className={`h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
                                       isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                                     }`}
-                                    disabled={childRsvpMutation.isPending || isActive}
+                                    disabled={childRsvpMutation.isPending}
                                     onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
                                   >
                                     {isThisPending ? (
@@ -958,7 +958,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                               className={`flex-1 h-8 gap-1 px-2 text-[11px] rounded-full transition-all duration-200 ease-out will-change-transform ${
                                 isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                               }`}
-                              disabled={rsvpMutation.isPending || isActive}
+                              disabled={rsvpMutation.isPending}
                               onClick={() => !isActive && rsvpMutation.mutate(status)}
                             >
                               {rsvpMutation.isPending && rsvpMutation.variables === status ? (
@@ -993,7 +993,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                         className={`flex-1 gap-1.5 text-[12px] h-9 rounded-full transition-all duration-200 ease-out will-change-transform ${
                           isActive ? `${activeClass} font-extrabold scale-[1.04] animate-scale-in` : `${inactiveHint} font-medium active:scale-[0.97]`
                         }`}
-                        disabled={rsvpMutation.isPending || isActive}
+                        disabled={rsvpMutation.isPending}
                         onClick={() => !isActive && rsvpMutation.mutate(status)}
                       >
                         {rsvpMutation.isPending && rsvpMutation.variables === status ? (
