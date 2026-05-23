@@ -223,52 +223,75 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   const renderRow = (g: OpenGroup) => {
     const meta = CATEGORY_META[categoryKey(g.category)];
     const Icon = meta.icon;
+    const active = g.last_at
+      ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
+      : false;
+    const subtitle =
+      g.last_text ||
+      (g.member_count === 0
+        ? "Needs volunteers — be the first to join"
+        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`);
+
     return (
       <button
         key={g.id}
         type="button"
         onClick={() => g.joined && navigate(`/groups/${g.id}`)}
         className={cn(
-          "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors",
+          "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-all",
+          "active:scale-[0.99]",
           g.joined
-            ? "bg-muted/40 hover:bg-muted/60 opacity-90"
-            : "hover:bg-muted/40",
+            ? "opacity-70 hover:opacity-100 hover:bg-muted/50"
+            : "hover:bg-muted/60",
         )}
       >
-        <div className={cn("relative h-9 w-9 rounded-lg flex items-center justify-center shrink-0", meta.tone)}>
-          <Icon className="h-4 w-4" />
+        <div
+          className={cn(
+            "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
+            meta.tone,
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
           {g.joined && (
-            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-              <Check className="h-2 w-2 text-white" strokeWidth={3} />
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+              <Check className="h-1.5 w-1.5 text-white" strokeWidth={4} />
             </span>
           )}
+          {!g.joined && active && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border-2 border-background" />
+          )}
         </div>
+
         <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium truncate", g.joined && "text-muted-foreground")}>
-            {g.name}
-          </p>
-          {g.category ? (
-            <p className="text-[11px] text-muted-foreground truncate leading-tight">
-              {g.category}
+          <div className="flex items-center gap-2">
+            <p
+              className={cn(
+                "text-[13px] font-semibold truncate text-foreground",
+                g.joined && "font-medium",
+              )}
+            >
+              {g.name}
             </p>
-          ) : null}
-          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
-            <Users className="h-2.5 w-2.5" />
-            <span>{g.member_count} {g.member_count === 1 ? "member" : "members"}</span>
-            {!g.joined && g.member_count === 0 && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-normal border-amber-500/40 text-amber-600 dark:text-amber-400">
-                Needs volunteers
-              </Badge>
+            {active && !g.joined && (
+              <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                Active today
+              </span>
             )}
           </div>
+          <p className="text-[11px] text-muted-foreground/80 truncate leading-tight">
+            {subtitle}
+          </p>
         </div>
+
         {g.joined ? (
-          <span className="text-[11px] text-muted-foreground shrink-0 pr-1">Joined</span>
+          <span className="text-[11px] text-muted-foreground shrink-0 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            Open
+          </span>
         ) : (
           <Button
             size="sm"
             variant="default"
-            className="h-7 px-3 text-xs shrink-0"
+            className="h-7 px-3 text-xs font-semibold shrink-0 rounded-full"
             disabled={joiningId === g.id}
             onClick={(e) => {
               e.stopPropagation();
@@ -276,12 +299,13 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               joinMutation.mutate(g.id);
             }}
           >
-            {joiningId === g.id ? "Joining…" : "Join"}
+            {joiningId === g.id ? "…" : "+ Join"}
           </Button>
         )}
       </button>
     );
   };
+
 
   return (
     <Card className="border-dashed shadow-none">
