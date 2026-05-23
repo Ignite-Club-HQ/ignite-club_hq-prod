@@ -250,7 +250,11 @@ export default function DirectMessagePage() {
     virtualHandleRef.current?.scrollToBottom("auto");
   }, []);
 
-  const targetMessageId = searchParams.get("message");
+  const urlMessageId = searchParams.get("message");
+  const [fallbackJumpId] = useState(() =>
+    conversationId ? consumePendingChatJump("dm", conversationId) : null,
+  );
+  const targetMessageId = urlMessageId ?? fallbackJumpId;
   const targetParentId = searchParams.get("parent");
 
   useEffect(() => {
