@@ -40,6 +40,7 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
   clearUnreadCount: () => void;
+  decrementUnreadCount: (n: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -1018,6 +1019,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnreadMessagesCount(0);
   };
 
+  const decrementUnreadCount = (n: number) => {
+    if (!n || n <= 0) return;
+    setUnreadCount((prev) => Math.max(0, prev - n));
+    setUnreadMessagesCount((prev) => Math.max(0, prev - n));
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -1037,6 +1044,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshUnreadCount,
       clearUnreadCount,
+      decrementUnreadCount,
     }}>
       {children}
     </AuthContext.Provider>

@@ -893,6 +893,8 @@ export default function ClubAdminChatPage() {
             onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Type a message..."
             disabled={false}
+            clubId={conversation?.club_id || undefined}
+            clubAdminMemberUserId={conversation?.member_user_id || undefined}
           />
           <ChatSendButton
             onSend={handleSend}

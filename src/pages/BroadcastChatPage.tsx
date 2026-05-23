@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
@@ -100,7 +101,7 @@ export default function BroadcastChatPage() {
     const k = noteChatMount("Broadcast", null);
     return () => noteChatUnmount("Broadcast", k, null);
   }, []);
-  const { user, refreshUnreadCount, initialized } = useAuth();
+  const { user, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const navigate = useNavigate();
@@ -141,22 +142,14 @@ export default function BroadcastChatPage() {
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
     if (!user) return;
-    
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "broadcast")
-        .eq("is_read", false);
-      
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-    
-    markNotificationsAsRead();
-  }, [user, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "broadcast" },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, refreshUnreadCount, decrementUnreadCount, queryClient]);
   
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");
@@ -1157,6 +1150,7 @@ export default function BroadcastChatPage() {
               }}
               onKeyPress={handleKeyPress}
               disabled={false}
+              disableMentions
               onGifSelect={setImageUrl}
             />
             <ChatSendButton

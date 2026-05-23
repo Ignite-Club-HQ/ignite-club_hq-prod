@@ -151,7 +151,13 @@ export function MatchScoreCard({
   }, [open, result]);
 
   const labelHome = result?.home_label || teamName;
-  const labelAway = result?.away_label || opponent || "Opponent";
+  // Prefer the live opponent name from the event over a stale/generic
+  // saved away_label (older scores were saved as "Opponent" when the
+  // event didn't yet have an opponent populated).
+  const savedAway = result?.away_label;
+  const labelAway =
+    opponent ||
+    (savedAway && savedAway.toLowerCase() !== "opponent" ? savedAway : "Opponent");
 
   const totalAttributedGoals = useMemo(
     () => scorers.reduce((sum, s) => sum + (s.goals || 0), 0),

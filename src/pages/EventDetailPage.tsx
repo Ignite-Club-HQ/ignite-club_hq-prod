@@ -2586,12 +2586,18 @@ export default function EventDetailPage() {
       {/* Match Score (soccer only for now) — viewable by team members; editable by admins/coaches/Subs Manager */}
       {event.type === "game" && isSoccerClub && event.team_id && (isTeamMember || canAccessPitchBoard) && (() => {
         const canEditScore = !!(canAccessSoccerBoard || isAppAdmin || isSubsManagerForEvent);
+        // Fallback: derive opponent from title (e.g. "Round 4: Wolves v Stirling District")
+        const derivedOpponent = (() => {
+          if (event.opponent) return event.opponent;
+          const m = (event.title || "").split(/\s+(?:v|vs|versus)\.?\s+/i);
+          return m.length > 1 ? m[m.length - 1].trim() : null;
+        })();
         return (
           <MatchScoreCard
             eventId={event.id}
             teamId={event.team_id}
             teamName={event.teams?.name || "Our Team"}
-            opponent={event.opponent || null}
+            opponent={derivedOpponent}
             sport="soccer"
             canEdit={canEditScore}
           />

@@ -2,7 +2,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Pencil, ArrowRightLeft, Link2 } from "lucide-react";
+import { UserPlus, Pencil, ArrowRightLeft, Link2, UserMinus } from "lucide-react";
 
 interface ChildDetailSheetProps {
   open: boolean;
@@ -17,6 +17,7 @@ interface ChildDetailSheetProps {
   onEditPosition: () => void;
   onSwapTeam: () => void;
   onLink?: () => void;
+  onRemove?: () => void;
 }
 
 export default function ChildDetailSheet({
@@ -32,6 +33,7 @@ export default function ChildDetailSheet({
   onEditPosition,
   onSwapTeam,
   onLink,
+  onRemove,
 }: ChildDetailSheetProps) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -103,6 +105,16 @@ export default function ChildDetailSheet({
                       >
                         <ArrowRightLeft className="h-4 w-4 text-amber-500" />
                         Move to Another Team
+                      </Button>
+                    )}
+                    {onRemove && (
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-2 h-11 text-destructive hover:text-destructive"
+                        onClick={() => { onOpenChange(false); onRemove(); }}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                        Remove from Team
                       </Button>
                     )}
                   </>

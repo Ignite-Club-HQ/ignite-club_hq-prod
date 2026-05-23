@@ -11,6 +11,7 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -195,7 +196,7 @@ export default function GroupChatPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, refreshUnreadCount, initialized } = useAuth();
+  const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
@@ -235,22 +236,14 @@ export default function GroupChatPage() {
   // Mark group message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !groupId) return;
-    
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "group_message")
-        .eq("is_read", false);
-      
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-    
-    markNotificationsAsRead();
-  }, [user, groupId, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "group", groupId },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, groupId, refreshUnreadCount, decrementUnreadCount, queryClient]);
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);

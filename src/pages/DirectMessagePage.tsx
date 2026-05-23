@@ -10,6 +10,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
@@ -185,7 +186,7 @@ export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, initialized, refreshUnreadCount } = useAuth();
+  const { user, profile, initialized, refreshUnreadCount, decrementUnreadCount } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
@@ -235,23 +236,14 @@ export default function DirectMessagePage() {
   // Mark direct message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !conversationId) return;
-
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "direct_message")
-        .eq("related_id", conversationId)
-        .eq("is_read", false);
-
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-
-    markNotificationsAsRead();
-  }, [user, conversationId, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "dm", conversationId },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, conversationId, refreshUnreadCount, decrementUnreadCount, queryClient]);
 
   const scrollToBottom = useCallback(() => {
     virtualHandleRef.current?.scrollToBottom("auto");
@@ -1511,6 +1503,7 @@ export default function DirectMessagePage() {
                   onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                   placeholder="Type a message..."
                   disabled={false}
+                  dmOtherUserId={otherUserId || undefined}
                   onGifSelect={setDmImageUrl}
                 />
                 <ChatSendButton

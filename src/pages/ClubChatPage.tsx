@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
@@ -129,7 +130,7 @@ export default function ClubChatPage() {
     return () => noteChatUnmount("ClubChat", k, null);
   }, []);
   const { clubId } = useParams<{ clubId: string }>();
-  const { user, profile, refreshUnreadCount, initialized } = useAuth();
+  const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const navigate = useNavigate();
@@ -170,22 +171,14 @@ export default function ClubChatPage() {
   // Mark club message notifications as read when opening this thread
   useEffect(() => {
     if (!user || !clubId) return;
-    
-    const markNotificationsAsRead = async () => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("type", "club_message")
-        .eq("is_read", false);
-      
-      // Refresh unread counts
-      refreshUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-    };
-    
-    markNotificationsAsRead();
-  }, [user, clubId, refreshUnreadCount, queryClient]);
+    markChatScopeNotificationsRead({
+      userId: user.id,
+      scope: { kind: "club", clubId },
+      queryClient,
+      decrementUnreadCount,
+      refreshUnreadCount,
+    });
+  }, [user, clubId, refreshUnreadCount, decrementUnreadCount, queryClient]);
   
   // Use ref to always get latest profile value in mutation callback
   const profileRef = useRef(profile);
