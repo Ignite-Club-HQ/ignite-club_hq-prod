@@ -229,9 +229,9 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           <p className={cn("text-sm font-medium truncate", g.joined && "text-muted-foreground")}>
             {g.name}
           </p>
-          {g.description ? (
+          {g.category ? (
             <p className="text-[11px] text-muted-foreground truncate leading-tight">
-              {g.description}
+              {g.category}
             </p>
           ) : null}
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
