@@ -30,6 +30,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2891,6 +2892,11 @@ export default function MessagesPage() {
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
           <ContactClubButton clubFilter={activeClubFilter} />
+        )}
+
+        {/* Discover open-to-club Operations / Volunteers groups */}
+        {!showSkeletonLoading && (
+          <DiscoverGroupsList activeClubFilter={activeClubFilter} />
         )}
 
         {/* Sponsor/Ad Carousel */}
