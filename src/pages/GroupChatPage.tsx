@@ -142,6 +142,8 @@ interface ChatGroup {
   allowed_roles: string[];
   created_by: string;
   membership_mode: string | null;
+  category: string | null;
+  join_policy: string | null;
 }
 
 interface MessageReaction {
