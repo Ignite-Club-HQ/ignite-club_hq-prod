@@ -582,7 +582,10 @@ export default function PlayerOfMatchSelector({
                   key={rsvp.id}
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => awardMutation.mutate({ userId: rsvp.user_id })}
+                  onClick={() => {
+                    setPendingId(rsvp.user_id);
+                    awardMutation.mutate({ userId: rsvp.user_id });
+                  }}
                   disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
@@ -592,7 +595,7 @@ export default function PlayerOfMatchSelector({
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-base">{rsvp.profiles?.display_name || "Unknown"}</span>
-                  {awardMutation.isPending && (
+                  {awardMutation.isPending && pendingId === rsvp.user_id && (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
                   )}
                 </Button>
@@ -604,7 +607,10 @@ export default function PlayerOfMatchSelector({
                   key={rsvp.id}
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
-                  onClick={() => awardMutation.mutate({ childId: rsvp.child_id })}
+                  onClick={() => {
+                    setPendingId(rsvp.child_id);
+                    awardMutation.mutate({ childId: rsvp.child_id });
+                  }}
                   disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
@@ -614,7 +620,7 @@ export default function PlayerOfMatchSelector({
                   </Avatar>
                   <span className="text-base">{rsvp.children?.name || "Unknown"}</span>
                   <Badge variant="outline" className="ml-2 text-xs">Child</Badge>
-                  {awardMutation.isPending && (
+                  {awardMutation.isPending && pendingId === rsvp.child_id && (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
                   )}
                 </Button>
