@@ -2,7 +2,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Pencil, ArrowRightLeft, Link2 } from "lucide-react";
+import { UserPlus, Pencil, ArrowRightLeft, Link2, UserMinus } from "lucide-react";
 
 interface ChildDetailSheetProps {
   open: boolean;
@@ -17,6 +17,7 @@ interface ChildDetailSheetProps {
   onEditPosition: () => void;
   onSwapTeam: () => void;
   onLink?: () => void;
+  onRemove?: () => void;
 }
 
 export default function ChildDetailSheet({
