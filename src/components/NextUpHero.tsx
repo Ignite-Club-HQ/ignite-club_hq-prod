@@ -227,52 +227,43 @@ export function NextUpHero({ event }: NextUpHeroProps) {
 
           {/* RSVP Buttons */}
           {!event.is_cancelled && !event.is_bye && (
-            <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
-              <div
-                role="radiogroup"
-                aria-label="RSVP response"
-                className="inline-flex w-full items-stretch gap-1.5 rounded-xl bg-muted/60 dark:bg-background/60 p-1.5"
-              >
-                {rsvpButtons.map(({ status, label, icon, activeClass }) => {
-                  const isActive = currentStatus === status;
-                  const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      aria-label={label}
-                      disabled={rsvpMutation.isPending}
-                      onClick={() => !isActive && rsvpMutation.mutate(status)}
-                      className={[
-                        "flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm",
-                        "transition-all duration-200 ease-out touch-manipulation",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                        "disabled:cursor-not-allowed",
-                        isActive
-                          ? `${activeClass} font-bold scale-[1.06] z-10 animate-scale-in`
-                          : "bg-transparent text-muted-foreground/60 dark:text-muted-foreground/50 font-medium hover:text-foreground/80 active:scale-[0.97]",
-                      ].join(" ")}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <span className={isActive ? "text-white drop-shadow-sm" : "opacity-60"}>{icon}</span>
-                      )}
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="h-4 text-xs flex items-center gap-1.5" aria-live="polite">
-                {selectedLabel && !rsvpMutation.isPending && (
-                  <span className="inline-flex items-center gap-1 font-medium text-foreground/90 animate-fade-in">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
-                    RSVP confirmed: <span className="font-bold">{selectedLabel}</span>
-                  </span>
-                )}
-              </div>
+            <div
+              role="radiogroup"
+              aria-label="RSVP response"
+              className="flex w-full items-stretch gap-2 pt-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {rsvpButtons.map(({ status, label, icon, activeClass, inactiveClass }) => {
+                const isActive = currentStatus === status;
+                const isLoading = rsvpMutation.isPending && rsvpMutation.variables === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    aria-label={isActive ? `${label} (selected)` : label}
+                    disabled={rsvpMutation.isPending}
+                    onClick={() => !isActive && rsvpMutation.mutate(status)}
+                    className={[
+                      "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-sm",
+                      "transition-all duration-200 ease-out touch-manipulation will-change-transform",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                      "disabled:cursor-not-allowed",
+                      isActive
+                        ? `${activeClass} font-bold scale-[1.04] animate-scale-in`
+                        : `${inactiveClass} font-medium active:scale-[0.97]`,
+                    ].join(" ")}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    ) : (
+                      icon
+                    )}
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </CardContent>
