@@ -134,7 +134,6 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
       return rows.map((r) => ({
         id: r.id,
         name: r.name,
-        description: r.description ?? null,
         category: r.category ?? null,
         club_id: r.club_id,
         member_count: counts.get(r.id) ?? 0,
