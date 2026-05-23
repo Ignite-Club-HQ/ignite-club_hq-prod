@@ -135,6 +135,7 @@ export default function TeamDetailPage() {
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
   const [removeChild, setRemoveChild] = useState<{ childId: string; name: string } | null>(null);
+  const [removeChildConfirmText, setRemoveChildConfirmText] = useState("");
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
@@ -2786,17 +2787,31 @@ export default function TeamDetailPage() {
           onRemove={(isAdmin || isClubAdmin) && !selectedChild.isPending ? () => setRemoveChild({ childId: selectedChild.childId, name: selectedChild.childName }) : undefined}
         />
       )}
-      <AlertDialog open={!!removeChild} onOpenChange={(open) => { if (!open) setRemoveChild(null); }}>
+      <AlertDialog open={!!removeChild} onOpenChange={(open) => { if (!open) { setRemoveChild(null); setRemoveChildConfirmText(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {removeChild?.name} from the team. Their parent can request to join again.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will remove <strong>{removeChild?.name}</strong> from the team. Their RSVPs, attendance and stats history for this team will no longer be linked. Their parent can request to rejoin.
+                </p>
+                <p className="text-foreground font-medium">
+                  Type <span className="font-bold text-destructive">"{removeChild?.name}"</span> to confirm:
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <Input
+            value={removeChildConfirmText}
+            onChange={(e) => setRemoveChildConfirmText(e.target.value)}
+            placeholder={removeChild?.name || ""}
+            autoFocus
+          />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              disabled={removeChildConfirmText.trim().toLowerCase() !== (removeChild?.name || "").trim().toLowerCase()}
               onClick={async () => {
                 if (!removeChild || !id) return;
                 const { error } = await supabase
@@ -2811,10 +2826,11 @@ export default function TeamDetailPage() {
                   toast({ title: "Player removed" });
                 }
                 setRemoveChild(null);
+                setRemoveChildConfirmText("");
               }}
               className="bg-destructive text-destructive-foreground"
             >
-              Remove
+              Remove Player
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
