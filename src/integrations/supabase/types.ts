@@ -654,6 +654,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          join_policy: string
           membership_mode: string
           mini_league_id: string | null
           name: string
@@ -670,6 +671,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          join_policy?: string
           membership_mode?: string
           mini_league_id?: string | null
           name: string
@@ -686,6 +688,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          join_policy?: string
           membership_mode?: string
           mini_league_id?: string | null
           name?: string
@@ -9867,6 +9870,7 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      join_open_chat_group: { Args: { _group_id: string }; Returns: string }
       list_leaderboard_teams: {
         Args: { _club_id: string }
         Returns: {
