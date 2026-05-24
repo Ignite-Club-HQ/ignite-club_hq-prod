@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
+import { useNavigate } from "react-router-dom";
 import { getShareUrl } from "@/lib/shareUtils";
+import { gateShareWithPro } from "@/lib/proShareGate";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -12,10 +14,13 @@ interface SharePhotoButtonProps {
   title?: string;
   clubName?: string;
   teamName?: string;
+  clubId?: string | null;
+  teamId?: string | null;
 }
 
-export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
+export function SharePhotoButton({ photoId, clubId, teamId }: SharePhotoButtonProps) {
   const isSharingRef = useRef(false);
+  const navigate = useNavigate();
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -40,10 +45,13 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    // Always share the /share URL so recipients get rich previews + proper redirects
-    const shareUrl = getShareUrl("photo", photoId);
-
     try {
+      const allowed = await gateShareWithPro({ teamId, clubId, navigate, featureLabel: "Photo sharing" });
+      if (!allowed) return;
+
+      // Always share the /share URL so recipients get rich previews + proper redirects
+      const shareUrl = getShareUrl("photo", photoId);
+
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
