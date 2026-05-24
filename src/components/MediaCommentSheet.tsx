@@ -534,17 +534,67 @@ export function MediaCommentSheet({
           </div>
         )}
 
+        {/* Mention suggestions */}
+        {mentionOpen && mentionUsers.length > 0 && (
+          <div className="px-3 pb-1">
+            <div
+              className="rounded-2xl border border-border/40 bg-popover shadow-lg overflow-hidden max-h-56 overflow-y-auto"
+              role="listbox"
+              aria-label="Mention suggestions"
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div className="px-3 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                Tag someone
+              </div>
+              <div className="px-1 pb-1">
+                {mentionUsers.map((u, idx) => {
+                  const selected = idx === mentionSelectedIndex;
+                  const name = u.display_name || "";
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-left transition-colors ${
+                        selected ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.04]"
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insertMention(u)}
+                    >
+                      <Avatar className="h-7 w-7 shrink-0">
+                        <AvatarImage src={u.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {name.charAt(0).toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/90">
+                        {name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="px-3 pt-2">
-          <div className="relative flex items-end bg-muted/60 rounded-full focus-within:bg-muted/80 transition-colors">
+          <div className="relative flex items-center gap-1 bg-muted/60 rounded-full pl-1 focus-within:bg-muted/80 transition-colors">
+            <div className="flex-shrink-0">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            </div>
             <textarea
               ref={textareaRef}
               value={commentInput}
-              onChange={(e) => onCommentInputChange(e.target.value)}
+              onChange={handleTextareaChange}
               onFocus={handleComposerFocus}
               onKeyDown={handleKeyDown}
+              onSelect={handleTextareaSelect}
+              onClick={handleTextareaSelect}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
-              className={`flex-1 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-4 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
+              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-1 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
             <button
