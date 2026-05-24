@@ -47,6 +47,8 @@ interface ChatDetailsSheetProps {
   groupMembershipMode?: string | null;
   /** For mini-league chats — enables league-scoped participant query */
   miniLeagueId?: string;
+  /** For competition chats — enables "View competition" link */
+  competitionId?: string;
 }
 
 export function ChatDetailsSheet({
@@ -64,6 +66,7 @@ export function ChatDetailsSheet({
   groupCreatedBy,
   groupMembershipMode,
   miniLeagueId,
+  competitionId,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -163,6 +166,12 @@ export function ChatDetailsSheet({
                         `/teams/${chatType === "team" ? chatId : teamId}?openBoard=1`,
                       )
                     }
+                  />
+                )}
+                {competitionId && (
+                  <NavRow
+                    label="View competition"
+                    onClick={() => handleNavigate(`/competitions/${competitionId}`)}
                   />
                 )}
                 {miniLeagueId ? (

@@ -28,6 +28,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/lib/memberIdentity";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
@@ -479,6 +480,65 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       }));
     },
     enabled: debouncedNameInput.length >= 2,
+  });
+
+  // Enrich search results with role/context info (Parent of X, Coach • U10, etc.)
+  // scoped to the current club so suggestions are easy to disambiguate.
+  const searchResultIds = searchResults.map(r => r.id);
+  const pendingProfileIds = pendingInviteResults
+    .filter(r => !r.id.startsWith("pending-"))
+    .map(r => r.id);
+  const identityLookupIds = Array.from(new Set([...searchResultIds, ...pendingProfileIds]));
+
+  const { data: identityMap = {} } = useQuery({
+    queryKey: ["invite-search-identities", clubId, identityLookupIds.sort().join(",")],
+    queryFn: async (): Promise<Record<string, MemberIdentity>> => {
+      if (identityLookupIds.length === 0 || !clubId) return {};
+
+      const [rolesRes, teamsRes, childrenRes] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role, team_id")
+          .eq("club_id", clubId)
+          .in("user_id", identityLookupIds),
+        supabase.from("teams").select("id, name").eq("club_id", clubId),
+        supabase
+          .from("children")
+          .select("parent_id, name")
+          .in("parent_id", identityLookupIds),
+      ]);
+
+      const teamNameById: Record<string, string> = {};
+      for (const t of teamsRes.data || []) teamNameById[t.id] = t.name;
+
+      const rolesByUser = new Map<string, { role: MemberRole; team_id: string | null }[]>();
+      for (const r of rolesRes.data || []) {
+        const arr = rolesByUser.get(r.user_id) || [];
+        arr.push({ role: r.role as MemberRole, team_id: r.team_id });
+        rolesByUser.set(r.user_id, arr);
+      }
+
+      const childrenByParent = new Map<string, string[]>();
+      for (const c of childrenRes.data || []) {
+        if (!c.parent_id || !c.name) continue;
+        const arr = childrenByParent.get(c.parent_id) || [];
+        arr.push(c.name);
+        childrenByParent.set(c.parent_id, arr);
+      }
+
+      const out: Record<string, MemberIdentity> = {};
+      for (const id of identityLookupIds) {
+        out[id] = computeMemberIdentity({
+          display_name: null,
+          roles: rolesByUser.get(id) || [],
+          children_names: childrenByParent.get(id) || [],
+          teamNameById,
+        });
+      }
+      return out;
+    },
+    enabled: identityLookupIds.length > 0 && !!clubId,
+    staleTime: 60 * 1000,
   });
 
   // Filter out existing members — but allow the current user (admin adding themselves as parent)
@@ -2322,8 +2382,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {identityMap[result.id]?.contextLine && (
+                            <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
+                          )}
                           {(result as any).masked_email && (
-                            <span className="text-xs text-muted-foreground truncate">{(result as any).masked_email}</span>
+                            <span className="text-[11px] text-muted-foreground/70 truncate">{(result as any).masked_email}</span>
                           )}
                         </div>
                       </button>
@@ -2355,9 +2418,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             {result.display_name?.[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
-                          <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {identityMap[result.id]?.contextLine ? (
+                            <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                          )}
                         </div>
                       </button>
                     ))}
