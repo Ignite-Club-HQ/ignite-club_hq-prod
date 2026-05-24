@@ -216,6 +216,14 @@ export function PhotoLightbox({
       toast.error("Nothing to share");
       return;
     }
+    const { gateShareWithPro } = await import("@/lib/proShareGate");
+    const allowed = await gateShareWithPro({
+      teamId: currentPhoto.team_id ?? null,
+      clubId: currentPhoto.club_id ?? null,
+      navigate,
+      featureLabel: "Photo sharing",
+    });
+    if (!allowed) return;
     // Always share the branded /share URL (rich preview + redirect),
     // never the raw Supabase signed storage URL.
     const { getShareUrl } = await import("@/lib/shareUtils");
