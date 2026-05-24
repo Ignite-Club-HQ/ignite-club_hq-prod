@@ -18,6 +18,11 @@ html[data-media-comments-open="true"] #root {
   overflow: hidden !important;
 }
 
+html[data-media-comments-open="true"] #root {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 html[data-media-comments-open="true"] .media-comment-screen {
   position: fixed !important;
   inset: 0 !important;
