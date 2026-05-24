@@ -5,11 +5,14 @@ import { Keyboard } from "@capacitor/keyboard";
 import { Send, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { usePhotoMentionSuggestions, type MentionUser } from "@/hooks/usePhotoMentionSuggestions";
 
 interface CommentData {
   id: string;
@@ -30,6 +33,10 @@ interface MediaCommentSheetProps {
   uploaderName: string | null;
   uploaderAvatar?: string | null;
   teamName?: string | null;
+  /** Audience scope of the post — restricts who can be @mentioned. */
+  teamId?: string | null;
+  clubId?: string | null;
+  miniLeagueId?: string | null;
   comments: CommentData[];
   commentInput: string;
   onCommentInputChange: (value: string) => void;
@@ -47,6 +54,9 @@ export function MediaCommentSheet({
   uploaderName,
   uploaderAvatar,
   teamName,
+  teamId,
+  clubId,
+  miniLeagueId,
   comments,
   commentInput,
   onCommentInputChange,
@@ -256,12 +266,127 @@ export function MediaCommentSheet({
     onSubmitComment();
   }, [commentInput, onSubmitComment]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  // ---- @mention autocomplete ----
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionAnchorPos, setMentionAnchorPos] = useState<number | null>(null);
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
+  const mentionOpen = mentionAnchorPos !== null;
+  const { data: mentionUsers = [] } = usePhotoMentionSuggestions(
+    { teamId, clubId, miniLeagueId },
+    mentionSearch,
+    open && mentionOpen,
+  );
+
+  const detectMentionTrigger = useCallback((text: string, caret: number) => {
+    if (caret <= 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    const before = text.slice(0, caret);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx < 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    // Must be at start or preceded by whitespace
+    const prevChar = atIdx === 0 ? " " : before[atIdx - 1];
+    if (!/\s/.test(prevChar) && atIdx !== 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    const query = before.slice(atIdx + 1);
+    // Cancel if query contains whitespace/newline or closes a completed mention
+    if (/[\s\]\)]/.test(query)) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    if (query.length > 30) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    setMentionAnchorPos(atIdx);
+    setMentionSearch(query);
+    setMentionSelectedIndex(0);
+  }, []);
+
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    onCommentInputChange(v);
+    detectMentionTrigger(v, e.target.selectionStart ?? v.length);
+  }, [onCommentInputChange, detectMentionTrigger]);
+
+  const handleTextareaSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const t = e.currentTarget;
+    detectMentionTrigger(t.value, t.selectionStart ?? t.value.length);
+  }, [detectMentionTrigger]);
+
+  const insertMention = useCallback((user: MentionUser) => {
+    if (mentionAnchorPos === null || !user.display_name) return;
+    const t = textareaRef.current;
+    const caret = t?.selectionStart ?? (mentionAnchorPos + 1 + mentionSearch.length);
+    const removeLen = caret - mentionAnchorPos; // covers "@" + query
+    const insertion = `@[${user.display_name}](${user.id}) `;
+    const next = commentInput.slice(0, mentionAnchorPos) + insertion + commentInput.slice(mentionAnchorPos + removeLen);
+    onCommentInputChange(next);
+    setMentionAnchorPos(null);
+    setMentionSearch("");
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      const pos = mentionAnchorPos + insertion.length;
+      try { ta.setSelectionRange(pos, pos); } catch { /* ignore */ }
+    });
+  }, [mentionAnchorPos, mentionSearch, commentInput, onCommentInputChange]);
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const t = textareaRef.current;
+    const caret = t?.selectionStart ?? commentInput.length;
+    const next = commentInput.slice(0, caret) + emoji + commentInput.slice(caret);
+    onCommentInputChange(next);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      const pos = caret + emoji.length;
+      try { ta.setSelectionRange(pos, pos); } catch { /* ignore */ }
+    });
+  }, [commentInput, onCommentInputChange]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && mentionUsers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i + 1) % mentionUsers.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i - 1 + mentionUsers.length) % mentionUsers.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        insertMention(mentionUsers[mentionSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionAnchorPos(null);
+        setMentionSearch("");
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  }, [handleSubmit]);
+  }, [mentionOpen, mentionUsers, mentionSelectedIndex, insertMention, handleSubmit]);
 
   const handleClose = useCallback(() => {
     blurComposer();
@@ -409,17 +534,67 @@ export function MediaCommentSheet({
           </div>
         )}
 
+        {/* Mention suggestions */}
+        {mentionOpen && mentionUsers.length > 0 && (
+          <div className="px-3 pb-1">
+            <div
+              className="rounded-2xl border border-border/40 bg-popover shadow-lg overflow-hidden max-h-56 overflow-y-auto"
+              role="listbox"
+              aria-label="Mention suggestions"
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div className="px-3 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                Tag someone
+              </div>
+              <div className="px-1 pb-1">
+                {mentionUsers.map((u, idx) => {
+                  const selected = idx === mentionSelectedIndex;
+                  const name = u.display_name || "";
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-left transition-colors ${
+                        selected ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.04]"
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insertMention(u)}
+                    >
+                      <Avatar className="h-7 w-7 shrink-0">
+                        <AvatarImage src={u.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {name.charAt(0).toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/90">
+                        {name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="px-3 pt-2">
-          <div className="relative flex items-end bg-muted/60 rounded-full focus-within:bg-muted/80 transition-colors">
+          <div className="relative flex items-center gap-1 bg-muted/60 rounded-full pl-1 focus-within:bg-muted/80 transition-colors">
+            <div className="flex-shrink-0">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            </div>
             <textarea
               ref={textareaRef}
               value={commentInput}
-              onChange={(e) => onCommentInputChange(e.target.value)}
+              onChange={handleTextareaChange}
               onFocus={handleComposerFocus}
               onKeyDown={handleKeyDown}
+              onSelect={handleTextareaSelect}
+              onClick={handleTextareaSelect}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
-              className={`flex-1 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-4 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
+              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-1 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
             <button
