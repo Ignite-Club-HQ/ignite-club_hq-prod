@@ -1623,6 +1623,7 @@ export default function MediaPage() {
             photoUrl={activePhoto.file_url || activePhoto.image_url}
             uploaderName={sheetDisplayName}
             uploaderAvatar={sheetAvatarUrl}
+            teamName={(activePhoto as any).teams?.name ?? null}
             comments={activeComments}
             commentInput={activeInput}
             onCommentInputChange={(val) => setCommentInputs(prev => ({ ...prev, [activeCommentPhotoId]: val }))}
