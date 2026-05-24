@@ -327,10 +327,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         onClick={() => g.joined && navigate(`/groups/${g.id}`)}
         className={cn(
           "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-all",
-          "active:scale-[0.99]",
-          g.joined
-            ? "opacity-70 hover:opacity-100 hover:bg-muted/50"
-            : "hover:bg-muted/60",
+          "active:scale-[0.99] hover:bg-muted/60",
         )}
       >
         <div
@@ -340,11 +337,6 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
           )}
         >
           <Icon className="h-3.5 w-3.5" />
-          {g.joined && (
-            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-              <Check className="h-1.5 w-1.5 text-white" strokeWidth={4} />
-            </span>
-          )}
           {!g.joined && active && (
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border-2 border-background" />
           )}
@@ -352,12 +344,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p
-              className={cn(
-                "text-[13px] font-semibold truncate text-foreground",
-                g.joined && "font-medium",
-              )}
-            >
+            <p className="text-[13px] font-semibold truncate text-foreground">
               {g.name}
             </p>
             {active && !g.joined && (
@@ -372,8 +359,9 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         </div>
 
         {g.joined ? (
-          <span className="text-[11px] text-muted-foreground shrink-0 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            Open
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+            <Check className="h-3 w-3" strokeWidth={3} />
+            Joined
           </span>
         ) : (
           <Button
