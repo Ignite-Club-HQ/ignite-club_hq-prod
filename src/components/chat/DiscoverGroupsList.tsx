@@ -2,18 +2,41 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
+  Award,
+  Bell,
   Briefcase,
+  Bus,
+  Cake,
   Calendar,
+  Camera,
   Check,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
+  Coffee,
   Coins,
+  Drum,
+  Dumbbell,
+  Flag,
+  Gift,
   HandHeart,
   HelpCircle,
+  Megaphone,
+  Music,
+  PartyPopper,
+  PiggyBank,
+  Pizza,
   Search,
   Shield,
+  Shirt,
+  ShoppingBag,
   Sparkles,
+  Stethoscope,
   Trophy,
+  Users,
+  Utensils,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +93,73 @@ function categoryKey(raw: string | null | undefined): CategoryKey {
   const k = (raw ?? "").trim().toLowerCase();
   if (k in CATEGORY_META) return k as CategoryKey;
   return "other";
+}
+
+// Keyword → icon map. Lets each group get a visually distinct icon based on
+// what the group is actually about, instead of every Operations group looking
+// the same.
+const KEYWORD_ICONS: { match: RegExp; icon: LucideIcon }[] = [
+  { match: /canteen|kitchen|bbq|barbecue|food|catering|lunch|breakfast/i, icon: Utensils },
+  { match: /pizza|dinner/i, icon: Pizza },
+  { match: /coffee|cafe|tea/i, icon: Coffee },
+  { match: /cake|bake/i, icon: Cake },
+  { match: /uniform|kit|merch|apparel|shop/i, icon: Shirt },
+  { match: /shop|store|gear/i, icon: ShoppingBag },
+  { match: /fundrais|sponsor|donat|raffle/i, icon: PiggyBank },
+  { match: /finance|treasur|payment|fees|invoice|budget/i, icon: Coins },
+  { match: /gift|prize|award|present/i, icon: Gift },
+  { match: /presentation|trophy|awards night|gala/i, icon: Award },
+  { match: /committee|board|admin|exec/i, icon: Shield },
+  { match: /coach|coaches/i, icon: Megaphone },
+  { match: /referee|umpire|official/i, icon: Flag },
+  { match: /training|practice|gym|fitness|strength/i, icon: Dumbbell },
+  { match: /first ?aid|medic|physio|injury|health/i, icon: Stethoscope },
+  { match: /transport|bus|carpool|travel|driver/i, icon: Bus },
+  { match: /photo|media|video|gallery/i, icon: Camera },
+  { match: /music|band|song|dj/i, icon: Music },
+  { match: /announce|news|notice|broadcast/i, icon: Megaphone },
+  { match: /alert|reminder|notif/i, icon: Bell },
+  { match: /roster|signup|sign-?up|sheet|list/i, icon: ClipboardList },
+  { match: /social|party|celebrat|function/i, icon: PartyPopper },
+  { match: /parade|march/i, icon: Drum },
+  { match: /maintenance|ground|repair|setup|pack ?down|equipment/i, icon: Wrench },
+  { match: /parent|family|member|community|crew|team/i, icon: Users },
+  { match: /event|day|night|fixture/i, icon: Calendar },
+  { match: /match|game|comp/i, icon: Trophy },
+  { match: /volunteer|help/i, icon: HandHeart },
+];
+
+// Tone palette indexed by a stable hash of the group name so two groups in the
+// same category still look visually distinct.
+const TONE_PALETTE = [
+  "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+  "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+  "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+  "bg-lime-500/10 text-lime-600 dark:text-lime-400",
+  "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+];
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function resolveGroupVisual(name: string, category: string | null): {
+  Icon: LucideIcon;
+  tone: string;
+} {
+  const matched = KEYWORD_ICONS.find((k) => k.match.test(name));
+  const Icon = matched?.icon ?? CATEGORY_META[categoryKey(category)].icon;
+  const tone = TONE_PALETTE[hashString(name) % TONE_PALETTE.length];
+  return { Icon, tone };
 }
 
 const FILTER_CHIPS: { key: "all" | CategoryKey; label: string }[] = [
@@ -220,8 +310,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   };
 
   const renderRow = (g: OpenGroup) => {
-    const meta = CATEGORY_META[categoryKey(g.category)];
-    const Icon = meta.icon;
+    const { Icon, tone } = resolveGroupVisual(g.name, g.category);
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
@@ -247,7 +336,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         <div
           className={cn(
             "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
-            meta.tone,
+            tone,
           )}
         >
           <Icon className="h-3.5 w-3.5" />
