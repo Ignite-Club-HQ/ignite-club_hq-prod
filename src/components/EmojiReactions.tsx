@@ -122,7 +122,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
               className={`h-7 px-2 gap-1 text-sm select-none ${
                 isUserReaction ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-accent"
               }`}
-              title="Tap to toggle, long-press to view who reacted"
+              title="Tap to see who reacted, long-press to remove your reaction"
             >
               <span>{emojiData.emoji}</span>
               <span className="text-xs">{count}</span>
