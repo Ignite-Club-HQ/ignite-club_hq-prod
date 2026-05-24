@@ -1,5 +1,6 @@
 import { Flame, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGroupIcon, getGroupSolidColor } from "@/lib/groupIcon";
 
 // Fixed palette of brand-aligned colors with good white-text contrast
 const AVATAR_COLORS = [
