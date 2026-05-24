@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
-import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 
 interface CommentData {
@@ -28,6 +28,7 @@ interface MediaCommentSheetProps {
   photoUrl: string;
   uploaderName: string | null;
   uploaderAvatar?: string | null;
+  teamName?: string | null;
   comments: CommentData[];
   commentInput: string;
   onCommentInputChange: (value: string) => void;
@@ -44,6 +45,7 @@ export function MediaCommentSheet({
   photoUrl,
   uploaderName,
   uploaderAvatar,
+  teamName,
   comments,
   commentInput,
   onCommentInputChange,
@@ -59,19 +61,19 @@ export function MediaCommentSheet({
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [browserKbInset, setBrowserKbInset] = useState(0);
   const capacitorPlatform = Capacitor.getPlatform();
-  const isNativeIOS = Capacitor.isNativePlatform() && capacitorPlatform === "ios";
+  const isNative = Capacitor.isNativePlatform();
+  const isNativeIOS = isNative && capacitorPlatform === "ios";
   const isIOS = (() => {
     if (typeof navigator === "undefined") return isNativeIOS;
-    const userAgent = navigator.userAgent;
-    const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
-    const isIpadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    return isNativeIOS || isIOSDevice || isIpadDesktopMode;
+    const ua = navigator.userAgent;
+    const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
+    const isIpadDesktop = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return isNativeIOS || isIOSDevice || isIpadDesktop;
   })();
-  const isKeyboardOpen = useKeyboardOpen();
-  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
-  const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
-  const { signedUrl: resolvedPhotoUrl, isLoading: isPhotoUrlLoading } = useSignedPhotoUrl(photoUrl);
+  const nativeKeyboardHeight = useNativeKeyboardHeight();
+  const { signedUrl: resolvedPhotoUrl } = useSignedPhotoUrl(photoUrl);
   const previewPhotoUrl = resolvedPhotoUrl || photoUrl;
 
   useIOSOverlayScrollLock(open);
@@ -80,255 +82,143 @@ export function MediaCommentSheet({
     setImgError(false);
   }, [previewPhotoUrl]);
 
-  useEffect(() => {
-    if (!isNativeIOS || !open) {
-      setNativeKeyboardHeight(0);
-      return;
-    }
-
-    let keyboardShowListener: { remove: () => void } | undefined;
-    let keyboardHideListener: { remove: () => void } | undefined;
-
-    Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
-      setNativeKeyboardHeight(keyboardHeight || 0);
-    }).then((handle) => {
-      keyboardShowListener = handle;
-    });
-
-    Keyboard.addListener("keyboardDidHide", () => {
-      setNativeKeyboardHeight(0);
-    }).then((handle) => {
-      keyboardHideListener = handle;
-    });
-
-    return () => {
-      keyboardShowListener?.remove();
-      keyboardHideListener?.remove();
-    };
-  }, [isNativeIOS, open]);
-
+  // Disable native iOS keyboard scroll (prevents the WebView shifting the whole viewport)
   useEffect(() => {
     if (!isNativeIOS) return;
-
-    Keyboard.setScroll({ isDisabled: open }).catch(() => {
-      // Ignore unsupported environments
-    });
-
+    Keyboard.setScroll({ isDisabled: open }).catch(() => {});
     return () => {
-      Keyboard.setScroll({ isDisabled: false }).catch(() => {
-        // Ignore unsupported environments
-      });
+      Keyboard.setScroll({ isDisabled: false }).catch(() => {});
     };
   }, [isNativeIOS, open]);
 
+  // Web fallback: derive keyboard inset from visualViewport (covers Android mobile web)
   useEffect(() => {
-    if (!isIOS || isNativeIOS || !open) {
-      setBrowserKeyboardInset(0);
+    if (!open || isNative) {
+      setBrowserKbInset(0);
       return;
     }
-
-    const vv = window.visualViewport;
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return;
 
+    let baseline = vv.height;
     const update = () => {
-      const stableViewportHeight = Number.parseFloat(
-        window.getComputedStyle(document.documentElement).getPropertyValue("--stable-vh") || "0",
-      ) || window.innerHeight || 0;
-      const overlap = Math.max(0, stableViewportHeight - vv.height - vv.offsetTop);
-      setBrowserKeyboardInset(overlap > 80 ? Math.round(overlap) : 0);
+      if (vv.height > baseline) baseline = vv.height;
+      const overlap = Math.max(0, baseline - vv.height - vv.offsetTop);
+      setBrowserKbInset(overlap > 80 ? Math.round(overlap) : 0);
     };
-
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
     };
-  }, [isIOS, isNativeIOS, open]);
+  }, [open, isNative]);
+
+  const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
+  const isKeyboardActive = keyboardInset > 0;
 
   const getCommentViewport = useCallback(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!scrollRoot) return null;
-
-    return (scrollRoot.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null)
-      ?? (scrollRoot.firstElementChild as HTMLDivElement | null);
+    const root = scrollAreaRef.current;
+    if (!root) return null;
+    return (root.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null)
+      ?? (root.firstElementChild as HTMLDivElement | null);
   }, []);
 
   const scrollCommentsToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const viewport = getCommentViewport();
     if (!viewport) return;
-
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior,
-    });
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
   }, [getCommentViewport]);
 
   const stabilizeIOSViewport = useCallback(() => {
-    if (!isIOS || typeof window === "undefined" || typeof document === "undefined") return;
-
+    if (!isIOS || typeof window === "undefined") return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [isIOS]);
 
   const restoreInputFocus = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const selectionStart = textarea.selectionStart ?? textarea.value.length;
-    const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
-    textarea.focus({ preventScroll: true });
-    try {
-      textarea.setSelectionRange(selectionStart, selectionEnd);
-    } catch {
-      // Ignore
-    }
+    const t = textareaRef.current;
+    if (!t) return;
+    const s = t.selectionStart ?? t.value.length;
+    const e = t.selectionEnd ?? t.value.length;
+    t.focus({ preventScroll: true });
+    try { t.setSelectionRange(s, e); } catch {}
   }, []);
 
   const blurComposer = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    if (document.activeElement === textarea) {
-      textarea.blur();
-    }
+    const t = textareaRef.current;
+    if (t && document.activeElement === t) t.blur();
   }, []);
 
   const handleReactionGestureStateChange = useCallback((active: boolean) => {
-    if (!active) {
-      setIsReactionGestureActive(false);
-      return;
-    }
-    const textarea = textareaRef.current;
-    const isTyping = textarea && document.activeElement === textarea;
-    if (isTyping) {
-      restoreInputFocus();
-    }
+    if (!active) { setIsReactionGestureActive(false); return; }
+    const t = textareaRef.current;
+    if (t && document.activeElement === t) restoreInputFocus();
     setIsReactionGestureActive(true);
   }, [restoreInputFocus]);
 
   // Animate in
   useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() => setIsVisible(true));
-    } else {
-      setIsVisible(false);
-    }
+    if (open) requestAnimationFrame(() => setIsVisible(true));
+    else setIsVisible(false);
   }, [open]);
 
-  // Re-focus textarea when reaction picker opens while typing
   useEffect(() => {
     if (isCommentInteracting && textareaRef.current) {
-      const t = setTimeout(() => {
-        textareaRef.current?.focus({ preventScroll: true });
-      }, 50);
+      const t = setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
       return () => clearTimeout(t);
     }
   }, [isCommentInteracting]);
 
-  // Refocus only when already typing
   useEffect(() => {
     if (!open || (!isReactionGestureActive && !isCommentInteracting)) return;
-    const textarea = textareaRef.current;
-    if (!textarea || document.activeElement !== textarea) return;
+    const t = textareaRef.current;
+    if (!t || document.activeElement !== t) return;
     const refocus = () => restoreInputFocus();
     refocus();
     const t1 = window.setTimeout(refocus, 0);
     const t2 = window.setTimeout(refocus, 120);
-    const t3 = window.setTimeout(refocus, 260);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-    };
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
   }, [open, isReactionGestureActive, isCommentInteracting, restoreInputFocus]);
 
   // Auto-resize textarea
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+    const t = textareaRef.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = Math.min(t.scrollHeight, 110) + "px";
   }, [commentInput]);
-
-  // Focus input when sheet opens
-  useEffect(() => {
-    if (!open || isIOS) return;
-
-    const timeoutId = window.setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 400);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [open, isIOS]);
 
   useEffect(() => {
     if (!open) {
       blurComposer();
       setIsCommentInteracting(false);
-      setNativeKeyboardHeight(0);
-      setBrowserKeyboardInset(0);
     }
-  }, [blurComposer, open]);
-
-  const safeAreaBottom = typeof window !== "undefined"
-    ? Number.parseFloat(
-        window.getComputedStyle(document.documentElement).getPropertyValue("--safe-area-bottom") || "0",
-      ) || 0
-    : 0;
-  const nativeViewportOverlap = isNativeIOS
-    ? Math.max(0, (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0) < (window.innerHeight ?? 0)
-        ? (window.innerHeight ?? 0) - ((window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0))
-        : 0)
-    : 0;
-  const keyboardOffset = isNativeIOS
-    ? Math.max(nativeKeyboardHeight + safeAreaBottom, nativeViewportOverlap)
-    : isIOS
-      ? browserKeyboardInset
-      : 0;
-  const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
+  }, [open, blurComposer]);
 
   useEffect(() => {
     if (!open || !isIOS || !isKeyboardActive) return;
-
     const run = () => stabilizeIOSViewport();
     run();
-
-    const frameId = window.requestAnimationFrame(run);
-    const timeoutId = window.setTimeout(run, 180);
-    const lateTimeoutId = window.setTimeout(run, 360);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearTimeout(timeoutId);
-      window.clearTimeout(lateTimeoutId);
-    };
+    const f = window.requestAnimationFrame(run);
+    const t1 = window.setTimeout(run, 180);
+    return () => { window.cancelAnimationFrame(f); window.clearTimeout(t1); };
   }, [open, isIOS, isKeyboardActive, stabilizeIOSViewport]);
 
   // Scroll to bottom when new comments appear or keyboard opens
   useEffect(() => {
     if (!open) return;
-
-    const run = (behavior: ScrollBehavior) => scrollCommentsToBottom(behavior);
-    const preferredBehavior: ScrollBehavior = isIOS || isKeyboardActive ? "auto" : "smooth";
-
-    run(preferredBehavior);
-    const frameId = window.requestAnimationFrame(() => run("auto"));
-    const timeoutId = window.setTimeout(() => run("auto"), 140);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearTimeout(timeoutId);
-    };
+    const behavior: ScrollBehavior = isIOS || isKeyboardActive ? "auto" : "smooth";
+    scrollCommentsToBottom(behavior);
+    const f = window.requestAnimationFrame(() => scrollCommentsToBottom("auto"));
+    const t = window.setTimeout(() => scrollCommentsToBottom("auto"), 140);
+    return () => { window.cancelAnimationFrame(f); window.clearTimeout(t); };
   }, [comments.length, open, isKeyboardActive, isIOS, scrollCommentsToBottom]);
 
   const handleComposerFocus = useCallback(() => {
     if (!isIOS) return;
-
     stabilizeIOSViewport();
     window.requestAnimationFrame(stabilizeIOSViewport);
     window.setTimeout(stabilizeIOSViewport, 120);
@@ -349,60 +239,62 @@ export function MediaCommentSheet({
   const handleClose = useCallback(() => {
     blurComposer();
     setIsVisible(false);
-    setTimeout(() => onOpenChange(false), isIOS ? 200 : 250);
+    setTimeout(() => onOpenChange(false), isIOS ? 180 : 220);
   }, [blurComposer, isIOS, onOpenChange]);
 
   if (!open) return null;
 
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
-  const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col bg-background overflow-hidden ease-out ${
+      className={`fixed inset-0 z-[2147483600] flex flex-col bg-background ease-out ${
         isIOS
           ? `transition-opacity duration-200 ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`
           : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
+      style={{ height: "100dvh" }}
       data-lock-keyboard-scroll="true"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Comments"
     >
       {/* Safe-area top spacer */}
       <div
         className="flex-shrink-0 bg-background"
-        style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
+        style={{ height: "var(--safe-area-top, env(safe-area-inset-top, 0px))" }}
       />
 
-      {/* Compact sticky header: back · Comments (n) · thumbnail + author */}
-      <header className="flex items-center gap-2 px-2 py-2 border-b border-border/60 flex-shrink-0 bg-background">
+      {/* Compact sticky media context header */}
+      <header className="flex items-center gap-3 px-2 py-2 border-b border-border/60 flex-shrink-0 bg-background">
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 flex-shrink-0 -ml-1"
+          className="h-9 w-9 flex-shrink-0"
           onClick={handleClose}
           aria-label="Close comments"
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
 
-        <div className="flex items-baseline gap-1.5 min-w-0">
-          <span className="text-[15px] font-semibold leading-none">Comments</span>
-          <span className="text-[13px] text-muted-foreground leading-none">{comments.length}</span>
-        </div>
+        {!imgError && previewPhotoUrl ? (
+          <img
+            src={previewPhotoUrl}
+            alt=""
+            onError={() => setImgError(true)}
+            className="h-10 w-10 rounded-md object-cover flex-shrink-0 bg-muted"
+          />
+        ) : (
+          <div className="h-10 w-10 rounded-md bg-muted flex-shrink-0" />
+        )}
 
-        <div className="ml-auto flex items-center gap-2 min-w-0 max-w-[55%]">
-          {!imgError && previewPhotoUrl ? (
-            <img
-              src={previewPhotoUrl}
-              alt=""
-              onError={() => setImgError(true)}
-              className="h-7 w-7 rounded-md object-cover flex-shrink-0"
-            />
-          ) : (
-            <div className="h-7 w-7 rounded-md bg-muted flex-shrink-0" />
-          )}
-          <span className="text-xs text-muted-foreground truncate">
+        <div className="flex flex-col min-w-0 flex-1 leading-tight">
+          <span className="text-[14px] font-semibold truncate">
             {uploaderName || "Photo"}
+          </span>
+          <span className="text-[12px] text-muted-foreground truncate">
+            {teamName ? `${teamName} · ` : ""}{comments.length} {comments.length === 1 ? "comment" : "comments"}
           </span>
         </div>
       </header>
@@ -413,17 +305,14 @@ export function MediaCommentSheet({
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
-        <div className="px-4 pt-3 pb-4 space-y-3">
-          {topLevelComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="h-10 w-10 rounded-full bg-muted/60 flex items-center justify-center mb-2">
-                <span className="text-base" aria-hidden="true">💬</span>
-              </div>
-              <p className="text-sm font-medium text-foreground">No comments yet</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Be the first to comment</p>
-            </div>
-          ) : (
-            topLevelComments.map((comment) => {
+        {topLevelComments.length === 0 ? (
+          <div className="px-4 pt-8 pb-4 text-center">
+            <p className="text-sm font-medium text-foreground">No comments yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Be the first to comment</p>
+          </div>
+        ) : (
+          <div className="px-4 pt-3 pb-4 space-y-3">
+            {topLevelComments.map((comment) => {
               const replies = comments.filter(c => c.reply_to_id === comment.id);
               return (
                 <div key={comment.id}>
@@ -439,9 +328,7 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isIOS });
-                      }, 100);
+                      window.setTimeout(() => textareaRef.current?.focus({ preventScroll: isIOS }), 100);
                     }}
                   />
                   <CommentRepliesThread
@@ -452,28 +339,23 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isIOS });
-                      }, 100);
+                      window.setTimeout(() => textareaRef.current?.focus({ preventScroll: isIOS }), 100);
                     }}
                   />
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </ScrollArea>
 
-      {/* Composer — pill-shaped, integrated send, docked above keyboard */}
+      {/* Composer — slim pill, docked above keyboard */}
       <div
-        className="flex-shrink-0 bg-background border-t border-border/60 transition-[margin] duration-200 ease-out"
+        className="flex-shrink-0 bg-background border-t border-border/60 transition-[padding] duration-150 ease-out"
         style={{
-          marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: !isKeyboardActive
-            ? isIOS
-              ? "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 10px)"
-              : "10px"
-            : "8px",
+          paddingBottom: isKeyboardActive
+            ? `${keyboardInset + 6}px`
+            : "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 8px)",
         }}
       >
         {replyingTo && (
@@ -494,7 +376,7 @@ export function MediaCommentSheet({
         )}
 
         <div className="px-3 pt-2">
-          <div className="relative flex items-end bg-muted/60 rounded-3xl border border-border/60 focus-within:border-primary/50 focus-within:bg-muted/80 transition-colors">
+          <div className="relative flex items-end bg-muted/60 rounded-full focus-within:bg-muted/80 transition-colors">
             <textarea
               ref={textareaRef}
               value={commentInput}
@@ -503,24 +385,23 @@ export function MediaCommentSheet({
               onKeyDown={handleKeyDown}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
-              className={`flex-1 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[44px] max-h-[120px] pl-4 pr-12 py-3 leading-[1.35] ${isIOS ? "text-base" : "text-[15px]"}`}
+              className={`flex-1 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-4 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={handleSubmit}
               disabled={isPending || !hasText}
-              className={`absolute right-1.5 bottom-1.5 h-9 w-9 p-0 rounded-full transition-opacity ${
-                hasText ? "opacity-100" : "opacity-40"
+              className={`absolute right-1 bottom-1 h-8 w-8 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
+                hasText ? "opacity-100" : "opacity-40 pointer-events-none"
               }`}
               aria-label="Send comment"
             >
               <Send className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
