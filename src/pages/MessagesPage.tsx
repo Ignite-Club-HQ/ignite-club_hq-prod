@@ -818,7 +818,7 @@ export default function MessagesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name), clubs(name, logo_url), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1939,6 +1939,7 @@ export default function MessagesPage() {
         id: group.id,
         key: `league-${group.id}`,
         name: group.name,
+        avatarUrl: group.clubs?.logo_url ?? null,
         link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
