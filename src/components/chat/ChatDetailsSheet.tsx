@@ -66,6 +66,7 @@ export function ChatDetailsSheet({
   groupCreatedBy,
   groupMembershipMode,
   miniLeagueId,
+  competitionId,
 }: ChatDetailsSheetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
