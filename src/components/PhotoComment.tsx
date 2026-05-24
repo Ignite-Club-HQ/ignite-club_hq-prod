@@ -26,6 +26,7 @@ import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { MessageReactionsPopover } from "@/components/chat/MessageReactions";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
+import { renderTextWithMentions } from "@/lib/photoCommentMentions";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
