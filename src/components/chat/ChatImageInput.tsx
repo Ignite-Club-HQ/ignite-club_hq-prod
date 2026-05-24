@@ -726,6 +726,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 tone: "primary" | "muted";
                 onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
                 disabled?: boolean;
+                locked?: boolean;
               };
               const actions: Action[] = [];
               actions.push({
