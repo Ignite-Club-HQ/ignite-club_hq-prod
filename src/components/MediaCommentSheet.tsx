@@ -356,102 +356,71 @@ export function MediaCommentSheet({
 
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
-  const replyCount = comments.length - topLevelComments.length;
   const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
-  const thumbnailSizeClass = isKeyboardActive ? "h-12 w-12" : "h-20 w-20";
 
   return (
-    <>
-      {/* Full-screen photo backdrop — replaces whatever's behind so only the photo shows */}
+    <div
+      className={`fixed inset-0 z-[100] flex flex-col bg-background overflow-hidden ease-out ${
+        isIOS
+          ? `transition-opacity duration-200 ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`
+          : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
+      }`}
+      data-lock-keyboard-scroll="true"
+    >
+      {/* Safe-area top spacer */}
       <div
-        className={`fixed inset-0 z-[60] bg-black transition-opacity duration-200 ${
-          isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={handleClose}
-        aria-hidden="true"
-      >
-        {previewPhotoUrl && !imgError && (
-          <img
-            src={previewPhotoUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-contain opacity-70"
-            onError={() => setImgError(true)}
-          />
-        )}
-        <div className="absolute inset-0 bg-black/40" />
-      </div>
-      <div
-        className={`fixed left-0 right-0 bottom-0 z-[61] flex flex-col overflow-hidden bg-background rounded-t-2xl shadow-2xl ease-out ${
-          isIOS
-            ? `transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
-            : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
-        }`}
-        style={{ top: isKeyboardActive ? 0 : '30vh' }}
-        data-lock-keyboard-scroll="true"
-      >
+        className="flex-shrink-0 bg-background"
+        style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
+      />
 
-
-
-      {/* Header bar — compact single-line title with inline count */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/70 flex-shrink-0">
+      {/* Compact sticky header: back · Comments (n) · thumbnail + author */}
+      <header className="flex items-center gap-2 px-2 py-2 border-b border-border/60 flex-shrink-0 bg-background">
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 flex-shrink-0"
+          className="h-9 w-9 flex-shrink-0 -ml-1"
           onClick={handleClose}
+          aria-label="Close comments"
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <p className="flex-1 min-w-0 text-sm font-semibold truncate">
-          Comments <span className="text-muted-foreground font-normal">({comments.length})</span>
-        </p>
-      </div>
 
-      {/* Sticky image preview — always visible */}
-      <div className={`flex-shrink-0 border-b border-border bg-muted/30 transition-all duration-200 ${
-        isKeyboardActive ? "h-16" : "h-24"
-      }`}>
-        <div className="flex items-center gap-3 h-full px-4">
-          {isPhotoUrlLoading ? (
-            <div
-              className={`rounded-lg bg-muted animate-pulse flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
-              aria-hidden="true"
-            />
-          ) : !imgError && previewPhotoUrl ? (
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[15px] font-semibold leading-none">Comments</span>
+          <span className="text-[13px] text-muted-foreground leading-none">{comments.length}</span>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 min-w-0 max-w-[55%]">
+          {!imgError && previewPhotoUrl ? (
             <img
               src={previewPhotoUrl}
-              alt={uploaderName ? `Photo uploaded by ${uploaderName}` : "Photo preview"}
+              alt=""
               onError={() => setImgError(true)}
-              className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
+              className="h-7 w-7 rounded-md object-cover flex-shrink-0"
             />
           ) : (
-            <div className={`rounded-lg bg-muted flex items-center justify-center flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}>
-              <span className="text-muted-foreground text-xs">📷</span>
-            </div>
+            <div className="h-7 w-7 rounded-md bg-muted flex-shrink-0" />
           )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground truncate">
-              {uploaderName || "Unknown"}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {topLevelComments.length} {topLevelComments.length === 1 ? "thread" : "threads"} · {replyCount} {replyCount === 1 ? "reply" : "replies"}
-            </p>
-          </div>
+          <span className="text-xs text-muted-foreground truncate">
+            {uploaderName || "Photo"}
+          </span>
         </div>
-      </div>
+      </header>
 
-      {/* Comment list — fills remaining space, with bottom padding so last comment
-           is never hidden behind the composer */}
+      {/* Comment list — fills remaining space */}
       <ScrollArea
         ref={scrollAreaRef}
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
-        <div className="px-4 pt-2 pb-4 space-y-3 bg-muted/10">
+        <div className="px-4 pt-3 pb-4 space-y-3">
           {topLevelComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <p className="text-sm">No comments yet</p>
-              <p className="text-xs mt-1">Be the first to comment</p>
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="h-10 w-10 rounded-full bg-muted/60 flex items-center justify-center mb-2">
+                <span className="text-base" aria-hidden="true">💬</span>
+              </div>
+              <p className="text-sm font-medium text-foreground">No comments yet</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Be the first to comment</p>
             </div>
           ) : (
             topLevelComments.map((comment) => {
@@ -492,63 +461,66 @@ export function MediaCommentSheet({
               );
             })
           )}
-          <div />
         </div>
       </ScrollArea>
 
-      {/* Composer — pinned at bottom, messenger-style */}
+      {/* Composer — pill-shaped, integrated send, docked above keyboard */}
       <div
-        className="flex-shrink-0 bg-muted/40 border-t border-border shadow-[0_-1px_3px_rgba(0,0,0,0.06)] transition-[margin] duration-200 ease-out"
+        className="flex-shrink-0 bg-background border-t border-border/60 transition-[margin] duration-200 ease-out"
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
           paddingBottom: !isKeyboardActive
             ? isIOS
-              ? "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 12px)"
+              ? "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 10px)"
               : "10px"
-            : "10px",
+            : "8px",
         }}
       >
-        {/* Reply indicator */}
         {replyingTo && (
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/40 border-b border-border/60">
             <span className="text-xs text-muted-foreground truncate flex-1">
-              Replying to {replyingTo.name}
+              Replying to <span className="text-foreground font-medium">{replyingTo.name}</span>
             </span>
             <Button
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
               onClick={() => onSetReplyingTo(undefined)}
+              aria-label="Cancel reply"
             >
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
-        <div className="flex items-end gap-3 px-4 pt-2">
-          <textarea
-            ref={textareaRef}
-            value={commentInput}
-            onChange={(e) => onCommentInputChange(e.target.value)}
-            onFocus={handleComposerFocus}
-            onKeyDown={handleKeyDown}
-            placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
-            rows={1}
-            className={`flex-1 resize-none bg-background rounded-2xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[48px] max-h-[120px] px-4 py-3 leading-[1.4] border border-border ${isIOS ? "text-base" : "text-sm"}`}
-            style={isIOS ? { fontSize: "16px" } : undefined}
-          />
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={isPending || !hasText}
-            className="h-10 w-10 p-0 flex-shrink-0 rounded-full mb-1"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="px-3 pt-2">
+          <div className="relative flex items-end bg-muted/60 rounded-3xl border border-border/60 focus-within:border-primary/50 focus-within:bg-muted/80 transition-colors">
+            <textarea
+              ref={textareaRef}
+              value={commentInput}
+              onChange={(e) => onCommentInputChange(e.target.value)}
+              onFocus={handleComposerFocus}
+              onKeyDown={handleKeyDown}
+              placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
+              rows={1}
+              className={`flex-1 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[44px] max-h-[120px] pl-4 pr-12 py-3 leading-[1.35] ${isIOS ? "text-base" : "text-[15px]"}`}
+              style={isIOS ? { fontSize: "16px" } : undefined}
+            />
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={isPending || !hasText}
+              className={`absolute right-1.5 bottom-1.5 h-9 w-9 p-0 rounded-full transition-opacity ${
+                hasText ? "opacity-100" : "opacity-40"
+              }`}
+              aria-label="Send comment"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
-      </div>
-    </>
-
+    </div>
   );
 }
+
