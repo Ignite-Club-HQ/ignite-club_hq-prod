@@ -294,7 +294,7 @@ function showOpenDownloadedPhotoToast(
   toastId: string | number,
   filePath: string | null,
   description: string,
-  _contentType: string,
+  contentType: string,
 ) {
   toast.success("Photo downloaded", {
     id: toastId,
@@ -305,23 +305,36 @@ function showOpenDownloadedPhotoToast(
           onClick: async (event) => {
             event?.preventDefault?.();
             event?.stopPropagation?.();
-            // Launch the system Gallery / Photos app. We don't try to open the
-            // exact saved file by path: Android's MediaStore returns paths /
-            // content URIs that FileOpener typically can't resolve across
-            // scoped-storage boundaries. Opening the gallery is reliable and
-            // surfaces the brand-new photo at the top of the user's library.
+            // 1. Try opening the saved file directly via FileOpener with the
+            //    correct MIME type. This is the most reliable path on Android —
+            //    it hands the file to the user's default image viewer.
+            try {
+              const { FileOpener } = await import("@capacitor-community/file-opener");
+              await FileOpener.open({
+                filePath,
+                contentType: contentType || "image/*",
+              });
+              return;
+            } catch (fileOpenErr) {
+              console.warn("[downloadImage] FileOpener failed, trying gallery launcher:", fileOpenErr);
+            }
+
+            // 2. Fall back to launching a known gallery app by package name.
             try {
               const { AppLauncher } = await import("@capacitor/app-launcher");
-              // Try the standard gallery intent first, then fall back to known
-              // gallery package URLs.
-              const candidates = [
-                "content://media/external/images/media",
-                "content://media/internal/images/media",
+              const packages = [
+                "com.google.android.apps.photos",
+                "com.sec.android.gallery3d",
+                "com.miui.gallery",
+                "com.android.gallery3d",
               ];
-              for (const url of candidates) {
+              for (const pkg of packages) {
                 try {
-                  const opened = await AppLauncher.openUrl({ url });
-                  if (opened?.completed) return;
+                  const { value } = await AppLauncher.canOpenUrl({ url: pkg });
+                  if (value) {
+                    const opened = await AppLauncher.openUrl({ url: pkg });
+                    if (opened?.completed) return;
+                  }
                 } catch {
                   // try next
                 }
@@ -338,6 +351,7 @@ function showOpenDownloadedPhotoToast(
       : undefined,
   });
 }
+
 
 
 function pickContentTypeFromExtension(ext: string): string {
