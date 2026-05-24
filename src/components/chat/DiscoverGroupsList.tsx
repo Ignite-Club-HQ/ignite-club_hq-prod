@@ -36,7 +36,6 @@ import {
   Users,
   Utensils,
   Wrench,
-  Whistle,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
