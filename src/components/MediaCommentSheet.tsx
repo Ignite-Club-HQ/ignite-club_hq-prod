@@ -63,6 +63,7 @@ export function MediaCommentSheet({
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [browserKbInset, setBrowserKbInset] = useState(0);
+  const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null);
   const capacitorPlatform = Capacitor.getPlatform();
   const isNative = Capacitor.isNativePlatform();
   const isNativeIOS = isNative && capacitorPlatform === "ios";
@@ -107,15 +108,20 @@ export function MediaCommentSheet({
   useEffect(() => {
     if (!open || isNative) {
       setBrowserKbInset(0);
+      setWebViewportHeight(null);
       return;
     }
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
+    if (!vv) {
+      setWebViewportHeight(typeof window !== "undefined" ? window.innerHeight : null);
+      return;
+    }
 
     let baseline = vv.height;
     const update = () => {
       if (vv.height > baseline) baseline = vv.height;
       const overlap = Math.max(0, baseline - vv.height - vv.offsetTop);
+      setWebViewportHeight(Math.round(vv.height));
       setBrowserKbInset(overlap > 80 ? Math.round(overlap) : 0);
     };
     update();
@@ -129,6 +135,11 @@ export function MediaCommentSheet({
 
   const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
   const isKeyboardActive = keyboardInset > 0;
+  const screenHeight = isNative
+    ? "var(--stable-vh, 100dvh)"
+    : webViewportHeight
+      ? `${webViewportHeight}px`
+      : "var(--visual-vh, 100dvh)";
 
   const getCommentViewport = useCallback(() => {
     const root = scrollAreaRef.current;
@@ -156,7 +167,11 @@ export function MediaCommentSheet({
     const s = t.selectionStart ?? t.value.length;
     const e = t.selectionEnd ?? t.value.length;
     t.focus({ preventScroll: true });
-    try { t.setSelectionRange(s, e); } catch {}
+    try {
+      t.setSelectionRange(s, e);
+    } catch {
+      // Some mobile browsers reject selection restoration during keyboard transitions.
+    }
   }, []);
 
   const blurComposer = useCallback(() => {
@@ -269,8 +284,9 @@ export function MediaCommentSheet({
       style={{
         zIndex: 2147483647,
         width: "100vw",
-        height: "var(--stable-vh, 100dvh)",
-        minHeight: "100vh",
+        height: screenHeight,
+        maxHeight: screenHeight,
+        minHeight: 0,
         transform: isIOS ? "translate3d(0,0,0)" : undefined,
       }}
       data-lock-keyboard-scroll="true"
@@ -371,7 +387,7 @@ export function MediaCommentSheet({
       <div
         className="flex-shrink-0 bg-background border-t border-border/60 transition-[padding] duration-150 ease-out"
         style={{
-          paddingBottom: isKeyboardActive
+          paddingBottom: isNative && isKeyboardActive
             ? `${keyboardInset + 6}px`
             : "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 8px)",
         }}
