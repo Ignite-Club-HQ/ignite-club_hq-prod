@@ -366,7 +366,8 @@ export default function MessagesPage() {
         .from("clubs")
         .select("id, name, logo_url, sport")
         .in("id", clubIds)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("kind", "shell");
 
       const clubs = data as Club[];
       
