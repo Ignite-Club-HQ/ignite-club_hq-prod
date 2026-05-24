@@ -36,7 +36,7 @@ const getErrorMessage = (error: unknown) => error instanceof Error ? error.messa
 interface PhotoLightboxProps {
   isOpen: boolean;
   onClose: () => void;
-  photos: { id: string; file_url?: string | null; image_url?: string | null; title?: string | null }[];
+  photos: { id: string; file_url?: string | null; image_url?: string | null; title?: string | null; club_id?: string | null; team_id?: string | null }[];
   currentIndex: number;
   onNavigate: (index: number) => void;
   onDelete?: (photoId: string) => void;
