@@ -225,7 +225,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   };
 
   const renderRow = (g: OpenGroup) => {
-    const { Icon, tone } = resolveGroupVisual(g.name, g.category);
+    const { Icon, tone } = getGroupVisual(g.name, g.category);
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
@@ -241,21 +241,22 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         type="button"
         onClick={() => g.joined && navigate(`/groups/${g.id}`)}
         className={cn(
-          "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-all",
+          "group w-full flex items-center gap-3 px-2 py-1.5 rounded-md text-left transition-all",
           "active:scale-[0.99] hover:bg-muted/60",
         )}
       >
         <div
           className={cn(
-            "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
+            "relative h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
             tone,
           )}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
           {!g.joined && active && (
-            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border-2 border-background" />
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
           )}
         </div>
+
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
