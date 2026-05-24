@@ -2205,9 +2205,11 @@ export default function EventDetailPage() {
           className="shrink-0"
           onClick={async () => {
             if (isSharingEventRef.current) return;
+            if (!gateEventShare()) return;
             isSharingEventRef.current = true;
 
             const shareUrl = getShareUrl("event", id!);
+            
             
 
             try {
