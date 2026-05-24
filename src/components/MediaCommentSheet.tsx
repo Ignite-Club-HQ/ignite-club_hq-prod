@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { Send, X, ChevronLeft } from "lucide-react";
@@ -77,6 +78,17 @@ export function MediaCommentSheet({
   const previewPhotoUrl = resolvedPhotoUrl || photoUrl;
 
   useIOSOverlayScrollLock(open);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+    const root = document.documentElement;
+    const previousValue = root.getAttribute("data-media-comments-open");
+    root.setAttribute("data-media-comments-open", "true");
+    return () => {
+      if (previousValue === null) root.removeAttribute("data-media-comments-open");
+      else root.setAttribute("data-media-comments-open", previousValue);
+    };
+  }, [open]);
 
   useEffect(() => {
     setImgError(false);
@@ -247,14 +259,20 @@ export function MediaCommentSheet({
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
 
-  return (
+  const content = (
     <div
-      className={`fixed inset-0 z-[2147483600] flex flex-col bg-background ease-out ${
+      className={`media-comment-screen fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-background ease-out ${
         isIOS
           ? `transition-opacity duration-200 ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`
           : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={{ height: "100dvh" }}
+      style={{
+        zIndex: 2147483647,
+        width: "100vw",
+        height: "var(--stable-vh, 100dvh)",
+        minHeight: "100vh",
+        transform: isIOS ? "translate3d(0,0,0)" : undefined,
+      }}
       data-lock-keyboard-scroll="true"
       role="dialog"
       aria-modal="true"
@@ -404,4 +422,7 @@ export function MediaCommentSheet({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return content;
+  return createPortal(content, document.body);
 }
