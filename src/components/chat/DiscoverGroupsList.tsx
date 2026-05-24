@@ -110,7 +110,7 @@ const KEYWORD_ICONS: { match: RegExp; icon: LucideIcon }[] = [
   { match: /gift|prize|award|present/i, icon: Gift },
   { match: /presentation|trophy|awards night|gala/i, icon: Award },
   { match: /committee|board|admin|exec/i, icon: Shield },
-  { match: /coach|coaches/i, icon: Whistle as unknown as LucideIcon },
+  { match: /coach|coaches/i, icon: Megaphone },
   { match: /referee|umpire|official/i, icon: Flag },
   { match: /training|practice|gym|fitness|strength/i, icon: Dumbbell },
   { match: /first ?aid|medic|physio|injury|health/i, icon: Stethoscope },
