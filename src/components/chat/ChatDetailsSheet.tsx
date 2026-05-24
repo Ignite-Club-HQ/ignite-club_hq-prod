@@ -47,6 +47,8 @@ interface ChatDetailsSheetProps {
   groupMembershipMode?: string | null;
   /** For mini-league chats — enables league-scoped participant query */
   miniLeagueId?: string;
+  /** For competition chats — enables "View competition" link */
+  competitionId?: string;
 }
 
 export function ChatDetailsSheet({
