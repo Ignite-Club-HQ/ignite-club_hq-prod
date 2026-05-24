@@ -64,10 +64,9 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   const viewingReactors = viewingReactionType ? getReactorsForType(viewingReactionType) : [];
   const viewingEmoji = REACTION_EMOJIS.find(e => e.type === viewingReactionType)?.emoji || "";
 
-  // Long-press detection so a normal tap on a pill toggles the reaction
-  // (matching chat behaviour) and a long-press opens the reactors dialog.
-  // This avoids opening a Radix Dialog on every tap — on Android, the
-  // dialog's scroll-lock + focus management shifts the viewport upward.
+  // Tap a reaction pill → open the reactors dialog (matches Instagram/Facebook
+  // photo-feed conventions). Use the smile (+) picker to add or change your
+  // own reaction. Long-press removes your reaction if it matches this pill.
   const longPressTimer = useRef<number | null>(null);
   const longPressFired = useRef(false);
 
@@ -83,7 +82,9 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
     clearLongPress();
     longPressTimer.current = window.setTimeout(() => {
       longPressFired.current = true;
-      setViewingReactionType(type);
+      if (currentUserId && userReaction?.reaction_type === type) {
+        onRemove();
+      }
     }, 500);
   };
 
@@ -95,12 +96,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
       longPressFired.current = false;
       return;
     }
-    if (!currentUserId) return;
-    if (userReaction?.reaction_type === type) {
-      onRemove();
-    } else {
-      onReact(type);
-    }
+    setViewingReactionType(type);
   };
 
   return (
