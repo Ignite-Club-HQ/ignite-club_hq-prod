@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
+import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { makeVaultFileToken, makeVaultFolderToken, makeVaultRootToken } from "@/lib/chatVaultLinks";
@@ -60,6 +62,34 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { hasAccess: hasProAccess } = useScheduleProAccess({ team_id: teamId ?? null, club_id: clubId ?? null } as any);
+
+  // Resolve the clubId for upgrade navigation when only teamId is known.
+  const { data: upgradeClubId } = useQuery({
+    queryKey: ["chat-input-upgrade-club", clubId, teamId],
+    enabled: !clubId && !!teamId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("teams").select("club_id").eq("id", teamId!).maybeSingle();
+      return (data?.club_id as string) ?? null;
+    },
+  });
+  const effectiveClubId = clubId ?? upgradeClubId ?? null;
+
+  const requirePro = (e: React.MouseEvent) => {
+    if (hasProAccess) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (effectiveClubId) {
+      toast.info("This is a Pro feature");
+      navigate(`/clubs/${effectiveClubId}/upgrade`);
+    } else {
+      toast.info("This is a Pro feature — contact your club administrator to upgrade.");
+    }
+    return true;
+  };
 
   // Fetch club sport so the live-board action subtitle is contextual.
   const { data: clubSport } = useQuery({
@@ -696,6 +726,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 tone: "primary" | "muted";
                 onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
                 disabled?: boolean;
+                locked?: boolean;
               };
               const actions: Action[] = [];
               actions.push({
@@ -714,11 +745,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: "Device or vault",
+                  hint: hasProAccess ? "Device or vault" : "Pro feature",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
@@ -742,11 +775,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "poll",
                   label: "Create Poll",
-                  hint: "Ask the group",
+                  hint: hasProAccess ? "Ask the group" : "Pro feature",
                   icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onPollCreate();
                   },
@@ -780,13 +815,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                       aria-label={a.label}
                     >
                       <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
+                        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
                       >
                         {a.icon}
+                        {a.locked && (
+                          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Crown className="h-2.5 w-2.5" strokeWidth={2.5} />
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col leading-tight min-w-0">
                         <span className="text-[13px] font-medium text-foreground/90 truncate">{a.label}</span>
-                        <span className="text-[11px] text-muted-foreground/80 truncate">{a.hint}</span>
+                        <span className={`text-[11px] truncate ${a.locked ? "text-primary/80" : "text-muted-foreground/80"}`}>{a.hint}</span>
                       </div>
                     </button>
                   ))}
