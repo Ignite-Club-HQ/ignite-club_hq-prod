@@ -2418,9 +2418,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             {result.display_name?.[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
-                          <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {identityMap[result.id]?.contextLine ? (
+                            <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                          )}
                         </div>
                       </button>
                     ))}
