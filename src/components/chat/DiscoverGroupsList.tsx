@@ -157,6 +157,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         name: r.name,
         category: r.category ?? null,
         club_id: r.club_id,
+        club_name: (r.clubs && (Array.isArray(r.clubs) ? r.clubs[0]?.name : r.clubs.name)) ?? null,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
         last_text: lastByGroup.get(r.id)?.text ?? null,
