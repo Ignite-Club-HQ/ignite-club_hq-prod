@@ -2029,6 +2029,7 @@ export default function EventDetailPage() {
 
   // Share event reminder link via native share
   const handleShareReminderLink = async () => {
+    if (!gateEventShare()) return;
     const shareUrl = getShareUrl("event", id!);
     const shareText = `Reminder: Please RSVP for "${event?.title}"`;
     try {
