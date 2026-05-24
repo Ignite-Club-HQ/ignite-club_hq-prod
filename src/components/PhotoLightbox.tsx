@@ -111,6 +111,7 @@ export function PhotoLightbox({
   onDelete,
   canDelete,
 }: PhotoLightboxProps) {
+  const navigate = useNavigate();
   const currentPhoto = photos[currentIndex];
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
