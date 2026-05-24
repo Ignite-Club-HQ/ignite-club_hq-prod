@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         // Fetch event details for the push body.
         const { data: event } = await supabase
           .from("events")
-          .select("id, title, opponent, type, team_id")
+          .select("id, title, opponent, type, team_id, start_time")
           .eq("id", prompt.event_id)
           .maybeSingle();
 
@@ -130,10 +130,28 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const opponent = event.opponent ? ` vs ${event.opponent}` : "";
-        const eventLabel = event.title || (event.type === "mini_league" ? "today's match" : `today's game${opponent}`);
+        // Date-accurate qualifier so a prompt firing the day after the
+        // match doesn't claim "today". Based on event start time.
+        const startMs = event.start_time ? new Date(event.start_time as string).getTime() : now;
+        const hoursAgo = (now - startMs) / (60 * 60 * 1000);
+        let whenQualifier: string;
+        let titleQualifier: string;
+        if (hoursAgo < 18) {
+          whenQualifier = "today's";
+          titleQualifier = "today";
+        } else if (hoursAgo < 42) {
+          whenQualifier = "yesterday's";
+          titleQualifier = "yesterday";
+        } else {
+          whenQualifier = "the recent";
+          titleQualifier = "the match";
+        }
 
-        const pushTitle = "📸 Got photos from today?";
+        const opponent = event.opponent ? ` vs ${event.opponent}` : "";
+        const eventLabel = event.title
+          || (event.type === "mini_league" ? `${whenQualifier} match` : `${whenQualifier} game${opponent}`);
+
+        const pushTitle = `📸 Got photos from ${titleQualifier}?`;
         const pushBody = `Be the first to share photos from ${eventLabel} — tap to upload.`;
         const url = `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`;
         const tag = `photo-prompt-${prompt.event_id}`;
