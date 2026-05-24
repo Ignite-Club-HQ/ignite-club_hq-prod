@@ -2,41 +2,18 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
-  Award,
-  Bell,
   Briefcase,
-  Bus,
-  Cake,
   Calendar,
-  Camera,
   Check,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
-  Coffee,
   Coins,
-  Drum,
-  Dumbbell,
-  Flag,
-  Gift,
   HandHeart,
   HelpCircle,
-  Megaphone,
-  Music,
-  PartyPopper,
-  PiggyBank,
-  Pizza,
   Search,
   Shield,
-  Shirt,
-  ShoppingBag,
   Sparkles,
-  Stethoscope,
   Trophy,
-  Users,
-  Utensils,
-  Wrench,
-  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getGroupVisual } from "@/lib/groupIcon";
 
 interface OpenGroup {
   id: string;
@@ -76,17 +54,20 @@ type CategoryKey =
   | "finance"
   | "other";
 
+// Section-header meta for the user-set `chat_groups.category` enum. Icons
+// here label the *section*, not individual rows — per-row icons come from
+// the richer semantic resolver in `@/lib/groupIcon`.
 const CATEGORY_META: Record<
   CategoryKey,
-  { label: string; icon: typeof Briefcase; tone: string }
+  { label: string; icon: typeof Briefcase }
 > = {
-  operations: { label: "Operations", icon: Briefcase, tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  volunteers: { label: "Volunteers", icon: HandHeart, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-  events: { label: "Events", icon: Calendar, tone: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-  "match day": { label: "Match Day", icon: Trophy, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  admin: { label: "Admin", icon: Shield, tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
-  finance: { label: "Finance", icon: Coins, tone: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
-  other: { label: "Other", icon: Sparkles, tone: "bg-muted text-muted-foreground" },
+  operations:  { label: "Operations",  icon: Briefcase },
+  volunteers:  { label: "Volunteers",  icon: HandHeart },
+  events:      { label: "Events",      icon: Calendar },
+  "match day": { label: "Match Day",   icon: Trophy },
+  admin:       { label: "Admin",       icon: Shield },
+  finance:     { label: "Finance",     icon: Coins },
+  other:       { label: "Other",       icon: Sparkles },
 };
 
 function categoryKey(raw: string | null | undefined): CategoryKey {
@@ -95,72 +76,6 @@ function categoryKey(raw: string | null | undefined): CategoryKey {
   return "other";
 }
 
-// Keyword → icon map. Lets each group get a visually distinct icon based on
-// what the group is actually about, instead of every Operations group looking
-// the same.
-const KEYWORD_ICONS: { match: RegExp; icon: LucideIcon }[] = [
-  { match: /canteen|kitchen|bbq|barbecue|food|catering|lunch|breakfast/i, icon: Utensils },
-  { match: /pizza|dinner/i, icon: Pizza },
-  { match: /coffee|cafe|tea/i, icon: Coffee },
-  { match: /cake|bake/i, icon: Cake },
-  { match: /uniform|kit|merch|apparel|shop/i, icon: Shirt },
-  { match: /shop|store|gear/i, icon: ShoppingBag },
-  { match: /fundrais|sponsor|donat|raffle/i, icon: PiggyBank },
-  { match: /finance|treasur|payment|fees|invoice|budget/i, icon: Coins },
-  { match: /gift|prize|award|present/i, icon: Gift },
-  { match: /presentation|trophy|awards night|gala/i, icon: Award },
-  { match: /committee|board|admin|exec/i, icon: Shield },
-  { match: /coach|coaches/i, icon: Megaphone },
-  { match: /referee|umpire|official/i, icon: Flag },
-  { match: /training|practice|gym|fitness|strength/i, icon: Dumbbell },
-  { match: /first ?aid|medic|physio|injury|health/i, icon: Stethoscope },
-  { match: /transport|bus|carpool|travel|driver/i, icon: Bus },
-  { match: /photo|media|video|gallery/i, icon: Camera },
-  { match: /music|band|song|dj/i, icon: Music },
-  { match: /announce|news|notice|broadcast/i, icon: Megaphone },
-  { match: /alert|reminder|notif/i, icon: Bell },
-  { match: /roster|signup|sign-?up|sheet|list/i, icon: ClipboardList },
-  { match: /social|party|celebrat|function/i, icon: PartyPopper },
-  { match: /parade|march/i, icon: Drum },
-  { match: /maintenance|ground|repair|setup|pack ?down|equipment/i, icon: Wrench },
-  { match: /parent|family|member|community|crew|team/i, icon: Users },
-  { match: /event|day|night|fixture/i, icon: Calendar },
-  { match: /match|game|comp/i, icon: Trophy },
-  { match: /volunteer|help/i, icon: HandHeart },
-];
-
-// Tone palette indexed by a stable hash of the group name so two groups in the
-// same category still look visually distinct.
-const TONE_PALETTE = [
-  "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  "bg-teal-500/10 text-teal-600 dark:text-teal-400",
-  "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-  "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
-  "bg-pink-500/10 text-pink-600 dark:text-pink-400",
-  "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
-  "bg-lime-500/10 text-lime-600 dark:text-lime-400",
-  "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
-];
-
-function hashString(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function resolveGroupVisual(name: string, category: string | null): {
-  Icon: LucideIcon;
-  tone: string;
-} {
-  const matched = KEYWORD_ICONS.find((k) => k.match.test(name));
-  const Icon = matched?.icon ?? CATEGORY_META[categoryKey(category)].icon;
-  const tone = TONE_PALETTE[hashString(name) % TONE_PALETTE.length];
-  return { Icon, tone };
-}
 
 const FILTER_CHIPS: { key: "all" | CategoryKey; label: string }[] = [
   { key: "all", label: "All" },
@@ -310,7 +225,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   };
 
   const renderRow = (g: OpenGroup) => {
-    const { Icon, tone } = resolveGroupVisual(g.name, g.category);
+    const { Icon, tone } = getGroupVisual(g.name, g.category);
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
@@ -326,21 +241,22 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         type="button"
         onClick={() => g.joined && navigate(`/groups/${g.id}`)}
         className={cn(
-          "group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-all",
+          "group w-full flex items-center gap-3 px-2 py-1.5 rounded-md text-left transition-all",
           "active:scale-[0.99] hover:bg-muted/60",
         )}
       >
         <div
           className={cn(
-            "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
+            "relative h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
             tone,
           )}
         >
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
           {!g.joined && active && (
-            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border-2 border-background" />
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
           )}
         </div>
+
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
