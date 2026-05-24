@@ -168,6 +168,12 @@ export function ChatDetailsSheet({
                     }
                   />
                 )}
+                {competitionId && (
+                  <NavRow
+                    label="View competition"
+                    onClick={() => handleNavigate(`/competitions/${competitionId}`)}
+                  />
+                )}
                 {miniLeagueId ? (
                   <NavRow
                     label="View mini-league page"
