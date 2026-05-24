@@ -522,9 +522,9 @@ export const PhotoComment = memo(function PhotoComment({
                 ↳ Replying to {replyToName}
               </p>
             )}
-            <p className="text-sm">
+            <p className="text-sm break-words">
               <span className="font-semibold">{displayName}</span>{" "}
-              {displayText}
+              {renderTextWithMentions(displayText)}
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-2">
                   · {formatTimeShort(createdAt)}
