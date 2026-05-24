@@ -35,6 +35,7 @@ interface OpenGroup {
   name: string;
   category: string | null;
   club_id: string;
+  club_name: string | null;
   member_count: number;
   joined: boolean;
   last_text: string | null;
