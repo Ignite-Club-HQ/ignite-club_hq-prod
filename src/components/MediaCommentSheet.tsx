@@ -33,6 +33,10 @@ interface MediaCommentSheetProps {
   uploaderName: string | null;
   uploaderAvatar?: string | null;
   teamName?: string | null;
+  /** Audience scope of the post — restricts who can be @mentioned. */
+  teamId?: string | null;
+  clubId?: string | null;
+  miniLeagueId?: string | null;
   comments: CommentData[];
   commentInput: string;
   onCommentInputChange: (value: string) => void;
