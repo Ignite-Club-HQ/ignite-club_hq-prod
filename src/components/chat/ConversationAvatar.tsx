@@ -110,13 +110,27 @@ export function ConversationAvatar({ type, name, avatarUrl, category, className 
     );
   }
 
-  // Group / League — initial-based avatar (no image)
+  // Group / League — uploaded image takes precedence, otherwise a keyword-based
+  // icon (e.g. canteen → utensils, uniforms → shirt) so groups are easier to
+  // tell apart at a glance. Falls back to initials only if no icon matches.
+  if (avatarUrl) {
+    return (
+      <Avatar className={`${className} shrink-0`}>
+        <AvatarImage src={avatarUrl} />
+        <AvatarFallback className="text-white font-bold text-sm" style={{ backgroundColor: bgColor }}>
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+    );
+  }
+  const Icon = getGroupIcon(name, category);
+  const solid = getGroupSolidColor(name);
   return (
     <div
       className={`${className} rounded-full flex items-center justify-center shrink-0`}
-      style={{ backgroundColor: bgColor }}
+      style={{ backgroundColor: solid }}
     >
-      <span className="text-white font-bold text-sm">{initials}</span>
+      <Icon className="h-[55%] w-[55%] text-white" strokeWidth={2.25} />
     </div>
   );
 }
