@@ -231,11 +231,11 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
-    const subtitle =
-      g.last_text ||
-      (g.member_count === 0
+    const memberLine =
+      g.member_count === 0
         ? "Needs volunteers — be the first to join"
-        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`);
+        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`;
+    const subtitle = g.last_text || memberLine;
 
     return (
       <button
