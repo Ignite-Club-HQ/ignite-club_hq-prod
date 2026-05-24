@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { PITCH_BOARD_OPEN_KEY, PITCH_BOARD_OPEN_PATH_KEY } from "./types";
+import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
 
 /**
  * Restores the pitch board after a WebView cold-start (iOS lock/unlock kills
