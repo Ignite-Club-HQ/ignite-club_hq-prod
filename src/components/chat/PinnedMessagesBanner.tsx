@@ -6,10 +6,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { hapticSelectionTick } from "@/lib/haptics";
 import type { PinnedMessageWithContent } from "@/hooks/usePinnedMessages";
+
 
 interface PinnedMessagesBannerProps {
   pins: PinnedMessageWithContent[];
@@ -29,6 +40,8 @@ export function PinnedMessagesBanner({
   onUnpin,
 }: PinnedMessagesBannerProps) {
   const [listOpen, setListOpen] = useState(false);
+  const [confirmPin, setConfirmPin] = useState<PinnedMessageWithContent | null>(null);
+
 
   if (pins.length === 0) return null;
 
@@ -79,7 +92,7 @@ export function PinnedMessagesBanner({
             onClick={(e) => {
               e.stopPropagation();
               hapticSelectionTick();
-              onUnpin(latest.message_id);
+              setConfirmPin(latest);
             }}
             className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Unpin message"
@@ -143,7 +156,7 @@ export function PinnedMessagesBanner({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onUnpin(pin.message_id);
+                          setConfirmPin(pin);
                         }}
                         className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                         aria-label="Unpin message"
@@ -158,6 +171,29 @@ export function PinnedMessagesBanner({
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={!!confirmPin} onOpenChange={(o) => { if (!o) setConfirmPin(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unpin this message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmPin ? `"${previewText(confirmPin).slice(0, 120)}"` : ""} will no longer be pinned in this chat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmPin) onUnpin?.(confirmPin.message_id);
+                setConfirmPin(null);
+              }}
+            >
+              Unpin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }

@@ -30,6 +30,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -817,7 +818,7 @@ export default function MessagesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
+        .select("*, teams(name), clubs(name, logo_url), mini_leagues:mini_league_id(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1938,6 +1939,7 @@ export default function MessagesPage() {
         id: group.id,
         key: `league-${group.id}`,
         name: group.name,
+        avatarUrl: group.clubs?.logo_url ?? null,
         link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
@@ -2412,7 +2414,7 @@ export default function MessagesPage() {
         >
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
-              <ConversationAvatar type={item.type} name={item.name} className="h-9 w-9" />
+              <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} category={item.category} className="h-9 w-9" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
@@ -2891,6 +2893,11 @@ export default function MessagesPage() {
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
           <ContactClubButton clubFilter={activeClubFilter} />
+        )}
+
+        {/* Discover open-to-club Operations / Volunteers groups */}
+        {!showSkeletonLoading && (
+          <DiscoverGroupsList activeClubFilter={activeClubFilter} />
         )}
 
         {/* Sponsor/Ad Carousel */}

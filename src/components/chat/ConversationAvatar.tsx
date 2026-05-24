@@ -1,5 +1,6 @@
 import { Flame, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getGroupIcon, getGroupSolidColor } from "@/lib/groupIcon";
 
 // Fixed palette of brand-aligned colors with good white-text contrast
 const AVATAR_COLORS = [
@@ -46,10 +47,12 @@ interface ConversationAvatarProps {
   type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
   name: string;
   avatarUrl?: string | null;
+  /** Optional group category — used to pick a fallback icon for group/league avatars. */
+  category?: string | null;
   className?: string;
 }
 
-export function ConversationAvatar({ type, name, avatarUrl, className = "h-10 w-10" }: ConversationAvatarProps) {
+export function ConversationAvatar({ type, name, avatarUrl, category, className = "h-10 w-10" }: ConversationAvatarProps) {
   const bgColor = getColorForName(name);
   const initials = getInitials(name);
 
@@ -107,13 +110,27 @@ export function ConversationAvatar({ type, name, avatarUrl, className = "h-10 w-
     );
   }
 
-  // Group / League — initial-based avatar (no image)
+  // Group / League — uploaded image takes precedence, otherwise a keyword-based
+  // icon (e.g. canteen → utensils, uniforms → shirt) so groups are easier to
+  // tell apart at a glance. Falls back to initials only if no icon matches.
+  if (avatarUrl) {
+    return (
+      <Avatar className={`${className} shrink-0`}>
+        <AvatarImage src={avatarUrl} />
+        <AvatarFallback className="text-white font-bold text-sm" style={{ backgroundColor: bgColor }}>
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+    );
+  }
+  const Icon = getGroupIcon(name, category);
+  const solid = getGroupSolidColor(name);
   return (
     <div
       className={`${className} rounded-full flex items-center justify-center shrink-0`}
-      style={{ backgroundColor: bgColor }}
+      style={{ backgroundColor: solid }}
     >
-      <span className="text-white font-bold text-sm">{initials}</span>
+      <Icon className="h-[55%] w-[55%] text-white" strokeWidth={2.25} />
     </div>
   );
 }

@@ -142,6 +142,8 @@ interface ChatGroup {
   allowed_roles: string[];
   created_by: string;
   membership_mode: string | null;
+  category: string | null;
+  join_policy: string | null;
 }
 
 interface MessageReaction {
@@ -2053,6 +2055,11 @@ export default function GroupChatPage() {
             name: group.name,
             allowed_roles: group.allowed_roles as any,
             membership_mode: group.membership_mode,
+            category: group.category,
+            club_id: group.club_id,
+            team_id: group.team_id,
+            mini_league_id: group.mini_league_id,
+            join_policy: group.join_policy,
           }}
           open={showEditGroupDialog}
           onOpenChange={setShowEditGroupDialog}

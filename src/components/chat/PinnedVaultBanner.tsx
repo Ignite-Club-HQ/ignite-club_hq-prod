@@ -1,10 +1,21 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pin, Folder, FileText, ExternalLink, EyeOff, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { hapticSelectionTick } from "@/lib/haptics";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { PinnedVaultRecord } from "@/hooks/useChatPinnedVault";
+
 
 interface PinnedVaultBannerProps {
   record: PinnedVaultRecord | null;
@@ -83,6 +94,8 @@ async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget 
 
 export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVaultBannerProps) {
   const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
 
   const cacheKey = useMemo(() => {
     if (!record) return "none";
@@ -125,7 +138,9 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
   };
 
   return (
+    <>
     <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-primary/20">
+
       <button
         type="button"
         onClick={handleClick}
@@ -157,7 +172,7 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
           onClick={(e) => {
             e.stopPropagation();
             hapticSelectionTick();
-            onUnpin();
+            setConfirmOpen(true);
           }}
           className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           aria-label="Unpin vault"
@@ -166,5 +181,23 @@ export function PinnedVaultBanner({ record, isAdmin = false, onUnpin }: PinnedVa
         </button>
       )}
     </div>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove pinned vault?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will unpin "{target?.label ?? "this vault"}" from the chat for everyone. You can pin it again from the chat menu.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { onUnpin?.(); setConfirmOpen(false); }}>
+            Unpin
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
+
   );
 }
