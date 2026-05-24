@@ -227,7 +227,11 @@ export default function MediaPage() {
       if (cancelled) return;
       const element = photoRefs.current.get(highlightedPhotoId);
       if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Avoid scrollIntoView on Android (over-scrolls in WebView).
+        // Compute target manually against window scroll.
+        const rect = element.getBoundingClientRect();
+        const targetTop = window.scrollY + rect.top - Math.max(0, (window.innerHeight - rect.height) / 2);
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
         setExpandedComments((prev) => new Set(prev).add(highlightedPhotoId));
         scrolledToRef.current = highlightedPhotoId;
         return;
