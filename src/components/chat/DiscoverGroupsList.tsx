@@ -336,7 +336,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         <div
           className={cn(
             "relative h-8 w-8 rounded-md flex items-center justify-center shrink-0",
-            meta.tone,
+            tone,
           )}
         >
           <Icon className="h-3.5 w-3.5" />
