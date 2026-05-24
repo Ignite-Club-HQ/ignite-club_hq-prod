@@ -2896,7 +2896,7 @@ export default function MessagesPage() {
         )}
 
         {/* Discover open-to-club Operations / Volunteers groups */}
-        {!showSkeletonLoading && (
+        {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
           <DiscoverGroupsList activeClubFilter={activeClubFilter} />
         )}
 
