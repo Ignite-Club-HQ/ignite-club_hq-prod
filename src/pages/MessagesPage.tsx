@@ -2413,7 +2413,7 @@ export default function MessagesPage() {
         >
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="shrink-0">
-              <ConversationAvatar type={item.type} name={item.name} className="h-9 w-9" />
+              <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} category={item.category} className="h-9 w-9" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
