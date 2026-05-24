@@ -1812,6 +1812,7 @@ export default function GroupChatPage() {
         teamId={group.team_id || undefined}
         clubId={group.club_id || undefined}
         miniLeagueId={group.mini_league_id || undefined}
+        competitionId={(group as any).competition_id || undefined}
         groupAllowedRoles={group.allowed_roles}
         groupCreatedBy={group.created_by}
         groupMembershipMode={group.membership_mode}
