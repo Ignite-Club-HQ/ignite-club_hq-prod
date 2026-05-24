@@ -5,11 +5,14 @@ import { Keyboard } from "@capacitor/keyboard";
 import { Send, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { usePhotoMentionSuggestions, type MentionUser } from "@/hooks/usePhotoMentionSuggestions";
 
 interface CommentData {
   id: string;
