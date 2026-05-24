@@ -62,6 +62,34 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { hasAccess: hasProAccess } = useScheduleProAccess({ team_id: teamId ?? null, club_id: clubId ?? null } as any);
+
+  // Resolve the clubId for upgrade navigation when only teamId is known.
+  const { data: upgradeClubId } = useQuery({
+    queryKey: ["chat-input-upgrade-club", clubId, teamId],
+    enabled: !clubId && !!teamId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("teams").select("club_id").eq("id", teamId!).maybeSingle();
+      return (data?.club_id as string) ?? null;
+    },
+  });
+  const effectiveClubId = clubId ?? upgradeClubId ?? null;
+
+  const requirePro = (e: React.MouseEvent) => {
+    if (hasProAccess) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (effectiveClubId) {
+      toast.info("This is a Pro feature");
+      navigate(`/clubs/${effectiveClubId}/upgrade`);
+    } else {
+      toast.info("This is a Pro feature — contact your club administrator to upgrade.");
+    }
+    return true;
+  };
 
   // Fetch club sport so the live-board action subtitle is contextual.
   const { data: clubSport } = useQuery({
