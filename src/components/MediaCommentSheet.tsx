@@ -299,7 +299,7 @@ export function MediaCommentSheet({
     }
     const query = before.slice(atIdx + 1);
     // Cancel if query contains whitespace/newline or closes a completed mention
-    if (/[\s\]\)]/.test(query)) {
+    if (/[\s\])]/.test(query)) {
       setMentionAnchorPos(null);
       setMentionSearch("");
       return;
