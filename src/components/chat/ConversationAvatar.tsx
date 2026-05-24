@@ -47,10 +47,12 @@ interface ConversationAvatarProps {
   type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
   name: string;
   avatarUrl?: string | null;
+  /** Optional group category — used to pick a fallback icon for group/league avatars. */
+  category?: string | null;
   className?: string;
 }
 
-export function ConversationAvatar({ type, name, avatarUrl, className = "h-10 w-10" }: ConversationAvatarProps) {
+export function ConversationAvatar({ type, name, avatarUrl, category, className = "h-10 w-10" }: ConversationAvatarProps) {
   const bgColor = getColorForName(name);
   const initials = getInitials(name);
 
