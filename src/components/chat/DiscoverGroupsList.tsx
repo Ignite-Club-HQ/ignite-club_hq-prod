@@ -271,6 +271,11 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               </span>
             )}
           </div>
+          {g.club_name && (
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70 truncate leading-tight">
+              {g.club_name}
+            </p>
+          )}
           <p className="text-[11px] text-muted-foreground/80 truncate leading-tight">
             {subtitle}
           </p>
