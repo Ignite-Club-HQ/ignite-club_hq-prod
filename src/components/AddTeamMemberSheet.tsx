@@ -2382,8 +2382,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {identityMap[result.id]?.contextLine && (
+                            <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
+                          )}
                           {(result as any).masked_email && (
-                            <span className="text-xs text-muted-foreground truncate">{(result as any).masked_email}</span>
+                            <span className="text-[11px] text-muted-foreground/70 truncate">{(result as any).masked_email}</span>
                           )}
                         </div>
                       </button>
