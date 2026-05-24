@@ -764,16 +764,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "event",
                   label: "Share Event",
-                  hint: "Training or game",
+                  hint: hasProAccess ? "Training or game" : "Pro feature",
                   icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onEventSelect("");
                   },
                 });
               }
+
               if (showPollCreator && onPollCreate) {
                 actions.push({
                   key: "poll",
