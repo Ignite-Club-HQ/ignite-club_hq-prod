@@ -26,6 +26,7 @@ import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { MessageReactionsPopover } from "@/components/chat/MessageReactions";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
+import { renderTextWithMentions } from "@/lib/photoCommentMentions";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -521,9 +522,9 @@ export const PhotoComment = memo(function PhotoComment({
                 ↳ Replying to {replyToName}
               </p>
             )}
-            <p className="text-sm">
+            <p className="text-sm break-words">
               <span className="font-semibold">{displayName}</span>{" "}
-              {displayText}
+              {renderTextWithMentions(displayText)}
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-2">
                   · {formatTimeShort(createdAt)}

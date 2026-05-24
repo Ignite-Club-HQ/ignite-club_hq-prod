@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,6 +34,19 @@ export const CommentReactionsDisplay = memo(function CommentReactionsDisplay({
 }: CommentReactionsDisplayProps) {
   const [viewingType, setViewingType] = useState<string | null>(null);
 
+  // Long-press opens the reactors dialog; a plain tap toggles the user's
+  // own reaction. Opening a Radix Dialog on every tap caused Android
+  // WebView to scroll the page up due to body scroll-lock + focus trap.
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
   if (!reactions || reactions.length === 0) return null;
 
   const reactionCounts = reactions.reduce((acc, r) => {
@@ -56,13 +69,32 @@ export const CommentReactionsDisplay = memo(function CommentReactionsDisplay({
           return (
             <button
               key={type}
+              onPointerDown={() => {
+                longPressFired.current = false;
+                clearLongPress();
+                longPressTimer.current = window.setTimeout(() => {
+                  longPressFired.current = true;
+                  setViewingType(type);
+                }, 500);
+              }}
+              onPointerUp={clearLongPress}
+              onPointerLeave={clearLongPress}
+              onPointerCancel={clearLongPress}
+              onContextMenu={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.stopPropagation();
-                setViewingType(type);
+                e.preventDefault();
+                clearLongPress();
+                if (longPressFired.current) {
+                  longPressFired.current = false;
+                  return;
+                }
+                onReactionClick(type);
               }}
               aria-label={`${emoji} ${type} reaction, ${count} ${count === 1 ? 'person' : 'people'}${isUserReaction ? ', you reacted' : ''}`}
               aria-pressed={isUserReaction}
-              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs ${
+              title="Tap to toggle, long-press to view who reacted"
+              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs select-none ${
                 isUserReaction
                   ? "bg-primary/20 border border-primary/40"
                   : "bg-muted/50 hover:bg-muted"

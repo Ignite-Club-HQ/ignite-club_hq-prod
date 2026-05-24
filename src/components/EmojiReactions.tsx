@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -64,6 +64,45 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   const viewingReactors = viewingReactionType ? getReactorsForType(viewingReactionType) : [];
   const viewingEmoji = REACTION_EMOJIS.find(e => e.type === viewingReactionType)?.emoji || "";
 
+  // Long-press detection so a normal tap on a pill toggles the reaction
+  // (matching chat behaviour) and a long-press opens the reactors dialog.
+  // This avoids opening a Radix Dialog on every tap — on Android, the
+  // dialog's scroll-lock + focus management shifts the viewport upward.
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handlePillPointerDown = (type: string) => {
+    longPressFired.current = false;
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      setViewingReactionType(type);
+    }, 500);
+  };
+
+  const handlePillClick = (type: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    clearLongPress();
+    if (longPressFired.current) {
+      longPressFired.current = false;
+      return;
+    }
+    if (!currentUserId) return;
+    if (userReaction?.reaction_type === type) {
+      onRemove();
+    } else {
+      onReact(type);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center gap-2 flex-wrap">
@@ -72,20 +111,22 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
           const emojiData = REACTION_EMOJIS.find((e) => e.type === type);
           if (!emojiData) return null;
           const isUserReaction = userReaction?.reaction_type === type;
-          
+
           return (
             <Button
               key={type}
               variant="ghost"
               size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setViewingReactionType(type);
-              }}
-              className={`h-7 px-2 gap-1 text-sm ${
+              onPointerDown={() => handlePillPointerDown(type)}
+              onPointerUp={clearLongPress}
+              onPointerLeave={clearLongPress}
+              onPointerCancel={clearLongPress}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={(e) => handlePillClick(type, e)}
+              className={`h-7 px-2 gap-1 text-sm select-none ${
                 isUserReaction ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-accent"
               }`}
-              title="View who reacted"
+              title="Tap to toggle, long-press to view who reacted"
             >
               <span>{emojiData.emoji}</span>
               <span className="text-xs">{count}</span>

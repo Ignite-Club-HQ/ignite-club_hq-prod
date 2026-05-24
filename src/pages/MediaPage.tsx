@@ -227,7 +227,11 @@ export default function MediaPage() {
       if (cancelled) return;
       const element = photoRefs.current.get(highlightedPhotoId);
       if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Avoid scrollIntoView on Android (over-scrolls in WebView).
+        // Compute target manually against window scroll.
+        const rect = element.getBoundingClientRect();
+        const targetTop = window.scrollY + rect.top - Math.max(0, (window.innerHeight - rect.height) / 2);
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
         setExpandedComments((prev) => new Set(prev).add(highlightedPhotoId));
         scrolledToRef.current = highlightedPhotoId;
         return;
@@ -1458,6 +1462,8 @@ export default function MediaPage() {
                         title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
+                        clubId={photo.club_id}
+                        teamId={photo.team_id}
                       />
                     </div>
                   )}
@@ -1619,6 +1625,10 @@ export default function MediaPage() {
             photoUrl={activePhoto.file_url || activePhoto.image_url}
             uploaderName={sheetDisplayName}
             uploaderAvatar={sheetAvatarUrl}
+            teamName={(activePhoto as any).teams?.name ?? null}
+            teamId={(activePhoto as any).team_id ?? null}
+            clubId={(activePhoto as any).club_id ?? null}
+            miniLeagueId={(activePhoto as any).mini_league_id ?? null}
             comments={activeComments}
             commentInput={activeInput}
             onCommentInputChange={(val) => setCommentInputs(prev => ({ ...prev, [activeCommentPhotoId]: val }))}

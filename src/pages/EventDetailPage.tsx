@@ -529,6 +529,21 @@ export default function EventDetailPage() {
   // Pro feature check for RSVP reminders - check team OR club subscription
   const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;
 
+  // Pro gate for event sharing
+  const canShareEvent = !!isAppAdmin || hasTeamPro === true;
+  const gateEventShare = (): boolean => {
+    if (canShareEvent) return true;
+    toast({
+      title: "Event sharing is a Pro feature",
+      description: event?.club_id
+        ? "Upgrade your club to Pro to share events."
+        : "Contact your club admin to upgrade to Pro.",
+      variant: "destructive",
+    });
+    if (event?.club_id) navigate(`/clubs/${event.club_id}/upgrade`);
+    return false;
+  };
+
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
                        event?.clubs?.sport?.toLowerCase().includes('football');
@@ -2014,6 +2029,7 @@ export default function EventDetailPage() {
 
   // Share event reminder link via native share
   const handleShareReminderLink = async () => {
+    if (!gateEventShare()) return;
     const shareUrl = getShareUrl("event", id!);
     const shareText = `Reminder: Please RSVP for "${event?.title}"`;
     try {
@@ -2189,9 +2205,11 @@ export default function EventDetailPage() {
           className="shrink-0"
           onClick={async () => {
             if (isSharingEventRef.current) return;
+            if (!gateEventShare()) return;
             isSharingEventRef.current = true;
 
             const shareUrl = getShareUrl("event", id!);
+            
             
 
             try {

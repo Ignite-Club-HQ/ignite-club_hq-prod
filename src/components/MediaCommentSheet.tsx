@@ -1,14 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { Send, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
-import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { usePhotoMentionSuggestions, type MentionUser } from "@/hooks/usePhotoMentionSuggestions";
 
 interface CommentData {
   id: string;
@@ -28,6 +32,11 @@ interface MediaCommentSheetProps {
   photoUrl: string;
   uploaderName: string | null;
   uploaderAvatar?: string | null;
+  teamName?: string | null;
+  /** Audience scope of the post — restricts who can be @mentioned. */
+  teamId?: string | null;
+  clubId?: string | null;
+  miniLeagueId?: string | null;
   comments: CommentData[];
   commentInput: string;
   onCommentInputChange: (value: string) => void;
@@ -44,6 +53,10 @@ export function MediaCommentSheet({
   photoUrl,
   uploaderName,
   uploaderAvatar,
+  teamName,
+  teamId,
+  clubId,
+  miniLeagueId,
   comments,
   commentInput,
   onCommentInputChange,
@@ -59,276 +72,190 @@ export function MediaCommentSheet({
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [browserKbInset, setBrowserKbInset] = useState(0);
+  const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null);
   const capacitorPlatform = Capacitor.getPlatform();
-  const isNativeIOS = Capacitor.isNativePlatform() && capacitorPlatform === "ios";
+  const isNative = Capacitor.isNativePlatform();
+  const isNativeIOS = isNative && capacitorPlatform === "ios";
   const isIOS = (() => {
     if (typeof navigator === "undefined") return isNativeIOS;
-    const userAgent = navigator.userAgent;
-    const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
-    const isIpadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    return isNativeIOS || isIOSDevice || isIpadDesktopMode;
+    const ua = navigator.userAgent;
+    const isIOSDevice = /iPad|iPhone|iPod/.test(ua);
+    const isIpadDesktop = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return isNativeIOS || isIOSDevice || isIpadDesktop;
   })();
-  const isKeyboardOpen = useKeyboardOpen();
-  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
-  const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
-  const { signedUrl: resolvedPhotoUrl, isLoading: isPhotoUrlLoading } = useSignedPhotoUrl(photoUrl);
+  const nativeKeyboardHeight = useNativeKeyboardHeight();
+  const { signedUrl: resolvedPhotoUrl } = useSignedPhotoUrl(photoUrl);
   const previewPhotoUrl = resolvedPhotoUrl || photoUrl;
 
   useIOSOverlayScrollLock(open);
 
   useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+    const root = document.documentElement;
+    const previousValue = root.getAttribute("data-media-comments-open");
+    root.setAttribute("data-media-comments-open", "true");
+    return () => {
+      if (previousValue === null) root.removeAttribute("data-media-comments-open");
+      else root.setAttribute("data-media-comments-open", previousValue);
+    };
+  }, [open]);
+
+  useEffect(() => {
     setImgError(false);
   }, [previewPhotoUrl]);
 
-  useEffect(() => {
-    if (!isNativeIOS || !open) {
-      setNativeKeyboardHeight(0);
-      return;
-    }
-
-    let keyboardShowListener: { remove: () => void } | undefined;
-    let keyboardHideListener: { remove: () => void } | undefined;
-
-    Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
-      setNativeKeyboardHeight(keyboardHeight || 0);
-    }).then((handle) => {
-      keyboardShowListener = handle;
-    });
-
-    Keyboard.addListener("keyboardDidHide", () => {
-      setNativeKeyboardHeight(0);
-    }).then((handle) => {
-      keyboardHideListener = handle;
-    });
-
-    return () => {
-      keyboardShowListener?.remove();
-      keyboardHideListener?.remove();
-    };
-  }, [isNativeIOS, open]);
-
+  // Disable native iOS keyboard scroll (prevents the WebView shifting the whole viewport)
   useEffect(() => {
     if (!isNativeIOS) return;
-
-    Keyboard.setScroll({ isDisabled: open }).catch(() => {
-      // Ignore unsupported environments
-    });
-
+    Keyboard.setScroll({ isDisabled: open }).catch(() => {});
     return () => {
-      Keyboard.setScroll({ isDisabled: false }).catch(() => {
-        // Ignore unsupported environments
-      });
+      Keyboard.setScroll({ isDisabled: false }).catch(() => {});
     };
   }, [isNativeIOS, open]);
 
+  // Web fallback: derive keyboard inset from visualViewport (covers Android mobile web)
   useEffect(() => {
-    if (!isIOS || isNativeIOS || !open) {
-      setBrowserKeyboardInset(0);
+    if (!open || isNative) {
+      setBrowserKbInset(0);
+      setWebViewportHeight(null);
+      return;
+    }
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) {
+      setWebViewportHeight(typeof window !== "undefined" ? window.innerHeight : null);
       return;
     }
 
-    const vv = window.visualViewport;
-    if (!vv) return;
-
+    let baseline = vv.height;
     const update = () => {
-      const stableViewportHeight = Number.parseFloat(
-        window.getComputedStyle(document.documentElement).getPropertyValue("--stable-vh") || "0",
-      ) || window.innerHeight || 0;
-      const overlap = Math.max(0, stableViewportHeight - vv.height - vv.offsetTop);
-      setBrowserKeyboardInset(overlap > 80 ? Math.round(overlap) : 0);
+      if (vv.height > baseline) baseline = vv.height;
+      const overlap = Math.max(0, baseline - vv.height - vv.offsetTop);
+      setWebViewportHeight(Math.round(vv.height));
+      setBrowserKbInset(overlap > 80 ? Math.round(overlap) : 0);
     };
-
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
     };
-  }, [isIOS, isNativeIOS, open]);
+  }, [open, isNative]);
+
+  const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
+  const isKeyboardActive = keyboardInset > 0;
+  const screenHeight = isNative
+    ? "var(--stable-vh, 100dvh)"
+    : webViewportHeight
+      ? `${webViewportHeight}px`
+      : "var(--visual-vh, 100dvh)";
 
   const getCommentViewport = useCallback(() => {
-    const scrollRoot = scrollAreaRef.current;
-    if (!scrollRoot) return null;
-
-    return (scrollRoot.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null)
-      ?? (scrollRoot.firstElementChild as HTMLDivElement | null);
+    const root = scrollAreaRef.current;
+    if (!root) return null;
+    return (root.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null)
+      ?? (root.firstElementChild as HTMLDivElement | null);
   }, []);
 
   const scrollCommentsToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const viewport = getCommentViewport();
     if (!viewport) return;
-
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior,
-    });
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
   }, [getCommentViewport]);
 
   const stabilizeIOSViewport = useCallback(() => {
-    if (!isIOS || typeof window === "undefined" || typeof document === "undefined") return;
-
+    if (!isIOS || typeof window === "undefined") return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [isIOS]);
 
   const restoreInputFocus = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const selectionStart = textarea.selectionStart ?? textarea.value.length;
-    const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
-    textarea.focus({ preventScroll: true });
+    const t = textareaRef.current;
+    if (!t) return;
+    const s = t.selectionStart ?? t.value.length;
+    const e = t.selectionEnd ?? t.value.length;
+    t.focus({ preventScroll: true });
     try {
-      textarea.setSelectionRange(selectionStart, selectionEnd);
+      t.setSelectionRange(s, e);
     } catch {
-      // Ignore
+      // Some mobile browsers reject selection restoration during keyboard transitions.
     }
   }, []);
 
   const blurComposer = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    if (document.activeElement === textarea) {
-      textarea.blur();
-    }
+    const t = textareaRef.current;
+    if (t && document.activeElement === t) t.blur();
   }, []);
 
   const handleReactionGestureStateChange = useCallback((active: boolean) => {
-    if (!active) {
-      setIsReactionGestureActive(false);
-      return;
-    }
-    const textarea = textareaRef.current;
-    const isTyping = textarea && document.activeElement === textarea;
-    if (isTyping) {
-      restoreInputFocus();
-    }
+    if (!active) { setIsReactionGestureActive(false); return; }
+    const t = textareaRef.current;
+    if (t && document.activeElement === t) restoreInputFocus();
     setIsReactionGestureActive(true);
   }, [restoreInputFocus]);
 
   // Animate in
   useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() => setIsVisible(true));
-    } else {
-      setIsVisible(false);
-    }
+    if (open) requestAnimationFrame(() => setIsVisible(true));
+    else setIsVisible(false);
   }, [open]);
 
-  // Re-focus textarea when reaction picker opens while typing
   useEffect(() => {
     if (isCommentInteracting && textareaRef.current) {
-      const t = setTimeout(() => {
-        textareaRef.current?.focus({ preventScroll: true });
-      }, 50);
+      const t = setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
       return () => clearTimeout(t);
     }
   }, [isCommentInteracting]);
 
-  // Refocus only when already typing
   useEffect(() => {
     if (!open || (!isReactionGestureActive && !isCommentInteracting)) return;
-    const textarea = textareaRef.current;
-    if (!textarea || document.activeElement !== textarea) return;
+    const t = textareaRef.current;
+    if (!t || document.activeElement !== t) return;
     const refocus = () => restoreInputFocus();
     refocus();
     const t1 = window.setTimeout(refocus, 0);
     const t2 = window.setTimeout(refocus, 120);
-    const t3 = window.setTimeout(refocus, 260);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-    };
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
   }, [open, isReactionGestureActive, isCommentInteracting, restoreInputFocus]);
 
   // Auto-resize textarea
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+    const t = textareaRef.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = Math.min(t.scrollHeight, 110) + "px";
   }, [commentInput]);
-
-  // Focus input when sheet opens
-  useEffect(() => {
-    if (!open || isIOS) return;
-
-    const timeoutId = window.setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 400);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [open, isIOS]);
 
   useEffect(() => {
     if (!open) {
       blurComposer();
       setIsCommentInteracting(false);
-      setNativeKeyboardHeight(0);
-      setBrowserKeyboardInset(0);
     }
-  }, [blurComposer, open]);
-
-  const safeAreaBottom = typeof window !== "undefined"
-    ? Number.parseFloat(
-        window.getComputedStyle(document.documentElement).getPropertyValue("--safe-area-bottom") || "0",
-      ) || 0
-    : 0;
-  const nativeViewportOverlap = isNativeIOS
-    ? Math.max(0, (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0) < (window.innerHeight ?? 0)
-        ? (window.innerHeight ?? 0) - ((window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0))
-        : 0)
-    : 0;
-  const keyboardOffset = isNativeIOS
-    ? Math.max(nativeKeyboardHeight + safeAreaBottom, nativeViewportOverlap)
-    : isIOS
-      ? browserKeyboardInset
-      : 0;
-  const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
+  }, [open, blurComposer]);
 
   useEffect(() => {
     if (!open || !isIOS || !isKeyboardActive) return;
-
     const run = () => stabilizeIOSViewport();
     run();
-
-    const frameId = window.requestAnimationFrame(run);
-    const timeoutId = window.setTimeout(run, 180);
-    const lateTimeoutId = window.setTimeout(run, 360);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearTimeout(timeoutId);
-      window.clearTimeout(lateTimeoutId);
-    };
+    const f = window.requestAnimationFrame(run);
+    const t1 = window.setTimeout(run, 180);
+    return () => { window.cancelAnimationFrame(f); window.clearTimeout(t1); };
   }, [open, isIOS, isKeyboardActive, stabilizeIOSViewport]);
 
   // Scroll to bottom when new comments appear or keyboard opens
   useEffect(() => {
     if (!open) return;
-
-    const run = (behavior: ScrollBehavior) => scrollCommentsToBottom(behavior);
-    const preferredBehavior: ScrollBehavior = isIOS || isKeyboardActive ? "auto" : "smooth";
-
-    run(preferredBehavior);
-    const frameId = window.requestAnimationFrame(() => run("auto"));
-    const timeoutId = window.setTimeout(() => run("auto"), 140);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearTimeout(timeoutId);
-    };
+    const behavior: ScrollBehavior = isIOS || isKeyboardActive ? "auto" : "smooth";
+    scrollCommentsToBottom(behavior);
+    const f = window.requestAnimationFrame(() => scrollCommentsToBottom("auto"));
+    const t = window.setTimeout(() => scrollCommentsToBottom("auto"), 140);
+    return () => { window.cancelAnimationFrame(f); window.clearTimeout(t); };
   }, [comments.length, open, isKeyboardActive, isIOS, scrollCommentsToBottom]);
 
   const handleComposerFocus = useCallback(() => {
     if (!isIOS) return;
-
     stabilizeIOSViewport();
     window.requestAnimationFrame(stabilizeIOSViewport);
     window.setTimeout(stabilizeIOSViewport, 120);
@@ -339,106 +266,212 @@ export function MediaCommentSheet({
     onSubmitComment();
   }, [commentInput, onSubmitComment]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  // ---- @mention autocomplete ----
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionAnchorPos, setMentionAnchorPos] = useState<number | null>(null);
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
+  const mentionOpen = mentionAnchorPos !== null;
+  const { data: mentionUsers = [] } = usePhotoMentionSuggestions(
+    { teamId, clubId, miniLeagueId },
+    mentionSearch,
+    open && mentionOpen,
+  );
+
+  const detectMentionTrigger = useCallback((text: string, caret: number) => {
+    if (caret <= 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    const before = text.slice(0, caret);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx < 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    // Must be at start or preceded by whitespace
+    const prevChar = atIdx === 0 ? " " : before[atIdx - 1];
+    if (!/\s/.test(prevChar) && atIdx !== 0) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    const query = before.slice(atIdx + 1);
+    // Cancel if query contains whitespace/newline or closes a completed mention
+    if (/[\s\])]/.test(query)) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    if (query.length > 30) {
+      setMentionAnchorPos(null);
+      setMentionSearch("");
+      return;
+    }
+    setMentionAnchorPos(atIdx);
+    setMentionSearch(query);
+    setMentionSelectedIndex(0);
+  }, []);
+
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    onCommentInputChange(v);
+    detectMentionTrigger(v, e.target.selectionStart ?? v.length);
+  }, [onCommentInputChange, detectMentionTrigger]);
+
+  const handleTextareaSelect = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const t = e.currentTarget;
+    detectMentionTrigger(t.value, t.selectionStart ?? t.value.length);
+  }, [detectMentionTrigger]);
+
+  const insertMention = useCallback((user: MentionUser) => {
+    if (mentionAnchorPos === null || !user.display_name) return;
+    const t = textareaRef.current;
+    const caret = t?.selectionStart ?? (mentionAnchorPos + 1 + mentionSearch.length);
+    const removeLen = caret - mentionAnchorPos; // covers "@" + query
+    const insertion = `@[${user.display_name}](${user.id}) `;
+    const next = commentInput.slice(0, mentionAnchorPos) + insertion + commentInput.slice(mentionAnchorPos + removeLen);
+    onCommentInputChange(next);
+    setMentionAnchorPos(null);
+    setMentionSearch("");
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      const pos = mentionAnchorPos + insertion.length;
+      try { ta.setSelectionRange(pos, pos); } catch { /* ignore */ }
+    });
+  }, [mentionAnchorPos, mentionSearch, commentInput, onCommentInputChange]);
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const t = textareaRef.current;
+    const caret = t?.selectionStart ?? commentInput.length;
+    const next = commentInput.slice(0, caret) + emoji + commentInput.slice(caret);
+    onCommentInputChange(next);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      const pos = caret + emoji.length;
+      try { ta.setSelectionRange(pos, pos); } catch { /* ignore */ }
+    });
+  }, [commentInput, onCommentInputChange]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && mentionUsers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i + 1) % mentionUsers.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelectedIndex((i) => (i - 1 + mentionUsers.length) % mentionUsers.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        insertMention(mentionUsers[mentionSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionAnchorPos(null);
+        setMentionSearch("");
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  }, [handleSubmit]);
+  }, [mentionOpen, mentionUsers, mentionSelectedIndex, insertMention, handleSubmit]);
 
   const handleClose = useCallback(() => {
     blurComposer();
     setIsVisible(false);
-    setTimeout(() => onOpenChange(false), isIOS ? 200 : 250);
+    setTimeout(() => onOpenChange(false), isIOS ? 180 : 220);
   }, [blurComposer, isIOS, onOpenChange]);
 
   if (!open) return null;
 
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
-  const replyCount = comments.length - topLevelComments.length;
-  const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
-  const thumbnailSizeClass = isKeyboardActive ? "h-12 w-12" : "h-20 w-20";
 
-  return (
+  const content = (
     <div
-      className={`fixed left-0 right-0 z-[61] flex flex-col overflow-hidden bg-background ease-out ${
+      className={`media-comment-screen fixed inset-0 flex flex-col overflow-hidden overscroll-none bg-background ease-out ${
         isIOS
-          ? `top-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
-          : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
+          ? `transition-opacity duration-200 ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`
+          : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={{ top: 0, bottom: 0 }}
+      style={{
+        zIndex: 2147483647,
+        width: "100vw",
+        height: screenHeight,
+        maxHeight: screenHeight,
+        minHeight: 0,
+        transform: isIOS ? "translate3d(0,0,0)" : undefined,
+      }}
       data-lock-keyboard-scroll="true"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Comments"
     >
-      {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
+      {/* Safe-area top spacer */}
       <div
         className="flex-shrink-0 bg-background"
-        style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
+        style={{ height: "var(--safe-area-top, env(safe-area-inset-top, 0px))" }}
       />
 
-      {/* Header bar — compact single-line title with inline count */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/70 flex-shrink-0">
+      {/* Compact sticky media context header */}
+      <header className="flex items-center gap-3 px-2 py-2 border-b border-border/60 flex-shrink-0 bg-background">
         <Button
           variant="ghost"
           size="icon"
           className="h-9 w-9 flex-shrink-0"
           onClick={handleClose}
+          aria-label="Close comments"
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <p className="flex-1 min-w-0 text-sm font-semibold truncate">
-          Comments <span className="text-muted-foreground font-normal">({comments.length})</span>
-        </p>
-      </div>
 
-      {/* Sticky image preview — always visible */}
-      <div className={`flex-shrink-0 border-b border-border bg-muted/30 transition-all duration-200 ${
-        isKeyboardActive ? "h-16" : "h-24"
-      }`}>
-        <div className="flex items-center gap-3 h-full px-4">
-          {isPhotoUrlLoading ? (
-            <div
-              className={`rounded-lg bg-muted animate-pulse flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
-              aria-hidden="true"
-            />
-          ) : !imgError && previewPhotoUrl ? (
-            <img
-              src={previewPhotoUrl}
-              alt={uploaderName ? `Photo uploaded by ${uploaderName}` : "Photo preview"}
-              onError={() => setImgError(true)}
-              className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
-            />
-          ) : (
-            <div className={`rounded-lg bg-muted flex items-center justify-center flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}>
-              <span className="text-muted-foreground text-xs">📷</span>
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground truncate">
-              {uploaderName || "Unknown"}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {topLevelComments.length} {topLevelComments.length === 1 ? "thread" : "threads"} · {replyCount} {replyCount === 1 ? "reply" : "replies"}
-            </p>
-          </div>
+        {!imgError && previewPhotoUrl ? (
+          <img
+            src={previewPhotoUrl}
+            alt=""
+            onError={() => setImgError(true)}
+            className="h-10 w-10 rounded-md object-cover flex-shrink-0 bg-muted"
+          />
+        ) : (
+          <div className="h-10 w-10 rounded-md bg-muted flex-shrink-0" />
+        )}
+
+        <div className="flex flex-col min-w-0 flex-1 leading-tight">
+          <span className="text-[14px] font-semibold truncate">
+            {uploaderName || "Photo"}
+          </span>
+          <span className="text-[12px] text-muted-foreground truncate">
+            {teamName ? `${teamName} · ` : ""}{comments.length} {comments.length === 1 ? "comment" : "comments"}
+          </span>
         </div>
-      </div>
+      </header>
 
-      {/* Comment list — fills remaining space, with bottom padding so last comment
-           is never hidden behind the composer */}
+      {/* Comment list — fills remaining space */}
       <ScrollArea
         ref={scrollAreaRef}
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
-        <div className="px-4 pt-2 pb-4 space-y-3 bg-muted/10">
-          {topLevelComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <p className="text-sm">No comments yet</p>
-              <p className="text-xs mt-1">Be the first to comment</p>
-            </div>
-          ) : (
-            topLevelComments.map((comment) => {
+        {topLevelComments.length === 0 ? (
+          <div className="px-4 pt-8 pb-4 text-center">
+            <p className="text-sm font-medium text-foreground">No comments yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Be the first to comment</p>
+          </div>
+        ) : (
+          <div className="px-4 pt-3 pb-4 space-y-3">
+            {topLevelComments.map((comment) => {
               const replies = comments.filter(c => c.reply_to_id === comment.id);
               return (
                 <div key={comment.id}>
@@ -454,9 +487,7 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isIOS });
-                      }, 100);
+                      window.setTimeout(() => textareaRef.current?.focus({ preventScroll: isIOS }), 100);
                     }}
                   />
                   <CommentRepliesThread
@@ -467,70 +498,122 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isIOS });
-                      }, 100);
+                      window.setTimeout(() => textareaRef.current?.focus({ preventScroll: isIOS }), 100);
                     }}
                   />
                 </div>
               );
-            })
-          )}
-          <div />
-        </div>
+            })}
+          </div>
+        )}
       </ScrollArea>
 
-      {/* Composer — pinned at bottom, messenger-style */}
+      {/* Composer — slim pill, docked above keyboard */}
       <div
-        className="flex-shrink-0 bg-muted/40 border-t border-border shadow-[0_-1px_3px_rgba(0,0,0,0.06)] transition-[margin] duration-200 ease-out"
+        className="flex-shrink-0 bg-background border-t border-border/60 transition-[padding] duration-150 ease-out"
         style={{
-          marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: !isKeyboardActive
-            ? isIOS
-              ? "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 12px)"
-              : "10px"
-            : "10px",
+          paddingBottom: isNative && isKeyboardActive
+            ? `${keyboardInset + 6}px`
+            : "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 8px)",
         }}
       >
-        {/* Reply indicator */}
         {replyingTo && (
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/40 border-b border-border/60">
             <span className="text-xs text-muted-foreground truncate flex-1">
-              Replying to {replyingTo.name}
+              Replying to <span className="text-foreground font-medium">{replyingTo.name}</span>
             </span>
             <Button
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
               onClick={() => onSetReplyingTo(undefined)}
+              aria-label="Cancel reply"
             >
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
-        <div className="flex items-end gap-3 px-4 pt-2">
-          <textarea
-            ref={textareaRef}
-            value={commentInput}
-            onChange={(e) => onCommentInputChange(e.target.value)}
-            onFocus={handleComposerFocus}
-            onKeyDown={handleKeyDown}
-            placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
-            rows={1}
-            className={`flex-1 resize-none bg-background rounded-2xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[48px] max-h-[120px] px-4 py-3 leading-[1.4] border border-border ${isIOS ? "text-base" : "text-sm"}`}
-            style={isIOS ? { fontSize: "16px" } : undefined}
-          />
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={isPending || !hasText}
-            className="h-10 w-10 p-0 flex-shrink-0 rounded-full mb-1"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+        {/* Mention suggestions */}
+        {mentionOpen && mentionUsers.length > 0 && (
+          <div className="px-3 pb-1">
+            <div
+              className="rounded-2xl border border-border/40 bg-popover shadow-lg overflow-hidden max-h-56 overflow-y-auto"
+              role="listbox"
+              aria-label="Mention suggestions"
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div className="px-3 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                Tag someone
+              </div>
+              <div className="px-1 pb-1">
+                {mentionUsers.map((u, idx) => {
+                  const selected = idx === mentionSelectedIndex;
+                  const name = u.display_name || "";
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-left transition-colors ${
+                        selected ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.04]"
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insertMention(u)}
+                    >
+                      <Avatar className="h-7 w-7 shrink-0">
+                        <AvatarImage src={u.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {name.charAt(0).toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="flex-1 min-w-0 truncate text-[13px] text-foreground/90">
+                        {name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="px-3 pt-2">
+          <div className="relative flex min-h-[52px] items-center gap-1.5 bg-muted/60 rounded-3xl px-1.5 py-1 focus-within:bg-muted/80 transition-colors">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={commentInput}
+              onChange={handleTextareaChange}
+              onFocus={handleComposerFocus}
+              onKeyDown={handleKeyDown}
+              onSelect={handleTextareaSelect}
+              onClick={handleTextareaSelect}
+              placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
+              rows={1}
+              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] px-1 py-2.5 leading-5 ${isIOS ? "text-base" : "text-[15px]"}`}
+              style={isIOS ? { fontSize: "16px" } : undefined}
+            />
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isPending || !hasText}
+              className={`h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
+                hasText ? "opacity-100" : "opacity-40 pointer-events-none"
+              }`}
+              aria-label="Send comment"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return content;
+  return createPortal(content, document.body);
 }

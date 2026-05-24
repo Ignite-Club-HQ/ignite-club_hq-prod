@@ -168,7 +168,7 @@ export function StatusBarManager() {
     // Scroll focused input into view when keyboard appears (Android + iOS)
     let keyboardShowListener: { remove: () => void } | undefined;
     if (isNativePlatform) {
-      Keyboard.addListener('keyboardDidShow', () => {
+      Keyboard.addListener('keyboardDidShow', (info) => {
         setTimeout(() => {
           const activeElement = document.activeElement as HTMLElement | null;
           if (!activeElement) return;
@@ -179,7 +179,33 @@ export function StatusBarManager() {
           const hasKeyboardScrollLock = activeElement.closest('[data-lock-keyboard-scroll="true"]');
           if (hasKeyboardScrollLock) return;
 
-          activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Per project memory: avoid scrollIntoView on Android — it over-scrolls
+          // the WebView. Compute the delta manually and apply it to the nearest
+          // scrollable ancestor (or window) so the input clears the keyboard.
+          try {
+            const rect = activeElement.getBoundingClientRect();
+            const keyboardHeight = (info as { keyboardHeight?: number })?.keyboardHeight ?? 0;
+            const visibleBottom = window.innerHeight - keyboardHeight;
+            const padding = 24;
+            const overlap = rect.bottom + padding - visibleBottom;
+            if (overlap <= 0) return;
+
+            // Find nearest scrollable ancestor.
+            let node: HTMLElement | null = activeElement.parentElement;
+            while (node) {
+              const style = getComputedStyle(node);
+              const canScroll = /(auto|scroll|overlay)/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
+              if (canScroll) break;
+              node = node.parentElement;
+            }
+            if (node) {
+              node.scrollBy({ top: overlap, behavior: 'auto' });
+            } else {
+              window.scrollBy({ top: overlap, behavior: 'auto' });
+            }
+          } catch {
+            /* noop */
+          }
         }, 100);
       }).then(handle => { keyboardShowListener = handle; });
     }
