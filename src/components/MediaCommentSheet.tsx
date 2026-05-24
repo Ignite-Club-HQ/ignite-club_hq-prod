@@ -63,6 +63,7 @@ export function MediaCommentSheet({
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [browserKbInset, setBrowserKbInset] = useState(0);
+  const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null);
   const capacitorPlatform = Capacitor.getPlatform();
   const isNative = Capacitor.isNativePlatform();
   const isNativeIOS = isNative && capacitorPlatform === "ios";
@@ -107,15 +108,20 @@ export function MediaCommentSheet({
   useEffect(() => {
     if (!open || isNative) {
       setBrowserKbInset(0);
+      setWebViewportHeight(null);
       return;
     }
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
+    if (!vv) {
+      setWebViewportHeight(typeof window !== "undefined" ? window.innerHeight : null);
+      return;
+    }
 
     let baseline = vv.height;
     const update = () => {
       if (vv.height > baseline) baseline = vv.height;
       const overlap = Math.max(0, baseline - vv.height - vv.offsetTop);
+      setWebViewportHeight(Math.round(vv.height));
       setBrowserKbInset(overlap > 80 ? Math.round(overlap) : 0);
     };
     update();
@@ -129,7 +135,11 @@ export function MediaCommentSheet({
 
   const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
   const isKeyboardActive = keyboardInset > 0;
-  const screenHeight = isNative ? "var(--stable-vh, 100dvh)" : "var(--visual-vh, 100dvh)";
+  const screenHeight = isNative
+    ? "var(--stable-vh, 100dvh)"
+    : webViewportHeight
+      ? `${webViewportHeight}px`
+      : "var(--visual-vh, 100dvh)";
 
   const getCommentViewport = useCallback(() => {
     const root = scrollAreaRef.current;
