@@ -230,19 +230,35 @@ export default function HomePage() {
   const { data: membershipAndEvents, isLoading } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
-      // Step 1: Fetch user roles
-      const { data: roles } = await supabase
+      // Step 1: Fetch user roles.
+      // CRITICAL: throw on error (do NOT silently return empty). On resume from
+      // background / phone unlock, the access token can be mid-rotation and
+      // this call may transiently fail or return null under RLS. Returning
+      // `{ events: [] }` here would *overwrite* the previously cached events
+      // with an empty list (placeholderData only helps when there is no data)
+      // — which is exactly the bug where the Next Up cards disappeared after
+      // returning to the app. Throwing lets React Query keep the last good
+      // data and retry.
+      const rolesRes = await supabase
         .from("user_roles")
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
-      
-      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[], roles: [] as { role: string; club_id: string | null; team_id: string | null }[] }, events: [] as Event[] };
-      
+
+      if (rolesRes.error) throw rolesRes.error;
+      const roles = rolesRes.data;
+
+      if (!roles) {
+        // .data is [] (not null) on a successful zero-row response, so reaching
+        // here means something went wrong upstream — throw so we don't poison
+        // the cache with empty events on resume races.
+        throw new Error("user_roles fetch returned null data");
+      }
+
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
       const clubAdminClubIds = new Set<string>();
       const leagueAdminClubIds = new Set<string>();
-      
+
       roles.forEach(r => {
         if (r.club_id) {
           clubIds.add(r.club_id);
@@ -254,19 +270,19 @@ export default function HomePage() {
           }
         }
       });
-      
+
       // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
       const now = new Date();
       const leagueAdminArr = Array.from(leagueAdminClubIds);
-      
+
       const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
-        teamIds.length > 0 
+        teamIds.length > 0
           ? supabase.from("teams").select("club_id").in("id", teamIds)
-          : Promise.resolve({ data: [] as { club_id: string }[] }),
+          : Promise.resolve({ data: [] as { club_id: string }[], error: null as any }),
         supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
-          : Promise.resolve({ data: [] as { id: string }[] }),
+          : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
         supabase
           .from("events")
           .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, teams (name, default_match_arrival_minutes), clubs (name, sport)`)
@@ -274,14 +290,20 @@ export default function HomePage() {
           .order("event_date", { ascending: true })
           .limit(50),
       ]);
-      
+
+      // Same protection on the events fetch — if it failed (RLS race on
+      // resume), throw so React Query preserves the previous Next Up data
+      // instead of replacing it with an empty list.
+      if ((eventsResult as any).error) throw (eventsResult as any).error;
+      if (!eventsResult.data) throw new Error("events fetch returned null data");
+
       (teamsResult.data || []).forEach((t: any) => clubIds.add(t.club_id));
-      
+
       const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
       (adminLeaguesResult.data || []).forEach((l: any) => {
         if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
       });
-      
+
       const memberships = {
         teamIds,
         clubIds: Array.from(clubIds),
@@ -290,9 +312,8 @@ export default function HomePage() {
         miniLeagueIds,
         roles: roles as { role: string; club_id: string | null; team_id: string | null }[],
       };
-      
+
       // Step 3: Filter events client-side
-      const clubAdminArr = Array.from(clubAdminClubIds);
       const clubIdsArr = Array.from(clubIds);
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         if (event.mini_league_id) {
@@ -303,16 +324,20 @@ export default function HomePage() {
           return clubIdsArr.includes(event.club_id);
         }
       });
-      
+
       // Limit recurring series to next 3 upcoming occurrences
       const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
       const limited = filterRecurringEvents(filtered);
-      
+
       return { memberships, events: limited as Event[] };
     },
     enabled: !!user && initialized,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
+    // Retry on transient resume-race failures so cards reappear automatically
+    // after a brief token-rotation window instead of staying blank.
+    retry: 2,
+    retryDelay: (attempt) => Math.min(500 * attempt, 2000),
   });
 
   // Derive memberships and events from consolidated query
