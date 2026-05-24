@@ -46,10 +46,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    let pushed = 0;
+    // Pass 1: build per-prompt context (recipients + label). We then
+    // group by recipient so a user who's on multiple teams that all
+    // played the same round only receives ONE combined push instead of
+    // 2–3 near-identical notifications.
+    type PromptCtx = {
+      promptId: string;
+      eventId: string;
+      teamId: string;
+      eventLabel: string;
+      titleQualifier: string;
+      url: string;
+      recipientIds: string[];
+    };
+
+    const contexts: PromptCtx[] = [];
     let skipped = 0;
     let errors = 0;
-    let totalRecipients = 0;
 
     for (const prompt of prompts ?? []) {
       try {
@@ -68,7 +81,6 @@ Deno.serve(async (req) => {
         }
 
         if ((existingPhotos ?? []).length > 0) {
-          // Photos arrived — don't nudge, but mark push_sent so we move on.
           await supabase
             .from("gallery_chat_cards")
             .update({ push_sent: true })
@@ -77,7 +89,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Fetch event details for the push body.
         const { data: event } = await supabase
           .from("events")
           .select("id, title, opponent, type, team_id, start_time")
@@ -93,8 +104,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Recipients: attendees who RSVP'd "going" — fall back to the
-        // active team roster if no RSVPs exist.
         const { data: rsvps } = await supabase
           .from("rsvps")
           .select("user_id")
@@ -105,7 +114,6 @@ Deno.serve(async (req) => {
         let recipientIds = [...new Set((rsvps ?? []).map((r) => r.user_id as string))];
 
         if (recipientIds.length === 0) {
-          // Fall back to active team roster — team_memberships → club_players.profile_id.
           const { data: memberships } = await supabase
             .from("team_memberships")
             .select("club_player_id, club_players!inner(profile_id)")
@@ -130,8 +138,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Date-accurate qualifier so a prompt firing the day after the
-        // match doesn't claim "today". Based on event start time.
         const startMs = event.start_time ? new Date(event.start_time as string).getTime() : now;
         const hoursAgo = (now - startMs) / (60 * 60 * 1000);
         let whenQualifier: string;
@@ -151,52 +157,88 @@ Deno.serve(async (req) => {
         const eventLabel = event.title
           || (event.type === "mini_league" ? `${whenQualifier} match` : `${whenQualifier} game${opponent}`);
 
-        const pushTitle = `📸 Got photos from ${titleQualifier}?`;
-        const pushBody = `Be the first to share photos from ${eventLabel} — tap to upload.`;
-        const url = `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`;
-        const tag = `photo-prompt-${prompt.event_id}`;
-
-        // Fire pushes in parallel; insert in-app notification rows alongside.
-        const results = await Promise.allSettled(
-          recipientIds.map(async (userId) => {
-            await supabase.from("notifications").insert({
-              user_id: userId,
-              type: "photo_prompt_reminder",
-              message: `Be the first to share photos from ${eventLabel}`,
-              related_id: event.id,
-            });
-
-            // Only call push if we have at least one delivery channel registered.
-            const [{ data: webSubs }, { data: fcm }] = await Promise.all([
-              supabase.from("push_subscriptions").select("id").eq("user_id", userId).limit(1),
-              supabase.from("fcm_tokens" as any).select("id").eq("user_id", userId).limit(1),
-            ]);
-
-            if ((webSubs?.length ?? 0) === 0 && (fcm?.length ?? 0) === 0) {
-              return false;
-            }
-
-            await supabase.functions.invoke("send-push-notification", {
-              body: { userId, title: pushTitle, body: pushBody, url, tag },
-            });
-            return true;
-          }),
-        );
-
-        const delivered = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
-        totalRecipients += delivered;
-
-        await supabase
-          .from("gallery_chat_cards")
-          .update({ push_sent: true })
-          .eq("id", prompt.id);
-
-        pushed++;
+        contexts.push({
+          promptId: prompt.id,
+          eventId: event.id,
+          teamId: prompt.team_id,
+          eventLabel,
+          titleQualifier,
+          url: `/media?team=${prompt.team_id}&event=${prompt.event_id}&upload=1`,
+          recipientIds,
+        });
       } catch (err) {
-        console.error("[photo-prompt-followup] prompt failed", prompt.id, err);
+        console.error("[photo-prompt-followup] prompt prep failed", prompt.id, err);
         errors++;
       }
     }
+
+    // Group contexts by recipient.
+    const byUser = new Map<string, PromptCtx[]>();
+    for (const ctx of contexts) {
+      for (const uid of ctx.recipientIds) {
+        const arr = byUser.get(uid) ?? [];
+        arr.push(ctx);
+        byUser.set(uid, arr);
+      }
+    }
+
+    let totalRecipients = 0;
+
+    // Pass 2: one push per user, combining all their prompts.
+    await Promise.allSettled(
+      Array.from(byUser.entries()).map(async ([userId, userCtxs]) => {
+        // Always write in-app notification rows per prompt.
+        await Promise.allSettled(
+          userCtxs.map((c) =>
+            supabase.from("notifications").insert({
+              user_id: userId,
+              type: "photo_prompt_reminder",
+              message: `Be the first to share photos from ${c.eventLabel}`,
+              related_id: c.eventId,
+            }),
+          ),
+        );
+
+        const [{ data: webSubs }, { data: fcm }] = await Promise.all([
+          supabase.from("push_subscriptions").select("id").eq("user_id", userId).limit(1),
+          supabase.from("fcm_tokens" as any).select("id").eq("user_id", userId).limit(1),
+        ]);
+        if ((webSubs?.length ?? 0) === 0 && (fcm?.length ?? 0) === 0) return;
+
+        let pushTitle: string;
+        let pushBody: string;
+        let url: string;
+        if (userCtxs.length === 1) {
+          const c = userCtxs[0];
+          pushTitle = `📸 Got photos from ${c.titleQualifier}?`;
+          pushBody = `Be the first to share photos from ${c.eventLabel} — tap to upload.`;
+          url = c.url;
+        } else {
+          const qualifier = userCtxs.every((c) => c.titleQualifier === userCtxs[0].titleQualifier)
+            ? userCtxs[0].titleQualifier
+            : "the matches";
+          pushTitle = `📸 Got photos from ${qualifier}?`;
+          pushBody = `Be the first to share photos from ${userCtxs.length} games — tap to upload.`;
+          url = `/media`;
+        }
+
+        await supabase.functions.invoke("send-push-notification", {
+          body: { userId, title: pushTitle, body: pushBody, url, tag: `photo-prompt-${userId}` },
+        });
+        totalRecipients++;
+      }),
+    );
+
+    // Mark all processed prompts as push_sent.
+    const processedIds = contexts.map((c) => c.promptId);
+    if (processedIds.length > 0) {
+      await supabase
+        .from("gallery_chat_cards")
+        .update({ push_sent: true })
+        .in("id", processedIds);
+    }
+
+    const pushed = contexts.length;
 
     return new Response(
       JSON.stringify({
