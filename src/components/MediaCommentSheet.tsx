@@ -580,9 +580,36 @@ export function MediaCommentSheet({
         )}
 
         <div className="px-3 pt-2">
-          <div className="relative flex items-center gap-1 bg-muted/60 rounded-full pl-1 focus-within:bg-muted/80 transition-colors">
-            <div className="flex-shrink-0">
+          <div className="relative flex items-end gap-1 bg-muted/60 rounded-3xl pl-1.5 pr-1 py-1 focus-within:bg-muted/80 transition-colors">
+            <div className="flex items-center gap-0.5 shrink-0 self-end pb-0.5">
               <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  const ta = textareaRef.current;
+                  const caret = ta?.selectionStart ?? commentInput.length;
+                  const needsSpace = caret > 0 && !/\s/.test(commentInput[caret - 1] || " ");
+                  const insert = (needsSpace ? " " : "") + "@";
+                  const next = commentInput.slice(0, caret) + insert + commentInput.slice(caret);
+                  onCommentInputChange(next);
+                  requestAnimationFrame(() => {
+                    const t = textareaRef.current;
+                    if (!t) return;
+                    t.focus({ preventScroll: true });
+                    const pos = caret + insert.length;
+                    try { t.setSelectionRange(pos, pos); } catch { /* ignore */ }
+                    setMentionAnchorPos(caret + insert.length - 1);
+                    setMentionSearch("");
+                    setMentionSelectedIndex(0);
+                  });
+                }}
+                aria-label="Tag a person"
+                title="Tag a person"
+                className="h-8 w-8 inline-flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-accent/70 active:scale-95 transition-all"
+              >
+                <AtSign className="h-[18px] w-[18px]" />
+              </button>
             </div>
             <textarea
               ref={textareaRef}
@@ -594,14 +621,14 @@ export function MediaCommentSheet({
               onClick={handleTextareaSelect}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
-              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] pl-1 pr-11 py-2.5 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
+              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[36px] max-h-[110px] px-1 py-2 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
             <button
               type="button"
               onClick={handleSubmit}
               disabled={isPending || !hasText}
-              className={`absolute right-1 bottom-1 h-8 w-8 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
+              className={`h-8 w-8 shrink-0 self-end mb-0.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
                 hasText ? "opacity-100" : "opacity-40 pointer-events-none"
               }`}
               aria-label="Send comment"
