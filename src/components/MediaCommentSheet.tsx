@@ -299,7 +299,7 @@ export function MediaCommentSheet({
     }
     const query = before.slice(atIdx + 1);
     // Cancel if query contains whitespace/newline or closes a completed mention
-    if (/[\s\]\)]/.test(query)) {
+    if (/[\s\])]/.test(query)) {
       setMentionAnchorPos(null);
       setMentionSearch("");
       return;
@@ -580,8 +580,8 @@ export function MediaCommentSheet({
         )}
 
         <div className="px-3 pt-2">
-          <div className="relative flex items-end gap-1 bg-muted/60 rounded-3xl pl-1.5 pr-1 py-1 focus-within:bg-muted/80 transition-colors">
-            <div className="flex items-center gap-0.5 shrink-0 self-end pb-0.5">
+          <div className="relative flex min-h-[52px] items-center gap-1.5 bg-muted/60 rounded-3xl px-1.5 py-1 focus-within:bg-muted/80 transition-colors">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center">
               <EmojiPicker onEmojiSelect={handleEmojiSelect} />
             </div>
             <textarea
@@ -594,14 +594,14 @@ export function MediaCommentSheet({
               onClick={handleTextareaSelect}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Add a comment…"}
               rows={1}
-              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[36px] max-h-[110px] px-1 py-2 leading-[1.3] ${isIOS ? "text-base" : "text-[15px]"}`}
+              className={`flex-1 min-w-0 resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[110px] px-1 py-2.5 leading-5 ${isIOS ? "text-base" : "text-[15px]"}`}
               style={isIOS ? { fontSize: "16px" } : undefined}
             />
             <button
               type="button"
               onClick={handleSubmit}
               disabled={isPending || !hasText}
-              className={`h-8 w-8 shrink-0 self-end mb-0.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
+              className={`h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity ${
                 hasText ? "opacity-100" : "opacity-40 pointer-events-none"
               }`}
               aria-label="Send comment"
