@@ -815,13 +815,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                       aria-label={a.label}
                     >
                       <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
+                        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground/70"
                       >
                         {a.icon}
+                        {a.locked && (
+                          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Crown className="h-2.5 w-2.5" strokeWidth={2.5} />
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col leading-tight min-w-0">
                         <span className="text-[13px] font-medium text-foreground/90 truncate">{a.label}</span>
-                        <span className="text-[11px] text-muted-foreground/80 truncate">{a.hint}</span>
+                        <span className={`text-[11px] truncate ${a.locked ? "text-primary/80" : "text-muted-foreground/80"}`}>{a.hint}</span>
                       </div>
                     </button>
                   ))}
