@@ -35,6 +35,7 @@ interface OpenGroup {
   name: string;
   category: string | null;
   club_id: string;
+  club_name: string | null;
   member_count: number;
   joined: boolean;
   last_text: string | null;
@@ -108,7 +109,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
         .from("chat_groups")
-        .select("id, name, category, club_id")
+        .select("id, name, category, club_id, clubs:club_id(name)")
         .eq("join_policy", "open_to_club")
         .is("deleted_at", null)
         .not("club_id", "is", null)
@@ -156,6 +157,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         name: r.name,
         category: r.category ?? null,
         club_id: r.club_id,
+        club_name: (r.clubs && (Array.isArray(r.clubs) ? r.clubs[0]?.name : r.clubs.name)) ?? null,
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
         last_text: lastByGroup.get(r.id)?.text ?? null,
@@ -229,11 +231,11 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
-    const subtitle =
-      g.last_text ||
-      (g.member_count === 0
+    const memberLine =
+      g.member_count === 0
         ? "Needs volunteers — be the first to join"
-        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`);
+        : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`;
+    const subtitle = g.last_text || memberLine;
 
     return (
       <button
@@ -269,6 +271,11 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               </span>
             )}
           </div>
+          {g.club_name && (
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70 truncate leading-tight">
+              {g.club_name}
+            </p>
+          )}
           <p className="text-[11px] text-muted-foreground/80 truncate leading-tight">
             {subtitle}
           </p>

@@ -335,7 +335,8 @@ export default function MessagesPage() {
         .from("clubs")
         .select("id, name, logo_url, sport")
         .in("id", clubIds)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("kind", "shell");
 
       return data as Club[];
     },
@@ -365,7 +366,8 @@ export default function MessagesPage() {
         .from("clubs")
         .select("id, name, logo_url, sport")
         .in("id", clubIds)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("kind", "shell");
 
       const clubs = data as Club[];
       
@@ -905,6 +907,38 @@ export default function MessagesPage() {
   // Extract groups and latest messages from combined query
   const chatGroups = chatGroupsWithMessages?.groups ?? [];
   const latestGroupMessages = chatGroupsWithMessages?.latestMessages ?? {};
+
+  // For competition-scoped chat groups, fetch which clubs have entered teams.
+  // Used to hide competition chats when the user filters to a club that is
+  // not actually participating in that competition.
+  const competitionIdsForGroups = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of chatGroups as any[]) {
+      if (g?.competition_id) ids.add(g.competition_id);
+    }
+    return Array.from(ids);
+  }, [chatGroups]);
+
+  const { data: competitionClubMap } = useQuery({
+    queryKey: ["competition-entry-clubs", competitionIdsForGroups],
+    enabled: competitionIdsForGroups.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("competition_entries")
+        .select("competition_id, teams:team_id(club_id)")
+        .in("competition_id", competitionIdsForGroups);
+      if (error) throw error;
+      const map: Record<string, Set<string>> = {};
+      for (const row of (data ?? []) as any[]) {
+        const clubId = row?.teams?.club_id;
+        if (!clubId) continue;
+        (map[row.competition_id] ||= new Set()).add(clubId);
+      }
+      return map;
+    },
+  });
+
 
   // Fetch all muted chats for the user
   const { data: mutedChats } = useQuery({
@@ -1773,6 +1807,12 @@ export default function MessagesPage() {
     let groups = regularChatGroups;
     if (effectiveClubFilter) {
       groups = groups.filter((group: any) => {
+        // Competition-scoped groups: only show when the active club has a
+        // team entered in that competition.
+        if (group.competition_id) {
+          const clubs = competitionClubMap?.[group.competition_id];
+          return !!clubs && clubs.has(effectiveClubFilter);
+        }
         // Personal/custom groups have no club or team scope — always show them
         // regardless of the club filter so they don't disappear unexpectedly.
         const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
@@ -1783,10 +1823,11 @@ export default function MessagesPage() {
         );
       });
     }
+
     // Apply hidden filter for custom (personal) groups — they reappear when
     // a new message arrives after the time the user hid them.
     groups = groups.filter((group: any) => {
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id && !group.competition_id;
       if (!isPersonalGroup) return true;
       const hiddenAt = hiddenGroupMap?.get(group.id);
       if (!hiddenAt) return true;
@@ -1802,7 +1843,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
