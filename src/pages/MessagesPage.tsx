@@ -1827,7 +1827,7 @@ export default function MessagesPage() {
     // Apply hidden filter for custom (personal) groups — they reappear when
     // a new message arrives after the time the user hid them.
     groups = groups.filter((group: any) => {
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
+      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id && !group.competition_id;
       if (!isPersonalGroup) return true;
       const hiddenAt = hiddenGroupMap?.get(group.id);
       if (!hiddenAt) return true;
