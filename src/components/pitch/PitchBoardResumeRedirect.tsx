@@ -159,10 +159,39 @@ export default function PitchBoardResumeRedirect() {
     };
   }, []);
 
-  // Re-attempt whenever the route changes — but only while a restore window
-  // is open (cold start / resume). Ordinary in-app nav like /messages → "/"
-  // via bottom nav must NOT trigger a restore.
+  // Track previous pathname so we can detect explicit user navigation AWAY
+  // from the stored pitch-board path. If, during an open restore window
+  // (e.g. just after phone unlock), the user taps Home in the bottom nav
+  // from the board's route to "/", that's an intentional close — shut the
+  // window and clear the persisted flag so we don't bounce them back into
+  // the board on the next attempt.
+  const prevPathRef = useRef(location.pathname);
   useEffect(() => {
+    const prev = prevPathRef.current;
+    const next = location.pathname;
+    prevPathRef.current = next;
+
+    try {
+      const storedPath = (
+        localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY) || ""
+      ).split("?")[0];
+      const isNeutral = next === "/" || next === "/home";
+      if (
+        storedPath &&
+        prev === storedPath &&
+        isNeutral &&
+        prev !== next
+      ) {
+        // User left the pitch-board route to a neutral page — treat as
+        // explicit close. Cancel any in-flight restore window.
+        restoreWindowUntilRef.current = 0;
+        clearPitchBoardOpenFlag();
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
     attemptRestoreRef.current();
   }, [location.pathname]);
 
