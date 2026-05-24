@@ -89,6 +89,9 @@ export default function PitchBoardResumeRedirect() {
     let cancelled = false;
     const attempt = () => attemptRestoreRef.current();
 
+    // Cold start counts as a restore opportunity.
+    openRestoreWindow();
+
     // Cold-start: try immediately, then with a generous retry ladder so we
     // catch the case where the URL is still /auth or the Suspense fallback
     // when the first attempt runs, and only resolves to "/" a few hundred
@@ -109,6 +112,7 @@ export default function PitchBoardResumeRedirect() {
           const { App } = await import("@capacitor/app");
           const handle = await App.addListener("appStateChange", ({ isActive }) => {
             if (isActive) {
+              openRestoreWindow();
               // Retry across the post-resume hydration window — Capacitor
               // sometimes restores the WebView to the start URL ("/") and
               // React needs a frame or two to finish bootstrap.
@@ -132,10 +136,16 @@ export default function PitchBoardResumeRedirect() {
 
     // Web/PWA fallback: when the tab becomes visible again.
     const onVisibility = () => {
-      if (document.visibilityState === "visible") attempt();
+      if (document.visibilityState === "visible") {
+        openRestoreWindow();
+        attempt();
+      }
     };
     // pageshow fires after WebView bfcache restore (iOS Safari/WKWebView).
-    const onPageShow = () => attempt();
+    const onPageShow = () => {
+      openRestoreWindow();
+      attempt();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
 
@@ -148,9 +158,9 @@ export default function PitchBoardResumeRedirect() {
     };
   }, []);
 
-  // Re-attempt whenever the route changes — covers the cold-start race where
-  // the first attempts run while still on /auth and the user is then routed
-  // to "/" once auth resolves (no visibility/appState event fires for that).
+  // Re-attempt whenever the route changes — but only while a restore window
+  // is open (cold start / resume). Ordinary in-app nav like /messages → "/"
+  // via bottom nav must NOT trigger a restore.
   useEffect(() => {
     attemptRestoreRef.current();
   }, [location.pathname]);
