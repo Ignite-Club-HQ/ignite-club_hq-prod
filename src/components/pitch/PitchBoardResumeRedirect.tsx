@@ -24,11 +24,28 @@ export default function PitchBoardResumeRedirect() {
   const locationRef = useRef(location);
   locationRef.current = location;
   const lastAttemptRef = useRef(0);
+  // Restore is only allowed inside a short window after a true cold-start
+  // or resume signal (mount, appStateChange isActive, visibilitychange,
+  // pageshow). Outside that window, ordinary in-app navigation (e.g. user
+  // taps Home in the bottom nav from /messages → "/") must NOT trigger a
+  // restore — otherwise the pitch board re-opens unexpectedly whenever the
+  // user lands on a neutral route after closing it earlier.
+  const restoreWindowUntilRef = useRef(0);
+  const openRestoreWindow = (ms = 6000) => {
+    restoreWindowUntilRef.current = Math.max(
+      restoreWindowUntilRef.current,
+      Date.now() + ms,
+    );
+  };
 
   // Stable restore fn — reads current location via ref so it's safe across
   // listeners without forcing re-binding.
   const attemptRestoreRef = useRef<() => void>(() => {});
   attemptRestoreRef.current = () => {
+    // Outside an explicit cold-start/resume window — do nothing. This is the
+    // guard that prevents bottom-nav Home (or any in-app nav back to "/")
+    // from re-opening the pitch board.
+    if (Date.now() > restoreWindowUntilRef.current) return;
     // If PitchBoard is already mounted in this JS context, nothing to do —
     // avoid yanking the URL and forcing an unmount/remount loop.
     if ((window as any).__pitchBoardMounted === true) return;
@@ -44,11 +61,6 @@ export default function PitchBoardResumeRedirect() {
       // HomePage runs its own cold-start restore that re-opens the modal.
       if (path === "/" || path === "/home") return;
 
-      // Allow restore from BOTH neutral landing routes (cold start back at
-      // "/") AND from the stored path itself when React state was wiped but
-      // the URL was preserved (warm WebView reload on iOS lock/unlock). We
-      // also allow restore while still on /auth — auth completion will
-      // bounce to "/" and the location-change effect below will retry.
       const onNeutral =
         loc.pathname === "/" || loc.pathname === "/home";
       const onStored = loc.pathname === path;
@@ -77,6 +89,9 @@ export default function PitchBoardResumeRedirect() {
     let cancelled = false;
     const attempt = () => attemptRestoreRef.current();
 
+    // Cold start counts as a restore opportunity.
+    openRestoreWindow();
+
     // Cold-start: try immediately, then with a generous retry ladder so we
     // catch the case where the URL is still /auth or the Suspense fallback
     // when the first attempt runs, and only resolves to "/" a few hundred
@@ -97,6 +112,7 @@ export default function PitchBoardResumeRedirect() {
           const { App } = await import("@capacitor/app");
           const handle = await App.addListener("appStateChange", ({ isActive }) => {
             if (isActive) {
+              openRestoreWindow();
               // Retry across the post-resume hydration window — Capacitor
               // sometimes restores the WebView to the start URL ("/") and
               // React needs a frame or two to finish bootstrap.
@@ -120,10 +136,16 @@ export default function PitchBoardResumeRedirect() {
 
     // Web/PWA fallback: when the tab becomes visible again.
     const onVisibility = () => {
-      if (document.visibilityState === "visible") attempt();
+      if (document.visibilityState === "visible") {
+        openRestoreWindow();
+        attempt();
+      }
     };
     // pageshow fires after WebView bfcache restore (iOS Safari/WKWebView).
-    const onPageShow = () => attempt();
+    const onPageShow = () => {
+      openRestoreWindow();
+      attempt();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
 
@@ -136,9 +158,9 @@ export default function PitchBoardResumeRedirect() {
     };
   }, []);
 
-  // Re-attempt whenever the route changes — covers the cold-start race where
-  // the first attempts run while still on /auth and the user is then routed
-  // to "/" once auth resolves (no visibility/appState event fires for that).
+  // Re-attempt whenever the route changes — but only while a restore window
+  // is open (cold start / resume). Ordinary in-app nav like /messages → "/"
+  // via bottom nav must NOT trigger a restore.
   useEffect(() => {
     attemptRestoreRef.current();
   }, [location.pathname]);
