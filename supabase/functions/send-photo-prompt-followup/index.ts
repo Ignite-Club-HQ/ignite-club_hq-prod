@@ -46,6 +46,47 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Pro gate: drop prompts whose team (or its club) is not Pro / Pro Football.
+    const proPromptIds = new Set<string>();
+    const teamIdsForPro = [...new Set((prompts ?? []).map((p: any) => p.team_id).filter(Boolean))];
+    if (teamIdsForPro.length) {
+      const { data: teamRows } = await supabase
+        .from("teams").select("id, club_id").in("id", teamIdsForPro);
+      const teamClub = new Map<string, string | null>(
+        (teamRows ?? []).map((t: any) => [t.id, t.club_id]),
+      );
+      const clubIds = [...new Set((teamRows ?? []).map((t: any) => t.club_id).filter(Boolean) as string[])];
+
+      const [teamSubsRes, clubSubsRes] = await Promise.all([
+        supabase.from("team_subscriptions")
+          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+          .in("team_id", teamIdsForPro),
+        clubIds.length
+          ? supabase.from("club_subscriptions")
+              .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+              .in("club_id", clubIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const nowIso = new Date().toISOString();
+      const isActive = (s: any) =>
+        (s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override)
+        && (!s.expires_at || s.expires_at > nowIso);
+      const proTeams = new Set((teamSubsRes.data || []).filter(isActive).map((s: any) => s.team_id));
+      const proClubs = new Set(((clubSubsRes.data as any[]) || []).filter(isActive).map((s: any) => s.club_id));
+
+      for (const p of prompts ?? []) {
+        const club = teamClub.get(p.team_id) ?? null;
+        if (proTeams.has(p.team_id) || (club && proClubs.has(club))) proPromptIds.add(p.id);
+      }
+    }
+
+    // Mark non-pro prompts as push_sent so we don't keep re-evaluating them.
+    const nonProIds = (prompts ?? []).filter((p: any) => !proPromptIds.has(p.id)).map((p: any) => p.id);
+    if (nonProIds.length) {
+      await supabase.from("gallery_chat_cards").update({ push_sent: true }).in("id", nonProIds);
+    }
+    const filteredPrompts = (prompts ?? []).filter((p: any) => proPromptIds.has(p.id));
+
     // Pass 1: build per-prompt context (recipients + label). We then
     // group by recipient so a user who's on multiple teams that all
     // played the same round only receives ONE combined push instead of
@@ -64,7 +105,7 @@ Deno.serve(async (req) => {
     let skipped = 0;
     let errors = 0;
 
-    for (const prompt of prompts ?? []) {
+    for (const prompt of filteredPrompts) {
       try {
         // Re-check that no photos have been uploaded for this event since.
         const { data: existingPhotos, error: photosError } = await supabase
