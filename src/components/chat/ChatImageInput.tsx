@@ -744,11 +744,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "file",
                   label: "File or Folder",
-                  hint: "Device or vault",
+                  hint: hasProAccess ? "Device or vault" : "Pro feature",
                   icon: <Paperclip className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled: disabled || uploading,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     setAttachChooserOpen(true);
                   },
@@ -772,11 +774,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "poll",
                   label: "Create Poll",
-                  hint: "Ask the group",
+                  hint: hasProAccess ? "Ask the group" : "Pro feature",
                   icon: <BarChart3 className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onPollCreate();
                   },
