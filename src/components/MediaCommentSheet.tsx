@@ -361,20 +361,25 @@ export function MediaCommentSheet({
   const thumbnailSizeClass = isKeyboardActive ? "h-12 w-12" : "h-20 w-20";
 
   return (
-    <div
-      className={`fixed left-0 right-0 z-[61] flex flex-col overflow-hidden bg-background ease-out ${
-        isIOS
-          ? `top-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
-          : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
-      }`}
-      style={{ top: 0, bottom: 0 }}
-      data-lock-keyboard-scroll="true"
-    >
-      {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
+    <>
+      {/* Dimmed backdrop — tap to close, lets the photo show through */}
       <div
-        className="flex-shrink-0 bg-background"
-        style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
+        onClick={handleClose}
+        className={`fixed inset-0 z-[60] bg-black/40 transition-opacity duration-200 ${
+          isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        aria-hidden="true"
       />
+      <div
+        className={`fixed left-0 right-0 bottom-0 z-[61] flex flex-col overflow-hidden bg-background rounded-t-2xl shadow-2xl ease-out ${
+          isIOS
+            ? `transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
+            : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
+        }`}
+        style={{ top: isKeyboardActive ? 0 : '30vh' }}
+        data-lock-keyboard-scroll="true"
+      >
+
 
       {/* Header bar — compact single-line title with inline count */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/70 flex-shrink-0">
