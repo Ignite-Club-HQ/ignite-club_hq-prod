@@ -310,8 +310,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
   };
 
   const renderRow = (g: OpenGroup) => {
-    const meta = CATEGORY_META[categoryKey(g.category)];
-    const Icon = meta.icon;
+    const { Icon, tone } = resolveGroupVisual(g.name, g.category);
     const active = g.last_at
       ? Date.now() - new Date(g.last_at).getTime() < 1000 * 60 * 60 * 24
       : false;
