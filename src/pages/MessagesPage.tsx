@@ -1939,6 +1939,7 @@ export default function MessagesPage() {
         id: group.id,
         key: `league-${group.id}`,
         name: group.name,
+        avatarUrl: group.clubs?.logo_url ?? null,
         link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
