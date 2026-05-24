@@ -732,15 +732,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               actions.push({
                 key: "photo",
                 label: "Photo / Video",
-                hint: "Camera roll",
+                hint: hasProAccess ? "Camera roll" : "Pro feature",
                 icon: <ImagePlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                 tone: "primary",
                 disabled: disabled || uploading,
+                locked: !hasProAccess,
                 onClick: (e) => {
+                  if (requirePro(e)) return;
                   setMenuOpen(false);
                   handleImageButtonClick(e);
                 },
               });
+
               if (showVaultPicker && clubId) {
                 actions.push({
                   key: "file",
@@ -761,16 +764,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                 actions.push({
                   key: "event",
                   label: "Share Event",
-                  hint: "Training or game",
+                  hint: hasProAccess ? "Training or game" : "Pro feature",
                   icon: <CalendarPlus className="h-[17px] w-[17px]" strokeWidth={2} />,
                   tone: "muted",
                   disabled,
-                  onClick: () => {
+                  locked: !hasProAccess,
+                  onClick: (e) => {
+                    if (requirePro(e)) return;
                     setMenuOpen(false);
                     onEventSelect("");
                   },
                 });
               }
+
               if (showPollCreator && onPollCreate) {
                 actions.push({
                   key: "poll",
