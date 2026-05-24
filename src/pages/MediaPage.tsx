@@ -1462,6 +1462,8 @@ export default function MediaPage() {
                         title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
+                        clubId={photo.club_id}
+                        teamId={photo.team_id}
                       />
                     </div>
                   )}

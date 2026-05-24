@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Trash2, Flag, ArrowLeft, Download, Share2, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -36,7 +37,7 @@ const getErrorMessage = (error: unknown) => error instanceof Error ? error.messa
 interface PhotoLightboxProps {
   isOpen: boolean;
   onClose: () => void;
-  photos: { id: string; file_url?: string | null; image_url?: string | null; title?: string | null }[];
+  photos: { id: string; file_url?: string | null; image_url?: string | null; title?: string | null; club_id?: string | null; team_id?: string | null }[];
   currentIndex: number;
   onNavigate: (index: number) => void;
   onDelete?: (photoId: string) => void;
@@ -111,6 +112,7 @@ export function PhotoLightbox({
   onDelete,
   canDelete,
 }: PhotoLightboxProps) {
+  const navigate = useNavigate();
   const currentPhoto = photos[currentIndex];
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -216,6 +218,14 @@ export function PhotoLightbox({
       toast.error("Nothing to share");
       return;
     }
+    const { gateShareWithPro } = await import("@/lib/proShareGate");
+    const allowed = await gateShareWithPro({
+      teamId: currentPhoto.team_id ?? null,
+      clubId: currentPhoto.club_id ?? null,
+      navigate,
+      featureLabel: "Photo sharing",
+    });
+    if (!allowed) return;
     // Always share the branded /share URL (rich preview + redirect),
     // never the raw Supabase signed storage URL.
     const { getShareUrl } = await import("@/lib/shareUtils");
