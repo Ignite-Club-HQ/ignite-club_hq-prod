@@ -167,7 +167,11 @@ export function MediaCommentSheet({
     const s = t.selectionStart ?? t.value.length;
     const e = t.selectionEnd ?? t.value.length;
     t.focus({ preventScroll: true });
-    try { t.setSelectionRange(s, e); } catch {}
+    try {
+      t.setSelectionRange(s, e);
+    } catch {
+      // Some mobile browsers reject selection restoration during keyboard transitions.
+    }
   }, []);
 
   const blurComposer = useCallback(() => {
