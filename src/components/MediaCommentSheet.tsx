@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
-import { Send, X, ChevronLeft, AtSign } from "lucide-react";
+import { Send, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -583,33 +583,6 @@ export function MediaCommentSheet({
           <div className="relative flex items-end gap-1 bg-muted/60 rounded-3xl pl-1.5 pr-1 py-1 focus-within:bg-muted/80 transition-colors">
             <div className="flex items-center gap-0.5 shrink-0 self-end pb-0.5">
               <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  const ta = textareaRef.current;
-                  const caret = ta?.selectionStart ?? commentInput.length;
-                  const needsSpace = caret > 0 && !/\s/.test(commentInput[caret - 1] || " ");
-                  const insert = (needsSpace ? " " : "") + "@";
-                  const next = commentInput.slice(0, caret) + insert + commentInput.slice(caret);
-                  onCommentInputChange(next);
-                  requestAnimationFrame(() => {
-                    const t = textareaRef.current;
-                    if (!t) return;
-                    t.focus({ preventScroll: true });
-                    const pos = caret + insert.length;
-                    try { t.setSelectionRange(pos, pos); } catch { /* ignore */ }
-                    setMentionAnchorPos(caret + insert.length - 1);
-                    setMentionSearch("");
-                    setMentionSelectedIndex(0);
-                  });
-                }}
-                aria-label="Tag a person"
-                title="Tag a person"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-accent/70 active:scale-95 transition-all"
-              >
-                <AtSign className="h-[18px] w-[18px]" />
-              </button>
             </div>
             <textarea
               ref={textareaRef}

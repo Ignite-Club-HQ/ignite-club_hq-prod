@@ -32,6 +32,12 @@ html[data-media-comments-open="true"] .media-comment-screen {
   z-index: 2147483647 !important;
 }
 
+/* Ensure Radix popovers (emoji picker, mention list) render above the
+   fullscreen comment screen which uses the max int z-index. */
+html[data-media-comments-open="true"] [data-radix-popper-content-wrapper] {
+  z-index: 2147483647 !important;
+}
+
 #root {
   overflow-y: auto;
   overscroll-behavior-y: none;
