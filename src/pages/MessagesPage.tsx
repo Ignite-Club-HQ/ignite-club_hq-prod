@@ -1807,6 +1807,12 @@ export default function MessagesPage() {
     let groups = regularChatGroups;
     if (effectiveClubFilter) {
       groups = groups.filter((group: any) => {
+        // Competition-scoped groups: only show when the active club has a
+        // team entered in that competition.
+        if (group.competition_id) {
+          const clubs = competitionClubMap?.[group.competition_id];
+          return !!clubs && clubs.has(effectiveClubFilter);
+        }
         // Personal/custom groups have no club or team scope — always show them
         // regardless of the club filter so they don't disappear unexpectedly.
         const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
@@ -1817,6 +1823,7 @@ export default function MessagesPage() {
         );
       });
     }
+
     // Apply hidden filter for custom (personal) groups — they reappear when
     // a new message arrives after the time the user hid them.
     groups = groups.filter((group: any) => {
