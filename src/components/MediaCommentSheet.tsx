@@ -362,14 +362,24 @@ export function MediaCommentSheet({
 
   return (
     <>
-      {/* Dimmed backdrop — tap to close, lets the photo show through */}
+      {/* Full-screen photo backdrop — replaces whatever's behind so only the photo shows */}
       <div
-        onClick={handleClose}
-        className={`fixed inset-0 z-[60] bg-black/40 transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[60] bg-black transition-opacity duration-200 ${
           isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+        onClick={handleClose}
         aria-hidden="true"
-      />
+      >
+        {previewPhotoUrl && !imgError && (
+          <img
+            src={previewPhotoUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-contain opacity-70"
+            onError={() => setImgError(true)}
+          />
+        )}
+        <div className="absolute inset-0 bg-black/40" />
+      </div>
       <div
         className={`fixed left-0 right-0 bottom-0 z-[61] flex flex-col overflow-hidden bg-background rounded-t-2xl shadow-2xl ease-out ${
           isIOS
@@ -379,6 +389,7 @@ export function MediaCommentSheet({
         style={{ top: isKeyboardActive ? 0 : '30vh' }}
         data-lock-keyboard-scroll="true"
       >
+
 
 
       {/* Header bar — compact single-line title with inline count */}
