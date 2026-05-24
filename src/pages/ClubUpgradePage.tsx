@@ -402,7 +402,29 @@ export default function ClubUpgradePage() {
   const downgradeMutation = useMutation({
     mutationFn: async (targetTier: "free" | "pro") => {
       if (targetTier === "free") {
-        // Remove club subscription entirely
+        // Check if there's a paid-up subscription still in effect.
+        const { data: currentSub } = await supabase
+          .from("club_subscriptions")
+          .select("expires_at, is_pro, is_pro_football")
+          .eq("club_id", clubId!)
+          .maybeSingle();
+
+        const expiresAt = currentSub?.expires_at ? new Date(currentSub.expires_at) : null;
+        const stillPaidUp = expiresAt && expiresAt.getTime() > Date.now();
+
+        if (stillPaidUp) {
+          // Keep Pro active until the paid period ends — just mark as cancelled
+          // so it does not auto-renew. is_pro / is_pro_football stay true and
+          // gates rely on expires_at to flip the club back to Free at expiry.
+          const { error } = await supabase
+            .from("club_subscriptions")
+            .update({ cancelled_at: new Date().toISOString() })
+            .eq("club_id", clubId!);
+          if (error) throw error;
+          return "free_scheduled" as const;
+        }
+
+        // No remaining paid period — remove club subscription immediately.
         await supabase
           .from("club_subscriptions")
           .delete()
@@ -423,14 +445,17 @@ export default function ClubUpgradePage() {
       }
       return targetTier;
     },
-    onSuccess: (targetTier) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-teams"] });
-      const message = targetTier === "free" 
-        ? "Club subscription cancelled. All teams are now on Free plan."
-        : "Downgraded to Club Pro plan.";
+      const message =
+        result === "free_scheduled"
+          ? "Subscription cancelled. Pro features remain active until your paid period ends."
+          : result === "free"
+            ? "Club subscription cancelled. All teams are now on Free plan."
+            : "Downgraded to Club Pro plan.";
       toast({ title: "Plan Updated", description: message });
     },
     onError: () => {
