@@ -455,26 +455,37 @@ export function AppHeader() {
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
-      // First mark all unread (scoped to active club if filter active) as read
-      const markQ = supabase
+      // Match the same scope the dropdown renders: when a club filter is active,
+      // include both club-scoped notifications AND global ones (club_id IS NULL)
+      // — RSVP / invite / role-request notifications are intentionally stored
+      // without a club_id and would otherwise remain after "Clear all".
+      const scopeFilter = activeClubFilter
+        ? `club_id.eq.${activeClubFilter},club_id.is.null`
+        : null;
+
+      // First mark all unread in scope as read
+      let markQ = supabase
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", user.id)
         .eq("is_read", false);
-      if (activeClubFilter) markQ.eq("club_id", activeClubFilter);
+      if (scopeFilter) markQ = markQ.or(scopeFilter);
       await markQ;
-      // Then delete notifications (scoped to active club if filter active)
-      const delQ = supabase
+
+      // Then delete notifications in the same scope
+      let delQ = supabase
         .from("notifications")
         .delete()
         .eq("user_id", user.id);
-      if (activeClubFilter) delQ.eq("club_id", activeClubFilter);
+      if (scopeFilter) delQ = delQ.or(scopeFilter);
       const { error } = await delQ;
       if (error) throw error;
     },
     onMutate: () => {
-      // Optimistically clear the badge immediately
+      // Optimistically clear the badge and dropdown immediately
       clearUnreadCount();
+      queryClient.setQueriesData<unknown[]>({ queryKey: ["recent-notifications"] }, () => []);
+      queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, () => 0);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
