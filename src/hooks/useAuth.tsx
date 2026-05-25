@@ -504,9 +504,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // etc. on first paint until fresh data overrides them — a
               // cross-account data leak.
               try {
-                const { clearUserScopedCaches } = require('@/lib/clearUserScopedCaches');
                 clearUserScopedCaches();
               } catch { /* noop */ }
+
               setIsFreshLogin(true);
               setInitialized(false);
               setLoading(true);
