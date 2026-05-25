@@ -495,6 +495,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // Clear all cached query data to force fresh fetches with the new session
               // This prevents stale/empty RLS results from a previous logged-out window
               queryClient.clear();
+              // Also wipe per-user localStorage / in-memory caches (mediaCache,
+              // profileCache, rolesCache, …) that live OUTSIDE React Query.
+              // Without this, a different user logging in on the same device
+              // sees the previous user's gallery photos, rosters, messages,
+              // etc. on first paint until fresh data overrides them — a
+              // cross-account data leak.
+              try {
+                const { clearUserScopedCaches } = require('@/lib/clearUserScopedCaches');
+                clearUserScopedCaches();
+              } catch { /* noop */ }
               setIsFreshLogin(true);
               setInitialized(false);
               setLoading(true);
@@ -530,6 +540,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Clear ALL cached query data - prevents stale data from being served
           // after re-login (same userId would match stale queryKeys)
           queryClient.clear();
+          // Same as the cross-user SIGNED_IN path: wipe per-user caches that
+          // live outside React Query so they can't leak to the next account
+          // signing in on this device.
+          try {
+            const { clearUserScopedCaches } = require('@/lib/clearUserScopedCaches');
+            clearUserScopedCaches();
+          } catch { /* noop */ }
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
@@ -541,6 +558,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           setInitialized(true); // Stay initialized but with no user
         }
+
       }
     );
 
