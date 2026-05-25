@@ -84,6 +84,17 @@ export function markChatScopeNotificationsRead({
   if (scopeCount > 0) {
     queryClient.setQueryData(cacheKey, next);
     decrementUnreadCount(scopeCount);
+
+    // Optimistically decrement the club-scoped badges too (BottomNav Messages
+    // pill + AppHeader bell when a club filter is active). Without this they
+    // wait for the realtime UPDATE → invalidate → refetch round-trip, which
+    // can take 10-15s on slow networks/mobile.
+    queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
+      typeof old === "number" ? Math.max(0, old - scopeCount) : old
+    );
+    queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
+      typeof old === "number" ? Math.max(0, old - scopeCount) : old
+    );
   }
 
   // 3: background DB UPDATE (fire-and-forget — do NOT await)
