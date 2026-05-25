@@ -928,7 +928,21 @@ export default function GlobalSubMonitor() {
     // Listen for notification clicks requesting sub confirmation
     const handleOpenSubConfirmation = () => forceOpenSubConfirmation();
     window.addEventListener('open-sub-confirmation', handleOpenSubConfirmation);
-    
+
+    // When the full pitch board is being opened (e.g. via a pending_sub push
+    // tap), suppress GlobalSubMonitor's own SubConfirmDialog. Otherwise the
+    // user sees the same sub prompted twice — once by the global monitor
+    // (which fired on app-resume before the board had a chance to mount) and
+    // once by the board itself once it takes over. The board owns the dialog
+    // while it's open; this listener hands control over cleanly.
+    const handleOpenPitchBoard = () => {
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      lastCheckedSubRef.current = null;
+    };
+    window.addEventListener('open-pitch-board', handleOpenPitchBoard);
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('game-state-changed', handleGameStateChanged);
@@ -943,6 +957,7 @@ export default function GlobalSubMonitor() {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('game-state-changed', handleGameStateChanged);
       window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
+      window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
       appStateListener?.remove?.();
     };
   }, [checkForPendingSubs, checkForGameFinished, hasActiveGame, syncToDatabase]);
