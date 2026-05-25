@@ -546,9 +546,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // live outside React Query so they can't leak to the next account
           // signing in on this device.
           try {
-            const { clearUserScopedCaches } = require('@/lib/clearUserScopedCaches');
             clearUserScopedCaches();
           } catch { /* noop */ }
+
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
