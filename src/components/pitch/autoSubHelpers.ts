@@ -39,6 +39,15 @@ export const getSubTotalSeconds = (
 ): number => (sub.half === 1 ? sub.time : halfDurationSeconds + sub.time);
 
 /**
+ * Grace window (seconds): a missed sub that's no more than this many seconds
+ * before the newest due sub is treated as still actionable, not stale.
+ * Callers use this to decide whether to bundle a slightly-late sub into the
+ * current confirm batch or auto-skip it as truly stale (e.g. game left
+ * running for ages, app resumed long after).
+ */
+export const STALE_SUB_GRACE_SECONDS = 240;
+
+/**
  * Split all due substitutions into the newest due batch and any older overdue ones.
  * This lets the app auto-skip stale groups and surface the latest actionable batch.
  */

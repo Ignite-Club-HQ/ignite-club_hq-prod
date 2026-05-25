@@ -24,6 +24,8 @@ import {
   markSubsExecuted,
   calculateSubDelay,
   getDueSubGroups,
+  getSubTotalSeconds,
+  STALE_SUB_GRACE_SECONDS,
 } from "./autoSubHelpers";
 import { acknowledgeHalftimePrompt, canShowHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
 
@@ -661,15 +663,33 @@ export default function GlobalSubMonitor() {
 
     if (dueSubs.length > 0) {
       let activePitchState = pitchState;
-      let batchSubs = dueSubs;
 
-      if (olderSubs.length > 0) {
-        const olderKeys = olderSubs.map(s => getSubKey(s));
-        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
+      // Grace-window bundling: a slightly-late missed sub (within
+      // STALE_SUB_GRACE_SECONDS of the newest due sub) is folded into the
+      // current confirm batch instead of being silently auto-skipped.
+      // Only truly stale subs (older than the grace window) get auto-skipped.
+      const latestDueAbs = getSubTotalSeconds(dueSubs[0], halfDuration);
+      const recentlyMissed = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, halfDuration) <= STALE_SUB_GRACE_SECONDS
+      );
+      const trulyStale = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, halfDuration) > STALE_SUB_GRACE_SECONDS
+      );
+
+      if (trulyStale.length > 0) {
+        const staleKeys = trulyStale.map(s => getSubKey(s));
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, staleKeys, true);
         activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
         savePitchState(activePitchState);
-        batchSubs = dueSubs;
       }
+
+      // Show recently-missed (oldest first) then the newest due batch.
+      const batchSubs = [
+        ...recentlyMissed.sort(
+          (a, b) => getSubTotalSeconds(a, halfDuration) - getSubTotalSeconds(b, halfDuration)
+        ),
+        ...dueSubs,
+      ];
 
       if (batchSubs.length === 0) return;
 
@@ -763,9 +783,21 @@ export default function GlobalSubMonitor() {
       const latestDueSub = dueSubs[0];
       let latestTime = latestDueSub.time;
 
-      if (olderSubs.length > 0) {
-        const olderKeys = olderSubs.map(s => getSubKey(s));
-        const latestMissedSub = olderSubs[olderSubs.length - 1];
+      // Grace-window bundling (mirrors the regular monitor flow): a missed
+      // sub that's only a little stale is presented in the same dialog as
+      // the newest due sub instead of being silently auto-skipped, giving
+      // the coach a chance to action it.
+      const latestDueAbs = getSubTotalSeconds(latestDueSub, timerState.minutesPerHalf * 60);
+      const recentlyMissed = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, timerState.minutesPerHalf * 60) <= STALE_SUB_GRACE_SECONDS
+      );
+      const trulyStaleOlderSubs = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, timerState.minutesPerHalf * 60) > STALE_SUB_GRACE_SECONDS
+      );
+
+      if (trulyStaleOlderSubs.length > 0) {
+        const olderKeys = trulyStaleOlderSubs.map(s => getSubKey(s));
+        const latestMissedSub = trulyStaleOlderSubs[trulyStaleOlderSubs.length - 1];
 
         let updatedPlan = markSubsExecuted(pitchState.autoSubPlan || [], olderKeys, true);
 
@@ -816,7 +848,14 @@ export default function GlobalSubMonitor() {
         currentElapsed,
         timerState.minutesPerHalf * 60
       ).latestDueSubs.filter(sub => sub.time === latestTime);
-      const [primarySub, ...additionalSubs] = refreshedDueSubs;
+      // Surface recently-missed subs (oldest first) alongside the newest due batch.
+      const orderedRecentlyMissed = [...recentlyMissed].sort(
+        (a, b) =>
+          getSubTotalSeconds(a, timerState.minutesPerHalf * 60) -
+          getSubTotalSeconds(b, timerState.minutesPerHalf * 60)
+      );
+      const combined = [...orderedRecentlyMissed, ...refreshedDueSubs];
+      const [primarySub, ...additionalSubs] = combined;
       setCurrentPlayers(nextPitchState.players);
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
