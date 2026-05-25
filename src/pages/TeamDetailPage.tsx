@@ -987,6 +987,16 @@ export default function TeamDetailPage() {
         />
       )}
 
+      {(isAdmin || isClubAdmin) && (
+        <AddPlayerToParentSheet
+          open={addPlayerOpen}
+          onOpenChange={setAddPlayerOpen}
+          teamId={id!}
+          teamName={team.name}
+          rawMembers={rawMembers as any}
+        />
+      )}
+
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
