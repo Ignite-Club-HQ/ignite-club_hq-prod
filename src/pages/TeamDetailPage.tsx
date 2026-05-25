@@ -1607,6 +1607,17 @@ export default function TeamDetailPage() {
                               return teamChildren.length + pendingOnlyCount;
                             })()})
                           </p>
+                          {(isAdmin || isClubAdmin) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setAddPlayerOpen(true)}
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                              Add player
+                            </Button>
+                          )}
                         </div>
                         <div className="space-y-2.5">
                           {(() => {
