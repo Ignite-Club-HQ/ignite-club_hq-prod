@@ -73,6 +73,7 @@ import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+import AddPlayerToParentSheet from "@/components/team/AddPlayerToParentSheet";
 import LinkChildToParentSheet from "@/components/LinkChildToParentSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
@@ -117,6 +118,7 @@ export default function TeamDetailPage() {
   const queryClient = useQueryClient();
   const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
   const [headerInviteOpen, setHeaderInviteOpen] = useState(false);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
@@ -985,6 +987,16 @@ export default function TeamDetailPage() {
         />
       )}
 
+      {(isAdmin || isClubAdmin) && (
+        <AddPlayerToParentSheet
+          open={addPlayerOpen}
+          onOpenChange={setAddPlayerOpen}
+          teamId={id!}
+          teamName={team.name}
+          rawMembers={rawMembers as any}
+        />
+      )}
+
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
@@ -1605,6 +1617,17 @@ export default function TeamDetailPage() {
                               return teamChildren.length + pendingOnlyCount;
                             })()})
                           </p>
+                          {(isAdmin || isClubAdmin) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setAddPlayerOpen(true)}
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                              Add player
+                            </Button>
+                          )}
                         </div>
                         <div className="space-y-2.5">
                           {(() => {
