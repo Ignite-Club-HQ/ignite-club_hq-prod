@@ -663,15 +663,33 @@ export default function GlobalSubMonitor() {
 
     if (dueSubs.length > 0) {
       let activePitchState = pitchState;
-      let batchSubs = dueSubs;
 
-      if (olderSubs.length > 0) {
-        const olderKeys = olderSubs.map(s => getSubKey(s));
-        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
+      // Grace-window bundling: a slightly-late missed sub (within
+      // STALE_SUB_GRACE_SECONDS of the newest due sub) is folded into the
+      // current confirm batch instead of being silently auto-skipped.
+      // Only truly stale subs (older than the grace window) get auto-skipped.
+      const latestDueAbs = getSubTotalSeconds(dueSubs[0], halfDuration);
+      const recentlyMissed = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, halfDuration) <= STALE_SUB_GRACE_SECONDS
+      );
+      const trulyStale = olderSubs.filter(
+        s => latestDueAbs - getSubTotalSeconds(s, halfDuration) > STALE_SUB_GRACE_SECONDS
+      );
+
+      if (trulyStale.length > 0) {
+        const staleKeys = trulyStale.map(s => getSubKey(s));
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, staleKeys, true);
         activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
         savePitchState(activePitchState);
-        batchSubs = dueSubs;
       }
+
+      // Show recently-missed (oldest first) then the newest due batch.
+      const batchSubs = [
+        ...recentlyMissed.sort(
+          (a, b) => getSubTotalSeconds(a, halfDuration) - getSubTotalSeconds(b, halfDuration)
+        ),
+        ...dueSubs,
+      ];
 
       if (batchSubs.length === 0) return;
 
