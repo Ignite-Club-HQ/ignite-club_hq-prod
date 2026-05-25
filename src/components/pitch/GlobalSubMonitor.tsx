@@ -957,6 +957,7 @@ export default function GlobalSubMonitor() {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('game-state-changed', handleGameStateChanged);
       window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
+      window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
       appStateListener?.remove?.();
     };
   }, [checkForPendingSubs, checkForGameFinished, hasActiveGame, syncToDatabase]);
