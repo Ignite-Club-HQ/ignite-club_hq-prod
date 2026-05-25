@@ -39,31 +39,23 @@ export const getSubTotalSeconds = (
 ): number => (sub.half === 1 ? sub.time : halfDurationSeconds + sub.time);
 
 /**
- * Grace window (seconds): a missed sub is bundled into the current batch as
- * long as it's no more than this many seconds before the newest due sub.
- * Anything older is treated as stale and auto-skipped.
- *
- * Rationale: when a sub fires and the user is a minute or two late to confirm
- * (e.g. mid-play, tapping the push, app resume), we don't want the *next*
- * scheduled sub to silently auto-skip the previous one. Instead, both surface
- * as a single confirm batch so the coach can action them together.
+ * Grace window (seconds): a missed sub that's no more than this many seconds
+ * before the newest due sub is treated as still actionable, not stale.
+ * Callers use this to decide whether to bundle a slightly-late sub into the
+ * current confirm batch or auto-skip it as truly stale (e.g. game left
+ * running for ages, app resumed long after).
  */
 export const STALE_SUB_GRACE_SECONDS = 240;
 
 /**
  * Split all due substitutions into the newest due batch and any older overdue ones.
- *
- * Subs whose scheduled time is within `staleGraceSeconds` of the newest due
- * sub are bundled into `latestDueSubs` (presented to the user as a batch).
- * Only subs older than that window become `olderDueSubs` (auto-skipped as
- * truly stale — e.g. game left running for ages, tab resumed long after).
+ * This lets the app auto-skip stale groups and surface the latest actionable batch.
  */
 export const getDueSubGroups = (
   plan: SubstitutionEvent[],
   currentHalf: 1 | 2,
   currentElapsedSeconds: number,
-  halfDurationSeconds: number,
-  staleGraceSeconds: number = STALE_SUB_GRACE_SECONDS
+  halfDurationSeconds: number
 ): {
   latestDueSubs: SubstitutionEvent[];
   olderDueSubs: SubstitutionEvent[];
@@ -83,14 +75,13 @@ export const getDueSubGroups = (
   const latestDueTotalSeconds = Math.max(
     ...dueSubs.map(sub => getSubTotalSeconds(sub, halfDurationSeconds))
   );
-  const batchCutoff = latestDueTotalSeconds - Math.max(0, staleGraceSeconds);
 
   return {
     latestDueSubs: dueSubs.filter(
-      sub => getSubTotalSeconds(sub, halfDurationSeconds) >= batchCutoff
+      sub => getSubTotalSeconds(sub, halfDurationSeconds) === latestDueTotalSeconds
     ),
     olderDueSubs: dueSubs.filter(
-      sub => getSubTotalSeconds(sub, halfDurationSeconds) < batchCutoff
+      sub => getSubTotalSeconds(sub, halfDurationSeconds) < latestDueTotalSeconds
     ),
   };
 };
