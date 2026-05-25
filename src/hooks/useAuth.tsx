@@ -8,6 +8,8 @@ import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
+import { clearUserScopedCaches } from "@/lib/clearUserScopedCaches";
+
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
