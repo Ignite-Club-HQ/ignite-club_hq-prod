@@ -66,6 +66,15 @@ const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
 // background work on low-end Android WebViews while still keeping the inbox
 // reasonably fresh between realtime events / resume refetches.
 const INBOX_REFETCH_INTERVAL_MS = isNativeRuntime() ? 120000 : 30000;
+// Jitter polling intervals so the ~5 inbox queries don't fire as a single
+// burst every 30s (which caused render-storm + network burst). Each query
+// gets an independent ±15% offset, spreading network + re-render work across
+// a few seconds instead of landing simultaneously.
+const jitteredInboxInterval = () => {
+  const base = INBOX_REFETCH_INTERVAL_MS;
+  const jitter = base * 0.15;
+  return base + (Math.random() * 2 - 1) * jitter;
+};
 // Cap background prefetch fanout. Without a cap, /messages prefetches every
 // thread the user belongs to, which on Android WebView can stall the main
 // thread for seconds after navigating away.
@@ -268,7 +277,7 @@ export default function MessagesPage() {
     queryKey: ["unread-message-counts", user?.id],
     queryFn: async () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -443,7 +452,7 @@ export default function MessagesPage() {
     // freezes when returning to /messages because the N+1 cascade refired.
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.memberClubs
       ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} }
@@ -602,7 +611,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.teams
       ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
@@ -897,7 +906,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.chatGroups
       ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} }
@@ -1142,7 +1151,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
