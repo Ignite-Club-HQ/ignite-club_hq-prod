@@ -35,7 +35,7 @@ interface Props {
 
 const PARENT_ROLES = new Set(["parent", "team_admin", "coach"]);
 
-type Scope = "team" | "club";
+
 
 export default function AddPlayerToParentSheet({
   open,
@@ -52,7 +52,6 @@ export default function AddPlayerToParentSheet({
   const [search, setSearch] = useState("");
   const [childName, setChildName] = useState("");
   const [yearOfBirth, setYearOfBirth] = useState("");
-  const [scope, setScope] = useState<Scope>("team");
 
   const teamParents: ParentCandidate[] = useMemo(() => {
     const map = new Map<string, ParentCandidate>();
@@ -71,9 +70,7 @@ export default function AddPlayerToParentSheet({
         onThisTeam: true,
       });
     }
-    return [...map.values()].sort((a, b) =>
-      (a.display_name ?? "").localeCompare(b.display_name ?? "")
-    );
+    return [...map.values()];
   }, [rawMembers]);
 
   const { data: clubParents = [], isLoading: isClubParentsLoading } = useQuery({
@@ -83,35 +80,39 @@ export default function AddPlayerToParentSheet({
         p_team_id: teamId,
       });
       if (error) throw error;
-      const teamIds = new Set(teamParents.map((p) => p.user_id));
       return (data ?? []).map((row: any) => ({
         user_id: row.user_id as string,
         display_name: row.display_name as string | null,
         avatar_url: row.avatar_url as string | null,
         role: row.role as string,
-        onThisTeam: teamIds.has(row.user_id),
+        onThisTeam: false,
       })) as ParentCandidate[];
     },
-    enabled: open && scope === "club",
+    enabled: open,
     staleTime: 60_000,
   });
 
-  const sourceParents: ParentCandidate[] = scope === "team" ? teamParents : clubParents;
+  const allParents: ParentCandidate[] = useMemo(() => {
+    const teamIds = new Set(teamParents.map((p) => p.user_id));
+    const merged: ParentCandidate[] = [...teamParents];
+    for (const p of clubParents) {
+      if (!teamIds.has(p.user_id)) merged.push(p);
+    }
+    return merged;
+  }, [teamParents, clubParents]);
 
   const filteredParents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const sorted = [...sourceParents].sort((a, b) => {
-      // On-team first when in club scope so it's still familiar
-      if (scope === "club" && a.onThisTeam !== b.onThisTeam) {
-        return a.onThisTeam ? -1 : 1;
-      }
+    const sorted = [...allParents].sort((a, b) => {
+      if (a.onThisTeam !== b.onThisTeam) return a.onThisTeam ? -1 : 1;
       return (a.display_name ?? "").localeCompare(b.display_name ?? "");
     });
     if (!q) return sorted;
     return sorted.filter((p) =>
       (p.display_name ?? "").toLowerCase().includes(q)
     );
-  }, [sourceParents, search, scope]);
+  }, [allParents, search]);
+
 
   const selectedParent =
     teamParents.find((p) => p.user_id === selectedParentId) ??
@@ -123,8 +124,8 @@ export default function AddPlayerToParentSheet({
     setSearch("");
     setChildName("");
     setYearOfBirth("");
-    setScope("team");
   };
+
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -220,54 +221,27 @@ export default function AddPlayerToParentSheet({
               </div>
             ) : (
               <>
-                <div className="inline-flex rounded-lg border bg-muted/40 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setScope("team")}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
-                      scope === "team"
-                        ? "bg-background shadow-sm font-medium"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    On this team
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScope("club")}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
-                      scope === "club"
-                        ? "bg-background shadow-sm font-medium"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    Anywhere in club
-                  </button>
-                </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={
-                      scope === "team"
-                        ? "Search parents on this team…"
-                        : "Search parents across the club…"
-                    }
+                    placeholder="Search any parent in the club…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
                   />
                 </div>
-                <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
-                  {scope === "club" && isClubParentsLoading ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Includes parents on other teams in this club.
+                </p>
+                <div className="max-h-72 overflow-y-auto rounded-lg border divide-y">
+                  {isClubParentsLoading && allParents.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading club parents…
+                      Loading parents…
                     </div>
                   ) : filteredParents.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground text-center">
-                      {scope === "team"
-                        ? "No parents found on this team."
-                        : "No parents found in this club."}
+                      No parents found.
                     </div>
                   ) : (
                     filteredParents.map((p) => (
@@ -289,14 +263,20 @@ export default function AddPlayerToParentSheet({
                           </p>
                           <p className="text-[11px] text-muted-foreground">
                             {p.role.replace("_", " ")}
-                            {scope === "club" && !p.onThisTeam && " • not on this team"}
+                            {!p.onThisTeam && " • other team"}
                           </p>
                         </div>
+                        {!p.onThisTeam && (
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            Club
+                          </Badge>
+                        )}
                       </button>
                     ))
                   )}
                 </div>
               </>
+
             )}
           </div>
 
