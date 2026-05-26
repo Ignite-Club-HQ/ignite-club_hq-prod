@@ -1,17 +1,30 @@
 /**
- * Global fetch interceptor that retries Supabase data/storage requests once
- * after refreshing the session when they fail with 401 / JWT-expired.
+ * Global fetch interceptor for Supabase requests.
  *
- * Background: on iOS WKWebView and inside iframed previews, the supabase-js
- * `autoRefreshToken` timer can be throttled or its localStorage write can be
- * blocked, so the access token can lapse mid-session. Without this guard the
- * stale token causes RLS-scoped pages (Schedule, Media, Pro checks) to either
- * silently render empty or display a generic "couldn't verify" error.
+ * Two concerns, one wrapper:
+ *
+ * 1. AUTH RETRY — retries Supabase data/storage requests once after refreshing
+ *    the session when they fail with 401 / JWT-expired. On iOS WKWebView and
+ *    inside iframed previews, the supabase-js `autoRefreshToken` timer can be
+ *    throttled or its localStorage write can be blocked, so the access token
+ *    can lapse mid-session. Without this guard the stale token causes RLS-
+ *    scoped pages (Schedule, Media, Pro checks) to either silently render
+ *    empty or display a generic "couldn't verify" error.
+ *
+ * 2. READ TIMEOUT — aborts PostgREST GETs that hang past REST_GET_TIMEOUT_MS
+ *    so a dead socket on flaky mobile networks fails fast (and React Query
+ *    can retry via cache fallback) instead of stalling for ~60s until the
+ *    browser's own timeout kicks in. ONLY applied to PostgREST GETs:
+ *    - storage uploads, edge functions, mutations, and auth endpoints are
+ *      left untouched so we never abort a slow upload or long-running call.
  *
  * Triggered only for requests to the Supabase REST/storage/functions hosts —
  * never wraps unrelated fetches (auth/token endpoint included so we don't
  * recurse).
  */
+
+const REST_GET_TIMEOUT_MS = 15_000;
+
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,12 +58,38 @@ export function installSupabaseAuthRetry() {
       return origFetch(input, init);
     }
 
+    // --- READ TIMEOUT ---
+    // Apply an abort timeout to PostgREST GETs only. We never want to abort
+    // storage uploads, edge function calls (some are intentionally long-
+    // running), or write/RPC requests where retrying mid-flight could
+    // duplicate side effects.
+    const method = (init?.method || (input instanceof Request ? input.method : "GET") || "GET").toUpperCase();
+    const isRestGet = method === "GET" && url.includes("/rest/v1/");
+
+    let timeoutInit = init;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (isRestGet) {
+      const controller = new AbortController();
+      // If caller already passed a signal, chain it so their abort still works.
+      const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+      if (callerSignal) {
+        if (callerSignal.aborted) controller.abort();
+        else callerSignal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+      timeoutId = setTimeout(() => {
+        try { controller.abort(); } catch { /* ignore */ }
+      }, REST_GET_TIMEOUT_MS);
+      timeoutInit = { ...(init || {}), signal: controller.signal };
+    }
+
     let response: Response;
     try {
-      response = await origFetch(input, init);
+      response = await origFetch(input, timeoutInit);
     } catch (err) {
+      if (timeoutId !== null) clearTimeout(timeoutId);
       throw err;
     }
+    if (timeoutId !== null) clearTimeout(timeoutId);
 
     // Only retry once on auth-shaped failures.
     if (response.status !== 401 && response.status !== 403) {
@@ -62,6 +101,7 @@ export function installSupabaseAuthRetry() {
     // caller still gets the original body if we end up returning it.
     let isAuthShaped = response.status === 401;
     if (response.status === 403) {
+
       try {
         const clone = response.clone();
         const text = await clone.text();
