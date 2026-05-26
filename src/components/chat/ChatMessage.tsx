@@ -1013,7 +1013,7 @@ function ChatMessageInner({
           }}
           isOwn={isOwn}
           canReply={canReply}
-          canEdit={isOwn && !imageUrl}
+          canEdit={isOwn}
           canDelete={canDelete}
           isSystemMessage={isSystemMessage}
           messageText={text}
