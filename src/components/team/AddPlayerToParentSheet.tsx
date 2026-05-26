@@ -124,8 +124,8 @@ export default function AddPlayerToParentSheet({
     setSearch("");
     setChildName("");
     setYearOfBirth("");
-    setScope("team");
   };
+
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
