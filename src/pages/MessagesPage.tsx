@@ -66,6 +66,15 @@ const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
 // background work on low-end Android WebViews while still keeping the inbox
 // reasonably fresh between realtime events / resume refetches.
 const INBOX_REFETCH_INTERVAL_MS = isNativeRuntime() ? 120000 : 30000;
+// Jitter polling intervals so the ~5 inbox queries don't fire as a single
+// burst every 30s (which caused render-storm + network burst). Each query
+// gets an independent ±15% offset, spreading network + re-render work across
+// a few seconds instead of landing simultaneously.
+const jitteredInboxInterval = () => {
+  const base = INBOX_REFETCH_INTERVAL_MS;
+  const jitter = base * 0.15;
+  return base + (Math.random() * 2 - 1) * jitter;
+};
 // Cap background prefetch fanout. Without a cap, /messages prefetches every
 // thread the user belongs to, which on Android WebView can stall the main
 // thread for seconds after navigating away.
