@@ -35,7 +35,7 @@ interface Props {
 
 const PARENT_ROLES = new Set(["parent", "team_admin", "coach"]);
 
-type Scope = "team" | "club";
+
 
 export default function AddPlayerToParentSheet({
   open,
