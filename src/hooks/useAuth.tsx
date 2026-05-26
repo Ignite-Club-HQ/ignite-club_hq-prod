@@ -465,6 +465,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         currentUserIdRef.current = incomingUserId;
+        // Keep client-perf logger in sync so slow-query rows are attributed.
+        try {
+          // dynamic import to avoid a hard load-order dependency
+          import("@/lib/clientPerfLog").then(m => m.setClientPerfUserId(incomingUserId));
+        } catch { /* ignore */ }
         
         if (event === 'PASSWORD_RECOVERY') {
           // Recovery session: do NOT treat as a fresh login (no cache clear,
