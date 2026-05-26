@@ -394,7 +394,7 @@ export default function EventsPage() {
     [user?.id, filter, teamFilter, clubFilter]
   );
 
-  const { data: events, isLoading, isFetching } = useQuery({
+  const { data: events, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
