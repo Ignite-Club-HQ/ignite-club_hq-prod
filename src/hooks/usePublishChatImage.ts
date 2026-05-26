@@ -26,7 +26,9 @@ export function usePublishChatImage({ uploaderId, teamId, clubId }: UsePublishCh
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set());
 
-  const canPublish = !!uploaderId && (!!teamId || !!clubId);
+  // Gallery publishing is only available in team chats — club/group chats
+  // don't have a destination team gallery and shouldn't show the chip.
+  const canPublish = !!uploaderId && !!teamId;
 
   const undoPublish = useCallback(
     async (messageId: string, photoId: string) => {
