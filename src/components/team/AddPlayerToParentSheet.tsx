@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, UserPlus, Check } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Search, UserPlus } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ interface ParentCandidate {
   display_name: string | null;
   avatar_url: string | null;
   role: string;
+  onThisTeam: boolean;
 }
 
 interface Props {
@@ -34,6 +35,8 @@ interface Props {
 
 const PARENT_ROLES = new Set(["parent", "team_admin", "coach"]);
 
+type Scope = "team" | "club";
+
 export default function AddPlayerToParentSheet({
   open,
   onOpenChange,
@@ -49,14 +52,14 @@ export default function AddPlayerToParentSheet({
   const [search, setSearch] = useState("");
   const [childName, setChildName] = useState("");
   const [yearOfBirth, setYearOfBirth] = useState("");
+  const [scope, setScope] = useState<Scope>("team");
 
-  const parentCandidates: ParentCandidate[] = useMemo(() => {
+  const teamParents: ParentCandidate[] = useMemo(() => {
     const map = new Map<string, ParentCandidate>();
     for (const m of rawMembers) {
       if (!m.user_id || !PARENT_ROLES.has(m.role)) continue;
       const existing = map.get(m.user_id);
       if (existing) {
-        // Prefer "parent" role label over coach/team_admin if both present
         if (m.role === "parent") existing.role = "parent";
         continue;
       }
@@ -65,6 +68,7 @@ export default function AddPlayerToParentSheet({
         display_name: m.profiles?.display_name ?? null,
         avatar_url: m.profiles?.avatar_url ?? null,
         role: m.role,
+        onThisTeam: true,
       });
     }
     return [...map.values()].sort((a, b) =>
@@ -72,21 +76,54 @@ export default function AddPlayerToParentSheet({
     );
   }, [rawMembers]);
 
+  const { data: clubParents = [], isLoading: isClubParentsLoading } = useQuery({
+    queryKey: ["club-parents-for-team", teamId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_club_parents_for_team", {
+        p_team_id: teamId,
+      });
+      if (error) throw error;
+      const teamIds = new Set(teamParents.map((p) => p.user_id));
+      return (data ?? []).map((row: any) => ({
+        user_id: row.user_id as string,
+        display_name: row.display_name as string | null,
+        avatar_url: row.avatar_url as string | null,
+        role: row.role as string,
+        onThisTeam: teamIds.has(row.user_id),
+      })) as ParentCandidate[];
+    },
+    enabled: open && scope === "club",
+    staleTime: 60_000,
+  });
+
+  const sourceParents: ParentCandidate[] = scope === "team" ? teamParents : clubParents;
+
   const filteredParents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return parentCandidates;
-    return parentCandidates.filter((p) =>
+    const sorted = [...sourceParents].sort((a, b) => {
+      // On-team first when in club scope so it's still familiar
+      if (scope === "club" && a.onThisTeam !== b.onThisTeam) {
+        return a.onThisTeam ? -1 : 1;
+      }
+      return (a.display_name ?? "").localeCompare(b.display_name ?? "");
+    });
+    if (!q) return sorted;
+    return sorted.filter((p) =>
       (p.display_name ?? "").toLowerCase().includes(q)
     );
-  }, [parentCandidates, search]);
+  }, [sourceParents, search, scope]);
 
-  const selectedParent = parentCandidates.find((p) => p.user_id === selectedParentId) ?? null;
+  const selectedParent =
+    teamParents.find((p) => p.user_id === selectedParentId) ??
+    clubParents.find((p) => p.user_id === selectedParentId) ??
+    null;
 
   const reset = () => {
     setSelectedParentId(defaultParentUserId ?? null);
     setSearch("");
     setChildName("");
     setYearOfBirth("");
+    setScope("team");
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -138,14 +175,14 @@ export default function AddPlayerToParentSheet({
         <SheetHeader className="text-left">
           <SheetTitle>Add player</SheetTitle>
           <SheetDescription>
-            Add a new player to an existing parent on {teamName} — no invite needed.
+            Add a new player to an existing parent — no invite needed.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4 space-y-5">
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Parent on this team
+              Parent
             </Label>
             {selectedParent ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
@@ -160,9 +197,16 @@ export default function AddPlayerToParentSheet({
                     <p className="font-medium truncate">
                       {selectedParent.display_name ?? "Unnamed user"}
                     </p>
-                    <Badge variant="secondary" className="mt-0.5 text-[10px]">
-                      {selectedParent.role.replace("_", " ")}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selectedParent.role.replace("_", " ")}
+                      </Badge>
+                      {!selectedParent.onThisTeam && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Not on this team
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -176,19 +220,54 @@ export default function AddPlayerToParentSheet({
               </div>
             ) : (
               <>
+                <div className="inline-flex rounded-lg border bg-muted/40 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setScope("team")}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      scope === "team"
+                        ? "bg-background shadow-sm font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    On this team
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScope("club")}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      scope === "club"
+                        ? "bg-background shadow-sm font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    Anywhere in club
+                  </button>
+                </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search parents on this team…"
+                    placeholder={
+                      scope === "team"
+                        ? "Search parents on this team…"
+                        : "Search parents across the club…"
+                    }
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
                   />
                 </div>
                 <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
-                  {filteredParents.length === 0 ? (
+                  {scope === "club" && isClubParentsLoading ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading club parents…
+                    </div>
+                  ) : filteredParents.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground text-center">
-                      No parents found on this team.
+                      {scope === "team"
+                        ? "No parents found on this team."
+                        : "No parents found in this club."}
                     </div>
                   ) : (
                     filteredParents.map((p) => (
@@ -210,6 +289,7 @@ export default function AddPlayerToParentSheet({
                           </p>
                           <p className="text-[11px] text-muted-foreground">
                             {p.role.replace("_", " ")}
+                            {scope === "club" && !p.onThisTeam && " • not on this team"}
                           </p>
                         </div>
                       </button>
