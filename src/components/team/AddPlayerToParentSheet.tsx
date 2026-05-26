@@ -52,7 +52,6 @@ export default function AddPlayerToParentSheet({
   const [search, setSearch] = useState("");
   const [childName, setChildName] = useState("");
   const [yearOfBirth, setYearOfBirth] = useState("");
-  const [scope, setScope] = useState<Scope>("team");
 
   const teamParents: ParentCandidate[] = useMemo(() => {
     const map = new Map<string, ParentCandidate>();
@@ -71,9 +70,7 @@ export default function AddPlayerToParentSheet({
         onThisTeam: true,
       });
     }
-    return [...map.values()].sort((a, b) =>
-      (a.display_name ?? "").localeCompare(b.display_name ?? "")
-    );
+    return [...map.values()];
   }, [rawMembers]);
 
   const { data: clubParents = [], isLoading: isClubParentsLoading } = useQuery({
@@ -83,35 +80,39 @@ export default function AddPlayerToParentSheet({
         p_team_id: teamId,
       });
       if (error) throw error;
-      const teamIds = new Set(teamParents.map((p) => p.user_id));
       return (data ?? []).map((row: any) => ({
         user_id: row.user_id as string,
         display_name: row.display_name as string | null,
         avatar_url: row.avatar_url as string | null,
         role: row.role as string,
-        onThisTeam: teamIds.has(row.user_id),
+        onThisTeam: false,
       })) as ParentCandidate[];
     },
-    enabled: open && scope === "club",
+    enabled: open,
     staleTime: 60_000,
   });
 
-  const sourceParents: ParentCandidate[] = scope === "team" ? teamParents : clubParents;
+  const allParents: ParentCandidate[] = useMemo(() => {
+    const teamIds = new Set(teamParents.map((p) => p.user_id));
+    const merged: ParentCandidate[] = [...teamParents];
+    for (const p of clubParents) {
+      if (!teamIds.has(p.user_id)) merged.push(p);
+    }
+    return merged;
+  }, [teamParents, clubParents]);
 
   const filteredParents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const sorted = [...sourceParents].sort((a, b) => {
-      // On-team first when in club scope so it's still familiar
-      if (scope === "club" && a.onThisTeam !== b.onThisTeam) {
-        return a.onThisTeam ? -1 : 1;
-      }
+    const sorted = [...allParents].sort((a, b) => {
+      if (a.onThisTeam !== b.onThisTeam) return a.onThisTeam ? -1 : 1;
       return (a.display_name ?? "").localeCompare(b.display_name ?? "");
     });
     if (!q) return sorted;
     return sorted.filter((p) =>
       (p.display_name ?? "").toLowerCase().includes(q)
     );
-  }, [sourceParents, search, scope]);
+  }, [allParents, search]);
+
 
   const selectedParent =
     teamParents.find((p) => p.user_id === selectedParentId) ??
