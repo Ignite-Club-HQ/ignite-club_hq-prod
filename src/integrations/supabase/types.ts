@@ -1308,6 +1308,48 @@ export type Database = {
           },
         ]
       }
+      client_perf_log: {
+        Row: {
+          aborted: boolean
+          created_at: string
+          duration_ms: number
+          id: string
+          network_type: string | null
+          online: boolean
+          query_name: string
+          status: number | null
+          ua: string | null
+          url_path: string | null
+          user_id: string | null
+        }
+        Insert: {
+          aborted?: boolean
+          created_at?: string
+          duration_ms: number
+          id?: string
+          network_type?: string | null
+          online?: boolean
+          query_name: string
+          status?: number | null
+          ua?: string | null
+          url_path?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          aborted?: boolean
+          created_at?: string
+          duration_ms?: number
+          id?: string
+          network_type?: string | null
+          online?: boolean
+          query_name?: string
+          status?: number | null
+          ua?: string | null
+          url_path?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       club_admin_conversations: {
         Row: {
           club_id: string
@@ -10004,6 +10046,7 @@ export type Database = {
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
+      purge_old_client_perf_log: { Args: never; Returns: undefined }
       quick_rsvp_from_dm: {
         Args: { _event_id: string; _status: string }
         Returns: {

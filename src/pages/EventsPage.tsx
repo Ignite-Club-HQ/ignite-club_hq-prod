@@ -23,6 +23,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
+import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
@@ -394,7 +395,7 @@ export default function EventsPage() {
     [user?.id, filter, teamFilter, clubFilter]
   );
 
-  const { data: events, isLoading, isFetching } = useQuery({
+  const { data: events, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
@@ -818,6 +819,16 @@ export default function EventsPage() {
           </Button>
         </div>
       </div>
+
+      <QueryErrorBanner
+        hasError={eventsIsError}
+        onRetry={async () => {
+          await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
+        }}
+        message="Couldn't load schedule. Tap to retry."
+      />
+
+
 
       {/* Action sheet — primary "+" menu */}
       <Sheet open={createMenuOpen} onOpenChange={setCreateMenuOpen}>

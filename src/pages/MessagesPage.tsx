@@ -5,6 +5,7 @@ import { usePersistedFilter } from "@/lib/persistedFilter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2, Clock } from "lucide-react";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
+import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -348,7 +349,7 @@ export default function MessagesPage() {
   });
 
   // Fetch member clubs with their latest messages in a single query
-  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched } = useQuery({
+  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
@@ -495,7 +496,7 @@ export default function MessagesPage() {
 
 
   // Fetch teams with their latest messages in a single query for efficiency
-  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched } = useQuery({
+  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isError: teamsError } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     queryFn: async () => {
@@ -815,7 +816,7 @@ export default function MessagesPage() {
   });
 
   // Fetch chat groups with their latest messages in a single query
-  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched } = useQuery({
+  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1031,12 +1032,31 @@ export default function MessagesPage() {
       };
 
       const [profilesMap, messageMap] = await Promise.all([
-        // Use the global profile cache layer — returns cached/stale entries
-        // immediately and falls back to whatever is cached if the network
-        // fetch fails. This prevents the inbox from rendering "Unknown User"
-        // when the profiles SELECT is throttled, blocked by a transient RLS
-        // hiccup, or returns an empty row.
-        fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 }),
+        // Always fetch DM other-user profiles directly from the DB (bypassing
+        // the 24h profileCache) so display_name / avatar changes made by the
+        // other participant are reflected in the inbox on the next load.
+        // Falls back to whatever the global profile cache has if the network
+        // fetch fails or returns empty (handled by the layered fallbacks below).
+        (async () => {
+          try {
+            const { data } = await supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url")
+              .in("id", otherUserIds);
+            if (data && data.length) {
+              // Refresh the global profile cache so every other surface
+              // (chat rows, member lists, mention chips) picks up the new name.
+              cacheProfiles(data);
+            }
+            const map = new Map<string, { id: string; display_name: string | null; avatar_url: string | null; cached_at: number }>();
+            const now = Date.now();
+            (data ?? []).forEach((p) => map.set(p.id, { ...p, cached_at: now }));
+            return map;
+          } catch {
+            // Network/RLS hiccup — fall back to whatever the cache has.
+            return await fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 });
+          }
+        })(),
         fetchLatestMessages(),
       ]);
 
@@ -2659,6 +2679,17 @@ export default function MessagesPage() {
           </Button>
         </div>
       </div>
+
+      <QueryErrorBanner
+        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
+        onRetry={async () => {
+          await queryClient.refetchQueries({ type: "all", stale: false, predicate: (q) => q.state.status === "error" });
+        }}
+        message="Couldn't load chats. Tap to retry."
+      />
+
+
+
 
       {/* New message + group-type bottom sheets */}
       <NewMessageSheet

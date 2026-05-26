@@ -137,12 +137,24 @@ import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
 // cache-fallback branches (chat messages, schedule events, etc.) can return
 // cached data instead of React Query pausing the query indefinitely (which
 // would leave Schedule stuck on "loading" and chat threads blank).
+//
+// `retry: 1` + exponential backoff catches transient mobile-network blips
+// (paired with the 15s PostgREST GET abort in supabaseAuthRetry.ts). One
+// silent retry, then surface the error so cached data / retry UI can show.
+// `refetchOnReconnect: true` so the moment Capacitor Network reports the
+// device back online we re-pull stale chat/events lists automatically.
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { networkMode: "offlineFirst" },
+    queries: {
+      networkMode: "offlineFirst",
+      retry: 1,
+      retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 8000),
+      refetchOnReconnect: true,
+    },
     mutations: { networkMode: "offlineFirst" },
   },
 });
+
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter();
