@@ -1031,12 +1031,31 @@ export default function MessagesPage() {
       };
 
       const [profilesMap, messageMap] = await Promise.all([
-        // Use the global profile cache layer — returns cached/stale entries
-        // immediately and falls back to whatever is cached if the network
-        // fetch fails. This prevents the inbox from rendering "Unknown User"
-        // when the profiles SELECT is throttled, blocked by a transient RLS
-        // hiccup, or returns an empty row.
-        fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 }),
+        // Always fetch DM other-user profiles directly from the DB (bypassing
+        // the 24h profileCache) so display_name / avatar changes made by the
+        // other participant are reflected in the inbox on the next load.
+        // Falls back to whatever the global profile cache has if the network
+        // fetch fails or returns empty (handled by the layered fallbacks below).
+        (async () => {
+          try {
+            const { data } = await supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url")
+              .in("id", otherUserIds);
+            if (data && data.length) {
+              // Refresh the global profile cache so every other surface
+              // (chat rows, member lists, mention chips) picks up the new name.
+              cacheProfiles(data);
+            }
+            const map = new Map<string, { id: string; display_name: string | null; avatar_url: string | null; cached_at: number }>();
+            const now = Date.now();
+            (data ?? []).forEach((p) => map.set(p.id, { ...p, cached_at: now }));
+            return map;
+          } catch {
+            // Network/RLS hiccup — fall back to whatever the cache has.
+            return await fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 });
+          }
+        })(),
         fetchLatestMessages(),
       ]);
 
