@@ -277,7 +277,7 @@ export default function MessagesPage() {
     queryKey: ["unread-message-counts", user?.id],
     queryFn: async () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -452,7 +452,7 @@ export default function MessagesPage() {
     // freezes when returning to /messages because the N+1 cascade refired.
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.memberClubs
       ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} }
@@ -611,7 +611,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.teams
       ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
@@ -906,7 +906,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.chatGroups
       ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} }
@@ -1151,7 +1151,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
