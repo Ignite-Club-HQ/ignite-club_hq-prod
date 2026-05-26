@@ -2680,6 +2680,21 @@ export default function MessagesPage() {
         </div>
       </div>
 
+      <QueryErrorBanner
+        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
+        onRetry={async () => {
+          await queryClient.refetchQueries({
+            predicate: (q) => {
+              const k0 = q.queryKey?.[0] as string | undefined;
+              return k0 === "messages-page-teams" || k0 === "messages-page-member-clubs" || k0 === "messages-page-chat-groups" || k0 === "teams-with-messages" || k0 === "member-clubs-with-messages" || k0 === "chat-groups-with-messages";
+            },
+          });
+        }}
+        message="Couldn't load chats. Tap to retry."
+      />
+
+
+
       {/* New message + group-type bottom sheets */}
       <NewMessageSheet
         open={showNewMessageSheet}
