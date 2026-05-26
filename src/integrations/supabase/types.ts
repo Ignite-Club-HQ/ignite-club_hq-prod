@@ -9875,6 +9875,15 @@ export type Database = {
         Returns: boolean
       }
       join_open_chat_group: { Args: { _group_id: string }; Returns: string }
+      list_club_parents_for_team: {
+        Args: { p_team_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          role: string
+          user_id: string
+        }[]
+      }
       list_leaderboard_teams: {
         Args: { _club_id: string }
         Returns: {

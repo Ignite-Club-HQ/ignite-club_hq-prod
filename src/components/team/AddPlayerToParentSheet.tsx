@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, UserPlus, Check } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Search, UserPlus } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ interface ParentCandidate {
   display_name: string | null;
   avatar_url: string | null;
   role: string;
+  onThisTeam: boolean;
 }
 
 interface Props {
@@ -34,6 +35,8 @@ interface Props {
 
 const PARENT_ROLES = new Set(["parent", "team_admin", "coach"]);
 
+
+
 export default function AddPlayerToParentSheet({
   open,
   onOpenChange,
@@ -50,13 +53,12 @@ export default function AddPlayerToParentSheet({
   const [childName, setChildName] = useState("");
   const [yearOfBirth, setYearOfBirth] = useState("");
 
-  const parentCandidates: ParentCandidate[] = useMemo(() => {
+  const teamParents: ParentCandidate[] = useMemo(() => {
     const map = new Map<string, ParentCandidate>();
     for (const m of rawMembers) {
       if (!m.user_id || !PARENT_ROLES.has(m.role)) continue;
       const existing = map.get(m.user_id);
       if (existing) {
-        // Prefer "parent" role label over coach/team_admin if both present
         if (m.role === "parent") existing.role = "parent";
         continue;
       }
@@ -65,22 +67,57 @@ export default function AddPlayerToParentSheet({
         display_name: m.profiles?.display_name ?? null,
         avatar_url: m.profiles?.avatar_url ?? null,
         role: m.role,
+        onThisTeam: true,
       });
     }
-    return [...map.values()].sort((a, b) =>
-      (a.display_name ?? "").localeCompare(b.display_name ?? "")
-    );
+    return [...map.values()];
   }, [rawMembers]);
+
+  const { data: clubParents = [], isLoading: isClubParentsLoading } = useQuery({
+    queryKey: ["club-parents-for-team", teamId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_club_parents_for_team", {
+        p_team_id: teamId,
+      });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        user_id: row.user_id as string,
+        display_name: row.display_name as string | null,
+        avatar_url: row.avatar_url as string | null,
+        role: row.role as string,
+        onThisTeam: false,
+      })) as ParentCandidate[];
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const allParents: ParentCandidate[] = useMemo(() => {
+    const teamIds = new Set(teamParents.map((p) => p.user_id));
+    const merged: ParentCandidate[] = [...teamParents];
+    for (const p of clubParents) {
+      if (!teamIds.has(p.user_id)) merged.push(p);
+    }
+    return merged;
+  }, [teamParents, clubParents]);
 
   const filteredParents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return parentCandidates;
-    return parentCandidates.filter((p) =>
+    const sorted = [...allParents].sort((a, b) => {
+      if (a.onThisTeam !== b.onThisTeam) return a.onThisTeam ? -1 : 1;
+      return (a.display_name ?? "").localeCompare(b.display_name ?? "");
+    });
+    if (!q) return sorted;
+    return sorted.filter((p) =>
       (p.display_name ?? "").toLowerCase().includes(q)
     );
-  }, [parentCandidates, search]);
+  }, [allParents, search]);
 
-  const selectedParent = parentCandidates.find((p) => p.user_id === selectedParentId) ?? null;
+
+  const selectedParent =
+    teamParents.find((p) => p.user_id === selectedParentId) ??
+    clubParents.find((p) => p.user_id === selectedParentId) ??
+    null;
 
   const reset = () => {
     setSelectedParentId(defaultParentUserId ?? null);
@@ -88,6 +125,7 @@ export default function AddPlayerToParentSheet({
     setChildName("");
     setYearOfBirth("");
   };
+
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -138,14 +176,14 @@ export default function AddPlayerToParentSheet({
         <SheetHeader className="text-left">
           <SheetTitle>Add player</SheetTitle>
           <SheetDescription>
-            Add a new player to an existing parent on {teamName} — no invite needed.
+            Add a new player to an existing parent — no invite needed.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-4 space-y-5">
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Parent on this team
+              Parent
             </Label>
             {selectedParent ? (
               <div className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
@@ -160,9 +198,16 @@ export default function AddPlayerToParentSheet({
                     <p className="font-medium truncate">
                       {selectedParent.display_name ?? "Unnamed user"}
                     </p>
-                    <Badge variant="secondary" className="mt-0.5 text-[10px]">
-                      {selectedParent.role.replace("_", " ")}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selectedParent.role.replace("_", " ")}
+                      </Badge>
+                      {!selectedParent.onThisTeam && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Not on this team
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -179,16 +224,24 @@ export default function AddPlayerToParentSheet({
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search parents on this team…"
+                    placeholder="Search any parent in the club…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
                   />
                 </div>
-                <div className="max-h-60 overflow-y-auto rounded-lg border divide-y">
-                  {filteredParents.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Includes parents on other teams in this club.
+                </p>
+                <div className="max-h-72 overflow-y-auto rounded-lg border divide-y">
+                  {isClubParentsLoading && allParents.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading parents…
+                    </div>
+                  ) : filteredParents.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground text-center">
-                      No parents found on this team.
+                      No parents found.
                     </div>
                   ) : (
                     filteredParents.map((p) => (
@@ -210,13 +263,20 @@ export default function AddPlayerToParentSheet({
                           </p>
                           <p className="text-[11px] text-muted-foreground">
                             {p.role.replace("_", " ")}
+                            {!p.onThisTeam && " • other team"}
                           </p>
                         </div>
+                        {!p.onThisTeam && (
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            Club
+                          </Badge>
+                        )}
                       </button>
                     ))
                   )}
                 </div>
               </>
+
             )}
           </div>
 
