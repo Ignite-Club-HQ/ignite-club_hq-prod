@@ -23,6 +23,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
+import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
