@@ -84,13 +84,21 @@ export function installSupabaseAuthRetry() {
     }
 
     let response: Response;
+    const startedAt = isRestGet ? performance.now() : 0;
     try {
       response = await origFetch(input, timeoutInit);
     } catch (err) {
       if (timeoutId !== null) clearTimeout(timeoutId);
+      if (isRestGet) {
+        const aborted = (err as any)?.name === "AbortError";
+        maybeLogSlowFetch({ url, durationMs: performance.now() - startedAt, status: null, aborted });
+      }
       throw err;
     }
     if (timeoutId !== null) clearTimeout(timeoutId);
+    if (isRestGet) {
+      maybeLogSlowFetch({ url, durationMs: performance.now() - startedAt, status: response.status, aborted: false });
+    }
 
     // Only retry once on auth-shaped failures.
     if (response.status !== 401 && response.status !== 403) {
