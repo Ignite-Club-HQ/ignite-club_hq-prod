@@ -820,6 +820,16 @@ export default function EventsPage() {
         </div>
       </div>
 
+      <QueryErrorBanner
+        hasError={eventsIsError}
+        onRetry={async () => {
+          await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
+        }}
+        message="Couldn't load schedule. Tap to retry."
+      />
+
+
+
       {/* Action sheet — primary "+" menu */}
       <Sheet open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl pb-8">
