@@ -2670,7 +2670,7 @@ export default function MessagesPage() {
                       .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
                       .sort((a, b) => a.localeCompare(b));
                     const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
-                    const showAdminInbox = typeFilter === 'all' || typeFilter === 'groups';
+                    const showAdminInbox = true;
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
