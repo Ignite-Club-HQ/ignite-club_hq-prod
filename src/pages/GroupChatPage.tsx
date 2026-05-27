@@ -1924,6 +1924,7 @@ export default function GroupChatPage() {
                     isPublishingToGallery={galleryPublishingIds.has(msg.id)}
                     isPublishedToGallery={galleryPublishedIds.has(msg.id)}
                     onPublishToGallery={handlePublishToGallery}
+                    allowForwarding={group?.allow_forwarding !== false}
                   />
                 </>
               );
