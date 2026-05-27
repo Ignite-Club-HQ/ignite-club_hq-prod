@@ -75,6 +75,9 @@ interface DirectMessage {
   author_id: string;
   conversation_id: string;
   reply_to_id: string | null;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   author?: {
     display_name: string | null;
     avatar_url: string | null;
