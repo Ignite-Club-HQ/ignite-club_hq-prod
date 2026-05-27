@@ -188,7 +188,7 @@ export function ForwardMessageSheet({
               })}
             </ul>
           )}
-        </ScrollArea>
+        </div>
 
         <div className="border-t border-border bg-background px-5 py-3 pb-safe shrink-0">
           <div className="flex items-center justify-between gap-3">
