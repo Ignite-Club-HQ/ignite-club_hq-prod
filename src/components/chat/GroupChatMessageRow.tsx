@@ -2,7 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Reply, Clock, Check, ImagePlus, Loader2 } from "lucide-react";
+import { Reply, Clock, Check, ImagePlus, Loader2, Forward } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
