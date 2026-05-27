@@ -14,7 +14,7 @@ interface ClubAdminInboxListProps {
   withSectionHeader?: boolean;
 }
 
-interface ConversationRow {
+export interface ClubAdminConversationRow {
   id: string;
   club_id: string;
   member_user_id: string;
@@ -26,6 +26,93 @@ interface ConversationRow {
   last_text: string | null;
   last_image: string | null;
   last_created_at: string | null;
+  last_author_id: string | null;
+}
+
+export const clubAdminInboxQueryKey = (userId?: string | null, clubFilter?: string | null) => [
+  "club-admin-inbox",
+  userId,
+  clubFilter ?? null,
+] as const;
+
+export async function fetchClubAdminConversations(userId: string, clubFilter?: string | null): Promise<ClubAdminConversationRow[]> {
+  // Clubs where this user is a club_admin
+  const { data: adminRoles } = await supabase
+    .from("user_roles")
+    .select("club_id")
+    .eq("user_id", userId)
+    .eq("role", "club_admin");
+
+  const adminClubIds = [
+    ...new Set((adminRoles || []).map((r) => r.club_id).filter(Boolean) as string[]),
+  ];
+  const filtered = clubFilter ? adminClubIds.filter((id) => id === clubFilter) : adminClubIds;
+  if (filtered.length === 0) return [];
+
+  const { data: convs } = await supabase
+    .from("club_admin_conversations")
+    .select("id, club_id, member_user_id, updated_at")
+    .in("club_id", filtered)
+    .order("updated_at", { ascending: false });
+
+  if (!convs?.length) return [];
+
+  const clubIds = [...new Set(convs.map((c) => c.club_id))];
+  const memberIds = [...new Set(convs.map((c) => c.member_user_id))];
+  const convIds = convs.map((c) => c.id);
+
+  const sb = supabase as any;
+  const [clubsRes, profilesRes, msgsRes] = await Promise.all([
+    sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
+    sb.from("profiles").select("id, display_name, avatar_url").in("id", memberIds),
+    sb
+      .from("club_admin_messages")
+      .select("conversation_id, author_id, text, image_url, created_at")
+      .in("conversation_id", convIds)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
+  const profileMap = new Map(
+    (profilesRes.data || []).map((p: any) => [p.id, p]),
+  );
+  const latestByConv = new Map<string, any>();
+  for (const m of msgsRes.data || []) {
+    if (!latestByConv.has(m.conversation_id)) {
+      latestByConv.set(m.conversation_id, m);
+    }
+  }
+
+  const rows = convs.flatMap((c) => {
+    const last = latestByConv.get(c.id);
+    // Hide empty conversations — only show threads where a member has actually messaged
+    if (!last) return [];
+    const club = clubMap.get(c.club_id) as any;
+    const profile = profileMap.get(c.member_user_id) as any;
+    return [{
+      id: c.id,
+      club_id: c.club_id,
+      member_user_id: c.member_user_id,
+      updated_at: c.updated_at,
+      club_name: club?.name || "Club",
+      club_logo: club?.logo_url || null,
+      member_name: profile?.display_name || "Member",
+      member_avatar: profile?.avatar_url || null,
+      last_text: last?.text ?? null,
+      last_image: last?.image_url ?? null,
+      last_created_at: last?.created_at ?? c.updated_at,
+      last_author_id: last?.author_id ?? null,
+    }];
+  });
+
+  // Sort by most recent message activity (admin replies bump the thread to top)
+  rows.sort((a, b) => {
+    const ta = new Date(a.last_created_at || a.updated_at).getTime();
+    const tb = new Date(b.last_created_at || b.updated_at).getTime();
+    return tb - ta;
+  });
+  return rows;
 }
 
 /**
@@ -38,87 +125,11 @@ export default function ClubAdminInboxList({ clubFilter, withSectionHeader = fal
   const navigate = useNavigate();
 
   const { data: conversations } = useQuery({
-    queryKey: ["club-admin-inbox", user?.id, clubFilter],
+    queryKey: clubAdminInboxQueryKey(user?.id, clubFilter),
     enabled: !!user,
-    staleTime: 60 * 1000,
-    queryFn: async (): Promise<ConversationRow[]> => {
-      // Clubs where this user is a club_admin
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .eq("role", "club_admin");
-
-      const adminClubIds = [
-        ...new Set((adminRoles || []).map((r) => r.club_id).filter(Boolean) as string[]),
-      ];
-      const filtered = clubFilter ? adminClubIds.filter((id) => id === clubFilter) : adminClubIds;
-      if (filtered.length === 0) return [];
-
-      const { data: convs } = await supabase
-        .from("club_admin_conversations")
-        .select("id, club_id, member_user_id, updated_at")
-        .in("club_id", filtered)
-        .order("updated_at", { ascending: false });
-
-      if (!convs?.length) return [];
-
-      const clubIds = [...new Set(convs.map((c) => c.club_id))];
-      const memberIds = [...new Set(convs.map((c) => c.member_user_id))];
-      const convIds = convs.map((c) => c.id);
-
-      const sb = supabase as any;
-      const [clubsRes, profilesRes, msgsRes] = await Promise.all([
-        sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
-        sb.from("profiles").select("id, display_name, avatar_url").in("id", memberIds),
-        sb
-          .from("club_admin_messages")
-          .select("conversation_id, text, image_url, created_at")
-          .in("conversation_id", convIds)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
-      const profileMap = new Map(
-        (profilesRes.data || []).map((p: any) => [p.id, p]),
-      );
-      const latestByConv = new Map<string, any>();
-      for (const m of msgsRes.data || []) {
-        if (!latestByConv.has(m.conversation_id)) {
-          latestByConv.set(m.conversation_id, m);
-        }
-      }
-
-      const rows = convs.flatMap((c) => {
-        const last = latestByConv.get(c.id);
-        // Hide empty conversations — only show threads where a member has actually messaged
-        if (!last) return [];
-        const club = clubMap.get(c.club_id) as any;
-        const profile = profileMap.get(c.member_user_id) as any;
-        return [{
-          id: c.id,
-          club_id: c.club_id,
-          member_user_id: c.member_user_id,
-          updated_at: c.updated_at,
-          club_name: club?.name || "Club",
-          club_logo: club?.logo_url || null,
-          member_name: profile?.display_name || "Member",
-          member_avatar: profile?.avatar_url || null,
-          last_text: last?.text ?? null,
-          last_image: last?.image_url ?? null,
-          last_created_at: last?.created_at ?? c.updated_at,
-        }];
-      });
-
-      // Sort by most recent message activity (admin replies bump the thread to top)
-      rows.sort((a, b) => {
-        const ta = new Date(a.last_created_at || a.updated_at).getTime();
-        const tb = new Date(b.last_created_at || b.updated_at).getTime();
-        return tb - ta;
-      });
-      return rows;
-    },
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    queryFn: () => fetchClubAdminConversations(user!.id, clubFilter),
   });
 
   if (!conversations?.length) return null;
