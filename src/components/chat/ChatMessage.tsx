@@ -1037,6 +1037,27 @@ function ChatMessageInner({
           onPublishToGallery={
             onPublishToGallery && imageUrl ? () => onPublishToGallery(id, imageUrl) : undefined
           }
+          canForward={!isSystemMessage && !isPendingMessage}
+          onForward={() => setShowForwardSheet(true)}
+        />
+        <ForwardMessageSheet
+          open={showForwardSheet}
+          onOpenChange={setShowForwardSheet}
+          source={{
+            text: text ?? "",
+            imageUrl: imageUrl ?? null,
+            authorId,
+            sourceLabel:
+              messageType === "team"
+                ? "Team chat"
+                : messageType === "club"
+                  ? "Club chat"
+                  : messageType === "dm"
+                    ? "Direct message"
+                    : messageType === "broadcast"
+                      ? "Broadcast"
+                      : null,
+          }}
         />
         {/* Fullscreen image viewer triggered from action sheet */}
         {showFullscreenImage && imageUrl && (
