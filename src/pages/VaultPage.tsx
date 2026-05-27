@@ -3673,12 +3673,10 @@ export default function VaultPage() {
                           <FolderPlus className="h-4 w-4 mr-2" />
                           New Folder
                         </DropdownMenuItem>
-                        {Capacitor.getPlatform() !== 'ios' && (
-                          <DropdownMenuItem onClick={() => setAddLinkDialogOpen(true)}>
-                            <Link2 className="h-4 w-4 mr-2" />
-                            Add Link
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onClick={() => setAddLinkDialogOpen(true)}>
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Add Link
+                        </DropdownMenuItem>
                         {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
