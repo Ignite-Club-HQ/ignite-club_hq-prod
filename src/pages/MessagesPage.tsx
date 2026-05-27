@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
@@ -2670,18 +2670,28 @@ export default function MessagesPage() {
                       .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
                       .sort((a, b) => a.localeCompare(b));
                     const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
+                    const showAdminInbox = true;
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
-                          <div key={section} className={idx === 0 ? '' : 'pt-3'}>
-                            <div className="flex items-center gap-2 pb-1.5">
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                                {section}
-                              </span>
+                          <Fragment key={section}>
+                            {section === 'Custom Groups' && showAdminInbox && (
+                              <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
+                            )}
+                            <div className={idx === 0 ? '' : 'pt-3'}>
+                              <div className="flex items-center gap-2 pb-1.5">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                                  {section}
+                                </span>
+                              </div>
+                              {buckets[section].map(renderConversationCard)}
                             </div>
-                            {buckets[section].map(renderConversationCard)}
-                          </div>
+                          </Fragment>
                         ))}
+                        {/* If there is no Custom Groups bucket, still show Admin Groups at the end of the built-in groups */}
+                        {showAdminInbox && !orderedSections.includes('Custom Groups') && (
+                          <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
+                        )}
                       </>
                     );
                   })()}
@@ -2724,8 +2734,9 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Incoming "Contact Club Admin" threads for club admins — shown as a dedicated "Admin Groups" section under the Groups tab */}
-        {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
+        {/* Incoming "Contact Club Admin" threads — rendered here for non-group tabs.
+            On the Groups tab the inbox is injected above "Custom Groups" inside the sectioned list. */}
+        {!showSkeletonLoading && typeFilter !== 'groups' && (
           <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
         )}
 
