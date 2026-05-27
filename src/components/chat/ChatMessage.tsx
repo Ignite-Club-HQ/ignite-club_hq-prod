@@ -918,6 +918,19 @@ function ChatMessageInner({
               onContextMenu={(e) => e.preventDefault()}
               onDragStart={(e) => e.preventDefault()}
             >
+              {forwardedFromUserId && (
+                <div
+                  className={`flex items-center gap-1 text-[11px] italic mb-1 ${
+                    isOwn && !isClubAnnouncement ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"
+                  }`}
+                >
+                  <Forward className="h-3 w-3 shrink-0" />
+                  <span className="truncate">
+                    Forwarded{forwardedFromName ? ` from ${forwardedFromName}` : ""}
+                    {forwardedSourceLabel ? ` · ${forwardedSourceLabel}` : ""}
+                  </span>
+                </div>
+              )}
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
                   text={displayText} 
