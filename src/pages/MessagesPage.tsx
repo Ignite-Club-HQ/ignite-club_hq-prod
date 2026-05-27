@@ -33,6 +33,8 @@ import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
+import { MessagePreview } from "@/components/chat/MessagePreview";
+import { ConversationRow } from "@/components/chat/ConversationRow";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,53 +154,8 @@ const abbreviateClubName = (name: string): string => {
 // fake names like "Casey Walker" when profiles weren't loaded yet.
 // Now we show empty string until the real profile is fetched.
 
-// Component for message preview with optional image thumbnail
-const MessagePreview = ({ 
-  text, 
-  imageUrl, 
-  author, 
-  hasUnread, 
-  fallback,
-  isAnnouncement,
-  eventTitles,
-  vaultFolderNames,
-  vaultFileNames,
-}: { 
-  text?: string; 
-  imageUrl?: string | null; 
-  author?: string;
-  hasUnread?: boolean;
-  fallback: string;
-  isAnnouncement?: boolean;
-  eventTitles?: Record<string, string>;
-  vaultFolderNames?: Record<string, string>;
-  vaultFileNames?: Record<string, string>;
-}) => {
-  const hasText = text && text.trim();
-  const isImageOnly = !hasText && imageUrl;
-  const hasTextAndImage = hasText && imageUrl;
-  
-  // Strip mention formatting (and resolve event/vault names) from text for preview
-  const displayText = hasText
-    ? stripMentionFormatting(text!, { eventTitles, vaultFolderNames, vaultFileNames })
-    : null;
-  
-  if (!hasText && !imageUrl && !author) {
-    return <span className="text-muted-foreground">No messages yet</span>;
-  }
-  
-  const systemReminder = isSystemReminderText(text);
-
-  return (
-    <span className={`line-clamp-2 ${systemReminder ? 'italic text-muted-foreground/80' : ''}`}>
-      {(isImageOnly || hasTextAndImage) && (
-        <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
-      )}
-      {author && !systemReminder && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
-      {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
-    </span>
-  );
-};
+// MessagePreview lives in its own module so the memoized ConversationRow can
+// share the exact same render path. See: components/chat/MessagePreview.tsx
 
 interface Team {
   id: string;
@@ -2276,333 +2233,34 @@ export default function MessagesPage() {
     dm: 'DM',
   };
 
-  // Render a unified conversation card
+  // Stable hide-callbacks so memoized rows don't invalidate on parent re-renders.
+  const hideDMRef = useRef(hideDMMutation);
+  hideDMRef.current = hideDMMutation;
+  const hideGroupRef = useRef(hideGroupMutation);
+  hideGroupRef.current = hideGroupMutation;
+  const onHideDM = useMemo(() => (id: string) => hideDMRef.current.mutate(id), []);
+  const onHideGroup = useMemo(() => (id: string) => hideGroupRef.current.mutate(id), []);
+
+  // Render a unified conversation card — thin wrapper around the memoized
+  // ConversationRow component. Keeping the function preserves all existing
+  // call sites; the actual render path is memoized per-item so unrelated
+  // inbox refreshes (polling, realtime ticks) no longer re-render every row.
   const renderConversationCard = (item: UnifiedConversation) => {
-    const hasUnread = item.unreadCount > 0;
     const typeLabel = typeLabels[item.type];
-
-    // Broadcast card
-    if (item.type === 'broadcast') {
-      return (
-        <Link key={item.key} to={item.link}>
-          <Card className="hover:border-primary/50 transition-colors bg-primary/5">
-            <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <div className="shrink-0">
-                <ConversationAvatar type="broadcast" name="Announcements" className="h-9 w-9" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-1">
-                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {item.lastMessage?.created_at && (
-                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
-                    )}
-                    {hasUnread && (
-                      <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                        {item.unreadCount > 9 ? "9+" : item.unreadCount}
-                      </span>
-                    )}
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </div>
-                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  {item.draftText ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="font-semibold text-destructive">Draft:</span>
-                      <span className="truncate">{item.draftText}</span>
-                    </span>
-                  ) : (
-                    <MessagePreview
-                      text={item.lastMessage?.text}
-                      imageUrl={item.lastMessage?.image_url}
-                      author={item.lastMessage?.author}
-                      hasUnread={hasUnread}
-                      fallback="Official announcements and updates"
-                      eventTitles={eventTitleMap}
-                      vaultFolderNames={vaultFolderNameMap}
-                      vaultFileNames={vaultFileNameMap}
-                    />
-                  )}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      );
-    }
-
-    // Support card (Ignite Support system message)
-    if (item.type === 'support') {
-      return (
-        <Link key={item.key} to={item.link}>
-          <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
-            <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-1">
-                  <h3 className="truncate text-[15px] leading-tight font-semibold">Ignite Support</h3>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {item.lastMessage?.created_at && (
-                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
-                    )}
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </div>
-                <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
-                  {item.lastMessage?.text || "Welcome message"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      );
-    }
-
-    // Locked club card
-    if (item.type === 'club' && item.isLocked) {
-      return (
-        <Link key={item.key} to={item.link}>
-          <Card className="opacity-70 hover:border-primary/50 transition-colors">
-            <CardContent className="py-3 px-2.5 flex items-center gap-2">
-              <div className="relative">
-                <Avatar className="h-10 w-10 grayscale">
-                  <AvatarImage src={item.avatarUrl || undefined} />
-                  <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                    {item.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-muted flex items-center justify-center border-2 border-background">
-                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="truncate font-semibold text-muted-foreground text-sm">{item.name}</h3>
-                  <Badge variant="secondary" className="gap-1 text-[10px] shrink-0 px-1.5 py-0">
-                    <Crown className="h-2.5 w-2.5" />
-                    Pro
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  Club Pro required for club-wide chat
-                </p>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            </CardContent>
-          </Card>
-        </Link>
-      );
-    }
-
-    // DM card
-    if (item.type === 'dm') {
-      const conv = item.dmData;
-      const isOwn = conv?.last_message?.author_id === user?.id;
-      const isSupport = isIgniteSupportUser(conv?.other_user?.id);
-      
-      const dmCard = (
-        <Link key={item.key} to={item.link}>
-          <Card className="hover:border-primary/50 transition-colors">
-            <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <div className="shrink-0">
-                {isSupport ? (
-                  <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
-                ) : (
-                  <ConversationAvatar type="dm" name={item.name} avatarUrl={conv?.other_user?.avatar_url} className="h-9 w-9" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>
-                      {item.name}
-                    </h3>
-                    {typeLabel && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
-                        {typeLabel}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {item.lastMessage?.created_at && (
-                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
-                    )}
-                    {hasUnread && (
-                      <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                        {item.unreadCount > 9 ? "9+" : item.unreadCount}
-                      </span>
-                    )}
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </div>
-                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                  {item.draftText ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="font-semibold text-destructive">Draft:</span>
-                      <span className="truncate">{item.draftText}</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      {isOwn && <span className="text-muted-foreground">You:</span>}
-                      {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                      <span className="truncate">
-                        {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) :
-                         conv?.last_message?.image_url ? "Image" : "Start a conversation"}
-                      </span>
-                    </span>
-                  )}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      );
-
-      if (!item.canHide) return dmCard;
-      return (
-        <ContextMenu key={item.key}>
-          <ContextMenuTrigger asChild>{dmCard}</ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => hideDMMutation.mutate(item.id)}>
-              <EyeOff className="h-4 w-4 mr-2" />
-              Hide conversation
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      );
-    }
-
-    // Group/League card
-    if (item.type === 'group' || item.type === 'league') {
-      const groupCard = (
-        <Card
-          key={item.key}
-          className="hover:border-primary/50 transition-colors cursor-pointer"
-          style={typeAccentStyle(item.type)}
-          onClick={() => navigate(item.link)}
-          tabIndex={0}
-          role="link"
-        >
-          <CardContent className="py-[18px] px-3 flex items-center gap-3">
-            <div className="shrink-0">
-              <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} category={item.category} className="h-9 w-9" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
-                  {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
-                  {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
-                      {typeLabel}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {item.lastMessage?.created_at && (
-                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
-                  )}
-                  {hasUnread && (
-                    <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                      {item.unreadCount > 9 ? "9+" : item.unreadCount}
-                    </span>
-                  )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                {item.draftText ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="font-semibold text-destructive">Draft:</span>
-                    <span className="truncate">{item.draftText}</span>
-                  </span>
-                ) : (
-                  <MessagePreview
-                    text={item.lastMessage?.text}
-                    imageUrl={item.lastMessage?.image_url}
-                    author={item.lastMessage?.author}
-                    hasUnread={hasUnread}
-                    fallback="No messages yet"
-                    eventTitles={eventTitleMap}
-                    vaultFolderNames={vaultFolderNameMap}
-                    vaultFileNames={vaultFileNameMap}
-                  />
-                )}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      );
-
-      if (!item.canHide) return groupCard;
-      return (
-        <ContextMenu key={item.key}>
-          <ContextMenuTrigger asChild>{groupCard}</ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => hideGroupMutation.mutate(item.id)}>
-              <EyeOff className="h-4 w-4 mr-2" />
-              Hide group
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      );
-    }
-
-    // Club/Team card (default)
     return (
-      <Link key={item.key} to={item.link}>
-        <Card className="hover:border-primary/50 transition-colors" style={typeAccentStyle(item.type)}>
-          <CardContent className="py-[18px] px-3 flex items-center gap-3">
-            <div className="shrink-0">
-              <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} className="h-9 w-9" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
-                  {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
-                  {typeLabel && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0" style={typeBadgeStyle(item.type) ?? { color: 'hsl(var(--muted-foreground) / 0.7)' }}>
-                      {typeLabel}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {item.lastMessage?.created_at && (
-                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
-                  )}
-                  {hasUnread && (
-                    <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                      {item.unreadCount > 9 ? "9+" : item.unreadCount}
-                    </span>
-                  )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
-                {item.draftText ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="font-semibold text-destructive">Draft:</span>
-                    <span className="truncate">{item.draftText}</span>
-                  </span>
-                ) : (
-                  <MessagePreview
-                    text={item.lastMessage?.text}
-                    imageUrl={item.lastMessage?.image_url}
-                    author={item.lastMessage?.author}
-                    hasUnread={hasUnread}
-                    fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
-                    isAnnouncement={(item.lastMessage as any)?.is_announcement}
-                    eventTitles={eventTitleMap}
-                    vaultFolderNames={vaultFolderNameMap}
-                    vaultFileNames={vaultFileNameMap}
-                  />
-                )}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
+      <ConversationRow
+        key={item.key}
+        item={item}
+        currentUserId={user?.id}
+        typeLabel={typeLabel}
+        accentStyle={typeAccentStyle(item.type)}
+        badgeStyle={typeBadgeStyle(item.type)}
+        eventTitleMap={eventTitleMap}
+        vaultFolderNameMap={vaultFolderNameMap}
+        vaultFileNameMap={vaultFileNameMap}
+        onHideDM={onHideDM}
+        onHideGroup={onHideGroup}
+      />
     );
   };
 
