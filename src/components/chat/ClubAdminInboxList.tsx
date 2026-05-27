@@ -79,7 +79,7 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
 
       const clubMap = new Map((clubsRes.data || []).map((c: any) => [c.id, c]));
       const profileMap = new Map(
-        (profilesRes.data || []).map((p: any) => [p.user_id, p]),
+        (profilesRes.data || []).map((p: any) => [p.id, p]),
       );
       const latestByConv = new Map<string, any>();
       for (const m of msgsRes.data || []) {
