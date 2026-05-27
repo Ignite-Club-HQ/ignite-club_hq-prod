@@ -471,6 +471,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 onContextMenu={(e) => e.preventDefault()}
                 onDragStart={(e) => e.preventDefault()}
               >
+                {msg.forwarded_from_user_id && (() => {
+                  const fwdName = getProfile(msg.forwarded_from_user_id)?.display_name;
+                  return (
+                    <div className={`flex items-center gap-1 text-[11px] italic mb-1 ${isOwnMessage ? "text-chat-bubble-own-foreground/70" : "text-muted-foreground"}`}>
+                      <Forward className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        Forwarded{fwdName ? ` from ${fwdName}` : ""}
+                        {msg.forwarded_source_label ? ` · ${msg.forwarded_source_label}` : ""}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="text-sm min-w-0 max-w-full overflow-hidden">
                   <MessageContent
                     text={msg.text}
