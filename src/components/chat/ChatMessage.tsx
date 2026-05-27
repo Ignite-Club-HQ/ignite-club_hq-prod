@@ -146,6 +146,7 @@ function ChatMessageInner({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
+  const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
