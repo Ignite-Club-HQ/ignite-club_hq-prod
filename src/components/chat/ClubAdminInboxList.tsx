@@ -10,6 +10,8 @@ import { formatTimeShort } from "@/lib/formatTimeShort";
 interface ClubAdminInboxListProps {
   /** Optional: limit to a single active club. */
   clubFilter?: string | null;
+  /** Render a "Admin Groups" section header above the list (only when non-empty). */
+  withSectionHeader?: boolean;
 }
 
 interface ConversationRow {
