@@ -246,7 +246,7 @@ async function getOrCreateGroupFolder(
   folderName: string,
   userId: string,
   chatGroupId: string,
-  allowedRoles: string[]
+  allowedRoles: string[] | null
 ): Promise<string | null> {
   const cacheKey = `${clubId}:group:${chatGroupId}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
@@ -273,7 +273,9 @@ async function getOrCreateGroupFolder(
       created_by: userId,
       team_id: null,
       chat_group_id: chatGroupId,
-      restricted_roles: allowedRoles as any,
+      restricted_roles: (allowedRoles && allowedRoles.length > 0
+        ? allowedRoles
+        : null) as any,
     } as any)
     .select("id")
     .single();
