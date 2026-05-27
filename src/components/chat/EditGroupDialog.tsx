@@ -67,11 +67,12 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
 
   const updateGroupMutation = useMutation({
     mutationFn: async () => {
-      const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string } = { name };
+      const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
       if (!isManual) updates.allowed_roles = selectedRoles;
       if (qualifiesForOpenJoin) {
         updates.join_policy = openToClub ? "open_to_club" : "invite_only";
       }
+      updates.allow_forwarding = allowForwarding;
       const { error } = await supabase
         .from("chat_groups")
         .update(updates as any)
