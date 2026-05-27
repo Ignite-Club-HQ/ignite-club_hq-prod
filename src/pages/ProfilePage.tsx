@@ -605,8 +605,10 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      {/* Points & Rewards Card */}
-      <RewardRedemptionCard />
+      <div ref={rewardsRef}>
+        <RewardRedemptionCard />
+      </div>
+
 
       {/* Points History — sits directly under Rewards to preserve the engagement loop */}
       <div ref={pointsHistoryRef}>
