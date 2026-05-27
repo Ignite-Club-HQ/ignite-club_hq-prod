@@ -57,6 +57,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
   const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
+  const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
   
   // Support both controlled and uncontrolled modes
