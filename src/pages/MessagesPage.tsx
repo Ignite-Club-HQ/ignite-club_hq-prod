@@ -2540,7 +2540,12 @@ export default function MessagesPage() {
         {(() => {
           if (showSkeletonLoading) return null;
 
-          const VIRTUALIZE_THRESHOLD = 30;
+          // Virtualization disabled — Virtuoso `useWindowScroll` miscomputed
+          // the viewport inside the app's scrollable main container, which
+          // clipped the inbox to ~12 rows and hid the sections beneath
+          // (Discover groups, Contact Club, sponsor carousel). Render the
+          // full legacy list until we move to a scroll-parent virtualizer.
+          const VIRTUALIZE_THRESHOLD = Number.POSITIVE_INFINITY;
           const useGroupSections =
             typeFilter === 'groups' && visibleRecent.length >= 5;
           const totalRows = unreadItems.length + visibleRecent.length;
