@@ -2676,8 +2676,9 @@ export default function MessagesPage() {
                     <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
                   </div>
                   {(() => {
-                    const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+                    const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Admin Groups', 'Custom Groups'] as const;
                     const classifyGroup = (c: UnifiedConversation): string => {
+                      if (c.type === 'admin_group') return 'Admin Groups';
                       if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                       const explicit = (c.category || '').trim();
                       if (explicit) return explicit;
@@ -2693,7 +2694,7 @@ export default function MessagesPage() {
                     }
                     const buckets: Record<string, UnifiedConversation[]> = {};
                     visibleRecent.forEach((c) => {
-                      const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast')
+                      const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast' || c.type === 'admin_group')
                         ? classifyGroup(c)
                         : 'Custom Groups';
                       (buckets[section] ||= []).push(c);
@@ -2702,14 +2703,10 @@ export default function MessagesPage() {
                       .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
                       .sort((a, b) => a.localeCompare(b));
                     const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
-                    const showAdminInbox = true;
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
                           <Fragment key={section}>
-                            {section === 'Custom Groups' && showAdminInbox && (
-                              <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
-                            )}
                             <div className={idx === 0 ? '' : 'pt-3'}>
                               <div className="flex items-center gap-2 pb-1.5">
                                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -2720,13 +2717,10 @@ export default function MessagesPage() {
                             </div>
                           </Fragment>
                         ))}
-                        {/* If there is no Custom Groups bucket, still show Admin Groups at the end of the built-in groups */}
-                        {showAdminInbox && !orderedSections.includes('Custom Groups') && (
-                          <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
-                        )}
                       </>
                     );
                   })()}
+
                   {hiddenOps.length > 0 && (
                     <button
                       type="button"
