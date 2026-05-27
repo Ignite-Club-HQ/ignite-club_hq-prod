@@ -3,6 +3,8 @@ project_id = "yabcfiuntwqjwvschnji"
 [functions]
   [functions.auth-email-hook]
     verify_jwt = false
+  [functions.backfill-chat-vault-groups]
+    verify_jwt = false
   [functions.google-places-search]
     verify_jwt = false
   [functions.auto-purge-trash]

@@ -103,8 +103,42 @@ export function useForwardMessageMutation(currentUserId: string | undefined) {
         forwarded_source_label: source.sourceLabel ?? null,
       }));
 
-      const { error } = await supabase.from("group_messages").insert(rows);
+      const { data: inserted, error } = await supabase
+        .from("group_messages")
+        .insert(rows)
+        .select("id, group_id");
       if (error) throw error;
+
+      // Notify the original author (best-effort, never blocks success).
+      if (source.authorId && source.authorId !== currentUserId) {
+        try {
+          const [{ data: forwarder }, { data: groups }] = await Promise.all([
+            supabase.from("profiles").select("display_name").eq("id", currentUserId).maybeSingle(),
+            supabase.from("chat_groups").select("id, name, club_id").in("id", destinationGroupIds),
+          ]);
+          const forwarderName = forwarder?.display_name?.trim() || "Someone";
+          const groupMap = new Map((groups ?? []).map((g) => [g.id, g]));
+          const preview = (source.text || "").trim().slice(0, 60) || (source.imageUrl ? "a photo" : "your message");
+
+          const notificationRows = (inserted ?? []).map((m) => {
+            const g = groupMap.get(m.group_id);
+            return {
+              user_id: source.authorId,
+              type: "message_forwarded",
+              message: `${forwarderName} forwarded your message "${preview}" to ${g?.name ?? "a group chat"}`,
+              related_id: m.id,
+              club_id: g?.club_id ?? null,
+            };
+          });
+          if (notificationRows.length > 0) {
+            await supabase.from("notifications").insert(notificationRows);
+          }
+        } catch (e) {
+          // Non-fatal — author just won't get a forward notification
+          console.warn("[forward] failed to notify original author", e);
+        }
+      }
+
       return { forwarded: destinationGroupIds.length };
     },
     onSuccess: ({ forwarded }) => {

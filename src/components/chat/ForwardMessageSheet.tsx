@@ -11,7 +11,21 @@ import {
   type ForwardSourceMessage,
 } from "@/hooks/useForwardMessage";
 import { useAuth } from "@/hooks/useAuth";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { cn } from "@/lib/utils";
+
+function ForwardThumbnail({ imageUrl }: { imageUrl: string }) {
+  const { signedUrl } = useSignedPhotoUrl(imageUrl);
+  return (
+    <div className="h-10 w-10 shrink-0 rounded-md bg-muted overflow-hidden flex items-center justify-center">
+      <img
+        src={signedUrl || imageUrl}
+        alt=""
+        className="h-full w-full object-cover"
+      />
+    </div>
+  );
+}
 
 const MAX_DESTINATIONS = 5;
 
@@ -100,13 +114,7 @@ export function ForwardMessageSheet({
           {source ? (
             <div className="rounded-xl border border-border bg-muted/40 p-3 flex gap-2 items-start">
               {source.imageUrl ? (
-                <div className="h-10 w-10 shrink-0 rounded-md bg-muted overflow-hidden flex items-center justify-center">
-                  <img
-                    src={source.imageUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <ForwardThumbnail imageUrl={source.imageUrl} />
               ) : (
                 <div className="h-10 w-10 shrink-0 rounded-md bg-muted flex items-center justify-center">
                   <MessageSquare className="h-5 w-5 text-muted-foreground" />

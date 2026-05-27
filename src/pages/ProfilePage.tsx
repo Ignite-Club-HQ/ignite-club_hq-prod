@@ -40,6 +40,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pointsHistoryRef = useRef<HTMLDivElement>(null);
+  const rewardsRef = useRef<HTMLDivElement>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [showAllDuties, setShowAllDuties] = useState(false);
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
@@ -57,12 +58,17 @@ export default function ProfilePage() {
     activeClubFilter,
   );
 
-  // Auto-scroll to points history when navigated from notification
+  // Auto-scroll to a section when navigated from a notification
   useEffect(() => {
-    if (searchParams.get('section') === 'points-history') {
+    const section = searchParams.get('section');
+    if (section === 'points-history') {
       setPointsHistoryOpen(true);
       setTimeout(() => {
         pointsHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    } else if (section === 'rewards') {
+      setTimeout(() => {
+        rewardsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 300);
     }
   }, [searchParams]);
@@ -599,8 +605,10 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      {/* Points & Rewards Card */}
-      <RewardRedemptionCard />
+      <div ref={rewardsRef}>
+        <RewardRedemptionCard />
+      </div>
+
 
       {/* Points History — sits directly under Rewards to preserve the engagement loop */}
       <div ref={pointsHistoryRef}>

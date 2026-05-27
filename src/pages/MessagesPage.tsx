@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
@@ -32,6 +32,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
@@ -107,6 +108,7 @@ const TYPE_ACCENT_HSL: Record<string, string | undefined> = {
   team: '142 71% 42%',   // green
   club: '210 85% 52%',   // blue
   group: '25 92% 52%',   // orange
+  admin_group: '210 85% 52%',
   league: '270 60% 55%', // purple
   dm: undefined,         // neutral
   broadcast: undefined,
@@ -172,7 +174,7 @@ interface Club {
 }
 
 interface UnifiedConversation {
-  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
+  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
   id: string;
   key: string;
   name: string;
@@ -216,6 +218,14 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+
+  const { data: clubAdminConversations = [] } = useQuery({
+    queryKey: clubAdminInboxQueryKey(user?.id, activeClubFilter),
+    enabled: !!user && initialized,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+    queryFn: () => fetchClubAdminConversations(user!.id, activeClubFilter),
+  });
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
@@ -2019,6 +2029,28 @@ export default function MessagesPage() {
       });
     });
 
+    // Club admin conversations
+    clubAdminConversations.forEach((conv) => {
+      items.push({
+        type: 'admin_group',
+        id: conv.id,
+        key: `admin-group-${conv.id}`,
+        name: conv.member_name,
+        avatarUrl: conv.member_avatar,
+        link: `/messages/club-admin/${conv.id}`,
+        lastActivity: conv.last_created_at || conv.updated_at || '',
+        lastMessage: conv.last_created_at ? {
+          text: conv.last_text || '',
+          author: conv.last_author_id === user?.id ? 'You' : conv.member_name,
+          created_at: conv.last_created_at,
+          image_url: conv.last_image,
+        } : undefined,
+        unreadCount: 0,
+        isMuted: false,
+        category: 'Admin Groups',
+      });
+    });
+
     // Ignite Support system message (if not already shown as a DM)
     if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
       items.push({
@@ -2057,7 +2089,7 @@ export default function MessagesPage() {
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, user?.id, showIgniteSupport, systemMessage, allDrafts,
+    filteredDMs, clubAdminConversations, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
 
   // Resolve event titles referenced in any conversation preview so they
@@ -2152,7 +2184,7 @@ export default function MessagesPage() {
         // them as another team they belong to.
         case 'teams': return c.type === 'team' || c.type === 'league';
         // Groups bucket includes club broadcast-style groups alongside regular chat groups.
-        case 'groups': return c.type === 'group' || c.type === 'club';
+        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'admin_group';
         case 'dms': return c.type === 'dm';
         default: return true;
       }
@@ -2229,6 +2261,7 @@ export default function MessagesPage() {
     club: 'Club',
     team: 'Team',
     group: 'Group',
+    admin_group: 'Admin',
     league: 'League',
     dm: 'DM',
   };
@@ -2539,7 +2572,12 @@ export default function MessagesPage() {
         {(() => {
           if (showSkeletonLoading) return null;
 
-          const VIRTUALIZE_THRESHOLD = 30;
+          // Virtualization disabled — Virtuoso `useWindowScroll` miscomputed
+          // the viewport inside the app's scrollable main container, which
+          // clipped the inbox to ~12 rows and hid the sections beneath
+          // (Discover groups, Contact Club, sponsor carousel). Render the
+          // full legacy list until we move to a scroll-parent virtualizer.
+          const VIRTUALIZE_THRESHOLD = Number.POSITIVE_INFINITY;
           const useGroupSections =
             typeFilter === 'groups' && visibleRecent.length >= 5;
           const totalRows = unreadItems.length + visibleRecent.length;
@@ -2638,8 +2676,9 @@ export default function MessagesPage() {
                     <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
                   </div>
                   {(() => {
-                    const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+                    const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Admin Groups', 'Custom Groups'] as const;
                     const classifyGroup = (c: UnifiedConversation): string => {
+                      if (c.type === 'admin_group') return 'Admin Groups';
                       if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
                       const explicit = (c.category || '').trim();
                       if (explicit) return explicit;
@@ -2655,7 +2694,7 @@ export default function MessagesPage() {
                     }
                     const buckets: Record<string, UnifiedConversation[]> = {};
                     visibleRecent.forEach((c) => {
-                      const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast')
+                      const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast' || c.type === 'admin_group')
                         ? classifyGroup(c)
                         : 'Custom Groups';
                       (buckets[section] ||= []).push(c);
@@ -2667,18 +2706,21 @@ export default function MessagesPage() {
                     return (
                       <>
                         {orderedSections.map((section, idx) => (
-                          <div key={section} className={idx === 0 ? '' : 'pt-3'}>
-                            <div className="flex items-center gap-2 pb-1.5">
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                                {section}
-                              </span>
+                          <Fragment key={section}>
+                            <div className={idx === 0 ? '' : 'pt-3'}>
+                              <div className="flex items-center gap-2 pb-1.5">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                                  {section}
+                                </span>
+                              </div>
+                              {buckets[section].map(renderConversationCard)}
                             </div>
-                            {buckets[section].map(renderConversationCard)}
-                          </div>
+                          </Fragment>
                         ))}
                       </>
                     );
                   })()}
+
                   {hiddenOps.length > 0 && (
                     <button
                       type="button"
@@ -2717,6 +2759,9 @@ export default function MessagesPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Admin Group threads are now merged into the unified sorted list above. */}
+
 
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (

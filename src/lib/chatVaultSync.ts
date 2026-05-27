@@ -111,14 +111,17 @@ export async function syncChatAttachmentToVault({
     // Resolve target folder(s) based on chat type.
     const groupIsRestricted = isRestrictedGroup(chatGroupAllowedRoles);
 
-    // Case 1: dedicated folder per role-restricted chat group.
-    if (chatGroupId && chatGroupName && groupIsRestricted) {
+    // Case 1: dedicated folder per chat group (any group chat gets its own
+    // folder, named after the group). Role-restricted groups persist their
+    // allowed_roles so visibility matches the chat; open groups leave
+    // restricted_roles null and inherit standard chat-folder visibility.
+    if (chatGroupId && chatGroupName) {
       const folderId = await getOrCreateGroupFolder(
         clubId,
         chatGroupName,
         userId,
         chatGroupId,
-        chatGroupAllowedRoles!
+        groupIsRestricted ? (chatGroupAllowedRoles as string[]) : null
       );
       await insertVaultRows(folderId, clubId, userId, null, [
         ...newImages,
@@ -243,18 +246,21 @@ async function getOrCreateGroupFolder(
   folderName: string,
   userId: string,
   chatGroupId: string,
-  allowedRoles: string[]
+  allowedRoles: string[] | null
 ): Promise<string | null> {
   const cacheKey = `${clubId}:group:${chatGroupId}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
-  // Look up by chat_group_id (stable even if the group is renamed).
+  // Look up by chat_group_id (stable even if the group is renamed or
+  // the folder lives nested under a parent folder).
   const { data } = await supabase
     .from("vault_folders")
     .select("id")
     .eq("club_id", clubId)
     .eq("chat_group_id", chatGroupId)
-    .is("parent_id", null)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (data) {
@@ -270,7 +276,9 @@ async function getOrCreateGroupFolder(
       created_by: userId,
       team_id: null,
       chat_group_id: chatGroupId,
-      restricted_roles: allowedRoles as any,
+      restricted_roles: (allowedRoles && allowedRoles.length > 0
+        ? allowedRoles
+        : null) as any,
     } as any)
     .select("id")
     .single();

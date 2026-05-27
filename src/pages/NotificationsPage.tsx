@@ -500,12 +500,13 @@ export default function NotificationsPage() {
       case "team_message":
       case "message_reply":
       case "message_mention":
-        // For replies/mentions, related_id is the message id - try team first
+      case "message_forwarded":
+        // For replies/mentions/forwards, related_id is the message id - try team first
         const { data: teamMessage } = await supabase
           .from("team_messages")
           .select("team_id")
           .eq("id", relatedId)
-          .single();
+          .maybeSingle();
         if (teamMessage?.team_id) {
           navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
           break;
@@ -515,7 +516,7 @@ export default function NotificationsPage() {
           .from("club_messages")
           .select("club_id")
           .eq("id", relatedId)
-          .single();
+          .maybeSingle();
         if (clubMsgForReaction?.club_id) {
           navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
           break;
@@ -525,9 +526,19 @@ export default function NotificationsPage() {
           .from("group_messages")
           .select("group_id")
           .eq("id", relatedId)
-          .single();
+          .maybeSingle();
         if (groupMsgForReaction?.group_id) {
           navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+          break;
+        }
+        // Try direct message
+        const { data: dmMsgForReaction } = await supabase
+          .from("direct_messages")
+          .select("conversation_id")
+          .eq("id", relatedId)
+          .maybeSingle();
+        if (dmMsgForReaction?.conversation_id) {
+          navigate(`/messages/dm/${dmMsgForReaction.conversation_id}?message=${relatedId}`);
           break;
         }
         // Try broadcast
@@ -535,7 +546,7 @@ export default function NotificationsPage() {
           .from("broadcast_messages")
           .select("id")
           .eq("id", relatedId)
-          .single();
+          .maybeSingle();
         if (broadcastMsg) {
           navigate(`/messages/broadcast?message=${relatedId}`);
         }
@@ -560,6 +571,27 @@ export default function NotificationsPage() {
           navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
         }
         break;
+      case "club_admin_message": {
+        // related_id is the club_admin_messages.id; look up its conversation
+        const { data: caMsg } = await (supabase as any)
+          .from("club_admin_messages")
+          .select("conversation_id")
+          .eq("id", relatedId)
+          .maybeSingle();
+        if (caMsg?.conversation_id) {
+          navigate(`/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
+        } else {
+          // Fallback: related_id might already be a conversation id
+          const { data: convCheck } = await (supabase as any)
+            .from("club_admin_conversations")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (convCheck) navigate(`/messages/club-admin/${relatedId}`);
+          else navigate("/messages");
+        }
+        break;
+      }
       case "broadcast":
         navigate(`/messages/broadcast?message=${relatedId}`);
         break;

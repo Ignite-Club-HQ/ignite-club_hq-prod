@@ -11,7 +11,8 @@ export const MESSAGE_NOTIFICATION_TYPES = [
   'broadcast',
   'message_reply',
   'message_mention',
-  'direct_message'
+  'direct_message',
+  'club_admin_message'
 ] as const;
 
 // Event-related notifications
@@ -85,6 +86,7 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   club_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
   group_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
   direct_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
+  club_admin_message: { iconName: 'Shield', colorClass: 'text-blue-500', emoji: '🛡️' },
   broadcast: { iconName: 'Megaphone', colorClass: 'text-purple-500', emoji: '📢' },
   message_mention: { iconName: 'AtSign', colorClass: 'text-pink-500', emoji: '📣' },
   message_reaction: { iconName: 'Heart', colorClass: 'text-red-500', emoji: '❤️' },
