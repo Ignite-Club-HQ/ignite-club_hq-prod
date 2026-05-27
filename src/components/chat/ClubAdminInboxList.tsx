@@ -106,8 +106,9 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
           last_text: last?.text ?? null,
           last_image: last?.image_url ?? null,
           last_created_at: last?.created_at ?? c.updated_at,
-        };
+        }];
       });
+
     },
   });
 
