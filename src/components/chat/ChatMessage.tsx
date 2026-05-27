@@ -940,6 +940,7 @@ function ChatMessageInner({
                   showImageActions={!isOwn && !isSystemMessage && !!imageUrl}
                   onReportImage={() => setShowReportDialog(true)}
                   onBlockImageAuthor={() => setShowBlockDialog(true)}
+                  onForwardImage={!isSystemMessage && !isPendingMessage && !!imageUrl ? () => setShowForwardSheet(true) : undefined}
                 />
               </div>
               <MessageReactionsPopover
