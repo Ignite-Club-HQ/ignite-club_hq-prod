@@ -24,6 +24,7 @@ interface MessageContentProps {
   previewsOnly?: boolean;
   onReportImage?: () => void;
   onBlockImageAuthor?: () => void;
+  onForwardImage?: () => void;
   showImageActions?: boolean;
 }
 
@@ -70,7 +71,7 @@ const truncateUrl = (url: string, maxLength = 50): string => {
 const decodedImageUrls: Set<string> = (globalThis as any).__chatDecodedImages
   ?? ((globalThis as any).__chatDecodedImages = new Set<string>());
 
-export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, showImageActions = false }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, onForwardImage, showImageActions = false }: MessageContentProps) {
   // Get signed URL for private chat attachments
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(imageUrl);
   const effectiveImageUrl = signedUrl || imageUrl;
@@ -440,6 +441,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           onClose={() => setShowFullscreen(false)}
           onReport={onReportImage}
           onBlockUser={onBlockImageAuthor}
+          onForward={onForwardImage}
           showActions={showImageActions}
         />
       )}
