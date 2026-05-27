@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useAllChatDrafts } from "@/hooks/useChatDraft";
 import { usePersistedFilter } from "@/lib/persistedFilter";
@@ -66,6 +67,15 @@ const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
 // background work on low-end Android WebViews while still keeping the inbox
 // reasonably fresh between realtime events / resume refetches.
 const INBOX_REFETCH_INTERVAL_MS = isNativeRuntime() ? 120000 : 30000;
+// Jitter polling intervals so the ~5 inbox queries don't fire as a single
+// burst every 30s (which caused render-storm + network burst). Each query
+// gets an independent ±15% offset, spreading network + re-render work across
+// a few seconds instead of landing simultaneously.
+const jitteredInboxInterval = () => {
+  const base = INBOX_REFETCH_INTERVAL_MS;
+  const jitter = base * 0.15;
+  return base + (Math.random() * 2 - 1) * jitter;
+};
 // Cap background prefetch fanout. Without a cap, /messages prefetches every
 // thread the user belongs to, which on Android WebView can stall the main
 // thread for seconds after navigating away.
@@ -268,7 +278,7 @@ export default function MessagesPage() {
     queryKey: ["unread-message-counts", user?.id],
     queryFn: async () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -443,7 +453,7 @@ export default function MessagesPage() {
     // freezes when returning to /messages because the N+1 cascade refired.
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.memberClubs
       ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} }
@@ -602,7 +612,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.teams
       ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
@@ -897,7 +907,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.chatGroups
       ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} }
@@ -1142,7 +1152,7 @@ export default function MessagesPage() {
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
-    refetchInterval: INBOX_REFETCH_INTERVAL_MS,
+    refetchInterval: jitteredInboxInterval,
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
@@ -2857,87 +2867,175 @@ export default function MessagesPage() {
           </>
         )}
 
-        {/* Unread Section — render with cached items while fresh data loads to avoid flicker */}
-        {!showSkeletonLoading && unreadItems.length > 0 && (
-          <>
-            <div className="flex items-center gap-2 pb-1.5">
-              <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
-              <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
-                {unreadItems.length}
-              </span>
-            </div>
-            {unreadItems.map(renderConversationCard)}
-          </>
-        )}
+        {/*
+          Inbox rendering.
 
-        {/* Recent Section */}
-        {!showSkeletonLoading && recentItems.length > 0 && (
-          <>
-            <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
-              <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
-            </div>
-            {(() => {
-              // When the user is in the Groups filter and has enough group-like
-              // chats to benefit from organization, render lightweight inline
-              // section headers ("Announcements" / "Club Management" / "Operations"
-              // / "Volunteers" / "Custom Groups"). Otherwise render flat —
-              // preserves the WhatsApp-style simple experience for regular
-              // parents.
-              const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
-              const classifyGroup = (c: UnifiedConversation): string => {
-                if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
-                // Explicit user-chosen category wins over name heuristics.
-                const explicit = (c.category || '').trim();
-                if (explicit) return explicit;
-                const name = (c.name || '').toLowerCase();
-                if (/committee|admin|coach|leadership|staff|board|manager|coordinator/.test(name)) return 'Club Management';
-                if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
-                if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
-                return 'Custom Groups';
-              };
+          For short inboxes (≤ VIRTUALIZE_THRESHOLD rows) or the bucketed
+          Groups-filter view, we render the original flat / sectioned markup.
+          For long inboxes we flatten Unread + Recent into a typed row list
+          and hand it to Virtuoso in `useWindowScroll` mode so off-screen
+          conversation cards never mount. The Groups sectioned layout stays
+          on the legacy path because it's a power-user view with internal
+          sub-headers — virtualizing it adds complexity for marginal gain.
+        */}
+        {(() => {
+          if (showSkeletonLoading) return null;
 
-              const useSections = typeFilter === 'groups' && visibleRecent.length >= 5;
-              if (!useSections) {
-                return <>{visibleRecent.map(renderConversationCard)}</>;
-              }
-              const buckets: Record<string, UnifiedConversation[]> = {};
-              visibleRecent.forEach((c) => {
-                const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast')
-                  ? classifyGroup(c)
-                  : 'Custom Groups';
-                (buckets[section] ||= []).push(c);
+          const VIRTUALIZE_THRESHOLD = 30;
+          const useGroupSections =
+            typeFilter === 'groups' && visibleRecent.length >= 5;
+          const totalRows = unreadItems.length + visibleRecent.length;
+          const shouldVirtualize = !useGroupSections && totalRows > VIRTUALIZE_THRESHOLD;
+
+          type FlatRow =
+            | { kind: 'unread-header'; key: string; count: number }
+            | { kind: 'recent-header'; key: string; withDivider: boolean }
+            | { kind: 'card'; key: string; item: UnifiedConversation }
+            | { kind: 'show-more-ops'; key: string; count: number };
+
+          if (shouldVirtualize) {
+            const rows: FlatRow[] = [];
+            if (unreadItems.length > 0) {
+              rows.push({ kind: 'unread-header', key: '__unread_header', count: unreadItems.length });
+              unreadItems.forEach((item) => rows.push({ kind: 'card', key: `u:${item.key}`, item }));
+            }
+            if (visibleRecent.length > 0) {
+              rows.push({
+                kind: 'recent-header',
+                key: '__recent_header',
+                withDivider: unreadItems.length > 0,
               });
-              // Built-ins first in fixed order, then any user-added categories alphabetically.
-              const customSections = Object.keys(buckets)
-                .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
-                .sort((a, b) => a.localeCompare(b));
-              const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
-              return (
-                <>
-                  {orderedSections.map((section, idx) => (
-                    <div key={section} className={idx === 0 ? '' : 'pt-3'}>
-                      <div className="flex items-center gap-2 pb-1.5">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                          {section}
+              visibleRecent.forEach((item) => rows.push({ kind: 'card', key: `r:${item.key}`, item }));
+            }
+            if (hiddenOps.length > 0) {
+              rows.push({ kind: 'show-more-ops', key: '__more_ops', count: hiddenOps.length });
+            }
+
+            return (
+              <Virtuoso
+                useWindowScroll
+                data={rows}
+                computeItemKey={(_i, row) => row.key}
+                increaseViewportBy={{ top: 600, bottom: 800 }}
+                itemContent={(_i, row) => {
+                  if (row.kind === 'unread-header') {
+                    return (
+                      <div className="flex items-center gap-2 pb-1.5 mb-2">
+                        <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
+                        <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                          {row.count}
                         </span>
                       </div>
-                      {buckets[section].map(renderConversationCard)}
-                    </div>
-                  ))}
+                    );
+                  }
+                  if (row.kind === 'recent-header') {
+                    return (
+                      <div
+                        className={`flex items-center gap-2 pb-1.5 mb-2 ${
+                          row.withDivider ? 'pt-5 border-t border-border/50 mt-3' : ''
+                        }`}
+                      >
+                        <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Recent
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (row.kind === 'show-more-ops') {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllOps(true)}
+                        className="w-full mt-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md border border-dashed border-border hover:border-foreground/40"
+                      >
+                        Show {row.count} more inactive group{row.count === 1 ? '' : 's'}
+                      </button>
+                    );
+                  }
+                  // card
+                  return <div className="mb-2">{renderConversationCard(row.item)}</div>;
+                }}
+              />
+            );
+          }
+
+          // Legacy non-virtualized rendering (short inbox or Groups-sectioned view).
+          return (
+            <>
+              {unreadItems.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 pb-1.5">
+                    <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
+                    <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                      {unreadItems.length}
+                    </span>
+                  </div>
+                  {unreadItems.map(renderConversationCard)}
                 </>
-              );
-            })()}
-            {hiddenOps.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowAllOps(true)}
-                className="w-full mt-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md border border-dashed border-border hover:border-foreground/40"
-              >
-                Show {hiddenOps.length} more inactive group{hiddenOps.length === 1 ? '' : 's'}
-              </button>
-            )}
-          </>
-        )}
+              )}
+
+              {recentItems.length > 0 && (
+                <>
+                  <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
+                    <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
+                  </div>
+                  {(() => {
+                    const BUILTIN_ORDER = ['Announcements', 'Club Management', 'Operations', 'Volunteers', 'Custom Groups'] as const;
+                    const classifyGroup = (c: UnifiedConversation): string => {
+                      if (c.type === 'club' || c.type === 'broadcast') return 'Announcements';
+                      const explicit = (c.category || '').trim();
+                      if (explicit) return explicit;
+                      const name = (c.name || '').toLowerCase();
+                      if (/committee|admin|coach|leadership|staff|board|manager|coordinator/.test(name)) return 'Club Management';
+                      if (/finance|treasur|ground|fixture|operation|registr|equipment|kit|event|schedul/.test(name)) return 'Operations';
+                      if (/volunteer|bbq|canteen|fundrais|helper|roster/.test(name)) return 'Volunteers';
+                      return 'Custom Groups';
+                    };
+
+                    if (!useGroupSections) {
+                      return <>{visibleRecent.map(renderConversationCard)}</>;
+                    }
+                    const buckets: Record<string, UnifiedConversation[]> = {};
+                    visibleRecent.forEach((c) => {
+                      const section = (c.type === 'group' || c.type === 'club' || c.type === 'broadcast')
+                        ? classifyGroup(c)
+                        : 'Custom Groups';
+                      (buckets[section] ||= []).push(c);
+                    });
+                    const customSections = Object.keys(buckets)
+                      .filter((s) => !(BUILTIN_ORDER as readonly string[]).includes(s))
+                      .sort((a, b) => a.localeCompare(b));
+                    const orderedSections = [...BUILTIN_ORDER.filter((s) => buckets[s]?.length), ...customSections];
+                    return (
+                      <>
+                        {orderedSections.map((section, idx) => (
+                          <div key={section} className={idx === 0 ? '' : 'pt-3'}>
+                            <div className="flex items-center gap-2 pb-1.5">
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                                {section}
+                              </span>
+                            </div>
+                            {buckets[section].map(renderConversationCard)}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
+                  {hiddenOps.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllOps(true)}
+                      className="w-full mt-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md border border-dashed border-border hover:border-foreground/40"
+                    >
+                      Show {hiddenOps.length} more inactive group{hiddenOps.length === 1 ? '' : 's'}
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          );
+        })()}
+
 
         {/* Empty state when no results */}
         {!showSkeletonLoading && hasNoResults && (

@@ -522,7 +522,9 @@ export default function EventsPage() {
     },
     enabled: !!user && !!userMemberships,
     staleTime: 30 * 1000, // 30s — keep payload fresh on iOS where app stays resumed
-    refetchOnMount: "always",
+    // Render from cache first; background-refetch only if stale. Big snappiness
+    // win on navigation — previously every mount paid a full round-trip.
+    refetchOnMount: true,
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
     placeholderData: (prev) => prev,

@@ -15,6 +15,7 @@ import {
 } from "@/lib/iosLayoutStability";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { prefetchRoute } from "@/lib/routePrefetch";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
@@ -385,6 +386,7 @@ export function BottomNav() {
               end={to === "/"}
               aria-label={label}
               aria-current={undefined}
+              onPointerDown={() => prefetchRoute(to)}
               onClick={(e) => {
                 if (navInteractionLocked) {
                   e.preventDefault();
