@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
 
       const { data: groupData } = await supabase
         .from('chat_groups')
-        .select('name, club_id, team_id, mini_league_id, allowed_roles')
+        .select('name, club_id, team_id, mini_league_id, allowed_roles, membership_mode')
         .eq('id', groupId)
         .maybeSingle();
 
@@ -228,7 +228,13 @@ Deno.serve(async (req) => {
 
       let memberIds: string[] = [];
 
-      if (!groupData.club_id && !groupData.team_id && !groupData.mini_league_id) {
+      const isPersonal = !groupData.club_id && !groupData.team_id && !groupData.mini_league_id;
+      const isManual = groupData.membership_mode === 'manual';
+
+      if (isPersonal || isManual) {
+        // Personal groups OR scoped groups in MANUAL mode:
+        // recipients are strictly the explicit group_members.
+        // Club/app admin moderation access does NOT imply they want notifications.
         const { data: members } = await supabase
           .from('group_members')
           .select('user_id')
@@ -265,23 +271,27 @@ Deno.serve(async (req) => {
         const roleAdminIds = (roleAdminMembers.data || []).map(m => m.user_id);
         memberIds = [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])];
       } else {
-        let query = supabase
-          .from('user_roles')
-          .select('user_id')
-          .neq('user_id', authorId);
+        // Scoped group in ROLE mode (club or team).
+        // Guard: in role mode, an empty allowed_roles means nobody has access —
+        // never fan out to the entire club.
+        if (!groupData.allowed_roles || groupData.allowed_roles.length === 0) {
+          memberIds = [];
+        } else {
+          let query = supabase
+            .from('user_roles')
+            .select('user_id')
+            .neq('user_id', authorId)
+            .in('role', groupData.allowed_roles);
 
-        if (groupData.allowed_roles && groupData.allowed_roles.length > 0) {
-          query = query.in('role', groupData.allowed_roles);
+          if (groupData.team_id) {
+            query = query.eq('team_id', groupData.team_id);
+          } else if (groupData.club_id) {
+            query = query.eq('club_id', groupData.club_id);
+          }
+
+          const { data: members } = await query;
+          memberIds = [...new Set((members || []).map(m => m.user_id))];
         }
-
-        if (groupData.club_id && !groupData.team_id) {
-          query = query.eq('club_id', groupData.club_id);
-        } else if (groupData.team_id) {
-          query = query.eq('team_id', groupData.team_id);
-        }
-
-        const { data: members } = await query;
-        memberIds = [...new Set((members || []).map(m => m.user_id))];
       }
 
       if (memberIds.length > 0) {
