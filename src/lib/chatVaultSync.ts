@@ -111,14 +111,17 @@ export async function syncChatAttachmentToVault({
     // Resolve target folder(s) based on chat type.
     const groupIsRestricted = isRestrictedGroup(chatGroupAllowedRoles);
 
-    // Case 1: dedicated folder per role-restricted chat group.
-    if (chatGroupId && chatGroupName && groupIsRestricted) {
+    // Case 1: dedicated folder per chat group (any group chat gets its own
+    // folder, named after the group). Role-restricted groups persist their
+    // allowed_roles so visibility matches the chat; open groups leave
+    // restricted_roles null and inherit standard chat-folder visibility.
+    if (chatGroupId && chatGroupName) {
       const folderId = await getOrCreateGroupFolder(
         clubId,
         chatGroupName,
         userId,
         chatGroupId,
-        chatGroupAllowedRoles!
+        groupIsRestricted ? (chatGroupAllowedRoles as string[]) : null
       );
       await insertVaultRows(folderId, clubId, userId, null, [
         ...newImages,
