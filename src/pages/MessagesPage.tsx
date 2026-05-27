@@ -32,7 +32,7 @@ import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import ClubAdminInboxList from "@/components/chat/ClubAdminInboxList";
+import ClubAdminInboxList, { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
@@ -173,7 +173,7 @@ interface Club {
 }
 
 interface UnifiedConversation {
-  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
+  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
   id: string;
   key: string;
   name: string;
