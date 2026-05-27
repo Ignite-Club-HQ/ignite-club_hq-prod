@@ -65,13 +65,11 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
       const memberIds = [...new Set(convs.map((c) => c.member_user_id))];
       const convIds = convs.map((c) => c.id);
 
+      const sb = supabase as any;
       const [clubsRes, profilesRes, msgsRes] = await Promise.all([
-        supabase.from("clubs").select("id, name, logo_url").in("id", clubIds),
-        supabase
-          .from("profiles")
-          .select("user_id, display_name, avatar_url")
-          .in("user_id", memberIds),
-        (supabase as any)
+        sb.from("clubs").select("id, name, logo_url").in("id", clubIds),
+        sb.from("profiles").select("user_id, display_name, avatar_url").in("user_id", memberIds),
+        sb
           .from("club_admin_messages")
           .select("conversation_id, text, image_url, created_at")
           .in("conversation_id", convIds)
