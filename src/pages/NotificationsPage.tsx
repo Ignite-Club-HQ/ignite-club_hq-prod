@@ -560,6 +560,27 @@ export default function NotificationsPage() {
           navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
         }
         break;
+      case "club_admin_message": {
+        // related_id is the club_admin_messages.id; look up its conversation
+        const { data: caMsg } = await (supabase as any)
+          .from("club_admin_messages")
+          .select("conversation_id")
+          .eq("id", relatedId)
+          .maybeSingle();
+        if (caMsg?.conversation_id) {
+          navigate(`/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
+        } else {
+          // Fallback: related_id might already be a conversation id
+          const { data: convCheck } = await (supabase as any)
+            .from("club_admin_conversations")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (convCheck) navigate(`/messages/club-admin/${relatedId}`);
+          else navigate("/messages");
+        }
+        break;
+      }
       case "broadcast":
         navigate(`/messages/broadcast?message=${relatedId}`);
         break;
