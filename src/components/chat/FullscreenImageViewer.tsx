@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical } from "lucide-react";
+import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical, Forward } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,10 +96,11 @@ interface FullscreenImageViewerProps {
   onClose: () => void;
   onReport?: () => void;
   onBlockUser?: () => void;
+  onForward?: () => void;
   showActions?: boolean;
 }
 
-export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, showActions = false }: FullscreenImageViewerProps) {
+export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, onForward, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
   const { signedUrl } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
@@ -436,6 +437,23 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <Download className="h-4 w-4 mr-2" />
               Download
             </DropdownMenuItem>
+            {onForward && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  installTapShield();
+                  onClose();
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => onForward(), 60);
+                    });
+                  });
+                }}
+              >
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </DropdownMenuItem>
+            )}
             {showActions && onReport && (
               <DropdownMenuItem
                 onSelect={(e) => {

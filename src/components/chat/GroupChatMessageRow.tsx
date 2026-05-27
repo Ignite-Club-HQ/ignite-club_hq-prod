@@ -492,6 +492,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     showImageActions={!isOwnMessage && !!msg.image_url}
                     onReportImage={() => setShowReportDialog(true)}
                     onBlockImageAuthor={() => setShowBlockDialog(true)}
+                    onForwardImage={
+                      allowForwarding && !msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-") && !!msg.image_url
+                        ? () => setShowForwardSheet(true)
+                        : undefined
+                    }
                   />
                 </div>
               </div>
