@@ -86,6 +86,8 @@ export function MessageActionSheet({
   messageText,
   hasImage,
   onReply,
+  canForward = false,
+  onForward,
   onEdit,
   onDelete,
   onReport,
