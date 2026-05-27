@@ -129,6 +129,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
+  const [showForwardSheet, setShowForwardSheet] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
