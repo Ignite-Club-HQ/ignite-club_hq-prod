@@ -190,6 +190,24 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
             </div>
           )}
 
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="edit-group-allow-forwarding"
+                checked={allowForwarding}
+                onCheckedChange={(v) => setAllowForwarding(v === true)}
+              />
+              <div className="space-y-0.5">
+                <label htmlFor="edit-group-allow-forwarding" className="text-sm font-medium cursor-pointer">
+                  Allow members to forward messages
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Turn off for sensitive chats (e.g. Committee) to hide the Forward action on messages in this group.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
