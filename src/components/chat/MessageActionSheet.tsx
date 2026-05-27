@@ -53,6 +53,9 @@ interface MessageActionSheetProps {
   messageText?: string;
   hasImage?: boolean;
   onReply: () => void;
+  /** Optional. When provided, a "Forward" action appears in the sheet. */
+  canForward?: boolean;
+  onForward?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
