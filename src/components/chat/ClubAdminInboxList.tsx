@@ -88,11 +88,13 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
         }
       }
 
-      return convs.map((c) => {
+      return convs.flatMap((c) => {
+        const last = latestByConv.get(c.id);
+        // Hide empty conversations — only show threads where a member has actually messaged
+        if (!last) return [];
         const club = clubMap.get(c.club_id) as any;
         const profile = profileMap.get(c.member_user_id) as any;
-        const last = latestByConv.get(c.id);
-        return {
+        return [{
           id: c.id,
           club_id: c.club_id,
           member_user_id: c.member_user_id,
@@ -104,8 +106,9 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
           last_text: last?.text ?? null,
           last_image: last?.image_url ?? null,
           last_created_at: last?.created_at ?? c.updated_at,
-        };
+        }];
       });
+
     },
   });
 
