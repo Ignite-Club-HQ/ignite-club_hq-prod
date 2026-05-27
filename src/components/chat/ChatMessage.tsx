@@ -32,6 +32,7 @@ import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ForwardMessageSheet } from "@/components/chat/ForwardMessageSheet";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { isMembershipSystemText } from "@/lib/systemMessagePatterns";
 import { InlineRsvpActions } from "@/components/chat/InlineRsvpActions";
