@@ -628,6 +628,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         pinLimitReached={pinLimitReached}
         onPin={onPin ? () => { onPin(msg.id); closeActionUi(); } : undefined}
         onUnpin={onUnpin ? () => { onUnpin(msg.id); closeActionUi(); } : undefined}
+        canForward={!msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
+        onForward={() => { setShowForwardSheet(true); closeActionUi(); }}
+      />
+      <ForwardMessageSheet
+        open={showForwardSheet}
+        onOpenChange={setShowForwardSheet}
+        excludeGroupId={msg.group_id}
+        source={{
+          text: msg.text ?? "",
+          imageUrl: msg.image_url,
+          authorId: msg.author_id,
+        }}
       />
       {showFullscreenImage && msg.image_url && (
         <FullscreenImageViewer
