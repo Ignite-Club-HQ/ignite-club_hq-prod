@@ -2724,9 +2724,9 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Incoming "Contact Club Admin" threads for club admins */}
-        {!showSkeletonLoading && (
-          <ClubAdminInboxList clubFilter={activeClubFilter} />
+        {/* Incoming "Contact Club Admin" threads for club admins — shown as a dedicated "Admin Groups" section under the Groups tab */}
+        {!showSkeletonLoading && (typeFilter === 'all' || typeFilter === 'groups') && (
+          <ClubAdminInboxList clubFilter={activeClubFilter} withSectionHeader />
         )}
 
         {/* Contact Club - Pro feature */}

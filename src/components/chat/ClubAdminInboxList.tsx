@@ -10,6 +10,8 @@ import { formatTimeShort } from "@/lib/formatTimeShort";
 interface ClubAdminInboxListProps {
   /** Optional: limit to a single active club. */
   clubFilter?: string | null;
+  /** Render a "Admin Groups" section header above the list (only when non-empty). */
+  withSectionHeader?: boolean;
 }
 
 interface ConversationRow {
@@ -31,7 +33,7 @@ interface ConversationRow {
  * club_admin of one or more clubs. Lets admins reply to messages members
  * sent via the home-screen "Contact Club" button.
  */
-export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListProps) {
+export default function ClubAdminInboxList({ clubFilter, withSectionHeader = false }: ClubAdminInboxListProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -116,6 +118,15 @@ export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListPro
 
   return (
     <>
+      {withSectionHeader && (
+        <div className="pt-3">
+          <div className="flex items-center gap-2 pb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Admin Groups
+            </span>
+          </div>
+        </div>
+      )}
       {conversations.map((conv) => {
         const preview = conv.last_text?.trim()
           ? conv.last_text
