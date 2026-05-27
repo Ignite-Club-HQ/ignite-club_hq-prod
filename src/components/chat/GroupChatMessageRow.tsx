@@ -634,7 +634,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         pinLimitReached={pinLimitReached}
         onPin={onPin ? () => { onPin(msg.id); closeActionUi(); } : undefined}
         onUnpin={onUnpin ? () => { onUnpin(msg.id); closeActionUi(); } : undefined}
-        canForward={!msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
+        canForward={allowForwarding && !msg.is_system_message && !msg.id.startsWith("temp-") && !msg.id.startsWith("queued-")}
         onForward={() => { setShowForwardSheet(true); closeActionUi(); }}
       />
       <ForwardMessageSheet
