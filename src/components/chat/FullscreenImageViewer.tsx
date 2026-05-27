@@ -437,6 +437,23 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
               <Download className="h-4 w-4 mr-2" />
               Download
             </DropdownMenuItem>
+            {onForward && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  installTapShield();
+                  onClose();
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => onForward(), 60);
+                    });
+                  });
+                }}
+              >
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </DropdownMenuItem>
+            )}
             {showActions && onReport && (
               <DropdownMenuItem
                 onSelect={(e) => {
