@@ -132,7 +132,10 @@ export function ForwardMessageSheet({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-3">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {isLoading ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
