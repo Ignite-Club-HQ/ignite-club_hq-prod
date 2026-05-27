@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical } from "lucide-react";
+import { ArrowLeft, Download, Flag, ShieldAlert, MoreVertical, Forward } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
