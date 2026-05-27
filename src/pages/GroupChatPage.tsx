@@ -419,7 +419,7 @@ export default function GroupChatPage() {
       // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
       const { data: rawMessages, error } = await supabase
         .from("group_messages")
-        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, deleted_at, is_system_message")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, deleted_at, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("group_id", groupId)
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
@@ -819,7 +819,7 @@ export default function GroupChatPage() {
       
       const { data: olderData, error } = await supabase
         .from("group_messages")
-        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("group_id", groupId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -1610,7 +1610,7 @@ export default function GroupChatPage() {
         scope: { group_id: groupId! },
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message",
+        selectColumns: "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
       })) as GroupMessage[],
   });
 

@@ -471,7 +471,7 @@ export default function TeamChatPage() {
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name, is_system_message")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -909,7 +909,7 @@ export default function TeamChatPage() {
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -1452,7 +1452,7 @@ export default function TeamChatPage() {
         query: q,
         signal,
         selectColumns:
-          "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message",
+          "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
         hasAnnouncements: true,
       })) as Message[],
   });
