@@ -33,7 +33,7 @@ interface ConversationRow {
  * club_admin of one or more clubs. Lets admins reply to messages members
  * sent via the home-screen "Contact Club" button.
  */
-export default function ClubAdminInboxList({ clubFilter }: ClubAdminInboxListProps) {
+export default function ClubAdminInboxList({ clubFilter, withSectionHeader = false }: ClubAdminInboxListProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
