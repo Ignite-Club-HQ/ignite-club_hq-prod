@@ -121,6 +121,9 @@ interface GroupMessage {
   group_id: string;
   reply_to_id: string | null;
   is_system_message?: boolean;
+  forwarded_from_user_id?: string | null;
+  forwarded_at?: string | null;
+  forwarded_source_label?: string | null;
   author?: {
     display_name: string | null;
     avatar_url: string | null;
@@ -144,6 +147,7 @@ interface ChatGroup {
   membership_mode: string | null;
   category: string | null;
   join_policy: string | null;
+  allow_forwarding?: boolean;
 }
 
 interface MessageReaction {
